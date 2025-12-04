@@ -2,14 +2,35 @@ package com.ayaan.dealora.ui.presentation.auth
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,14 +45,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
-import com.ayaan.dealora.ui.theme.*
+import com.ayaan.dealora.ui.theme.DealoraBackground
+import com.ayaan.dealora.ui.theme.DealoraPrimary
+import com.ayaan.dealora.ui.theme.DealoraRed
+import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignUpScreen(
-    navController: NavController,
-    onSignUpClick: () -> Unit = {},
-    onLoginClick: () -> Unit = {}
+    navController: NavController, onSignUpClick: () -> Unit = {}, onLoginClick: () -> Unit = {}
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -48,8 +70,7 @@ fun SignUpScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(230.dp),
-            contentAlignment = Alignment.Center
+                .height(230.dp), contentAlignment = Alignment.Center
         ) {
             // Placeholder for banner drawable (R.drawable.banner_bg)
             Image(
@@ -97,10 +118,7 @@ fun SignUpScreen(
                     withStyle(style = SpanStyle(color = DealoraRed)) {
                         append("*")
                     }
-                },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
+                }, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color.Black
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -127,10 +145,7 @@ fun SignUpScreen(
                     withStyle(style = SpanStyle(color = DealoraRed)) {
                         append("*")
                     }
-                },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
+                }, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color.Black
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -158,10 +173,7 @@ fun SignUpScreen(
                     withStyle(style = SpanStyle(color = DealoraRed)) {
                         append("*")
                     }
-                },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
+                }, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color.Black
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -210,7 +222,15 @@ fun SignUpScreen(
             }
 
             Spacer(modifier = Modifier.height(48.dp))
+        }
 
+        Spacer(modifier = Modifier.weight(2f))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp)
+        ) {
             // Sign Up Button
             Button(
                 onClick = onSignUpClick,
@@ -220,12 +240,10 @@ fun SignUpScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DealoraPrimary
                 ),
-                shape = RoundedCornerShape(28.dp)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Sign Up",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "Sign Up", fontSize = 18.sp, fontWeight = FontWeight.Bold
                 )
             }
 
@@ -233,25 +251,19 @@ fun SignUpScreen(
 
             // Login Link
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                modifier = Modifier.fillMaxWidth().clickable{
+                    onLoginClick
+                }, horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Already have an account? ",
-                    fontSize = 14.sp,
-                    color = Color.Black
+                    text = "Already have an account? ", fontSize = 14.sp, color = Color.Black
                 )
-                TextButton(
-                    onClick = onLoginClick,
-                    contentPadding = PaddingValues(0.dp)
-                ) {
                     Text(
                         text = "Login",
                         fontSize = 14.sp,
                         color = DealoraPrimary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
                     )
-                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
