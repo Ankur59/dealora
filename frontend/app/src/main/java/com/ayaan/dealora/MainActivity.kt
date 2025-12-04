@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
-import com.ayaan.dealora.presentation.navigation.DealoraApp
+import com.ayaan.dealora.ui.presentation.navigation.DealoraApp
 import com.ayaan.dealora.ui.theme.DealoraTheme
 
 class MainActivity : ComponentActivity() {
