@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "155909906397",
+    "project_id": "net-zero-campus",
+    "storage_bucket": "net-zero-campus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:155909906397:android:61989b0d7241bd1cdea034",
+        "android_client_info": {
+          "package_name": "com.ayaan.dealora"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3n_CI-ZYy6cUEBywuJ1CzUhheFkN5Qx0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.components
+package com.ayaan.dealora.ui.presentation.common.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,7 +35,7 @@ fun DealoraTextField(
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         placeholder = {
-            androidx.compose.material3.Text(text = placeholder)
+            Text(text = placeholder)
         },
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         readOnly = readOnly,
