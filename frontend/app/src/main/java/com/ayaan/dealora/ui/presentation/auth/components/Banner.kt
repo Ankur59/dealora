@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -22,7 +23,9 @@ import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @Composable
-fun Banner(){
+fun Banner(
+    painter: Painter= painterResource(id = R.drawable.create_account_banner)
+){
     // Top Banner with stars
     Box(
         modifier = Modifier
@@ -31,7 +34,7 @@ fun Banner(){
     ) {
         // Placeholder for banner drawable (R.drawable.banner_bg)
         Image(
-            painter = painterResource(id = R.drawable.create_account_banner),
+            painter = painter,
             contentDescription = "Banner",
             modifier = Modifier.fillMaxSize()
         )

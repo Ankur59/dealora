@@ -6,6 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ayaan.dealora.ui.presentation.auth.LoginScreen
 import com.ayaan.dealora.ui.presentation.auth.SignUpScreen
 
 @Composable
@@ -14,7 +15,11 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         navController = navController, startDestination = Route.SignUp.path, modifier = modifier
     ){
         composable(Route.SignUp.path) {
-            SignUpScreen(navController)
+            SignUpScreen(
+                navController=navController,
+                onLoginClick = { navController.navigate(Route.SignIn.path) }
+            )
         }
+        composable(Route.SignIn.path) { LoginScreen(navController) }
     }
 }

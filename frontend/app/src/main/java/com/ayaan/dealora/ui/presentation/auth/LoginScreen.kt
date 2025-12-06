@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,16 +36,16 @@ import com.ayaan.dealora.ui.presentation.auth.components.Banner
 import com.ayaan.dealora.ui.presentation.common.components.DealoraButton
 import com.ayaan.dealora.ui.presentation.common.components.DealoraLabeledTextField
 import com.ayaan.dealora.ui.presentation.common.components.OtpInputField
+import com.ayaan.dealora.ui.theme.DealoraGreen
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraWhite
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SignUpScreen(
+fun LoginScreen(
     navController: NavController, onSignUpClick: () -> Unit = {}, onLoginClick: () -> Unit = {}
-) {
-    var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
+){
+//    var name by remember { mutableStateOf("") }
+//    var email by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var isOtpScreen by remember { mutableStateOf(false) }
     var otpValue by remember { mutableStateOf("") }
@@ -59,7 +58,9 @@ fun SignUpScreen(
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Banner()
+        Banner(
+            painter = painterResource(R.drawable.hey_welcome_banner)
+        )
 
         // SWITCH BETWEEN FORM UI & OTP UI
         if (!isOtpScreen) {
@@ -70,19 +71,19 @@ fun SignUpScreen(
                     .padding(top = 32.dp)
             ) {
 
-                DealoraLabeledTextField(
-                    label = "Name", value = name, onValueChange = { name = it }, isRequired = true
-                )
+//                DealoraLabeledTextField(
+//                    label = "Name", value = name, onValueChange = { name = it }, isRequired = true
+//                )
 
-                Spacer(modifier = Modifier.height(24.dp))
+//                Spacer(modifier = Modifier.height(24.dp))
 
-                DealoraLabeledTextField(
-                    label = "Email",
-                    value = email,
-                    onValueChange = { email = it },
-                    isRequired = true,
-                    keyboardType = KeyboardType.Email
-                )
+//                DealoraLabeledTextField(
+//                    label = "Email",
+//                    value = email,
+//                    onValueChange = { email = it },
+//                    isRequired = true,
+//                    keyboardType = KeyboardType.Email
+//                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -146,7 +147,7 @@ fun SignUpScreen(
                 Row {
                     Text(text = "Didn't receive the code?", color = Color.Gray, fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "Resend Code", color = DealoraPrimary, fontSize = 14.sp)
+                    Text(text = "Resend Code", color = DealoraGreen, fontSize = 14.sp)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -162,14 +163,17 @@ fun SignUpScreen(
         ) {
             // Sign Up Button
             DealoraButton(
-                text = if (isOtpScreen) "Verify" else "Sign Up", onClick = {
+                text = if (isOtpScreen) "Verify" else "Sign In", onClick = {
                     if (!isOtpScreen) {
                         // Switch to OTP UI
                         isOtpScreen = true
                     } else {
                         onSignUpClick()
                     }
-                })
+                },
+                contentColor = Color.White,
+                backgroundColor=DealoraGreen
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -187,7 +191,7 @@ fun SignUpScreen(
                 Text(
                     text = "Login",
                     fontSize = 14.sp,
-                    color = DealoraPrimary,
+                    color = DealoraGreen,
                     fontWeight = FontWeight.Bold,
                 )
             }
