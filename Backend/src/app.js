@@ -20,8 +20,14 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb', strict: true }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+app.use((req, res, next) => {
+    req.setTimeout(30000);
+    res.setTimeout(30000);
+    next();
+});
 
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
@@ -36,7 +42,7 @@ const limiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {
-        logger.warn(`Rate limit exceeded: ${req.ip}`);
+        logger.warn(`Rate limit exceeded from IP: ${req.ip}`);
         errorResponse(res, STATUS_CODES.TOO_MANY_REQUESTS, ERROR_MESSAGES.TOO_MANY_REQUESTS);
     },
 });
