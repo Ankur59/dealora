@@ -1,15 +1,3 @@
-/**
- * Application Constants
- * 
- * Central location for all application-wide constants.
- * Includes status codes, messages, and configuration values.
- * 
- * @module config/constants
- */
-
-/**
- * HTTP Status Codes
- */
 const STATUS_CODES = {
     OK: 200,
     CREATED: 201,
@@ -25,9 +13,6 @@ const STATUS_CODES = {
     SERVICE_UNAVAILABLE: 503,
 };
 
-/**
- * Success Messages
- */
 const SUCCESS_MESSAGES = {
     SIGNUP_SUCCESS: 'Signup successful',
     LOGIN_SUCCESS: 'Login successful',
@@ -36,11 +21,7 @@ const SUCCESS_MESSAGES = {
     USER_ALREADY_REGISTERED: 'User already registered',
 };
 
-/**
- * Error Messages
- */
 const ERROR_MESSAGES = {
-    // Authentication errors
     USER_NOT_FOUND: 'User not found',
     USER_ALREADY_EXISTS: 'User already exists',
     EMAIL_ALREADY_EXISTS: 'Email already registered',
@@ -49,49 +30,34 @@ const ERROR_MESSAGES = {
     UNAUTHORIZED: 'Unauthorized access',
     TOKEN_EXPIRED: 'Token has expired',
     INVALID_TOKEN: 'Invalid token',
-
-    // Validation errors
     VALIDATION_ERROR: 'Validation failed',
     INVALID_INPUT: 'Invalid input provided',
     INVALID_EMAIL: 'Invalid email format',
     INVALID_PHONE: 'Invalid phone number format',
     INVALID_UID: 'Invalid Firebase UID',
-
-    // Server errors
     INTERNAL_SERVER_ERROR: 'Internal server error',
     DATABASE_ERROR: 'Database operation failed',
     SERVICE_UNAVAILABLE: 'Service temporarily unavailable',
-
-    // Generic errors
     NOT_FOUND: 'Resource not found',
     ROUTE_NOT_FOUND: 'Route not found',
     TOO_MANY_REQUESTS: 'Too many requests, please try again later',
 };
 
-/**
- * User Constants
- */
 const USER_CONSTANTS = {
     NAME_MIN_LENGTH: 2,
     NAME_MAX_LENGTH: 100,
     PASSWORD_MIN_LENGTH: 8,
 };
 
-/**
- * Rate Limiting Configuration
- */
 const RATE_LIMIT = {
-    WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+    WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
 };
 
-/**
- * Database Configuration
- */
 const DB_CONFIG = {
     MAX_RETRIES: 5,
-    RETRY_DELAY: 5000, // 5 seconds
-    CONNECTION_TIMEOUT: 30000, // 30 seconds
+    RETRY_DELAY: 5000,
+    CONNECTION_TIMEOUT: 30000,
 };
 
 module.exports = {
