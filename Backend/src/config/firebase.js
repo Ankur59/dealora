@@ -14,21 +14,26 @@ const initializeFirebase = () => {
         const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
         if (projectId && privateKey && clientEmail) {
-            admin.initializeApp({
-                credential: admin.credential.cert({
-                    projectId,
-                    privateKey,
-                    clientEmail,
-                }),
-            });
-            logger.info('🔥 Firebase initialized');
+            try {
+                admin.initializeApp({
+                    credential: admin.credential.cert({
+                        projectId,
+                        privateKey,
+                        clientEmail,
+                    }),
+                });
+                logger.info('Firebase initialized successfully');
+            } catch (initError) {
+                logger.warn('Firebase not initialized - Invalid credentials');
+                return null;
+            }
         } else {
-            logger.warn('⚠️  Missing Firebase credentials');
+            logger.warn('Firebase not initialized - Missing credentials');
         }
 
         return admin;
     } catch (error) {
-        logger.error('❌ Firebase initialization failed:', error.message);
+        logger.warn('Firebase not initialized');
         return null;
     }
 };
