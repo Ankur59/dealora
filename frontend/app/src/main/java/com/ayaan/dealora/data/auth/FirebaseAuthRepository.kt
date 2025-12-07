@@ -121,7 +121,7 @@ class FirebaseAuthRepository @Inject constructor(
                             }
 
                             // Call backend API after successful Firebase auth
-                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                            CoroutineScope(Dispatchers.IO).launch {
                                 try {
                                     val backendResult = if (isLogin) {
                                         // Login flow
@@ -200,5 +200,16 @@ class FirebaseAuthRepository @Inject constructor(
                 Log.d(TAG, "verifyOtp: Coroutine cancelled")
             }
         }
+
+    override fun logout() {
+        try {
+            Log.d(TAG, "logout: Signing out user ${firebaseAuth.currentUser?.uid}")
+            firebaseAuth.signOut()
+            currentVerificationId = null
+            Log.d(TAG, "logout: User signed out successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "logout: Error during logout", e)
+        }
+    }
 }
 

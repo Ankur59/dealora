@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            DealoraTheme {
+            DealoraTheme(darkTheme = false) {
                 Scaffold { innerPadding ->
                     DealoraApp(
                         navController = rememberNavController(),

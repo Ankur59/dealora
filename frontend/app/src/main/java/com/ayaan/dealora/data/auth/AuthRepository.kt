@@ -17,5 +17,7 @@ interface AuthRepository {
         email: String? = null,
         phoneNumber: String? = null
     ): AuthResult
+
+    fun logout()
 }
 
