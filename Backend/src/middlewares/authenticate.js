@@ -9,48 +9,15 @@
  * @module middlewares/authenticate
  */
 
-const admin = require('firebase-admin');
 const { UnauthorizedError, NotFoundError } = require('./errorHandler');
 const { ERROR_MESSAGES } = require('../config/constants');
 const logger = require('../utils/logger');
 const User = require('../models/User');
+const firebaseAdmin = require('../config/firebase');
 
-/**
- * Initialize Firebase Admin SDK
- * 
- * Reads credentials from environment variables.
- * Only initializes if Firebase credentials are provided.
- */
-let firebaseInitialized = false;
+// Check if Firebase is available
+const firebaseInitialized = !!firebaseAdmin && firebaseAdmin.apps.length > 0;
 
-const initializeFirebase = () => {
-    if (firebaseInitialized) return;
-
-    try {
-        const projectId = process.env.FIREBASE_PROJECT_ID;
-        const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-
-        if (projectId && privateKey && clientEmail) {
-            admin.initializeApp({
-                credential: admin.credential.cert({
-                    projectId,
-                    privateKey,
-                    clientEmail,
-                }),
-            });
-            firebaseInitialized = true;
-            logger.info('🔥 Firebase Admin SDK initialized successfully');
-        } else {
-            logger.warn('⚠️  Firebase credentials not found. Token verification will be skipped in development.');
-        }
-    } catch (error) {
-        logger.error('❌ Firebase Admin SDK initialization failed:', error.message);
-    }
-};
-
-// Initialize Firebase on module load
-initializeFirebase();
 
 /**
  * Authentication Middleware
@@ -102,7 +69,7 @@ const authenticate = async (req, res, next) => {
         }
 
         // Verify Firebase ID token
-        const decodedToken = await admin.auth().verifyIdToken(token);
+        const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
         const uid = decodedToken.uid;
 
         logger.info(`🔐 Token verified for UID: ${uid}`);
