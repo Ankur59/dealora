@@ -1,7 +1,10 @@
 require('dotenv').config();
 const app = require('./src/app');
 const { connectDB } = require('./src/config/database');
+const { validateEnv } = require('./src/config/env');
 const logger = require('./src/utils/logger');
+
+validateEnv();
 
 process.on('uncaughtException', (err) => {
     logger.error('UNCAUGHT EXCEPTION! Shutting down...');
