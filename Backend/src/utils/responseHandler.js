@@ -1,6 +1,7 @@
 const successResponse = (res, statusCode, message, data = null) => {
     const response = {
         success: true,
+        statusCode,
         message,
     };
 
@@ -14,6 +15,7 @@ const successResponse = (res, statusCode, message, data = null) => {
 const errorResponse = (res, statusCode, message, errors = null) => {
     const response = {
         success: false,
+        statusCode,
         message,
     };
 
