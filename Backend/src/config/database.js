@@ -15,11 +15,14 @@ const connectDB = async () => {
         const options = {
             serverSelectionTimeoutMS: DB_CONFIG.CONNECTION_TIMEOUT,
             socketTimeoutMS: 45000,
+            maxPoolSize: 10,
+            minPoolSize: 2,
+            maxIdleTimeMS: 30000,
         };
 
         const conn = await mongoose.connect(mongoUri, options);
 
-        logger.info(`MongoDB Connected: ${conn.connection.host}`);
+        logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
         retryCount = 0;
         return conn.connection;
     } catch (error) {
@@ -38,7 +41,7 @@ const connectDB = async () => {
     }
 };
 
-mongoose.connection.on('connected', () => logger.info('Mongoose connected'));
+mongoose.connection.on('connected', () => logger.info('✅ Mongoose connected'));
 mongoose.connection.on('error', (err) => logger.error(`Mongoose error: ${err.message}`));
 mongoose.connection.on('disconnected', () => logger.warn('Mongoose disconnected'));
 
