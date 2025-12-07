@@ -124,6 +124,8 @@ class SignUpViewModel @Inject constructor(
     fun verifyOtp() {
         val verificationId = FirebaseAuthRepository.Companion.currentVerificationId
         val otpCode = _otp.value
+        val phone = _phoneNumber.value
+        val fullPhoneNumber = "+91$phone"
 
         if (verificationId == null) {
             _uiState.update { it.copy(errorMessage = "Verification ID is missing. Please resend OTP.") }
@@ -138,9 +140,16 @@ class SignUpViewModel @Inject constructor(
         _uiState.update { it.copy(isOtpVerifying = true, errorMessage = null) }
 
         viewModelScope.launch {
-            when (val result = authRepository.verifyOtp(verificationId, otpCode)) {
+            when (val result = authRepository.verifyOtp(
+                verificationId = verificationId,
+                otpCode = otpCode,
+                isLogin = false,
+                name = _name.value,
+                email = _email.value,
+                phoneNumber = fullPhoneNumber
+            )) {
                 is AuthResult.Success -> {
-                    Log.d(TAG, "OTP verified successfully")
+                    Log.d(TAG, "OTP verified successfully, user: ${result.user.name}")
                     _uiState.update {
                         it.copy(
                             isOtpVerifying = false,

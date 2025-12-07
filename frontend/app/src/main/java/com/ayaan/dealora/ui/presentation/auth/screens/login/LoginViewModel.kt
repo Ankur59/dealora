@@ -112,9 +112,13 @@ class LoginViewModel @Inject constructor(
         _uiState.update { it.copy(isOtpVerifying = true, errorMessage = null) }
 
         viewModelScope.launch {
-            when (val result = authRepository.verifyOtp(verificationId, otpCode)) {
+            when (val result = authRepository.verifyOtp(
+                verificationId = verificationId,
+                otpCode = otpCode,
+                isLogin = true
+            )) {
                 is AuthResult.Success -> {
-                    Log.d(TAG, "OTP verified successfully")
+                    Log.d(TAG, "OTP verified successfully, user: ${result.user.name}")
                     _uiState.update {
                         it.copy(
                             isOtpVerifying = false,

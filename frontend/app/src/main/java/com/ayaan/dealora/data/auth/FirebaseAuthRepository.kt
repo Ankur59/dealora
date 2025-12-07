@@ -2,6 +2,8 @@ package com.ayaan.dealora.data.auth
 
 import android.app.Activity
 import android.util.Log
+import com.ayaan.dealora.data.api.BackendAuthRepository
+import com.ayaan.dealora.data.api.BackendResult
 import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuth
@@ -9,13 +11,17 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.coroutines.resume
 
 class FirebaseAuthRepository @Inject constructor(
-    private val firebaseAuth: FirebaseAuth
+    private val firebaseAuth: FirebaseAuth,
+    private val backendAuthRepository: BackendAuthRepository
 ) : AuthRepository {
 
     companion object {
@@ -85,7 +91,14 @@ class FirebaseAuthRepository @Inject constructor(
             }
         }
 
-    override suspend fun verifyOtp(verificationId: String, otpCode: String): AuthResult =
+    override suspend fun verifyOtp(
+        verificationId: String,
+        otpCode: String,
+        isLogin: Boolean,
+        name: String?,
+        email: String?,
+        phoneNumber: String?
+    ): AuthResult =
         suspendCancellableCoroutine { continuation ->
             try {
                 val credential = PhoneAuthProvider.getCredential(verificationId, otpCode)
@@ -93,13 +106,74 @@ class FirebaseAuthRepository @Inject constructor(
                 firebaseAuth.signInWithCredential(credential)
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
-                            Log.d(TAG, "verifyOtp: Sign-in successful for user ${task.result?.user?.uid}")
-                            if (continuation.isActive) {
-                                continuation.resume(AuthResult.Success)
+                            val firebaseUser = task.result?.user
+                            val uid = firebaseUser?.uid
+
+                            Log.d(TAG, "verifyOtp: Firebase sign-in successful for user $uid")
+
+                            if (uid == null) {
+                                if (continuation.isActive) {
+                                    continuation.resume(
+                                        AuthResult.Error("Failed to get user ID from Firebase")
+                                    )
+                                }
+                                return@addOnCompleteListener
+                            }
+
+                            // Call backend API after successful Firebase auth
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                try {
+                                    val backendResult = if (isLogin) {
+                                        // Login flow
+                                        Log.d(TAG, "Calling backend login API for uid: $uid")
+                                        backendAuthRepository.login(uid)
+                                    } else {
+                                        // Signup flow
+                                        if (name.isNullOrBlank() || email.isNullOrBlank() || phoneNumber.isNullOrBlank()) {
+                                            if (continuation.isActive) {
+                                                continuation.resume(
+                                                    AuthResult.Error("Missing required user information for signup")
+                                                )
+                                            }
+                                            return@launch
+                                        }
+                                        Log.d(TAG, "Calling backend signup API for uid: $uid")
+                                        backendAuthRepository.signup(uid, name, email, phoneNumber)
+                                    }
+
+                                    when (backendResult) {
+                                        is BackendResult.Success -> {
+                                            Log.d(TAG, "Backend API call successful: ${backendResult.message}")
+                                            if (continuation.isActive) {
+                                                continuation.resume(
+                                                    AuthResult.Success(backendResult.data.user)
+                                                )
+                                            }
+                                        }
+                                        is BackendResult.Error -> {
+                                            Log.e(TAG, "Backend API call failed: ${backendResult.message}", backendResult.throwable)
+                                            if (continuation.isActive) {
+                                                continuation.resume(
+                                                    AuthResult.Error(
+                                                        backendResult.message,
+                                                        backendResult.throwable
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Exception during backend API call", e)
+                                    if (continuation.isActive) {
+                                        continuation.resume(
+                                            AuthResult.Error("Failed to complete authentication: ${e.localizedMessage}", e)
+                                        )
+                                    }
+                                }
                             }
                         } else {
                             val exception = task.exception
-                            Log.e(TAG, "verifyOtp: Sign-in failed", exception)
+                            Log.e(TAG, "verifyOtp: Firebase sign-in failed", exception)
 
                             val errorMessage = when (exception) {
                                 is FirebaseAuthInvalidCredentialsException ->

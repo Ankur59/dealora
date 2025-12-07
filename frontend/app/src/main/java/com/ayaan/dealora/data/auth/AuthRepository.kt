@@ -11,7 +11,11 @@ interface AuthRepository {
 
     suspend fun verifyOtp(
         verificationId: String,
-        otpCode: String
+        otpCode: String,
+        isLogin: Boolean,
+        name: String? = null,
+        email: String? = null,
+        phoneNumber: String? = null
     ): AuthResult
 }
 
