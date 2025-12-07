@@ -19,33 +19,33 @@ const connectDB = async () => {
 
         const conn = await mongoose.connect(mongoUri, options);
 
-        logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
+        logger.info(`MongoDB Connected: ${conn.connection.host}`);
         retryCount = 0;
         return conn.connection;
     } catch (error) {
-        logger.error(`❌ MongoDB Connection Error: ${error.message}`);
+        logger.error(`MongoDB Connection Error: ${error.message}`);
 
         if (retryCount < DB_CONFIG.MAX_RETRIES) {
             retryCount++;
             const delay = DB_CONFIG.RETRY_DELAY * retryCount;
-            logger.warn(`🔄 Retrying connection... Attempt ${retryCount}/${DB_CONFIG.MAX_RETRIES}`);
+            logger.warn(`Retrying connection... Attempt ${retryCount}/${DB_CONFIG.MAX_RETRIES}`);
             await new Promise((resolve) => setTimeout(resolve, delay));
             return connectDB();
         } else {
-            logger.error(`💥 Max retry attempts reached. Exiting...`);
+            logger.error('Max retry attempts reached. Exiting...');
             process.exit(1);
         }
     }
 };
 
-mongoose.connection.on('connected', () => logger.info('🔗 Mongoose connected'));
-mongoose.connection.on('error', (err) => logger.error(`🚨 Mongoose error: ${err.message}`));
-mongoose.connection.on('disconnected', () => logger.warn('⚠️  Mongoose disconnected'));
+mongoose.connection.on('connected', () => logger.info('Mongoose connected'));
+mongoose.connection.on('error', (err) => logger.error(`Mongoose error: ${err.message}`));
+mongoose.connection.on('disconnected', () => logger.warn('Mongoose disconnected'));
 
 process.on('SIGINT', async () => {
     try {
         await mongoose.connection.close();
-        logger.info('📴 Mongoose connection closed');
+        logger.info('Mongoose connection closed');
         process.exit(0);
     } catch (err) {
         logger.error(`Error closing mongoose: ${err.message}`);
