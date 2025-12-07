@@ -1,5 +1,12 @@
 const winston = require('winston');
 const path = require('path');
+const fs = require('fs');
+
+const logsDir = path.join(process.cwd(), 'logs');
+
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+}
 
 const logFormat = winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -19,8 +26,6 @@ const consoleFormat = winston.format.combine(
         return msg;
     })
 );
-
-const logsDir = path.join(process.cwd(), 'logs');
 
 const transports = [
     new winston.transports.Console({

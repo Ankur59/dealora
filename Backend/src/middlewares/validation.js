@@ -1,25 +1,8 @@
-/**
- * Request Validation Middleware
- * 
- * Uses express-validator to validate incoming request data.
- * Provides validation for signup, login, and profile update requests.
- * 
- * @module middlewares/validation
- */
-
 const { body, validationResult } = require('express-validator');
 const { errorResponse } = require('../utils/responseHandler');
 const { STATUS_CODES, ERROR_MESSAGES, USER_CONSTANTS } = require('../config/constants');
 const { isValidPhoneNumber, isValidUrl } = require('../utils/validators');
 
-/**
- * Handle validation errors
- * Extracts validation errors and sends formatted response
- * 
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
- */
 const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
 
@@ -41,15 +24,6 @@ const handleValidationErrors = (req, res, next) => {
     next();
 };
 
-/**
- * Validation rules for user signup
- * 
- * Validates:
- * - uid: Required, non-empty string
- * - name: Required, 2-100 characters, alphabetic with spaces
- * - email: Required, valid email format
- * - phone: Required, valid Indian phone format
- */
 const validateSignup = [
     body('uid')
         .trim()
@@ -91,12 +65,6 @@ const validateSignup = [
     handleValidationErrors,
 ];
 
-/**
- * Validation rules for user login
- * 
- * Validates:
- * - uid: Required, non-empty string
- */
 const validateLogin = [
     body('uid')
         .trim()
@@ -110,13 +78,6 @@ const validateLogin = [
     handleValidationErrors,
 ];
 
-/**
- * Validation rules for profile update
- * 
- * Validates:
- * - name: Optional, 2-100 characters if provided
- * - profilePicture: Optional, valid URL if provided
- */
 const validateProfileUpdate = [
     body('name')
         .optional()
