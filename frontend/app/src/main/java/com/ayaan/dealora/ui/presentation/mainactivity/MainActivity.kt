@@ -1,4 +1,4 @@
-package com.ayaan.dealora
+package com.ayaan.dealora.ui.presentation.mainactivity
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
