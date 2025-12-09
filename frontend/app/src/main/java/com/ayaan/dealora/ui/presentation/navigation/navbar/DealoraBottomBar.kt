@@ -24,19 +24,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.ayaan.dealora.R
+import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.BottomBarBackground
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraTextGray
 
 @Composable
 fun DealoraBottomBar(
-    selectedIndex: Int = 1, onItemClick: (Int) -> Unit = {}
+    selectedIndex: Int = 1,
+    navController: NavController
 ) {
     val items = listOf(
-        BottomBarItem(R.drawable.dashboard_48, "Dashboard"),
-        BottomBarItem(R.drawable.add_coupon_48, "Add Coupon"),
-        BottomBarItem(R.drawable.redeemed_coupon_48, "Redeemed\nCoupons")
+        BottomBarItem(R.drawable.dashboard_48, "Dashboard", {navController.navigate(Route.AddCoupon.path)}),
+        BottomBarItem(R.drawable.add_coupon_48, "Add Coupon",{navController.navigate(Route.AddCoupon.path)}),
+        BottomBarItem(R.drawable.redeemed_coupon_48, "Redeemed\nCoupons",{navController.navigate(Route.AddCoupon.path)})
     )
 
     Box(
@@ -61,7 +64,7 @@ fun DealoraBottomBar(
                     item = item,
                     isSelected = index == selectedIndex,
                     isCenter = index == 1,
-                    onClick = { onItemClick(index) })
+                    onClick = { item.onClick() })
             }
         }
     }
@@ -112,5 +115,5 @@ fun BottomBarIcon(
 }
 
 data class BottomBarItem(
-    val resourceId: Int, val label: String
+    val resourceId: Int, val label: String, val onClick: () -> Unit={}
 )

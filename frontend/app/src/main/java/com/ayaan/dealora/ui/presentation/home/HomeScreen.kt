@@ -44,7 +44,9 @@ fun HomeScreen(
         contentWindowInsets = WindowInsets(0),
         containerColor = DealoraBackground,
         floatingActionButton = {
-            DealoraBottomBar()
+            DealoraBottomBar(
+                navController=navController
+            )
         },
         floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->

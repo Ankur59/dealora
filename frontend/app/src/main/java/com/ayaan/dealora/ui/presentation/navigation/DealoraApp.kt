@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ayaan.dealora.ui.presentation.addcoupon.AddCoupons
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginFormScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginOtpScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginViewModel
@@ -81,9 +82,11 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
             )
         }
 
-        // Home Screen
         composable(Route.Home.path) {
             HomeScreen(navController)
+        }
+        composable(Route.AddCoupon.path) {
+            AddCoupons(navController)
         }
     }
 }
