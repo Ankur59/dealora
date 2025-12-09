@@ -15,13 +15,13 @@ const initializeFirebase = () => {
 
         if (projectId && privateKey && clientEmail) {
             try {
-                admin.initializeApp({
-                    credential: admin.credential.cert({
-                        projectId,
-                        privateKey,
-                        clientEmail,
-                    }),
-                });
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId,
+                    privateKey,
+                    clientEmail,
+                }),
+            });
                 logger.info('✅ Firebase initialized successfully');
             } catch (initError) {
                 logger.warn('⚠️  Firebase not initialized - Invalid credentials');
