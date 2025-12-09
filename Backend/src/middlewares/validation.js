@@ -99,8 +99,98 @@ const validateProfileUpdate = [
     handleValidationErrors,
 ];
 
+const couponValidationRules = [
+    body('couponName')
+        .trim()
+        .notEmpty()
+        .withMessage('Coupon name is required')
+        .isLength({ min: 3, max: 100 })
+        .withMessage('Coupon name must be between 3 and 100 characters'),
+
+    body('description')
+        .trim()
+        .notEmpty()
+        .withMessage('Description is required')
+        .isLength({ min: 10, max: 500 })
+        .withMessage('Description must be between 10 and 500 characters'),
+
+    body('expireBy')
+        .notEmpty()
+        .withMessage('Expiry date is required')
+        .isISO8601()
+        .withMessage('Expiry date must be a valid ISO8601 date')
+        .custom((value) => {
+            const expireDate = new Date(value);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            expireDate.setHours(0, 0, 0, 0);
+
+            if (expireDate <= today) {
+                throw new Error('Expiry date must be a future date');
+            }
+            return true;
+        }),
+
+    body('categoryLabel')
+        .trim()
+        .notEmpty()
+        .withMessage('Category is required')
+        .isIn(['Food', 'Fashion', 'Electronics', 'Travel', 'Health', 'Other'])
+        .withMessage('Category must be one of: Food, Fashion, Electronics, Travel, Health, Other'),
+
+    body('useCouponVia')
+        .trim()
+        .notEmpty()
+        .withMessage('Use coupon via is required')
+        .isIn(['Coupon Code', 'Coupon Visiting Link', 'Both'])
+        .withMessage('Use coupon via must be one of: Coupon Code, Coupon Visiting Link, Both'),
+
+    body('couponCode')
+        .optional()
+        .trim()
+        .isLength({ min: 4, max: 20 })
+        .withMessage('Coupon code must be between 4 and 20 characters'),
+
+    body('couponVisitingLink')
+        .optional()
+        .trim()
+        .custom((value) => {
+            if (value && !isValidUrl(value)) {
+                throw new Error('Coupon visiting link must be a valid URL');
+            }
+            return true;
+        }),
+
+    body('couponDetails')
+        .optional()
+        .trim()
+        .isLength({ max: 1000 })
+        .withMessage('Coupon details cannot exceed 1000 characters'),
+
+    body().custom((value) => {
+        const useCouponVia = value.useCouponVia;
+
+        if (useCouponVia === 'Coupon Code' || useCouponVia === 'Both') {
+            if (!value.couponCode || value.couponCode.trim() === '') {
+                throw new Error('Coupon code is required when useCouponVia is Coupon Code or Both');
+            }
+        }
+
+        if (useCouponVia === 'Coupon Visiting Link' || useCouponVia === 'Both') {
+            if (!value.couponVisitingLink || value.couponVisitingLink.trim() === '') {
+                throw new Error('Coupon visiting link is required when useCouponVia is Coupon Visiting Link or Both');
+            }
+        }
+
+        return true;
+    }),
+
+    handleValidationErrors,
+];
+
 module.exports = {
     validateSignup,
     validateLogin,
     validateProfileUpdate,
+    couponValidationRules,
 };
