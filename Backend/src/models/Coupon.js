@@ -106,27 +106,14 @@ couponSchema.pre('save', function (next) {
         this.couponCode = this.couponCode.toUpperCase().trim();
     }
 
-    if (this.expireBy && new Date(this.expireBy) < new Date()) {
-        if (this.status === 'active') {
+    if (this.expireBy) {
+        const expireDate = new Date(this.expireBy);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        expireDate.setHours(0, 0, 0, 0);
+
+        if (expireDate < today && this.status === 'active') {
             this.status = 'expired';
-        }
-    }
-
-    next();
-});
-
-couponSchema.pre('save', function (next) {
-    const useCouponVia = this.useCouponVia;
-
-    if (useCouponVia === 'Coupon Code' || useCouponVia === 'Both') {
-        if (!this.couponCode || this.couponCode.trim() === '') {
-            return next(new Error('Coupon code is required when useCouponVia is Coupon Code or Both'));
-        }
-    }
-
-    if (useCouponVia === 'Coupon Visiting Link' || useCouponVia === 'Both') {
-        if (!this.couponVisitingLink || this.couponVisitingLink.trim() === '') {
-            return next(new Error('Coupon visiting link is required when useCouponVia is Coupon Visiting Link or Both'));
         }
     }
 
