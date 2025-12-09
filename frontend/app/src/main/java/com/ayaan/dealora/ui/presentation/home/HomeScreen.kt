@@ -29,6 +29,8 @@ import androidx.navigation.NavController
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.theme.*
 import com.ayaan.dealora.R
+import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -36,9 +38,15 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     Scaffold(
-        topBar = { AppTopBar(navController) },
+        topBar = {
+            AppTopBar(navController)
+                 },
         contentWindowInsets = WindowInsets(0),
-        containerColor = DealoraBackground
+        containerColor = DealoraBackground,
+        floatingActionButton = {
+            DealoraBottomBar()
+        },
+        floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
         Column(
             modifier = Modifier
