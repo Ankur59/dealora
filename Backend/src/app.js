@@ -12,6 +12,7 @@ const logger = require('./utils/logger');
 const requestId = require('./middlewares/requestId');
 const sanitize = require('./middlewares/sanitize');
 const authRoutes = require('./routes/authRoutes');
+const couponRoutes = require('./routes/couponRoutes');
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/coupons', couponRoutes);
 
 app.get('/', (req, res) => {
     res.status(200).json({
