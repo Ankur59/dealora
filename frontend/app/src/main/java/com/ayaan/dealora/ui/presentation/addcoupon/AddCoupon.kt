@@ -94,14 +94,15 @@ fun AddCoupons(navController: NavController) {
                     ), modifier = Modifier.align(Alignment.Center)
                 )
             }
-            Spacer(modifier = Modifier.height(15.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
             ) {
                 Text(
-                    text = "Your selected apps are being synced individually.\nPlease wait until all apps are fully synced."
+                    text = "Your selected apps are being synced individually.\nPlease wait until all apps are fully synced.",
+                    lineHeight = 18.sp
                 )
             }
             Column(
@@ -111,7 +112,7 @@ fun AddCoupons(navController: NavController) {
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 20.dp)
             ) {
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Coupon Name Field
                 CouponInputField(

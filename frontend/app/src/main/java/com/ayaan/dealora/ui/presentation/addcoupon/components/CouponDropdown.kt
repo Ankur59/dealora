@@ -1,5 +1,6 @@
 package com.ayaan.dealora.ui.presentation.addcoupon.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,7 +54,9 @@ fun CouponDropdown(
         Spacer(modifier = Modifier.height(8.dp))
 
         ExposedDropdownMenuBox(
-            expanded = expanded, onExpandedChange = { expanded = it }) {
+            expanded = expanded, onExpandedChange = { expanded = it },
+//            modifier = Modifier.background(Color.White)
+        ) {
             OutlinedTextField(
                 value = value,
                 onValueChange = {},
@@ -69,8 +72,8 @@ fun CouponDropdown(
                     )
                 },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF5F5F5),
-                    unfocusedContainerColor = Color(0xFFF5F5F5),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                 ),
