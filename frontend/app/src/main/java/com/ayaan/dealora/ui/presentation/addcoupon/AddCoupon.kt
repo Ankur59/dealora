@@ -1,33 +1,45 @@
 package com.ayaan.dealora.ui.presentation.addcoupon
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.addcoupon.components.AddCouponTopBar
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDatePicker
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDropdown
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponInputField
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponPreviewCard
 import com.ayaan.dealora.ui.presentation.addcoupon.components.UseCouponViaSection
-import com.ayaan.dealora.ui.theme.*
+import com.ayaan.dealora.ui.theme.DealoraPrimary
+import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @Composable
 fun AddCoupons(navController: NavController) {
@@ -44,9 +56,7 @@ fun AddCoupons(navController: NavController) {
             // Top Bar
             AddCouponTopBar(
                 onBackClick = { navController.navigateUp() })
-        },
-        contentWindowInsets = WindowInsets(0.dp),
-        containerColor = DealoraWhite
+        }, contentWindowInsets = WindowInsets(0.dp), containerColor = DealoraWhite
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -54,7 +64,46 @@ fun AddCoupons(navController: NavController) {
                 .padding(innerPadding)
                 .background(Color.White)
         ) {
-            // Scrollable Content
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+            ) {
+                Text(
+                    text = "Add your Coupons", style = TextStyle(
+                        fontSize = 32.sp,
+                        lineHeight = 47.sp,
+                        fontWeight = FontWeight(500),
+                        color = Color.Black,
+                    )
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 6.dp)
+                    .width(155.dp)
+                    .height(49.dp)
+                    .background(color = DealoraPrimary, shape = RoundedCornerShape(size = 9.dp)),
+            ) {
+                Text(
+                    text = "Manually", style = TextStyle(
+                        fontSize = 32.sp,
+                        lineHeight = 47.sp,
+                        fontWeight = FontWeight(500),
+                        color = DealoraWhite,
+                    ), modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            Spacer(modifier = Modifier.height(15.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+            ) {
+                Text(
+                    text = "Your selected apps are being synced individually.\nPlease wait until all apps are fully synced."
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -62,7 +111,7 @@ fun AddCoupons(navController: NavController) {
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 20.dp)
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // Coupon Name Field
                 CouponInputField(
@@ -100,17 +149,9 @@ fun AddCoupons(navController: NavController) {
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         CouponDropdown(
-                            label = "Category Label",
-                            value = selectedCategory,
-                            options = listOf(
-                                "Food",
-                                "Fashion",
-                                "Grocery",
-                                "Beauty",
-                                "Entertainment"
-                            ),
-                            onValueChange = { selectedCategory = it },
-                            isRequired = false
+                            label = "Category Label", value = selectedCategory, options = listOf(
+                                "Food", "Fashion", "Grocery", "Beauty", "Entertainment"
+                            ), onValueChange = { selectedCategory = it }, isRequired = false
                         )
                     }
                 }
