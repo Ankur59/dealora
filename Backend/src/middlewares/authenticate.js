@@ -8,6 +8,24 @@ const firebaseInitialized = !!firebaseAdmin && firebaseAdmin.apps.length > 0;
 
 const authenticate = async (req, res, next) => {
     try {
+        if (!firebaseInitialized && process.env.NODE_ENV === 'development') {
+            logger.warn('Development mode: Skipping Firebase token verification');
+            const testUid = req.query.uid || req.body.uid;
+
+            if (!testUid) {
+                throw new UnauthorizedError('In development mode without Firebase, provide uid in query parameter or body');
+            }
+
+            const user = await User.findByUid(testUid);
+            if (!user) {
+                throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+            }
+
+            req.user = user;
+            req.uid = testUid;
+            return next();
+        }
+
         const authHeader = req.headers.authorization;
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -18,23 +36,6 @@ const authenticate = async (req, res, next) => {
 
         if (!token) {
             throw new UnauthorizedError('Invalid token format');
-        }
-
-        if (!firebaseInitialized && process.env.NODE_ENV === 'development') {
-            logger.warn('Development mode: Skipping Firebase token verification');
-            const testUid = req.query.uid || req.body.uid;
-
-            if (!testUid) {
-                throw new UnauthorizedError('In development mode without Firebase, provide uid in request');
-            }
-
-            const user = await User.findByUid(testUid);
-            if (!user) {
-                throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
-            }
-
-            req.user = user;
-            return next();
         }
 
         if (!firebaseInitialized) {
