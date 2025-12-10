@@ -221,16 +221,16 @@ fun AddCoupons(
                     isRequired = false
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+//                Spacer(modifier = Modifier.height(24.dp))
 
                 // Review Section
-                Text(
-                    text = "Review your coupon",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.Black,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
+//                Text(
+//                    text = "Review your coupon",
+//                    fontSize = 14.sp,
+//                    fontWeight = FontWeight.SemiBold,
+//                    color = Color.Black,
+//                    modifier = Modifier.padding(bottom = 12.dp)
+//                )
 
 //                CouponPreviewCard(
 //                    couponName = uiState.couponName,
