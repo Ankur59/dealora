@@ -146,13 +146,13 @@ const couponValidationRules = [
         .withMessage('Use coupon via must be one of: Coupon Code, Coupon Visiting Link, Both'),
 
     body('couponCode')
-        .optional()
+        .optional({ checkFalsy: true })
         .trim()
         .isLength({ min: 4, max: 20 })
         .withMessage('Coupon code must be between 4 and 20 characters'),
 
     body('couponVisitingLink')
-        .optional()
+        .optional({ checkFalsy: true })
         .trim()
         .custom((value) => {
             if (value && !isValidUrl(value)) {
@@ -170,15 +170,24 @@ const couponValidationRules = [
     body().custom((value) => {
         const useCouponVia = value.useCouponVia;
 
-        if (useCouponVia === 'Coupon Code' || useCouponVia === 'Both') {
+        if (useCouponVia === 'Coupon Code') {
             if (!value.couponCode || value.couponCode.trim() === '') {
-                throw new Error('Coupon code is required when useCouponVia is Coupon Code or Both');
+                throw new Error('Coupon code is required when useCouponVia is Coupon Code');
             }
         }
 
-        if (useCouponVia === 'Coupon Visiting Link' || useCouponVia === 'Both') {
+        if (useCouponVia === 'Coupon Visiting Link') {
             if (!value.couponVisitingLink || value.couponVisitingLink.trim() === '') {
-                throw new Error('Coupon visiting link is required when useCouponVia is Coupon Visiting Link or Both');
+                throw new Error('Coupon visiting link is required when useCouponVia is Coupon Visiting Link');
+            }
+        }
+
+        if (useCouponVia === 'Both') {
+            const hasCouponCode = value.couponCode && value.couponCode.trim() !== '';
+            const hasCouponVisitingLink = value.couponVisitingLink && value.couponVisitingLink.trim() !== '';
+            
+            if (!hasCouponCode && !hasCouponVisitingLink) {
+                throw new Error('At least one of coupon code or coupon visiting link is required when useCouponVia is Both');
             }
         }
 
