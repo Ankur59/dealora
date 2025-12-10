@@ -69,5 +69,11 @@ object NetworkModule {
     fun provideAuthApiService(retrofit: Retrofit): AuthApiService {
         return retrofit.create(AuthApiService::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideCouponApiService(retrofit: Retrofit): com.ayaan.dealora.data.api.CouponApiService {
+        return retrofit.create(com.ayaan.dealora.data.api.CouponApiService::class.java)
+    }
 }
 

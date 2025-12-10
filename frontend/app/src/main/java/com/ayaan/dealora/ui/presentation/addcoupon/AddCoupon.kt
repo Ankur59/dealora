@@ -1,5 +1,7 @@
 package com.ayaan.dealora.ui.presentation.addcoupon
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,20 +19,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.presentation.addcoupon.components.AddCouponTopBar
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDatePicker
@@ -42,15 +46,18 @@ import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @Composable
-fun AddCoupons(navController: NavController) {
-    var couponName by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var expiryDate by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("") }
-    var selectedUsageMethod by remember { mutableStateOf("") }
-    var couponCode by remember { mutableStateOf("") }
-    var visitingLink by remember { mutableStateOf("") }
-    var couponDetails by remember { mutableStateOf("") }
+fun AddCoupons(
+    navController: NavController,
+    viewModel: AddCouponViewModel = hiltViewModel()
+) {
+    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(uiState) {
+        Log.d("AddCoupons", "uiState updated: $uiState")
+        Log.d("AddCoupons", "isFormValid: ${viewModel.isFormValid()}")
+    }
+
     Scaffold(
         topBar = {
             // Top Bar
@@ -117,8 +124,8 @@ fun AddCoupons(navController: NavController) {
                 // Coupon Name Field
                 CouponInputField(
                     label = "Coupon Name",
-                    value = couponName,
-                    onValueChange = { couponName = it },
+                    value = uiState.couponName,
+                    onValueChange = { viewModel.onCouponNameChange(it) },
                     isRequired = true
                 )
 
@@ -127,8 +134,8 @@ fun AddCoupons(navController: NavController) {
                 // Description Field
                 CouponInputField(
                     label = "Description",
-                    value = description,
-                    onValueChange = { description = it },
+                    value = uiState.description,
+                    onValueChange = { viewModel.onDescriptionChange(it) },
                     minLines = 4,
                     isRequired = false
                 )
@@ -143,16 +150,16 @@ fun AddCoupons(navController: NavController) {
                     Column(modifier = Modifier.weight(1f)) {
                         CouponDatePicker(
                             label = "Expire By",
-                            value = expiryDate,
-                            onValueChange = { expiryDate = it },
+                            value = uiState.expiryDate,
+                            onValueChange = { viewModel.onExpiryDateChange(it) },
                             isRequired = true
                         )
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         CouponDropdown(
-                            label = "Category Label", value = selectedCategory, options = listOf(
-                                "Food", "Fashion", "Grocery", "Beauty", "Entertainment"
-                            ), onValueChange = { selectedCategory = it }, isRequired = false
+                            label = "Category Label", value = uiState.selectedCategory, options = listOf(
+                                "Food", "Fashion", "Electronics", "Travel", "Health", "Other"
+                            ), onValueChange = { viewModel.onCategoryChange(it) }, isRequired = false
                         )
                     }
                 }
@@ -161,18 +168,18 @@ fun AddCoupons(navController: NavController) {
 
                 // Use Coupon Via
                 UseCouponViaSection(
-                    selectedMethod = selectedUsageMethod,
-                    onMethodChange = { selectedUsageMethod = it })
+                    selectedMethod = uiState.selectedUsageMethod,
+                    onMethodChange = { viewModel.onUsageMethodChange(it) })
 
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Conditional Fields based on usage method
-                when (selectedUsageMethod) {
+                when (uiState.selectedUsageMethod) {
                     "Coupon Code" -> {
                         CouponInputField(
                             label = "Coupon Code",
-                            value = couponCode,
-                            onValueChange = { couponCode = it },
+                            value = uiState.couponCode,
+                            onValueChange = { viewModel.onCouponCodeChange(it) },
                             isRequired = true
                         )
                     }
@@ -180,8 +187,8 @@ fun AddCoupons(navController: NavController) {
                     "Coupon Visiting Link" -> {
                         CouponInputField(
                             label = "Coupon Visiting link",
-                            value = visitingLink,
-                            onValueChange = { visitingLink = it },
+                            value = uiState.visitingLink,
+                            onValueChange = { viewModel.onVisitingLinkChange(it) },
                             isRequired = true
                         )
                     }
@@ -189,15 +196,15 @@ fun AddCoupons(navController: NavController) {
                     "Both" -> {
                         CouponInputField(
                             label = "Coupon Code",
-                            value = couponCode,
-                            onValueChange = { couponCode = it },
+                            value = uiState.couponCode,
+                            onValueChange = { viewModel.onCouponCodeChange(it) },
                             isRequired = true
                         )
                         Spacer(modifier = Modifier.height(20.dp))
                         CouponInputField(
                             label = "Coupon Visiting link",
-                            value = visitingLink,
-                            onValueChange = { visitingLink = it },
+                            value = uiState.visitingLink,
+                            onValueChange = { viewModel.onVisitingLinkChange(it) },
                             isRequired = true
                         )
                     }
@@ -208,8 +215,8 @@ fun AddCoupons(navController: NavController) {
                 // Coupon Details
                 CouponInputField(
                     label = "Coupon Details",
-                    value = couponDetails,
-                    onValueChange = { couponDetails = it },
+                    value = uiState.couponDetails,
+                    onValueChange = { viewModel.onCouponDetailsChange(it) },
                     minLines = 4,
                     isRequired = false
                 )
@@ -225,33 +232,60 @@ fun AddCoupons(navController: NavController) {
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                CouponPreviewCard(
-                    couponName = couponName,
-                    description = description,
-                    expiryDate = expiryDate,
-                    couponCode = couponCode,
-                    isRedeemed = false
-                )
+//                CouponPreviewCard(
+//                    couponName = uiState.couponName,
+//                    description = uiState.description,
+//                    expiryDate = uiState.expiryDate,
+//                    couponCode = uiState.couponCode,
+//                    isRedeemed = false
+//                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Add Coupon Button
                 Button(
-                    onClick = { /* Add coupon logic */ },
+                    onClick = {
+                        viewModel.createCoupon(
+                            onSuccess = {
+                                Toast.makeText(
+                                    context,
+                                    "Coupon added successfully!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                navController.navigateUp()
+                            },
+                            onError = { errorMessage ->
+                                Toast.makeText(
+                                    context,
+                                    "Error: $errorMessage",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = DealoraPrimary
+                        containerColor = DealoraPrimary,
+                        disabledContainerColor = DealoraPrimary.copy(alpha = 0.5f)
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = viewModel.isFormValid() && !uiState.isLoading
                 ) {
-                    Text(
-                        text = "Add Coupon",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.height(24.dp).width(24.dp)
+                        )
+                    } else {
+                        Text(
+                            text = "Add Coupon",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))

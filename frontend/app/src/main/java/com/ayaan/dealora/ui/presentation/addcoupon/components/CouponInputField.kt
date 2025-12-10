@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayaan.dealora.ui.theme.DealoraBackground
 
 @Composable
 fun CouponInputField(
@@ -47,9 +48,9 @@ fun CouponInputField(
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = if (minLines > 1) 100.dp else 50.dp),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFFF5F5F5),
-                unfocusedContainerColor = Color(0xFFF5F5F5),
-                disabledContainerColor = Color(0xFFF5F5F5),
+                focusedContainerColor = DealoraBackground,
+                unfocusedContainerColor = DealoraBackground,
+                disabledContainerColor = DealoraBackground,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
             ),
