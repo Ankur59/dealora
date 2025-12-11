@@ -16,6 +16,7 @@ import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpFormScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpOtpScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpViewModel
 import com.ayaan.dealora.ui.presentation.home.HomeScreen
+import com.ayaan.dealora.ui.presentation.splash.SplashScreen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -25,7 +26,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     val startDestination = if(user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
-        startDestination = Route.AddCoupon.path,
+        startDestination = Route.Splash.path,
         modifier = modifier
     ) {
         // Sign Up Flow
@@ -36,6 +37,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
                 onNavigateToLogin = { navController.navigate(Route.SignIn.path) },
                 viewModel = viewModel
             )
+        }
+        composable(Route.Splash.path){
+            SplashScreen(navController)
         }
 
         composable(Route.SignUpOtp.path) { backStackEntry ->

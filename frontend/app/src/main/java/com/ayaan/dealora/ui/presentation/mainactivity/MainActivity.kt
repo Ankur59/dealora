@@ -5,7 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
@@ -20,7 +22,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             DealoraTheme(darkTheme = false) {
-                Scaffold { innerPadding ->
+                Scaffold(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { innerPadding ->
                     DealoraApp(
                         navController = rememberNavController(),
                         modifier = Modifier

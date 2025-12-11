@@ -8,4 +8,5 @@ sealed class Route(val path: String) {
     data object Home: Route("home")
     data object Profile: Route("profile")
     data object AddCoupon:Route("addcoupon")
+    data object Splash:Route("splash")
 }
