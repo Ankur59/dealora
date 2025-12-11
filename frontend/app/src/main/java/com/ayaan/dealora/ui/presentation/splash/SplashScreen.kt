@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,15 +21,27 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.ayaan.dealora.R
 import androidx.navigation.NavController
+import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraPrimary
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.delay
 
 @Composable
 fun SplashScreen(navController: NavController) {
+    val firebaseAuth=FirebaseAuth.getInstance()
     Scaffold(
         containerColor = DealoraPrimary,
         modifier = Modifier.background(DealoraPrimary),
         contentWindowInsets = WindowInsets(0.dp)
     ) {paddingValues ->
+        LaunchedEffect(firebaseAuth) {
+            delay(1500)
+            if (firebaseAuth.currentUser != null) {
+                navController.navigate(Route.Home.path)
+            }else{
+                navController.navigate(Route.SignIn.path)
+            }
+        }
         Column(
             modifier = Modifier.fillMaxSize().padding(paddingValues),
             horizontalAlignment = Alignment.CenterHorizontally,
