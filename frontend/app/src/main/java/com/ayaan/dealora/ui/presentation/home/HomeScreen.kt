@@ -2,7 +2,9 @@ package com.ayaan.dealora.ui.presentation.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -17,6 +19,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,6 +28,9 @@ import androidx.navigation.NavController
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
 import com.ayaan.dealora.ui.presentation.home.components.CouponDigit
+import com.ayaan.dealora.ui.presentation.home.components.CouponsCard
+import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
+import com.ayaan.dealora.ui.presentation.home.components.SearchBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
 import com.ayaan.dealora.ui.theme.*
@@ -76,33 +82,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Search Bar
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = {
-                    Text(
-                        "Search Coupons", color = DealoraTextGray, fontSize = 14.sp
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = DealoraTextGray
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = DealoraWhite,
-                    focusedContainerColor = DealoraWhite,
-                    unfocusedBorderColor = Color(0xFFE0E0E0),
-                    focusedBorderColor = DealoraPrimary
-                )
-            )
+            SearchBar()
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -134,115 +114,31 @@ fun HomeScreen(
 
             // Category Grid
             CategoryGrid()
-
-            Spacer(modifier = Modifier.height(120.dp))
-        }
-    }
-}
-
-@Composable
-fun CouponsCard() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(140.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = DealoraPrimary)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Active Coupons Section
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.save_60),
-                        contentDescription = null,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Your Active Coupons",
-                        fontSize = 12.sp,
-                        color = DealoraWhite,
-                        fontWeight = FontWeight.W500
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CouponDigit("0")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
-                }
-            }
-
-            // Vertical Divider
-            Box(
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
                 modifier = Modifier
-                    .width(2.dp)
-                    .height(80.dp)
-                    .background(
-                        Color.White.copy(alpha = 0.3f), RoundedCornerShape(1.dp)
-                    )
-            )
-
-            // Savings Section
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)
+                    .fillMaxWidth()
+                    .padding(start = 2.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Savings",
-                        tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Your Coupons Saving",
-                        fontSize = 12.sp,
-                        color = DealoraWhite,
-                        fontWeight = FontWeight.W500
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "₹",
-                        fontSize = 20.sp,
-                        color = DealoraWhite,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
-                }
+                Text(
+                    text = "Explore Coupons",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Text(
+                    text = "See all",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.W600,
+                    color = DealoraPrimary,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable(onClick = {})
+                )
             }
+            ExploringCoupons(navController)
+            Spacer(modifier = Modifier.height(120.dp))
         }
     }
 }
