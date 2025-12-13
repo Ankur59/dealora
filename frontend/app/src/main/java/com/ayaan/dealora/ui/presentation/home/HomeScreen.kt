@@ -31,6 +31,7 @@ import com.ayaan.dealora.ui.presentation.home.components.CouponDigit
 import com.ayaan.dealora.ui.presentation.home.components.CouponsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
 import com.ayaan.dealora.ui.presentation.home.components.SearchBar
+import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
 import com.ayaan.dealora.ui.theme.*
@@ -134,7 +135,9 @@ fun HomeScreen(
                     fontWeight = FontWeight.W600,
                     color = DealoraPrimary,
                     textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable(onClick = {})
+                    modifier = Modifier.clickable(onClick = {
+                        navController.navigate(Route.ExploreCoupons.path)
+                    })
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
