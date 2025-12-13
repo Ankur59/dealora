@@ -47,7 +47,6 @@ fun CouponsListTopBar(
                     .padding(end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Box(
                     modifier = Modifier
                         .size(38.dp)
