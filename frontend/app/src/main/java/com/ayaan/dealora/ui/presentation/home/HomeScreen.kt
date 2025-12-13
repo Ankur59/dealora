@@ -137,6 +137,7 @@ fun HomeScreen(
                     modifier = Modifier.clickable(onClick = {})
                 )
             }
+            Spacer(modifier = Modifier.height(16.dp))
             ExploringCoupons(navController)
             Spacer(modifier = Modifier.height(120.dp))
         }
