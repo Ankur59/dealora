@@ -37,9 +37,15 @@ fun SplashScreen(navController: NavController) {
         LaunchedEffect(firebaseAuth) {
             delay(1500)
             if (firebaseAuth.currentUser != null) {
-                navController.navigate(Route.Home.path)
+                navController.navigate(Route.Home.path){
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
             }else{
-                navController.navigate(Route.SignIn.path)
+                navController.navigate(Route.SignIn.path){
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
             }
         }
         Column(

@@ -28,7 +28,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     val startDestination = if(user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
-        startDestination = Route.Splash.path,
+        startDestination = Route.ExploreCoupons.path,
         modifier = modifier
     ) {
         // Sign Up Flow
