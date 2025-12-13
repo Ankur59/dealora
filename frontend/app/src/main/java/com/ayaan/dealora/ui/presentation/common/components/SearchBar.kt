@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.home.components
+package com.ayaan.dealora.ui.presentation.common.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
