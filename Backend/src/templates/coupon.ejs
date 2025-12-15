@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: white;
+            /* padding: 25px 50px; */
+            padding: 25px 50px 25px 10px;
+            width: max-content;
+            /* ← CHANGED from 20px */
+        }
+
+        .coupon-wrapper {
+            width: 1160px; /* ← CHANGED from 1200px */
+            position: relative;
+            margin: 0;
+        }
+
+        .coupon-container {
+            background: linear-gradient(135deg, #6B5DD3 0%, #7B6BE8 100%);
+            border-radius: 20px;
+            position: relative;
+            overflow: visible;
+        }
+
+        /* Decorative ticket edges */
+        .ticket-edge-left {
+            position: absolute;
+            left: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 60px;
+            height: 200px;
+            z-index: 10;
+        }
+
+        .ticket-edge-left::before,
+        .ticket-edge-left::after {
+            content: '';
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .ticket-edge-left::before {
+            top: 0;
+        }
+
+        .ticket-edge-left::after {
+            bottom: 0;
+        }
+
+        .ticket-edge-right {
+            position: absolute;
+            right: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 60px;
+            height: 200px;
+            z-index: 10;
+        }
+
+        .ticket-edge-right::before,
+        .ticket-edge-right::after {
+            content: '';
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .ticket-edge-right::before {
+            top: 0;
+        }
+
+        .ticket-edge-right::after {
+            bottom: 0;
+        }
+
+        /* Header Section */
+        .coupon-header {
+            padding: 50px;
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            position: relative;
+        }
+
+        .icon-circle {
+            width: 140px;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 4px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 72px;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .title-section {
+            flex: 1;
+        }
+
+        .coupon-title {
+            font-size: 64px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 16px;
+            line-height: 1.2;
+        }
+
+        .badges {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.25);
+            padding: 12px 32px;
+            border-radius: 50px;
+            font-size: 24px;
+            color: white;
+            font-weight: 500;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-shrink: 0;
+        }
+
+        .bookmark-icon {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .manually-added {
+            background: rgba(255, 255, 255, 0.25);
+            padding: 20px 48px;
+            border-radius: 50px;
+            font-size: 32px;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* Description Section */
+        .coupon-body {
+            background: #F5F5F5;
+            padding: 50px;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .description {
+            font-size: 36px;
+            color: #1A1A1A;
+            margin-bottom: 40px;
+            line-height: 1.5;
+            font-weight: 400;
+        }
+
+        /* Actions Section */
+        .actions {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .details-link {
+            font-size: 32px;
+            font-weight: 600;
+            color: #1A1A1A;
+            text-decoration: underline;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 24px;
+            margin-left: auto;
+        }
+
+        .redeemed-btn {
+            background: white;
+            border: 3px solid #DDDDDD;
+            padding: 20px 56px;
+            border-radius: 16px;
+            font-size: 36px;
+            font-weight: 700;
+            color: #1A1A1A;
+            cursor: pointer;
+        }
+
+        .discover-btn {
+            background: #6B5DD3;
+            padding: 20px 56px;
+            border-radius: 16px;
+            font-size: 36px;
+            font-weight: 700;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="coupon-wrapper">
+        <!-- Ticket edges -->
+        <div class="ticket-edge-left"></div>
+        <div class="ticket-edge-right"></div>
+
+        <div class="coupon-container">
+            <!-- Header Section -->
+            <div class="coupon-header">
+                <div class="icon-circle">
+                    <%= initial %>
+                </div>
+
+                <div class="title-section">
+                    <div class="coupon-title">
+                        <%= couponName %>
+                    </div>
+                    <div class="badges">
+                        <span class="badge">
+                            <%= categoryLabel %>
+                        </span>
+                        <span class="badge">Expiry by <%= daysUntilExpiry %> days</span>
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <div class="bookmark-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                            <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+                        </svg>
+                    </div>
+                    <div class="manually-added">Manually Added</div>
+                </div>
+            </div>
+
+            <!-- Description & Actions Section -->
+            <div class="coupon-body">
+                <div class="description">
+                    <%= description %>
+                </div>
+
+                <div class="actions">
+                    <button class="details-link">Details</button>
+
+                    <div class="action-buttons">
+                        <button class="redeemed-btn">Redeemed</button>
+                        <button class="discover-btn">Discover</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
