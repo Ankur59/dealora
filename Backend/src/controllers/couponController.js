@@ -3,6 +3,7 @@ const { successResponse, errorResponse } = require('../utils/responseHandler');
 const { STATUS_CODES, ERROR_MESSAGES } = require('../config/constants');
 const { ConflictError, NotFoundError, ValidationError } = require('../middlewares/errorHandler');
 const { addDisplayFields, addDisplayFieldsToArray } = require('../utils/couponHelpers');
+const { generateCouponImage } = require('../services/couponImageService');
 const logger = require('../utils/logger');
 
 const createCoupon = async (req, res, next) => {
@@ -44,10 +45,14 @@ const createCoupon = async (req, res, next) => {
 
         const couponWithDisplay = addDisplayFields(newCoupon);
 
+        // Generate base64 image
+        const imageBase64 = await generateCouponImage(couponWithDisplay);
+
         logger.info(`Coupon created successfully: ${newCoupon._id} for user: ${userId}`);
 
         return successResponse(res, STATUS_CODES.CREATED, 'Coupon created successfully', {
             coupon: couponWithDisplay,
+            couponImageBase64: `data:image/png;base64,${imageBase64}`
         });
     } catch (error) {
         logger.error('Create coupon error:', error);
