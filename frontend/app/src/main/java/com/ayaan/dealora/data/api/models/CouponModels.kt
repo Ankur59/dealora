@@ -42,7 +42,10 @@ data class CreateCouponRequest(
 @JsonClass(generateAdapter = true)
 data class CouponResponseData(
     @Json(name = "coupon")
-    val coupon: Coupon
+    val coupon: Coupon,
+
+    @Json(name = "couponImageBase64")
+    val couponImageBase64: String? = null
 )
 
 /**

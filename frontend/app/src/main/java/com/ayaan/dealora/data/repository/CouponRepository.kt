@@ -12,7 +12,8 @@ import javax.inject.Inject
 sealed class CouponResult {
     data class Success(
         val message: String,
-        val coupon: Coupon
+        val coupon: Coupon,
+        val couponImageBase64: String? = null
     ) : CouponResult()
 
     data class Error(
@@ -42,9 +43,12 @@ class CouponRepository @Inject constructor(
                 val body = response.body()
                 if (body?.success == true && body.data != null) {
                     Log.d(TAG, "Coupon created successfully: ${body.data.coupon.id}")
+                    Log.d(TAG, "API response - couponImageBase64 present: ${body.data.couponImageBase64 != null}")
+                    Log.d(TAG, "API response - couponImageBase64 length: ${body.data.couponImageBase64?.length ?: 0}")
                     CouponResult.Success(
                         message = body.message,
-                        coupon = body.data.coupon
+                        coupon = body.data.coupon,
+                        couponImageBase64 = body.data.couponImageBase64
                     )
                 } else {
                     val errorMsg = body?.message ?: "Failed to create coupon"

@@ -2,6 +2,7 @@ package com.ayaan.dealora.ui.presentation.addcoupon
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,13 +30,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.ayaan.dealora.Base64ImageUtils
+import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.addcoupon.components.AddCouponTopBar
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDatePicker
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDropdown
@@ -52,11 +58,15 @@ fun AddCoupons(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-
-    LaunchedEffect(uiState) {
+    val couponImageBase64 by viewModel.couponImageBase64.collectAsState()
+    val couponImageBitmap: ImageBitmap= Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64 )
+    LaunchedEffect(uiState, couponImageBase64) {
         Log.d("AddCoupons", "uiState updated: $uiState")
         Log.d("AddCoupons", "isFormValid: ${viewModel.isFormValid()}")
+        Log.d("AddCoupons", "couponImageBase64: $couponImageBase64")
+        Log.d("AddCoupons", "couponImageBitmap: $couponImageBitmap")
     }
+
 
     Scaffold(
         topBar = {
@@ -239,7 +249,12 @@ fun AddCoupons(
 //                    couponCode = uiState.couponCode,
 //                    isRedeemed = false
 //                )
-
+                Image(
+                    bitmap = couponImageBitmap?: ImageBitmap.imageResource(id = R.drawable.coupon_banner1),
+                    contentDescription = "Coupon Image",
+                    modifier = Modifier
+                        .fillMaxSize()
+                )
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Add Coupon Button
@@ -252,7 +267,7 @@ fun AddCoupons(
                                     "Coupon added successfully!",
                                     Toast.LENGTH_SHORT
                                 ).show()
-                                navController.navigateUp()
+//                                navController.navigateUp()
                             },
                             onError = { errorMessage ->
                                 Toast.makeText(
