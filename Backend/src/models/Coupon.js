@@ -18,12 +18,25 @@ const couponSchema = new mongoose.Schema(
             maxlength: [100, 'Coupon name cannot exceed 100 characters'],
         },
 
+        brandName: {
+            type: String,
+            trim: true,
+            index: true,
+            default: 'General',
+        },
+
+        couponTitle: {
+            type: String,
+            trim: true,
+            maxlength: [200, 'Coupon title cannot exceed 200 characters'],
+        },
+
         description: {
             type: String,
             required: [true, 'Description is required'],
             trim: true,
             minlength: [10, 'Description must be at least 10 characters'],
-            maxlength: [500, 'Description cannot exceed 500 characters'],
+            maxlength: [1000, 'Description cannot exceed 1000 characters'],
         },
 
         expireBy: {
@@ -35,8 +48,8 @@ const couponSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Category is required'],
             enum: {
-                values: ['Food', 'Fashion', 'Electronics', 'Travel', 'Health', 'Other'],
-                message: 'Category must be one of: Food, Fashion, Electronics, Travel, Health, Other',
+                values: ['Food', 'Fashion', 'Electronics', 'Travel', 'Health', 'Beauty', 'Payment', 'Other'],
+                message: 'Category must be one of: Food, Fashion, Electronics, Travel, Health, Beauty, Payment, Other',
             },
         },
 
@@ -44,17 +57,28 @@ const couponSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Use coupon via is required'],
             enum: {
-                values: ['Coupon Code', 'Coupon Visiting Link', 'Both'],
-                message: 'Use coupon via must be one of: Coupon Code, Coupon Visiting Link, Both',
+                values: ['Coupon Code', 'Coupon Visiting Link', 'Both', 'None'],
+                message: 'Use coupon via must be one of: Coupon Code, Coupon Visiting Link, Both, None',
             },
+            default: 'Coupon Code',
+        },
+
+        discountType: {
+            type: String,
+            enum: ['percentage', 'flat', 'cashback', 'freebie', 'unknown'],
+            default: 'unknown',
+        },
+
+        discountValue: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
         },
 
         couponCode: {
             type: String,
             trim: true,
             uppercase: true,
-            minlength: [4, 'Coupon code must be at least 4 characters'],
-            maxlength: [20, 'Coupon code cannot exceed 20 characters'],
+            maxlength: [50, 'Coupon code cannot exceed 50 characters'],
             default: null,
         },
 
@@ -74,7 +98,20 @@ const couponSchema = new mongoose.Schema(
         couponDetails: {
             type: String,
             trim: true,
-            maxlength: [1000, 'Coupon details cannot exceed 1000 characters'],
+            maxlength: [2000, 'Coupon details cannot exceed 2000 characters'],
+            default: null,
+        },
+
+        sourceWebsite: {
+            type: String,
+            trim: true,
+            default: 'manual',
+        },
+
+        terms: {
+            type: String,
+            trim: true,
+            maxlength: [2000, 'Terms cannot exceed 2000 characters'],
             default: null,
         },
 
@@ -86,7 +123,7 @@ const couponSchema = new mongoose.Schema(
 
         addedMethod: {
             type: String,
-            enum: ['manual', 'auto-sync'],
+            enum: ['manual', 'auto-sync', 'scraper'],
             default: 'manual',
         },
 
@@ -121,7 +158,10 @@ couponSchema.pre('save', function (next) {
 });
 
 couponSchema.index({ userId: 1, status: 1 });
-couponSchema.index({ expireBy: 1 });
+couponSchema.index({ brandName: 1, status: 1 });
+couponSchema.index({ expireBy: 1, status: 1 });
+couponSchema.index({ brandName: 1, couponCode: 1 }, { sparse: true }); // For deduplication
+couponSchema.index({ categoryLabel: 1, status: 1 });
 
 const Coupon = mongoose.model('Coupon', couponSchema);
 
