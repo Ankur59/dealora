@@ -27,7 +27,7 @@ class GrabOnAdapter extends GenericAdapter {
                 $('div.gc-box').each((i, el) => {
                     const title = $(el).find('p').first().text().trim();
                     const discount = $(el).find('.bm, .txt').text().trim();
-                    const code = $(el).attr('data-couponid'); // GrabOn often hides codes, we can use ID as placeholder or look for go-cpn-show
+                    const code = $(el).attr('data-couponid'); 
                     const desc = $(el).find('p').text().trim();
 
                     if (title) {
@@ -46,7 +46,6 @@ class GrabOnAdapter extends GenericAdapter {
                 });
 
                 logger.info(`GrabOnAdapter: Scraped ${brandCoupons} coupons for ${page.brand}`);
-                // Small delay between page fetches
                 await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error) {
                 logger.error(`GrabOnAdapter Error for ${page.brand}:`, error.message);
