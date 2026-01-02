@@ -104,22 +104,31 @@ const getUserCoupons = async (req, res, next) => {
             .limit(limitNumber)
             .lean();
 
-        const totalCoupons = await Coupon.countDocuments(query);
-
         const couponsWithDisplay = addDisplayFieldsToArray(coupons);
 
-        const totalPages = Math.ceil(totalCoupons / limitNumber);
+        // Generate base64 images for each coupon
+        const couponsWithImages = await Promise.all(
+            couponsWithDisplay.map(async (coupon) => {
+                try {
+                    const imageBase64 = await generateCouponImage(coupon);
+                    return {
+                        id: coupon._id,
+                        couponImageBase64: `data:image/png;base64,${imageBase64}`
+                    };
+                } catch (error) {
+                    logger.error(`Failed to generate image for coupon ${coupon._id}:`, error);
+                    return {
+                        id: coupon._id,
+                        couponImageBase64: null
+                    };
+                }
+            })
+        );
 
         logger.info(`Fetched ${coupons.length} coupons for user: ${userId}`);
 
         return successResponse(res, STATUS_CODES.OK, 'Coupons fetched successfully', {
-            coupons: couponsWithDisplay,
-            pagination: {
-                currentPage: pageNumber,
-                totalPages,
-                totalCoupons,
-                limit: limitNumber,
-            },
+            coupons: couponsWithImages
         });
     } catch (error) {
         logger.error('Get user coupons error:', error);
