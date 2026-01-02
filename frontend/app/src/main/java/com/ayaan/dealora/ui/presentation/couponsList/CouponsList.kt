@@ -53,16 +53,19 @@ fun CouponsList(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
                 .background(Color.White)
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
-            CouponsFilterSection(
-                onSortClick = { /* Handle sort click */ },
-                onCategoryClick = { /* Handle category click */ },
-                onFiltersClick = { /* Handle filters click */ }
-            )
+            // Filter section with horizontal padding
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                CouponsFilterSection(
+                    onSortClick = { /* Handle sort click */ },
+                    onCategoryClick = { /* Handle category click */ },
+                    onFiltersClick = { /* Handle filters click */ }
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -95,8 +98,12 @@ fun CouponsList(
                             if (coupons.itemCount == 0) {
                                 EmptyContent()
                             } else {
+                                // Coupon cards stretch edge-to-edge with 16dp vertical spacing
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize()
+                                        .padding(start = 54.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     items(
                                         count = coupons.itemCount,
@@ -104,7 +111,10 @@ fun CouponsList(
                                     ) { index ->
                                         val coupon = coupons[index]
                                         if (coupon != null) {
-                                            CouponListItemCard(coupon = coupon)
+                                            CouponListItemCard(
+                                                coupon = coupon,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
                                         }
                                     }
 

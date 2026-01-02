@@ -2,14 +2,12 @@ package com.ayaan.dealora.ui.presentation.couponsList.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
 import com.ayaan.dealora.R
 import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.utils.Base64ImageUtils
@@ -36,26 +34,21 @@ fun CouponListItemCard(
             null
         }
     }
-
     if (imageBitmap != null) {
-        // Display decoded base64 image
+        // Display decoded base64 image - edge-to-edge, no padding
         Image(
             bitmap = imageBitmap,
             contentDescription = coupon.couponTitle ?: "Coupon",
             contentScale = ContentScale.FillWidth,
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 12.dp)
+            modifier = modifier.fillMaxWidth()
         )
     } else {
-        // Fallback to static image if base64 decoding fails
+        // Fallback to static image if base64 decoding fails - edge-to-edge, no padding
         Image(
             painter = painterResource(R.drawable.coupon_filled),
             contentDescription = coupon.couponTitle ?: "Coupon",
             contentScale = ContentScale.FillWidth,
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 12.dp)
+            modifier = modifier.fillMaxWidth()
         )
     }
 }
