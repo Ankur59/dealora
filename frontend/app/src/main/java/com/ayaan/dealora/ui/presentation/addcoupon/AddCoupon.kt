@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.ayaan.dealora.Base64ImageUtils
+import com.ayaan.dealora.utils.Base64ImageUtils
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.addcoupon.components.AddCouponTopBar
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDatePicker

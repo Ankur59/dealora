@@ -1,22 +1,10 @@
-package com.ayaan.dealora
+package com.ayaan.dealora.utils
 
-
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
-import android.os.Build
 import android.util.Base64
-import android.util.Log
-import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asImageBitmap
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
-import kotlin.collections.forEach
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 object Base64ImageUtils {
