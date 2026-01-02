@@ -146,6 +146,84 @@ const getUserCoupons = async (req, res, next) => {
     }
 };
 
+// Test version - accepts uid from query parameter (no auth required)
+const getUserCouponsTest = async (req, res, next) => {
+    try {
+        const { uid } = req.query;
+
+        if (!uid) {
+            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'uid query parameter is required');
+        }
+
+        const {
+            brand,
+            category,
+            discountType,
+            status = 'active',
+            page = 1,
+            limit = 20
+        } = req.query;
+
+        const query = {
+            $or: [
+                { userId: uid },
+                { userId: 'system_scraper' }
+            ],
+            status
+        };
+
+        if (brand) query.brandName = new RegExp(brand, 'i');
+        if (category) query.categoryLabel = category;
+        if (discountType) query.discountType = discountType;
+
+        logger.info(`[TEST] Fetching coupons for uid: ${uid}. Filters: brand=${brand}, category=${category}`);
+
+        const pageNumber = parseInt(page) || 1;
+        const limitNumber = parseInt(limit) || 20;
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const coupons = await Coupon.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNumber);
+
+        const total = await Coupon.countDocuments(query);
+
+        const couponsWithImages = await Promise.all(
+            coupons.map(async (coupon) => {
+                const couponWithDisplay = addDisplayFields(coupon);
+                try {
+                    const imageBase64 = await generateCouponImage(couponWithDisplay);
+                    return {
+                        id: coupon._id,
+                        brandName: coupon.brandName,
+                        couponTitle: coupon.couponTitle || coupon.couponName,
+                        couponImageBase64: `data:image/png;base64,${imageBase64}`
+                    };
+                } catch (error) {
+                    logger.error(`Failed to generate image for coupon ${coupon._id}:`, error);
+                    return {
+                        id: coupon._id,
+                        brandName: coupon.brandName,
+                        couponTitle: coupon.couponTitle || coupon.couponName,
+                        couponImageBase64: null
+                    };
+                }
+            })
+        );
+
+        return successResponse(res, STATUS_CODES.OK, 'Coupons fetched successfully', {
+            total,
+            page: pageNumber,
+            limit: limitNumber,
+            coupons: couponsWithImages
+        });
+    } catch (error) {
+        logger.error('[TEST] Get user coupons error:', error);
+        next(error);
+    }
+};
+
 const getExpiringSoon = async (req, res, next) => {
     try {
         const userId = req.uid;
@@ -348,6 +426,7 @@ const deleteCoupon = async (req, res, next) => {
 module.exports = {
     createCoupon,
     getUserCoupons,
+    getUserCouponsTest,
     getCouponById,
     updateCoupon,
     deleteCoupon,

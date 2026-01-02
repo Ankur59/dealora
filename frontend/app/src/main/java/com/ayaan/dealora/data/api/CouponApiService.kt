@@ -1,11 +1,14 @@
 package com.ayaan.dealora.data.api
 
 import com.ayaan.dealora.data.api.models.ApiResponse
+import com.ayaan.dealora.data.api.models.CouponListResponseData
 import com.ayaan.dealora.data.api.models.CouponResponseData
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 /**
  * Retrofit API interface for coupon endpoints
@@ -14,5 +17,16 @@ interface CouponApiService {
 
     @POST("api/coupons")
     suspend fun createCoupon(@Body request: CreateCouponRequest): Response<ApiResponse<CouponResponseData>>
+
+    @GET("api/coupons/test")
+    suspend fun getCoupons(
+        @Query("uid") uid: String,
+        @Query("page") page: Int,
+        @Query("limit") limit: Int,
+        @Query("status") status: String = "active",
+        @Query("brand") brand: String? = null,
+        @Query("category") category: String? = null,
+        @Query("discountType") discountType: String? = null
+    ): Response<ApiResponse<CouponListResponseData>>
 }
 
