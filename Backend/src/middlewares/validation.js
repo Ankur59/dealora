@@ -185,7 +185,7 @@ const couponValidationRules = [
         if (useCouponVia === 'Both') {
             const hasCouponCode = value.couponCode && value.couponCode.trim() !== '';
             const hasCouponVisitingLink = value.couponVisitingLink && value.couponVisitingLink.trim() !== '';
-            
+
             if (!hasCouponCode && !hasCouponVisitingLink) {
                 throw new Error('At least one of coupon code or coupon visiting link is required when useCouponVia is Both');
             }
@@ -202,4 +202,5 @@ module.exports = {
     validateLogin,
     validateProfileUpdate,
     couponValidationRules,
+    validateCoupon: couponValidationRules,
 };
