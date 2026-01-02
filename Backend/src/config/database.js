@@ -14,10 +14,13 @@ const connectDB = async () => {
 
         const options = {
             serverSelectionTimeoutMS: DB_CONFIG.CONNECTION_TIMEOUT,
-            socketTimeoutMS: 45000,
+            socketTimeoutMS: 0, // Disable socket timeout to prevent disconnections
             maxPoolSize: 10,
             minPoolSize: 2,
-            maxIdleTimeMS: 30000,
+            // Removed maxIdleTimeMS to prevent automatic disconnection
+            retryWrites: true,
+            retryReads: true,
+            heartbeatFrequencyMS: 10000, // Check connection health every 10 seconds
         };
 
         const conn = await mongoose.connect(mongoUri, options);
@@ -43,7 +46,16 @@ const connectDB = async () => {
 
 mongoose.connection.on('connected', () => logger.info('✅ Mongoose connected'));
 mongoose.connection.on('error', (err) => logger.error(`Mongoose error: ${err.message}`));
-mongoose.connection.on('disconnected', () => logger.warn('Mongoose disconnected'));
+mongoose.connection.on('disconnected', () => {
+    logger.warn('Mongoose disconnected');
+  
+    if (mongoose.connection.readyState === 0) {
+        logger.info('Attempting to reconnect to MongoDB...');
+        setTimeout(() => {
+            connectDB().catch(err => logger.error('Reconnection failed:', err));
+        }, 5000);
+    }
+});
 
 process.on('SIGINT', async () => {
     try {
