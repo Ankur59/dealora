@@ -35,7 +35,10 @@ const generateCouponImage = async (couponData) => {
             deviceScaleFactor: 2  // High quality
         });
 
-        await page.setContent(html, { waitUntil: 'networkidle0' });
+        await page.setContent(html, {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
 
         const screenshot = await page.screenshot({
             type: 'png',
