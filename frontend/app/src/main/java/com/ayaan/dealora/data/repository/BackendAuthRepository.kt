@@ -1,6 +1,8 @@
-package com.ayaan.dealora.data.api
+package com.ayaan.dealora.data.repository
 
 import android.util.Log
+import com.ayaan.dealora.data.api.AuthApiService
+import com.ayaan.dealora.data.api.BackendResult
 import com.ayaan.dealora.data.api.models.LoginRequest
 import com.ayaan.dealora.data.api.models.SignupRequest
 import javax.inject.Inject
@@ -97,4 +99,3 @@ class BackendAuthRepository @Inject constructor(
         }
     }
 }
-

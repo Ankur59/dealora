@@ -29,4 +29,3 @@ interface CouponApiService {
         @Query("discountType") discountType: String? = null
     ): Response<ApiResponse<CouponListResponseData>>
 }
-
