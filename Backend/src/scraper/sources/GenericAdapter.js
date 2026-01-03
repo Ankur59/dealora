@@ -75,7 +75,6 @@ class GenericAdapter {
 
     normalizeBrand(brand) {
         if (!brand) return 'General';
-        // Simple normalization: "Zomato Offers" -> "Zomato"
         return brand.split(' ')[0].trim();
     }
 

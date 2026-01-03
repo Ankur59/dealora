@@ -22,17 +22,17 @@ const generateCouponImage = async (couponData) => {
             description: couponData.description,
             categoryLabel: couponData.categoryLabel,
             daysUntilExpiry: couponData.display.daysUntilExpiry,
-            initial: couponData.display.initial
+            initial: couponData.display.initial,
+            addedMethod: couponData.addedMethod || 'manual'
         });
 
         const browserInstance = await initBrowser();
         const page = await browserInstance.newPage();
 
-        // Set viewport to capture full coupon with edges
         await page.setViewport({
             width: 1500,
             height: 750,
-            deviceScaleFactor: 2  // High quality
+            deviceScaleFactor: 2  
         });
 
         await page.setContent(html, {

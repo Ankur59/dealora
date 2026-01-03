@@ -1,5 +1,7 @@
 const Coupon = require('../models/Coupon');
 const logger = require('../utils/logger');
+const { generateCouponImage } = require('../services/couponImageService');
+const { addDisplayFields } = require('../utils/couponHelpers');
 
 class ScraperEngine {
     constructor(adapters = []) {
@@ -54,6 +56,18 @@ class ScraperEngine {
         data.userId = 'system_scraper';
 
         const existing = await Coupon.findOne(query);
+
+        // Generate base64 image for the coupon
+        try {
+            const couponWithDisplay = addDisplayFields(data);
+            const imageBase64 = await generateCouponImage(couponWithDisplay);
+            data.base64ImageUrl = `data:image/png;base64,${imageBase64}`;
+            logger.info(`Generated base64 image for coupon: ${data.couponName || data.couponTitle}`);
+        } catch (error) {
+            logger.error(`Failed to generate base64 image for coupon: ${data.couponName || data.couponTitle}`, error.message);
+            // Continue without base64 image if generation fails
+            data.base64ImageUrl = null;
+        }
 
         if (existing) {
             // Update existing if it's more recent or has changes (simple update for now)

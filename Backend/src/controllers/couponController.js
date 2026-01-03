@@ -43,18 +43,19 @@ const createCoupon = async (req, res, next) => {
             couponData.couponVisitingLink = couponVisitingLink.trim();
         }
 
-        const newCoupon = await Coupon.create(couponData);
-
-        const couponWithDisplay = addDisplayFields(newCoupon);
+        const couponWithDisplay = addDisplayFields(couponData);
 
         // Generate base64 image
         const imageBase64 = await generateCouponImage(couponWithDisplay);
+        couponData.base64ImageUrl = `data:image/png;base64,${imageBase64}`;
+
+        const newCoupon = await Coupon.create(couponData);
 
         logger.info(`Coupon created successfully: ${newCoupon._id} for user: ${userId}`);
 
         return successResponse(res, STATUS_CODES.CREATED, 'Coupon created successfully', {
             id: newCoupon._id,
-            couponImageBase64: `data:image/png;base64,${imageBase64}`
+            couponImageBase64: newCoupon.base64ImageUrl
         });
     } catch (error) {
         logger.error('Create coupon error:', error);
@@ -110,27 +111,33 @@ const getUserCoupons = async (req, res, next) => {
 
         const total = await Coupon.countDocuments(query);
 
-        // Generate base64 images for each coupon
+        // Use stored base64 images or generate if missing
         const couponsWithImages = await Promise.all(
             coupons.map(async (coupon) => {
-                const couponWithDisplay = addDisplayFields(coupon);
-                try {
-                    const imageBase64 = await generateCouponImage(couponWithDisplay);
-                    return {
-                        id: coupon._id,
-                        brandName: coupon.brandName,
-                        couponTitle: coupon.couponTitle || coupon.couponName,
-                        couponImageBase64: `data:image/png;base64,${imageBase64}`
-                    };
-                } catch (error) {
-                    logger.error(`Failed to generate image for coupon ${coupon._id}:`, error);
-                    return {
-                        id: coupon._id,
-                        brandName: coupon.brandName,
-                        couponTitle: coupon.couponTitle || coupon.couponName,
-                        couponImageBase64: null
-                    };
+                let imageBase64 = coupon.base64ImageUrl;
+                
+                // Generate base64 image if not stored
+                if (!imageBase64) {
+                    try {
+                        const couponWithDisplay = addDisplayFields(coupon);
+                        const generatedBase64 = await generateCouponImage(couponWithDisplay);
+                        imageBase64 = `data:image/png;base64,${generatedBase64}`;
+                        
+                        // Store the generated image in the database for future use
+                        coupon.base64ImageUrl = imageBase64;
+                        await coupon.save();
+                    } catch (error) {
+                        logger.error(`Failed to generate image for coupon ${coupon._id}:`, error);
+                        imageBase64 = null;
+                    }
                 }
+                
+                return {
+                    id: coupon._id,
+                    brandName: coupon.brandName,
+                    couponTitle: coupon.couponTitle || coupon.couponName,
+                    couponImageBase64: imageBase64
+                };
             })
         );
 
