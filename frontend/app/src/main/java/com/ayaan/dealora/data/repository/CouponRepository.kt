@@ -1,9 +1,15 @@
 package com.ayaan.dealora.data.repository
 
 import android.util.Log
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.models.Coupon
+import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
+import com.ayaan.dealora.data.paging.CouponPagingSource
+import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
 /**
@@ -29,6 +35,36 @@ class CouponRepository @Inject constructor(
 ) {
     companion object {
         private const val TAG = "CouponRepository"
+    }
+
+    /**
+     * Get paginated coupons as Flow<PagingData>
+     */
+    fun getCoupons(
+        uid: String,
+        status: String = "active",
+        brand: String? = null,
+        category: String? = null,
+        discountType: String? = null
+    ): Flow<PagingData<CouponListItem>> {
+        Log.d(TAG, "Getting coupons for uid: $uid with status: $status")
+        return Pager(
+            config = PagingConfig(
+                pageSize = CouponPagingSource.PAGE_SIZE,
+                enablePlaceholders = false,
+                initialLoadSize = CouponPagingSource.PAGE_SIZE
+            ),
+            pagingSourceFactory = {
+                CouponPagingSource(
+                    couponApiService = couponApiService,
+                    uid = uid,
+                    status = status,
+                    brand = brand,
+                    category = category,
+                    discountType = discountType
+                )
+            }
+        ).flow
     }
 
     /**

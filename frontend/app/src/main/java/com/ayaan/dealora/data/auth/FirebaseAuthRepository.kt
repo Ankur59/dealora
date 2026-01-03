@@ -2,7 +2,7 @@ package com.ayaan.dealora.data.auth
 
 import android.app.Activity
 import android.util.Log
-import com.ayaan.dealora.data.api.BackendAuthRepository
+import com.ayaan.dealora.data.repository.BackendAuthRepository
 import com.ayaan.dealora.data.api.BackendResult
 import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseTooManyRequestsException
