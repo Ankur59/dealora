@@ -77,18 +77,19 @@ fun SortBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp)
         ) {
-            // Header
+            // Header with padding
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Sort by",
-                    fontSize = 20.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.Black
                 )
@@ -106,19 +107,18 @@ fun SortBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Sort Options
+            // Sort Options - no horizontal padding here
             SortOption.entries.forEach { option ->
                 SortOptionItem(
                     option = option,
                     isSelected = selectedOption == option,
                     onSelect = { selectedOption = option }
                 )
-                Spacer(modifier = Modifier.height(12.dp))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Done Button
+            // Done Button with padding
             Button(
                 onClick = {
                     onSortSelected(selectedOption)
@@ -126,6 +126,7 @@ fun SortBottomSheet(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -148,30 +149,33 @@ private fun SortOptionItem(
     isSelected: Boolean,
     onSelect: () -> Unit
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = if (isSelected) Color(0xFFF0EFFF) else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                color = if (isSelected) Color(0xFFF0EFFF) else Color.Transparent
             )
             .clickable { onSelect() }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 16.dp)
     ) {
-        RadioButton(
-            selected = isSelected,
-            onClick = onSelect,
-            colors = RadioButtonDefaults.colors(
-                selectedColor = Color(0xFF6C5CE7),
-                unselectedColor = Color.LightGray
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = isSelected,
+                onClick = onSelect,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = Color(0xFF6C5CE7),
+                    unselectedColor = Color.LightGray
+                )
             )
-        )
-        Text(
-            text = option.label,
-            fontSize = 16.sp,
-            color = Color.Black,
-            modifier = Modifier.padding(start = 12.dp)
-        )
+            Text(
+                text = option.label,
+                fontSize = 16.sp,
+                color = Color.Black,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
     }
 }
