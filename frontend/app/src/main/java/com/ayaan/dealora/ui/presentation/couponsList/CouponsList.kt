@@ -19,6 +19,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +35,8 @@ import androidx.paging.compose.itemKey
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponListItemCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 
 @Composable
 fun CouponsList(
@@ -40,6 +45,9 @@ fun CouponsList(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
+
+    var showSortDialog by remember { mutableStateOf(true) }
+    var currentSortOption by remember { mutableStateOf(SortOption.NONE) }
 
     Scaffold(
         containerColor = Color.White,
@@ -53,7 +61,7 @@ fun CouponsList(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(top = innerPadding.calculateTopPadding())
+                .padding(innerPadding)
                 .background(Color.White)
         ) {
             Spacer(modifier = Modifier.height(12.dp))
@@ -61,7 +69,7 @@ fun CouponsList(
             // Filter section with horizontal padding
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 CouponsFilterSection(
-                    onSortClick = { /* Handle sort click */ },
+                    onSortClick = { showSortDialog = true },
                     onCategoryClick = { /* Handle category click */ },
                     onFiltersClick = { /* Handle filters click */ }
                 )
@@ -166,6 +174,19 @@ fun CouponsList(
                     }
                 }
             }
+        }
+
+        // Sort Bottom Sheet
+        if (showSortDialog) {
+            SortBottomSheet(
+                currentSort = currentSortOption,
+                onDismiss = { showSortDialog = false },
+                onSortSelected = { sortOption ->
+                    currentSortOption = sortOption
+                    // TODO: Apply sorting logic here
+                    // viewModel.applySorting(sortOption)
+                }
+            )
         }
     }
 }
