@@ -35,9 +35,9 @@ class CouponsListViewModel @Inject constructor(
     private val _couponsFlow = MutableStateFlow<PagingData<CouponListItem>>(PagingData.empty())
     val couponsFlow: StateFlow<PagingData<CouponListItem>> = _couponsFlow.asStateFlow()
 
-    init {
-        loadCoupons()
-    }
+//    init {
+//        loadCoupons()
+//    }
 
     fun loadCoupons(
         status: String = "active",
