@@ -35,6 +35,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 enum class SortOption(val label: String) {
     NONE("None"),
@@ -89,7 +90,7 @@ fun SortBottomSheet(
             ) {
                 Text(
                     text = "Sort by",
-                    fontSize = 24.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.Black
                 )
@@ -130,7 +131,7 @@ fun SortBottomSheet(
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6C5CE7)
+                    containerColor = DealoraPrimary
                 )
             ) {
                 Text(
@@ -156,7 +157,7 @@ private fun SortOptionItem(
                 color = if (isSelected) Color(0xFFF0EFFF) else Color.Transparent
             )
             .clickable { onSelect() }
-            .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 16.dp)
+            .padding(start = 24.dp, end = 24.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

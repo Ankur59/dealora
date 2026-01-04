@@ -37,6 +37,8 @@ import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSec
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
+import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions
 
 @Composable
 fun CouponsList(
@@ -46,8 +48,11 @@ fun CouponsList(
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
 
-    var showSortDialog by remember { mutableStateOf(true) }
+    var showSortDialog by remember { mutableStateOf(false) }
     var currentSortOption by remember { mutableStateOf(SortOption.NONE) }
+
+    var showFiltersDialog by remember { mutableStateOf(true) }
+    var currentFilters by remember { mutableStateOf(FilterOptions()) }
 
     Scaffold(
         containerColor = Color.White,
@@ -67,11 +72,11 @@ fun CouponsList(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Filter section with horizontal padding
-            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Box(modifier = Modifier) {
                 CouponsFilterSection(
                     onSortClick = { showSortDialog = true },
                     onCategoryClick = { /* Handle category click */ },
-                    onFiltersClick = { /* Handle filters click */ }
+                    onFiltersClick = { showFiltersDialog = true }
                 )
             }
 
@@ -185,6 +190,19 @@ fun CouponsList(
                     currentSortOption = sortOption
                     // TODO: Apply sorting logic here
                     // viewModel.applySorting(sortOption)
+                }
+            )
+        }
+
+        // Filters Bottom Sheet
+        if (showFiltersDialog) {
+            FiltersBottomSheet(
+                currentFilters = currentFilters,
+                onDismiss = { showFiltersDialog = false },
+                onApplyFilters = { filters ->
+                    currentFilters = filters
+                    // TODO: Apply filters logic here
+                    // viewModel.applyFilters(filters)
                 }
             )
         }
