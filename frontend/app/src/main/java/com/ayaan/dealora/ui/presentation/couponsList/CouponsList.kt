@@ -39,6 +39,7 @@ import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions
+import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 
 @Composable
 fun CouponsList(
@@ -51,8 +52,11 @@ fun CouponsList(
     var showSortDialog by remember { mutableStateOf(false) }
     var currentSortOption by remember { mutableStateOf(SortOption.NONE) }
 
-    var showFiltersDialog by remember { mutableStateOf(true) }
+    var showFiltersDialog by remember { mutableStateOf(false) }
     var currentFilters by remember { mutableStateOf(FilterOptions()) }
+
+    var showCategoryDialog by remember { mutableStateOf(false) }
+    var currentCategory by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         containerColor = Color.White,
@@ -75,7 +79,7 @@ fun CouponsList(
             Box(modifier = Modifier) {
                 CouponsFilterSection(
                     onSortClick = { showSortDialog = true },
-                    onCategoryClick = { /* Handle category click */ },
+                    onCategoryClick = { showCategoryDialog = true },
                     onFiltersClick = { showFiltersDialog = true }
                 )
             }
@@ -203,6 +207,19 @@ fun CouponsList(
                     currentFilters = filters
                     // TODO: Apply filters logic here
                     // viewModel.applyFilters(filters)
+                }
+            )
+        }
+
+        // Category Bottom Sheet
+        if (showCategoryDialog) {
+            CategoryBottomSheet(
+                currentCategory = currentCategory,
+                onDismiss = { showCategoryDialog = false },
+                onCategorySelected = { category ->
+                    currentCategory = category
+                    // TODO: Apply category filter here
+                    // viewModel.filterByCategory(category)
                 }
             )
         }
