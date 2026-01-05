@@ -50,9 +50,9 @@ fun CouponsList(
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val currentSortOption by viewModel.currentSortOption.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
-    var currentSortOption by remember { mutableStateOf(SortOption.NONE) }
 
     var showFiltersDialog by remember { mutableStateOf(false) }
     var currentFilters by remember { mutableStateOf(FilterOptions()) }
@@ -199,9 +199,7 @@ fun CouponsList(
                 currentSort = currentSortOption,
                 onDismiss = { showSortDialog = false },
                 onSortSelected = { sortOption ->
-                    currentSortOption = sortOption
-                    // TODO: Apply sorting logic here
-                    // viewModel.applySorting(sortOption)
+                    viewModel.onSortOptionChanged(sortOption)
                 }
             )
         }

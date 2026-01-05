@@ -18,7 +18,8 @@ class CouponPagingSource(
     private val brand: String? = null,
     private val category: String? = null,
     private val discountType: String? = null,
-    private val search: String? = null
+    private val search: String? = null,
+    private val sortBy: String? = null
 ) : PagingSource<Int, CouponListItem>() {
 
     companion object {
@@ -41,7 +42,8 @@ class CouponPagingSource(
                 brand = brand,
                 category = category,
                 discountType = discountType,
-                search = search
+                search = search,
+                sortBy = sortBy
             )
 
             if (response.isSuccessful) {

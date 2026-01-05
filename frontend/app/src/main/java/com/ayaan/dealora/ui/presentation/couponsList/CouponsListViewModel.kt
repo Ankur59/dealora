@@ -7,6 +7,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.repository.CouponRepository
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -45,6 +46,9 @@ class CouponsListViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _currentSortOption = MutableStateFlow(SortOption.NONE)
+    val currentSortOption: StateFlow<SortOption> = _currentSortOption.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
@@ -55,7 +59,10 @@ class CouponsListViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collectLatest { query ->
                     Log.d(TAG, "Debounced search triggered with query: $query")
-                    loadCouponsInternal(search = query.ifBlank { null })
+                    loadCouponsInternal(
+                        search = query.ifBlank { null },
+                        sortBy = _currentSortOption.value.apiValue
+                    )
                 }
         }
     }
@@ -66,6 +73,14 @@ class CouponsListViewModel @Inject constructor(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+    }
+
+    fun onSortOptionChanged(sortOption: SortOption) {
+        _currentSortOption.value = sortOption
+        loadCouponsInternal(
+            search = _searchQuery.value.ifBlank { null },
+            sortBy = sortOption.apiValue
+        )
     }
 
     fun loadCoupons(
@@ -79,7 +94,8 @@ class CouponsListViewModel @Inject constructor(
             brand = brand,
             category = category,
             discountType = discountType,
-            search = _searchQuery.value.ifBlank { null }
+            search = _searchQuery.value.ifBlank { null },
+            sortBy = _currentSortOption.value.apiValue
         )
     }
 
@@ -88,7 +104,8 @@ class CouponsListViewModel @Inject constructor(
         brand: String? = null,
         category: String? = null,
         discountType: String? = null,
-        search: String? = null
+        search: String? = null,
+        sortBy: String? = null
     ) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
@@ -103,7 +120,7 @@ class CouponsListViewModel @Inject constructor(
                 }
 
                 val uid = currentUser.uid
-                Log.d(TAG, "Loading coupons for uid: $uid, search: $search")
+                Log.d(TAG, "Loading coupons for uid: $uid, search: $search, sortBy: $sortBy")
                 _uiState.value = CouponsListUiState.Success
 
                 // Collect paging data
@@ -113,7 +130,8 @@ class CouponsListViewModel @Inject constructor(
                     brand = brand,
                     category = category,
                     discountType = discountType,
-                    search = search
+                    search = search,
+                    sortBy = sortBy
                 ).cachedIn(viewModelScope).collectLatest { pagingData ->
                     _couponsFlow.value = pagingData
                 }

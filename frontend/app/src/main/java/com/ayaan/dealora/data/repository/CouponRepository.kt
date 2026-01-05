@@ -46,9 +46,10 @@ class CouponRepository @Inject constructor(
         brand: String? = null,
         category: String? = null,
         discountType: String? = null,
-        search: String? = null
+        search: String? = null,
+        sortBy: String? = null
     ): Flow<PagingData<CouponListItem>> {
-        Log.d(TAG, "Getting coupons for uid: $uid with status: $status, search: $search")
+        Log.d(TAG, "Getting coupons for uid: $uid with status: $status, search: $search, sortBy: $sortBy")
         return Pager(
             config = PagingConfig(
                 pageSize = CouponPagingSource.PAGE_SIZE,
@@ -63,7 +64,8 @@ class CouponRepository @Inject constructor(
                     brand = brand,
                     category = category,
                     discountType = discountType,
-                    search = search
+                    search = search,
+                    sortBy = sortBy
                 )
             }
         ).flow

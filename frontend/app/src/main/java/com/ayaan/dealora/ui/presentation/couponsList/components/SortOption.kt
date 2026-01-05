@@ -37,14 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
-enum class SortOption(val label: String) {
-    NONE("None"),
-    NEWEST_FIRST("Newest First"),
-    EXPIRING_SOON("Expiring Soon"),
-    HIGHEST_DISCOUNT("Highest Discount"),
-    LOWEST_MINIMUM_ORDER("Lowest Minimum Order"),
-    A_TO_Z("A–Z (Brand Name)"),
-    Z_TO_A("Z–A (Brand Name)")
+enum class SortOption(val label: String, val apiValue: String?) {
+    NONE("None", null),
+    NEWEST_FIRST("Newest First", "newest"),
+    OLDEST_FIRST("Oldest First", "oldest"),
+    EXPIRING_SOON("Expiring Soon", "expiring_soon"),
+    HIGHEST_DISCOUNT("Highest Discount", "highest_discount"),
+    A_TO_Z("A–Z (Brand Name)", "a_z"),
+    Z_TO_A("Z–A (Brand Name)", "z_a")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
