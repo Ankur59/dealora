@@ -49,6 +49,9 @@ class CouponsListViewModel @Inject constructor(
     private val _currentSortOption = MutableStateFlow(SortOption.NONE)
     val currentSortOption: StateFlow<SortOption> = _currentSortOption.asStateFlow()
 
+    private val _currentCategory = MutableStateFlow<String?>(null)
+    val currentCategory: StateFlow<String?> = _currentCategory.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
@@ -61,7 +64,8 @@ class CouponsListViewModel @Inject constructor(
                     Log.d(TAG, "Debounced search triggered with query: $query")
                     loadCouponsInternal(
                         search = query.ifBlank { null },
-                        sortBy = _currentSortOption.value.apiValue
+                        sortBy = _currentSortOption.value.apiValue,
+                        category = _currentCategory.value
                     )
                 }
         }
@@ -79,20 +83,31 @@ class CouponsListViewModel @Inject constructor(
         _currentSortOption.value = sortOption
         loadCouponsInternal(
             search = _searchQuery.value.ifBlank { null },
-            sortBy = sortOption.apiValue
+            sortBy = sortOption.apiValue,
+            category = _currentCategory.value
+        )
+    }
+
+    fun onCategoryChanged(category: String?) {
+        // "See All" or null means no category filter
+        val apiCategory = if (category == "See All") null else category
+        _currentCategory.value = apiCategory
+        loadCouponsInternal(
+            search = _searchQuery.value.ifBlank { null },
+            sortBy = _currentSortOption.value.apiValue,
+            category = apiCategory
         )
     }
 
     fun loadCoupons(
         status: String = "active",
         brand: String? = null,
-        category: String? = null,
         discountType: String? = null
     ) {
         loadCouponsInternal(
             status = status,
             brand = brand,
-            category = category,
+            category = _currentCategory.value,
             discountType = discountType,
             search = _searchQuery.value.ifBlank { null },
             sortBy = _currentSortOption.value.apiValue

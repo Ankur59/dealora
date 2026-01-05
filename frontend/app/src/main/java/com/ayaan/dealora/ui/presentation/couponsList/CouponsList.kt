@@ -51,6 +51,7 @@ fun CouponsList(
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSortOption by viewModel.currentSortOption.collectAsState()
+    val currentCategory by viewModel.currentCategory.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
 
@@ -58,7 +59,6 @@ fun CouponsList(
     var currentFilters by remember { mutableStateOf(FilterOptions()) }
 
     var showCategoryDialog by remember { mutableStateOf(false) }
-    var currentCategory by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit){
         viewModel.loadCoupons()
     }
@@ -223,9 +223,7 @@ fun CouponsList(
                 currentCategory = currentCategory,
                 onDismiss = { showCategoryDialog = false },
                 onCategorySelected = { category ->
-                    currentCategory = category
-                    // TODO: Apply category filter here
-                    // viewModel.filterByCategory(category)
+                    viewModel.onCategoryChanged(category)
                 }
             )
         }
