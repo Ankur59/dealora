@@ -98,7 +98,13 @@ const getUserCoupons = async (req, res, next) => {
         // Filter Logic
         if (brand) query.brandName = new RegExp(brand, 'i');
         if (category) query.categoryLabel = category; // Exact match for category
-        if (discountType) query.discountType = discountType;
+
+        if (discountType === 'Saved Coupons') {
+            query.userId = userId;
+            delete query.$or;
+        } else if (discountType) {
+            query.discountType = discountType;
+        }
 
         // Validity Filter (screenshot matching)
         if (req.query.validity) {
@@ -240,7 +246,13 @@ const getUserCouponsTest = async (req, res, next) => {
         // Filter Logic
         if (brand) query.brandName = new RegExp(brand, 'i');
         if (category) query.categoryLabel = category;
-        if (discountType) query.discountType = discountType;
+
+        if (discountType === 'Saved Coupons') {
+            query.userId = uid;
+            delete query.$or;
+        } else if (discountType) {
+            query.discountType = discountType;
+        }
 
         // Validity Filter
         if (req.query.validity) {
