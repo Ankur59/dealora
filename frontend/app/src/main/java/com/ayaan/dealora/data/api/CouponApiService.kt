@@ -26,6 +26,7 @@ interface CouponApiService {
         @Query("status") status: String = "active",
         @Query("brand") brand: String? = null,
         @Query("category") category: String? = null,
-        @Query("discountType") discountType: String? = null
+        @Query("discountType") discountType: String? = null,
+        @Query("search") search: String? = null
     ): Response<ApiResponse<CouponListResponseData>>
 }

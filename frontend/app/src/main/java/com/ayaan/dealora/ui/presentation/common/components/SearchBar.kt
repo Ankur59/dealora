@@ -19,11 +19,14 @@ import com.ayaan.dealora.ui.theme.DealoraTextGray
 import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @Composable
-fun SearchBar(){
+fun SearchBar(
+    value: String = "",
+    onValueChange: (String) -> Unit = {}
+){
     // Search Bar
     OutlinedTextField(
-        value = "",
-        onValueChange = {},
+        value = value,
+        onValueChange = onValueChange,
         placeholder = {
             Text(
                 "Search Coupons", color = DealoraTextGray, fontSize = 14.sp

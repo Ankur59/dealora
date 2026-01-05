@@ -49,6 +49,7 @@ fun CouponsList(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
     var currentSortOption by remember { mutableStateOf(SortOption.NONE) }
@@ -65,6 +66,10 @@ fun CouponsList(
         containerColor = Color.White,
         topBar = {
             CouponsListTopBar(
+                searchQuery = searchQuery,
+                onSearchQueryChanged = { query ->
+                    viewModel.onSearchQueryChanged(query)
+                },
                 onBackClick = {
                     navController.popBackStack()
                 }
