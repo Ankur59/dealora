@@ -80,12 +80,13 @@ const getUserCoupons = async (req, res, next) => {
             category,
             discountType,
             status = 'active',
+            search,
+            sortBy = 'newest',
             page = 1,
             limit = 20
         } = req.query;
 
         // Build query object
-        // Include BOTH user's coupons and public scraped coupons
         const query = {
             $or: [
                 { userId: userId },
@@ -94,18 +95,69 @@ const getUserCoupons = async (req, res, next) => {
             status
         };
 
+        // Filter Logic
         if (brand) query.brandName = new RegExp(brand, 'i');
-        if (category) query.categoryLabel = category;
+        if (category) query.categoryLabel = category; // Exact match for category
         if (discountType) query.discountType = discountType;
 
-        logger.info(`Fetching coupons. Filters: brand=${brand}, category=${category}, discountType=${discountType}`);
+        // Validity Filter (screenshot matching)
+        if (req.query.validity) {
+            const now = new Date();
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+
+            const weekEnd = new Date();
+            weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay())); // End of current week
+            weekEnd.setHours(23, 59, 59, 999);
+
+            const monthEnd = new Date();
+            monthEnd.setMonth(monthEnd.getMonth() + 1);
+            monthEnd.setDate(0); // Last day of current month
+            monthEnd.setHours(23, 59, 59, 999);
+
+            if (req.query.validity === 'today') {
+                query.expireBy = { $gte: now, $lte: todayEnd };
+            } else if (req.query.validity === 'week') {
+                query.expireBy = { $gte: now, $lte: weekEnd };
+            } else if (req.query.validity === 'month') {
+                query.expireBy = { $gte: now, $lte: monthEnd };
+            } else if (req.query.validity === 'expired') {
+                query.status = 'expired'; // Override status if explicit expired filter
+            }
+        }
+
+        // Search Logic
+        if (search) {
+            const searchRegex = new RegExp(search, 'i');
+            query.$and = [
+                {
+                    $or: [
+                        { couponName: searchRegex },
+                        { brandName: searchRegex },
+                        { description: searchRegex },
+                        { couponTitle: searchRegex },
+                        { categoryLabel: searchRegex }
+                    ]
+                }
+            ];
+        }
+
+        logger.info(`Fetching coupons. Filters: brand=${brand}, category=${category}, discountType=${discountType}, search=${search}, sortBy=${sortBy}`);
+
+        // Sort Logic
+        let sortOption = { createdAt: -1 }; // Default: newest
+        if (sortBy === 'oldest') sortOption = { createdAt: 1 };
+        else if (sortBy === 'expiring_soon') sortOption = { expireBy: 1 };
+        else if (sortBy === 'highest_discount') sortOption = { discountValue: -1 }; // Best effort
+        else if (sortBy === 'a_z') sortOption = { brandName: 1 };
+        else if (sortBy === 'z_a') sortOption = { brandName: -1 };
 
         const pageNumber = parseInt(page) || 1;
         const limitNumber = parseInt(limit) || 20;
         const skip = (pageNumber - 1) * limitNumber;
 
         const coupons = await Coupon.find(query)
-            .sort({ createdAt: -1 })
+            .sort(sortOption)
             .skip(skip)
             .limit(limitNumber);
 
@@ -115,14 +167,14 @@ const getUserCoupons = async (req, res, next) => {
         const couponsWithImages = await Promise.all(
             coupons.map(async (coupon) => {
                 let imageBase64 = coupon.base64ImageUrl;
-                
+
                 // Generate base64 image if not stored
                 if (!imageBase64) {
                     try {
                         const couponWithDisplay = addDisplayFields(coupon);
                         const generatedBase64 = await generateCouponImage(couponWithDisplay);
                         imageBase64 = `data:image/png;base64,${generatedBase64}`;
-                        
+
                         // Store the generated image in the database for future use
                         coupon.base64ImageUrl = imageBase64;
                         await coupon.save();
@@ -131,12 +183,16 @@ const getUserCoupons = async (req, res, next) => {
                         imageBase64 = null;
                     }
                 }
-                
+
                 return {
                     id: coupon._id,
                     brandName: coupon.brandName,
                     couponTitle: coupon.couponTitle || coupon.couponName,
-                    couponImageBase64: imageBase64
+                    couponImageBase64: imageBase64,
+                    expireBy: coupon.expireBy,
+                    discountType: coupon.discountType,
+                    discountValue: coupon.discountValue,
+                    categoryLabel: coupon.categoryLabel
                 };
             })
         );
@@ -167,6 +223,8 @@ const getUserCouponsTest = async (req, res, next) => {
             category,
             discountType,
             status = 'active',
+            search,
+            sortBy = 'newest',
             page = 1,
             limit = 20
         } = req.query;
@@ -179,18 +237,69 @@ const getUserCouponsTest = async (req, res, next) => {
             status
         };
 
+        // Filter Logic
         if (brand) query.brandName = new RegExp(brand, 'i');
         if (category) query.categoryLabel = category;
         if (discountType) query.discountType = discountType;
 
-        logger.info(`[TEST] Fetching coupons for uid: ${uid}. Filters: brand=${brand}, category=${category}`);
+        // Validity Filter
+        if (req.query.validity) {
+            const now = new Date();
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+
+            const weekEnd = new Date();
+            weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+            weekEnd.setHours(23, 59, 59, 999);
+
+            const monthEnd = new Date();
+            monthEnd.setMonth(monthEnd.getMonth() + 1);
+            monthEnd.setDate(0);
+            monthEnd.setHours(23, 59, 59, 999);
+
+            if (req.query.validity === 'today') {
+                query.expireBy = { $gte: now, $lte: todayEnd };
+            } else if (req.query.validity === 'week') {
+                query.expireBy = { $gte: now, $lte: weekEnd };
+            } else if (req.query.validity === 'month') {
+                query.expireBy = { $gte: now, $lte: monthEnd };
+            } else if (req.query.validity === 'expired') {
+                query.status = 'expired';
+            }
+        }
+
+        // Search Logic
+        if (search) {
+            const searchRegex = new RegExp(search, 'i');
+            query.$and = [
+                {
+                    $or: [
+                        { couponName: searchRegex },
+                        { brandName: searchRegex },
+                        { description: searchRegex },
+                        { couponTitle: searchRegex },
+                        { categoryLabel: searchRegex }
+                    ]
+                }
+            ];
+        }
+
+        logger.info(`[TEST] Fetching coupons for uid: ${uid}. Filters: brand=${brand}, category=${category}, search=${search}, sortBy=${sortBy}`);
+
+        // Sort Logic
+        let sortOption = { createdAt: -1 }; // Default: newest
+        if (sortBy === 'oldest') sortOption = { createdAt: 1 };
+        else if (sortBy === 'expiring_soon') sortOption = { expireBy: 1 };
+        else if (sortBy === 'highest_discount') sortOption = { discountValue: -1 };
+        else if (sortBy === 'a_z') sortOption = { brandName: 1 };
+        else if (sortBy === 'z_a') sortOption = { brandName: -1 };
 
         const pageNumber = parseInt(page) || 1;
         const limitNumber = parseInt(limit) || 20;
         const skip = (pageNumber - 1) * limitNumber;
 
         const coupons = await Coupon.find(query)
-            .sort({ createdAt: -1 })
+            .sort(sortOption)
             .skip(skip)
             .limit(limitNumber);
 
@@ -205,7 +314,11 @@ const getUserCouponsTest = async (req, res, next) => {
                         id: coupon._id,
                         brandName: coupon.brandName,
                         couponTitle: coupon.couponTitle || coupon.couponName,
-                        couponImageBase64: `data:image/png;base64,${imageBase64}`
+                        couponImageBase64: `data:image/png;base64,${imageBase64}`,
+                        expireBy: coupon.expireBy,
+                        discountType: coupon.discountType,
+                        discountValue: coupon.discountValue,
+                        categoryLabel: coupon.categoryLabel
                     };
                 } catch (error) {
                     logger.error(`Failed to generate image for coupon ${coupon._id}:`, error);
@@ -213,7 +326,11 @@ const getUserCouponsTest = async (req, res, next) => {
                         id: coupon._id,
                         brandName: coupon.brandName,
                         couponTitle: coupon.couponTitle || coupon.couponName,
-                        couponImageBase64: null
+                        couponImageBase64: null,
+                        expireBy: coupon.expireBy,
+                        discountType: coupon.discountType,
+                        discountValue: coupon.discountValue,
+                        categoryLabel: coupon.categoryLabel
                     };
                 }
             })
@@ -430,6 +547,18 @@ const deleteCoupon = async (req, res, next) => {
     }
 };
 
+const getCategories = async (req, res, next) => {
+    try {
+        const categories = ['Food', 'Fashion', 'Electronics', 'Travel', 'Health', 'Beauty', 'Payment', 'Other'];
+        return successResponse(res, STATUS_CODES.OK, 'Categories fetched successfully', {
+            categories
+        });
+    } catch (error) {
+        logger.error('Get categories error:', error);
+        next(error);
+    }
+};
+
 module.exports = {
     createCoupon,
     getUserCoupons,
@@ -439,5 +568,6 @@ module.exports = {
     deleteCoupon,
     redeemCoupon,
     getExpiringSoon,
-    getCouponsByBrand
+    getCouponsByBrand,
+    getCategories
 };

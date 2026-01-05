@@ -11,6 +11,7 @@ router.get('/test', couponController.getUserCouponsTest);
 router.use(authenticate);
 
 // Discovery Routes (Should be before /:id)
+router.get('/categories', couponController.getCategories);
 router.get('/expiring-soon', couponController.getExpiringSoon);
 router.get('/brand/:brandName', couponController.getCouponsByBrand);
 
