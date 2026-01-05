@@ -91,9 +91,9 @@ class GenericAdapter {
     }
 
     normalizeCategory(category) {
-        const validCategories = ['Food', 'Fashion', 'Electronics', 'Travel', 'Health', 'Beauty', 'Payment', 'Other'];
+        const validCategories = ['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'All'];
         const found = validCategories.find(c => c.toLowerCase() === category?.toLowerCase());
-        return found || 'Other';
+        return found || 'All';
     }
 
     getDefaultExpiry() {

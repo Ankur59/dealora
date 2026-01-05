@@ -561,7 +561,7 @@ const deleteCoupon = async (req, res, next) => {
 
 const getCategories = async (req, res, next) => {
     try {
-        const categories = ['Food', 'Fashion', 'Electronics', 'Travel', 'Health', 'Beauty', 'Payment', 'Other'];
+        const categories = ['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'All'];
         return successResponse(res, STATUS_CODES.OK, 'Categories fetched successfully', {
             categories
         });
