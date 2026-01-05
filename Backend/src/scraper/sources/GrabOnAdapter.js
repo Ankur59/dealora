@@ -11,8 +11,8 @@ class GrabOnAdapter extends GenericAdapter {
         const pages = [
             { brand: 'Zomato', path: '/zomato-coupons/', category: 'Food' },
             { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
-            { brand: 'Amazon', path: '/amazon-coupons/', category: 'Electronics' },
-            { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Electronics' }
+            { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
+            { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' }
         ];
 
         let allCoupons = [];
@@ -27,7 +27,7 @@ class GrabOnAdapter extends GenericAdapter {
                 $('div.gc-box').each((i, el) => {
                     const title = $(el).find('p').first().text().trim();
                     const discount = $(el).find('.bm, .txt').text().trim();
-                    const code = $(el).attr('data-couponid'); 
+                    const code = $(el).attr('data-couponid');
                     const desc = $(el).find('p').text().trim();
 
                     if (title) {

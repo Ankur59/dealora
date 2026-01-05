@@ -135,8 +135,8 @@ const couponValidationRules = [
         .trim()
         .notEmpty()
         .withMessage('Category is required')
-        .isIn(['Food', 'Fashion', 'Electronics', 'Travel', 'Health', 'Other'])
-        .withMessage('Category must be one of: Food, Fashion, Electronics, Travel, Health, Other'),
+        .isIn(['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'All'])
+        .withMessage('Category must be one of: Food, Fashion, Grocery, Travel, Wallet Rewards, Beauty, Entertainment, All'),
 
     body('useCouponVia')
         .trim()
