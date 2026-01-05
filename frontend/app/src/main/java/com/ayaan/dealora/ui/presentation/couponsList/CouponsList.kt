@@ -17,8 +17,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +36,11 @@ import androidx.paging.compose.itemKey
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponListItemCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
+import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions
+import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 
 @Composable
 fun CouponsList(
@@ -41,6 +50,17 @@ fun CouponsList(
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
 
+    var showSortDialog by remember { mutableStateOf(false) }
+    var currentSortOption by remember { mutableStateOf(SortOption.NONE) }
+
+    var showFiltersDialog by remember { mutableStateOf(false) }
+    var currentFilters by remember { mutableStateOf(FilterOptions()) }
+
+    var showCategoryDialog by remember { mutableStateOf(false) }
+    var currentCategory by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit){
+        viewModel.loadCoupons()
+    }
     Scaffold(
         containerColor = Color.White,
         topBar = {
@@ -53,17 +73,17 @@ fun CouponsList(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(top = innerPadding.calculateTopPadding())
+                .padding(innerPadding)
                 .background(Color.White)
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
             // Filter section with horizontal padding
-            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Box(modifier = Modifier) {
                 CouponsFilterSection(
-                    onSortClick = { /* Handle sort click */ },
-                    onCategoryClick = { /* Handle category click */ },
-                    onFiltersClick = { /* Handle filters click */ }
+                    onSortClick = { showSortDialog = true },
+                    onCategoryClick = { showCategoryDialog = true },
+                    onFiltersClick = { showFiltersDialog = true }
                 )
             }
 
@@ -166,6 +186,45 @@ fun CouponsList(
                     }
                 }
             }
+        }
+
+        // Sort Bottom Sheet
+        if (showSortDialog) {
+            SortBottomSheet(
+                currentSort = currentSortOption,
+                onDismiss = { showSortDialog = false },
+                onSortSelected = { sortOption ->
+                    currentSortOption = sortOption
+                    // TODO: Apply sorting logic here
+                    // viewModel.applySorting(sortOption)
+                }
+            )
+        }
+
+        // Filters Bottom Sheet
+        if (showFiltersDialog) {
+            FiltersBottomSheet(
+                currentFilters = currentFilters,
+                onDismiss = { showFiltersDialog = false },
+                onApplyFilters = { filters ->
+                    currentFilters = filters
+                    // TODO: Apply filters logic here
+                    // viewModel.applyFilters(filters)
+                }
+            )
+        }
+
+        // Category Bottom Sheet
+        if (showCategoryDialog) {
+            CategoryBottomSheet(
+                currentCategory = currentCategory,
+                onDismiss = { showCategoryDialog = false },
+                onCategorySelected = { category ->
+                    currentCategory = category
+                    // TODO: Apply category filter here
+                    // viewModel.filterByCategory(category)
+                }
+            )
         }
     }
 }
