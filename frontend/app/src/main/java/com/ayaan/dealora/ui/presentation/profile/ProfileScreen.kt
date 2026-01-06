@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.profile
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,7 +43,16 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
-
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.Close
+ import androidx.compose.material3.OutlinedTextField
+ import androidx.compose.material3.OutlinedTextFieldDefaults
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.window.Dialog
+ import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.ui.text.input.KeyboardType
 @Composable
 fun ProfileScreen(
     navController: NavController,
@@ -68,7 +78,7 @@ fun ProfileScreen(
                             colors = gradientColors
                         )
                     )
-            )
+                )
 
             when {
                 uiState.isLoading -> {
@@ -133,7 +143,8 @@ fun ProfileContent(
     navController: NavController,
     name: String,
     phone: String,
-    email: String
+    email: String,
+    onSaveChanges: (String, String, String) -> Unit = { _, _, _ -> }
 ) {
     Column(
         modifier = Modifier
@@ -142,9 +153,10 @@ fun ProfileContent(
     ) {
         ProfileTopBar(
             navController = navController,
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .padding(top = 16.dp)
+            name = name,
+            email = email,
+            phone = phone,
+            onSaveChanges = onSaveChanges
         )
         Spacer(modifier = Modifier.height(16.dp))
         Box(
@@ -434,7 +446,15 @@ fun MenuDivider() {
 }
 
 @Composable
-fun ProfileTopBar(navController: NavController) {
+fun ProfileTopBar(
+    navController: NavController,
+    name: String,
+    email: String,
+    phone: String,
+    onSaveChanges: (String, String, String) -> Unit
+) {
+    var showEditDialog by remember { mutableStateOf(true) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -460,7 +480,183 @@ fun ProfileTopBar(navController: NavController) {
             text = "Edit",
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = Color.White
+            color = Color.White,
+            modifier = Modifier.clickable { showEditDialog = true }
         )
+    }
+
+    if (showEditDialog) {
+        EditProfileDialog(
+            name = name,
+            email = email,
+            phone = phone,
+            onDismiss = { showEditDialog = false },
+            onSave = { newName, newEmail, newPhone ->
+                onSaveChanges(newName, newEmail, newPhone)
+                showEditDialog = false
+            }
+        )
+    }
+}
+@Composable
+fun EditProfileDialog(
+    name: String,
+    email: String,
+    phone: String,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String) -> Unit
+) {
+    var editedName by remember { mutableStateOf(name) }
+    var editedEmail by remember { mutableStateOf(email) }
+    var editedPhone by remember { mutableStateOf(phone) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 14.dp)
+            ) {
+                // Close Button
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.Black
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Name Field
+                Text(
+                    text = "Name",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                OutlinedTextField(
+                    value = editedName,
+                    onValueChange = { editedName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF0D7275),
+                        unfocusedBorderColor = Color.LightGray,
+                        focusedContainerColor = Color(0xFFF5F5F5),
+                        unfocusedContainerColor = Color(0xFFF5F5F5)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Email Field
+                Text(
+                    text = "Email",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                OutlinedTextField(
+                    value = editedEmail,
+                    onValueChange = { editedEmail = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF0D7275),
+                        unfocusedBorderColor = Color.LightGray,
+                        focusedContainerColor = Color(0xFFF5F5F5),
+                        unfocusedContainerColor = Color(0xFFF5F5F5)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+//                Spacer(modifier = Modifier.height(16.dp))
+//                // Phone Number Field
+//                Text(
+//                    text = "Phone Number",
+//                    fontSize = 14.sp,
+//                    fontWeight = FontWeight.Medium,
+//                    color = Color.Black
+//                )
+//                Spacer(modifier = Modifier.height(2.dp))
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    // Country Code
+//                    Box(
+//                        modifier = Modifier
+//                            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+//                            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+//                            .padding(horizontal = 12.dp, vertical = 16.dp)
+//                    ) {
+//                        Row(verticalAlignment = Alignment.CenterVertically) {
+//                            Text(text = "🇮🇳", fontSize = 20.sp)
+//                            Spacer(modifier = Modifier.width(4.dp))
+//                            Text(
+//                                text = "+91",
+//                                fontSize = 14.sp,
+//                                color = Color.Black
+//                            )
+//                        }
+//                    }
+//
+//                    Spacer(modifier = Modifier.width(12.dp))
+//
+//                    // Phone Number
+//                    OutlinedTextField(
+//                        value = editedPhone,
+//                        onValueChange = { editedPhone = it },
+//                        modifier = Modifier.weight(1f),
+//                        colors = OutlinedTextFieldDefaults.colors(
+//                            focusedBorderColor = Color(0xFF0D7275),
+//                            unfocusedBorderColor = Color.LightGray,
+//                            focusedContainerColor = Color(0xFFF5F5F5),
+//                            unfocusedContainerColor = Color(0xFFF5F5F5)
+//                        ),
+//                        shape = RoundedCornerShape(8.dp),
+//                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+//                    )
+//                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Save Changes Button
+                Button(
+                    onClick = { onSave(editedName, editedEmail, editedPhone) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF0D7275)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Save Changes",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
+                }
+            }
+        }
     }
 }
