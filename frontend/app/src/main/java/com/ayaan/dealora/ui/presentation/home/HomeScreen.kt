@@ -8,6 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +38,8 @@ import com.ayaan.dealora.ui.theme.*
 fun HomeScreen(
     navController: NavController, viewModel: HomeViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsState()
+
     Scaffold(
         topBar = {
             AppTopBar(navController)
@@ -58,16 +62,79 @@ fun HomeScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Welcome Text
-            val welcomeText = buildAnnotatedString {
-                append("Hey, ")
-                withStyle(style = SpanStyle(color = DealoraPrimary, fontWeight = FontWeight.Bold)) {
-                    append("Ayaan")
+            // Welcome Text with dynamic user name
+            when {
+                uiState.isLoading -> {
+                    // Show loading state
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Hey, ",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.W400
+                        )
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = DealoraPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+                uiState.errorMessage != null -> {
+                    // Show error state with retry
+                    Column {
+                        val errorText = buildAnnotatedString {
+                            append("Hey, ")
+                            withStyle(style = SpanStyle(color = DealoraPrimary, fontWeight = FontWeight.Bold)) {
+                                append("User")
+                            }
+                        }
+                        Text(
+                            text = errorText,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.W400
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = uiState.errorMessage ?: "Error loading profile",
+                                fontSize = 12.sp,
+                                color = Color.Red,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = { viewModel.retry() },
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Retry",
+                                    fontSize = 12.sp,
+                                    color = DealoraPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    // Show user name from API
+                    val userName = uiState.user?.name ?: "User"
+                    val welcomeText = buildAnnotatedString {
+                        append("Hey, ")
+                        withStyle(style = SpanStyle(color = DealoraPrimary, fontWeight = FontWeight.Bold)) {
+                            append(userName)
+                        }
+                    }
+                    Text(
+                        text = welcomeText,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.W400
+                    )
                 }
             }
-            Text(
-                text = welcomeText, fontSize = 28.sp, fontWeight = FontWeight.W400
-            )
 
             Text(
                 text = "Your smart savings dashboard is ready.",
