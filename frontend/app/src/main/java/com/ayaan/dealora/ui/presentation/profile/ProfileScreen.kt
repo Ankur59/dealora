@@ -84,7 +84,7 @@ fun ProfileScreen(navController: NavController) {
                     Image(
                         painter = painterResource(R.drawable.profile_placeholder),
                         contentDescription = "Profile Picture",
-                        modifier = Modifier.size(100.dp)
+                        modifier = Modifier.size(60.dp)
                     )
                 }
 
@@ -95,7 +95,7 @@ fun ProfileScreen(navController: NavController) {
                     text = "Tanishka Rai",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = Color(0xff0D7275),
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
@@ -112,18 +112,18 @@ fun ProfileScreen(navController: NavController) {
                         text = "7276239311",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Normal,
-                        color = Color.White
+                        color = Color.Black
                     )
                     Text(
                         text = "  •  ",
                         fontSize = 14.sp,
-                        color = Color.White
+                        color = Color.Black
                     )
                     Text(
                         text = "raitanishka01@.com",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Normal,
-                        color = Color.White
+                        color = Color.Black
                     )
                 }
 
@@ -243,7 +243,7 @@ fun CouponStatItem(label: String, iconRes: Int) {
                 .size(60.dp)
                 .border(
                     width = 2.dp,
-                    color = Color.White,
+                    color = Color(0xff0D7275),
                     shape = CircleShape
                 )
                 .background(Color.Transparent, CircleShape),
@@ -252,7 +252,7 @@ fun CouponStatItem(label: String, iconRes: Int) {
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = label,
-                tint = Color.White,
+                tint = Color(0xff0D7275),
                 modifier = Modifier.size(28.dp)
             )
         }
@@ -261,7 +261,7 @@ fun CouponStatItem(label: String, iconRes: Int) {
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.Normal,
-            color = Color.White,
+            color = Color.Black,
             textAlign = TextAlign.Center,
             lineHeight = 14.sp
         )
