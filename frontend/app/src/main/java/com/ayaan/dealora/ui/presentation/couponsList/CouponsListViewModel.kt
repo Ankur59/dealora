@@ -7,18 +7,25 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.repository.CouponRepository
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
  * ViewModel for CouponsList screen
  */
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class CouponsListViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
@@ -27,6 +34,7 @@ class CouponsListViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "CouponsListViewModel"
+        private const val SEARCH_DEBOUNCE_MS = 500L
     }
 
     private val _uiState = MutableStateFlow<CouponsListUiState>(CouponsListUiState.Loading)
@@ -35,17 +43,87 @@ class CouponsListViewModel @Inject constructor(
     private val _couponsFlow = MutableStateFlow<PagingData<CouponListItem>>(PagingData.empty())
     val couponsFlow: StateFlow<PagingData<CouponListItem>> = _couponsFlow.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _currentSortOption = MutableStateFlow(SortOption.NONE)
+    val currentSortOption: StateFlow<SortOption> = _currentSortOption.asStateFlow()
+
+    private val _currentCategory = MutableStateFlow<String?>(null)
+    val currentCategory: StateFlow<String?> = _currentCategory.asStateFlow()
+
+    private var searchJob: Job? = null
+
+    init {
+        // Setup debounced search
+        viewModelScope.launch {
+            _searchQuery
+                .debounce(SEARCH_DEBOUNCE_MS)
+                .distinctUntilChanged()
+                .collectLatest { query ->
+                    Log.d(TAG, "Debounced search triggered with query: $query")
+                    loadCouponsInternal(
+                        search = query.ifBlank { null },
+                        sortBy = _currentSortOption.value.apiValue,
+                        category = _currentCategory.value
+                    )
+                }
+        }
+    }
+
 //    init {
 //        loadCoupons()
 //    }
 
+    fun onSearchQueryChanged(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun onSortOptionChanged(sortOption: SortOption) {
+        _currentSortOption.value = sortOption
+        loadCouponsInternal(
+            search = _searchQuery.value.ifBlank { null },
+            sortBy = sortOption.apiValue,
+            category = _currentCategory.value
+        )
+    }
+
+    fun onCategoryChanged(category: String?) {
+        // "See All" or null means no category filter
+        val apiCategory = if (category == "See All") null else category
+        _currentCategory.value = apiCategory
+        loadCouponsInternal(
+            search = _searchQuery.value.ifBlank { null },
+            sortBy = _currentSortOption.value.apiValue,
+            category = apiCategory
+        )
+    }
+
     fun loadCoupons(
         status: String = "active",
         brand: String? = null,
-        category: String? = null,
         discountType: String? = null
     ) {
-        viewModelScope.launch {
+        loadCouponsInternal(
+            status = status,
+            brand = brand,
+            category = _currentCategory.value,
+            discountType = discountType,
+            search = _searchQuery.value.ifBlank { null },
+            sortBy = _currentSortOption.value.apiValue
+        )
+    }
+
+    private fun loadCouponsInternal(
+        status: String = "active",
+        brand: String? = null,
+        category: String? = null,
+        discountType: String? = null,
+        search: String? = null,
+        sortBy: String? = null
+    ) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _uiState.value = CouponsListUiState.Loading
 
             try {
@@ -57,7 +135,7 @@ class CouponsListViewModel @Inject constructor(
                 }
 
                 val uid = currentUser.uid
-                Log.d(TAG, "Loading coupons for uid: $uid")
+                Log.d(TAG, "Loading coupons for uid: $uid, search: $search, sortBy: $sortBy")
                 _uiState.value = CouponsListUiState.Success
 
                 // Collect paging data
@@ -66,7 +144,9 @@ class CouponsListViewModel @Inject constructor(
                     status = status,
                     brand = brand,
                     category = category,
-                    discountType = discountType
+                    discountType = discountType,
+                    search = search,
+                    sortBy = sortBy
                 ).cachedIn(viewModelScope).collectLatest { pagingData ->
                     _couponsFlow.value = pagingData
                 }

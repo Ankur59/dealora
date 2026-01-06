@@ -33,6 +33,8 @@ import com.ayaan.dealora.ui.theme.DealoraWhite
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CouponsListTopBar(
+    searchQuery: String = "",
+    onSearchQueryChanged: (String) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     TopAppBar(
@@ -67,7 +69,10 @@ fun CouponsListTopBar(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                SearchBar()
+                SearchBar(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChanged
+                )
             }
         }
     )

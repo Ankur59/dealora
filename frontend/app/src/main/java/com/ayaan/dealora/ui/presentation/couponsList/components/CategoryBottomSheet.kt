@@ -2,6 +2,7 @@ package com.ayaan.dealora.ui.presentation.couponsList.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -224,21 +225,25 @@ private fun CategoryItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .width(80.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (isSelected) {
+                    Modifier.border(
+                        width = 2.dp,
+                        color = Color(0xFF6C5CE7),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .clickable { onClick() }
+            .padding(8.dp)
     ) {
         Box(
             modifier = Modifier.size(64.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Selection indicator background
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF6C5CE7).copy(alpha = 0.1f))
-                )
-            }
 
             Image(
                 painter = painterResource(id = imageRes),
@@ -270,7 +275,20 @@ private fun CategoryItemSeeAll(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .width(80.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (isSelected) {
+                    Modifier.border(
+                        width = 2.dp,
+                        color = Color(0xFF6C5CE7),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .clickable { onClick() }
+            .padding(8.dp)
     ) {
         Box(
             modifier = Modifier

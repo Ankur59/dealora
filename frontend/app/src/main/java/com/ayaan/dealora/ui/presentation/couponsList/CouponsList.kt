@@ -49,15 +49,16 @@ fun CouponsList(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val currentSortOption by viewModel.currentSortOption.collectAsState()
+    val currentCategory by viewModel.currentCategory.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
-    var currentSortOption by remember { mutableStateOf(SortOption.NONE) }
 
     var showFiltersDialog by remember { mutableStateOf(false) }
     var currentFilters by remember { mutableStateOf(FilterOptions()) }
 
     var showCategoryDialog by remember { mutableStateOf(false) }
-    var currentCategory by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit){
         viewModel.loadCoupons()
     }
@@ -65,6 +66,10 @@ fun CouponsList(
         containerColor = Color.White,
         topBar = {
             CouponsListTopBar(
+                searchQuery = searchQuery,
+                onSearchQueryChanged = { query ->
+                    viewModel.onSearchQueryChanged(query)
+                },
                 onBackClick = {
                     navController.popBackStack()
                 }
@@ -194,9 +199,7 @@ fun CouponsList(
                 currentSort = currentSortOption,
                 onDismiss = { showSortDialog = false },
                 onSortSelected = { sortOption ->
-                    currentSortOption = sortOption
-                    // TODO: Apply sorting logic here
-                    // viewModel.applySorting(sortOption)
+                    viewModel.onSortOptionChanged(sortOption)
                 }
             )
         }
@@ -220,9 +223,7 @@ fun CouponsList(
                 currentCategory = currentCategory,
                 onDismiss = { showCategoryDialog = false },
                 onCategorySelected = { category ->
-                    currentCategory = category
-                    // TODO: Apply category filter here
-                    // viewModel.filterByCategory(category)
+                    viewModel.onCategoryChanged(category)
                 }
             )
         }

@@ -2,6 +2,7 @@ package com.ayaan.dealora.ui.presentation.navigation.navbar
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,10 +21,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
+import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraGray
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +62,10 @@ fun AppTopBar(navController: NavController) {
                     modifier = Modifier
                         .size(35.dp)
                         .border(1.dp, DealoraGray, CircleShape)
-                        .padding(5.dp),
+                        .padding(5.dp)
+                        .clickable {
+                            navController.navigate(Route.Profile.path)
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -73,4 +80,9 @@ fun AppTopBar(navController: NavController) {
         },
         windowInsets = WindowInsets(0)
     )
+}
+@Preview
+@Composable
+fun AppTopBarPreview(){
+    AppTopBar(navController = NavController(LocalContext.current))
 }
