@@ -51,8 +51,7 @@ fun ProfileScreen(navController: NavController) {
         // Gradient Background
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
+                .fillMaxSize()
                 .background(
                     brush = Brush.verticalGradient(
                         colors = gradientColors
@@ -320,7 +319,7 @@ fun MenuCard(icon: Int, text: String, onClick: () -> Unit) {
                 Icon(
                     painter = painterResource(icon),
                     contentDescription = text,
-                    tint = Color(0xFF0D7275),
+                    tint = Color.Black,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
