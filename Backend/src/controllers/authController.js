@@ -119,12 +119,32 @@ const getProfile = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
     try {
         const user = req.user;
-        const { name, profilePicture } = req.body;
+        const { name, email, phone, profilePicture } = req.body;
 
         logger.info(`Profile update attempt for user: ${user.uid}`);
 
         if (name) {
             user.name = name;
+        }
+
+        if (email) {
+            // Check if email is already taken by another user
+            const emailExists = await User.findByEmail(email);
+            if (emailExists && emailExists.uid !== user.uid) {
+                logger.warn(`Profile update failed: Email already exists - ${email}`);
+                throw new ConflictError(ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
+            }
+            user.email = email;
+        }
+
+        if (phone) {
+            // Check if phone is already taken by another user
+            const phoneExists = await User.findByPhone(phone);
+            if (phoneExists && phoneExists.uid !== user.uid) {
+                logger.warn(`Profile update failed: Phone already exists - ${phone}`);
+                throw new ConflictError(ERROR_MESSAGES.PHONE_ALREADY_EXISTS);
+            }
+            user.phone = phone;
         }
 
         if (profilePicture !== undefined) {
@@ -140,6 +160,20 @@ const updateProfile = async (req, res, next) => {
         });
     } catch (error) {
         logger.error('Update profile error:', error);
+        
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyValue)[0];
+            let message = ERROR_MESSAGES.USER_ALREADY_EXISTS;
+
+            if (field === 'email') {
+                message = ERROR_MESSAGES.EMAIL_ALREADY_EXISTS;
+            } else if (field === 'phone') {
+                message = ERROR_MESSAGES.PHONE_ALREADY_EXISTS;
+            }
+
+            return next(new ConflictError(message));
+        }
+
         next(error);
     }
 };

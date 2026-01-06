@@ -87,6 +87,27 @@ const validateProfileUpdate = [
         .matches(/^[a-zA-Z\s]+$/)
         .withMessage('Name must contain only alphabetic characters and spaces'),
 
+    body('email')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Email cannot be empty if provided')
+        .isEmail()
+        .withMessage('Invalid email format')
+        .normalizeEmail(),
+
+    body('phone')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Phone number cannot be empty if provided')
+        .custom((value) => {
+            if (!isValidPhoneNumber(value)) {
+                throw new Error('Invalid Indian phone number format. Use 10 digits starting with 6-9 or +91 followed by 10 digits');
+            }
+            return true;
+        }),
+
     body('profilePicture')
         .optional()
         .custom((value) => {
