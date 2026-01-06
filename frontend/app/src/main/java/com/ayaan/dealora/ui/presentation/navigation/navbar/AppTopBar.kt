@@ -20,7 +20,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
@@ -73,4 +75,9 @@ fun AppTopBar(navController: NavController) {
         },
         windowInsets = WindowInsets(0)
     )
+}
+@Preview
+@Composable
+fun AppTopBarPreview(){
+    AppTopBar(navController = NavController(LocalContext.current))
 }
