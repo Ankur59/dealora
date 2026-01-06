@@ -2,6 +2,7 @@ package com.ayaan.dealora.di
 
 import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.CouponApiService
+import com.ayaan.dealora.data.api.ProfileApiService
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -75,6 +76,12 @@ object NetworkModule {
     @Singleton
     fun provideCouponApiService(retrofit: Retrofit): CouponApiService {
         return retrofit.create(CouponApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideProfileApiService(retrofit: Retrofit): ProfileApiService {
+        return retrofit.create(ProfileApiService::class.java)
     }
 }
 
