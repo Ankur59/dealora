@@ -18,6 +18,7 @@ import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpViewModel
 import com.ayaan.dealora.ui.presentation.couponsList.CouponsList
 import com.ayaan.dealora.ui.presentation.home.HomeScreen
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
+import com.ayaan.dealora.ui.presentation.profile.ProfileScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -45,6 +46,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.ExploreCoupons.path) {
             CouponsList(navController)
+        }
+        composable(Route.Profile.path){
+            ProfileScreen(navController)
         }
         composable(Route.SignUpOtp.path) { backStackEntry ->
             val parentEntry = remember(backStackEntry) {
