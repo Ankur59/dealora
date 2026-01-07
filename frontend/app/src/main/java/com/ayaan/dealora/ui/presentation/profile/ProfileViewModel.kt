@@ -144,5 +144,10 @@ class ProfileViewModel @Inject constructor(
             }
         }
     }
+    fun logout() {
+        Log.d(TAG, "logout: Signing out user")
+        firebaseAuth.signOut()
+        Log.d(TAG, "logout: User signed out successfully")
+    }
 }
 

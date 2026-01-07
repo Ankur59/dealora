@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +53,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.Dialog
 import com.ayaan.dealora.ui.presentation.navigation.Route
+import com.ayaan.dealora.ui.theme.AppColors
+import com.ayaan.dealora.ui.theme.DealoraPrimary
+
 @Composable
 fun ProfileScreen(
     navController: NavController,
@@ -133,6 +137,12 @@ fun ProfileScreen(
                     email = uiState.user?.email ?: "",
                     onSaveChanges = { name, email, phone ->
                         viewModel.updateProfile(name, email, phone)
+                    },
+                    onLogout = {
+                        viewModel.logout()
+                        navController.navigate(Route.SignIn.path) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 )
             }
@@ -146,8 +156,11 @@ fun ProfileContent(
     name: String,
     phone: String,
     email: String,
-    onSaveChanges: (String, String, String) -> Unit = { _, _, _ -> }
+    onSaveChanges: (String, String, String) -> Unit = { _, _, _ -> },
+    onLogout: () -> Unit = {}
 ) {
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -315,11 +328,22 @@ fun ProfileContent(
                 MenuDivider()
                 MenuItem(R.drawable.notification, "Notification Preferences") { }
                 MenuDivider()
-                MenuItem(R.drawable.logout, "Logout") { }
+                MenuItem(R.drawable.logout, "Logout") { showLogoutDialog = true }
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    // Show Logout Dialog
+    if (showLogoutDialog) {
+        LogOutDialog(
+            onDismiss = { showLogoutDialog = false },
+            onConfirm = {
+                showLogoutDialog = false
+                onLogout()
+            }
+        )
     }
 }
 @Composable
@@ -657,6 +681,94 @@ fun EditProfileDialog(
                 ) {
                     Text(
                         text = "Save Changes",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+@Composable
+fun LogOutDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = AppColors.CardBackground
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Are you sure do you want to",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppColors.PrimaryText,
+                            lineHeight = 24.sp
+                        )
+                        Text(
+                            text = "Logout your account ?",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppColors.PrimaryText,
+                            lineHeight = 24.sp
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = AppColors.IconTint
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Description text
+                Text(
+                    text = "You’ll need to sign in again to access your account.",
+                    fontSize = 14.sp,
+                    color = AppColors.SecondaryText,
+                    lineHeight = 20.sp
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Delete Button
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DealoraPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Logout",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White

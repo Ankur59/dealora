@@ -34,7 +34,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     val startDestination = if(user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
-        startDestination = Route.Profile.path,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable(Route.AccountPrivacy.path) {
