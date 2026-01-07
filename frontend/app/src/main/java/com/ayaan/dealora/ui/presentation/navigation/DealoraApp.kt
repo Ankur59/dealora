@@ -19,6 +19,7 @@ import com.ayaan.dealora.ui.presentation.couponsList.CouponsList
 import com.ayaan.dealora.ui.presentation.home.HomeScreen
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
 import com.ayaan.dealora.ui.presentation.profile.ProfileScreen
+import com.ayaan.dealora.ui.presentation.profile.about.AboutUsScreen
 import com.ayaan.dealora.ui.presentation.profile.appprivacy.AppPrivacyScreen
 import com.ayaan.dealora.ui.presentation.profile.contactsupport.ContactSupportScreen
 import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
@@ -35,6 +36,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         startDestination = Route.Profile.path,
         modifier = modifier
     ) {
+        composable(Route.AboutUs.path){
+            AboutUsScreen(navController)
+        }
         composable(Route.AppPrivacy.path){AppPrivacyScreen(navController)}
         composable(Route.ContactSupport.path){
             ContactSupportScreen(navController)
