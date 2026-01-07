@@ -77,5 +77,72 @@ class ProfileViewModel @Inject constructor(
     fun retry() {
         fetchProfile()
     }
+
+    fun updateProfile(name: String, email: String, phone: String) {
+        val uid = firebaseAuth.currentUser?.uid
+
+        if (uid == null) {
+            Log.e(TAG, "updateProfile: No user logged in")
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    errorMessage = "No user logged in. Please login again."
+                )
+            }
+            return
+        }
+
+        val currentUser = _uiState.value.user
+        if (currentUser == null) {
+            Log.e(TAG, "updateProfile: No user data available")
+            return
+        }
+
+        // Build update data map with only changed fields
+        val updateData = mutableMapOf<String, String>()
+        if (name != currentUser.name) {
+            updateData["name"] = name
+        }
+        if (email != currentUser.email) {
+            updateData["email"] = email
+        }
+        if (phone != currentUser.phone) {
+            updateData["phone"] = phone
+        }
+
+        // If no changes, don't make API call
+        if (updateData.isEmpty()) {
+            Log.d(TAG, "updateProfile: No changes detected")
+            return
+        }
+
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+
+        viewModelScope.launch {
+            Log.d(TAG, "updateProfile: Updating profile for uid: $uid with data: $updateData")
+
+            when (val result = profileRepository.updateProfile(uid, updateData)) {
+                is BackendResult.Success -> {
+                    Log.d(TAG, "updateProfile: Success - ${result.data.user.name}")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            user = result.data.user,
+                            errorMessage = null
+                        )
+                    }
+                }
+                is BackendResult.Error -> {
+                    Log.e(TAG, "updateProfile: Error - ${result.message}")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 

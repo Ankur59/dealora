@@ -19,6 +19,7 @@ import com.ayaan.dealora.ui.presentation.couponsList.CouponsList
 import com.ayaan.dealora.ui.presentation.home.HomeScreen
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
 import com.ayaan.dealora.ui.presentation.profile.ProfileScreen
+import com.ayaan.dealora.ui.presentation.profile.contactsupport.ContactSupportScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -29,9 +30,12 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     val startDestination = if(user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
-        startDestination = startDestination,
+        startDestination = Route.Profile.path,
         modifier = modifier
     ) {
+        composable(Route.ContactSupport.path){
+            ContactSupportScreen(navController)
+        }
         // Sign Up Flow
         composable(Route.SignUp.path) { backStackEntry ->
             val viewModel: SignUpViewModel = hiltViewModel(backStackEntry)

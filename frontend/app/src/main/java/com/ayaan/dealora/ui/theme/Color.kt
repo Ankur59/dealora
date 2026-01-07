@@ -25,3 +25,10 @@ val DealoraSubTextGray=Color(0xFF6B6B6B)
 val BottomBarBackground=Color(0xFFF1EFFD)
 val ContainerColorFocused=Color(0xFFF5F5F5)
 val FilterButtonsText=Color(0xFF1E1E1E)
+object AppColors {
+    val Background = Color(0xFFF5F5F5)
+    val CardBackground = Color(0xFFFFFFFF)
+    val PrimaryText = Color(0xFF000000)
+    val SecondaryText = Color(0xFF666666)
+    val IconTint = Color(0xFF333333)
+}

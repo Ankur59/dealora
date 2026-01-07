@@ -55,5 +55,48 @@ class ProfileRepository @Inject constructor(
             )
         }
     }
+
+    /**
+     * Update user profile on backend
+     */
+    suspend fun updateProfile(uid: String, updateData: Map<String, String>): BackendResult {
+        return try {
+            Log.d(TAG, "updateProfile: Updating profile for uid: $uid with data: $updateData")
+
+            val response = profileApiService.updateProfile(uid, updateData)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.success && body.data != null) {
+                    Log.d(TAG, "updateProfile: Success - ${body.message}")
+                    BackendResult.Success(
+                        message = body.message,
+                        data = body.data
+                    )
+                } else {
+                    val errorMsg = body?.message ?: "Failed to update profile"
+                    Log.e(TAG, "updateProfile: Failed - $errorMsg")
+                    BackendResult.Error(errorMsg)
+                }
+            } else {
+                val errorMsg = when (response.code()) {
+                    400 -> {
+                        val body = response.errorBody()?.string()
+                        body ?: "Validation failed"
+                    }
+                    409 -> "Email already exists"
+                    else -> "Server error: ${response.code()} - ${response.message()}"
+                }
+                Log.e(TAG, "updateProfile: $errorMsg")
+                BackendResult.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateProfile: Exception occurred", e)
+            BackendResult.Error(
+                message = "Network error: ${e.localizedMessage ?: "Unknown error"}",
+                throwable = e
+            )
+        }
+    }
 }
 

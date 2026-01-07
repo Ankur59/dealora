@@ -43,16 +43,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
- import androidx.compose.material.icons.Icons
- import androidx.compose.material.icons.filled.Close
- import androidx.compose.material3.OutlinedTextField
- import androidx.compose.material3.OutlinedTextFieldDefaults
- import androidx.compose.runtime.mutableStateOf
- import androidx.compose.runtime.remember
- import androidx.compose.runtime.setValue
- import androidx.compose.ui.window.Dialog
- import androidx.compose.foundation.text.KeyboardOptions
- import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.window.Dialog
+import com.ayaan.dealora.ui.presentation.navigation.Route
 @Composable
 fun ProfileScreen(
     navController: NavController,
@@ -66,77 +65,80 @@ fun ProfileScreen(
         Color.White
     )
 
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Gradient Background
         Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Gradient Background
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = gradientColors
-                        )
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = gradientColors
                     )
                 )
+        )
 
-            when {
-                uiState.isLoading -> {
-                    // Loading State
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
-                }
-                uiState.errorMessage != null -> {
-                    // Error State with Retry Button
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = uiState.errorMessage ?: "An error occurred",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = { viewModel.retry() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Color(0xFF0D7275)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Retry",
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-                else -> {
-                    // Content State
-                    ProfileContent(
-                        navController = navController,
-                        name = uiState.user?.name ?: "",
-                        phone = uiState.user?.phone ?: "",
-                        email = uiState.user?.email ?: ""
+        when {
+            uiState.isLoading -> {
+                // Loading State
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(48.dp)
                     )
                 }
             }
+            uiState.errorMessage != null -> {
+                // Error State with Retry Button
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = uiState.errorMessage ?: "An error occurred",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.retry() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color(0xFF0D7275)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "Retry",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            else -> {
+                // Content State
+                ProfileContent(
+                    navController = navController,
+                    name = uiState.user?.name ?: "",
+                    phone = uiState.user?.phone ?: "",
+                    email = uiState.user?.email ?: "",
+                    onSaveChanges = { name, email, phone ->
+                        viewModel.updateProfile(name, email, phone)
+                    }
+                )
+            }
         }
     }
+}
 
 @Composable
 fun ProfileContent(
@@ -270,7 +272,8 @@ fun ProfileContent(
             shape = RoundedCornerShape(12.dp)
         ) {
             Column {
-                MenuItem(R.drawable.contact_support, "Contact support") { }
+                MenuItem(R.drawable.contact_support, "Contact support", {navController.navigate(
+                    Route.ContactSupport.path)})
                 MenuDivider()
                 MenuItem(R.drawable.faq, "FAQ") { }
                 MenuDivider()
@@ -405,7 +408,8 @@ fun MenuItem(icon: Int, text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(16.dp)
+            .clickable{onClick()},
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -453,7 +457,7 @@ fun ProfileTopBar(
     phone: String,
     onSaveChanges: (String, String, String) -> Unit
 ) {
-    var showEditDialog by remember { mutableStateOf(true) }
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
