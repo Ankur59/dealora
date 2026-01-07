@@ -309,10 +309,9 @@ fun ProfileContent(
             Column {
                 MenuItem(R.drawable.share, "Share the app") { }
                 MenuDivider()
-                MenuItem(R.drawable.about_us, "About Us", {navController.navigate(
-                    Route.AboutUs.path)})
+                MenuItem(R.drawable.about_us, "About Us", {navController.navigate(Route.AboutUs.path)})
                 MenuDivider()
-                MenuItem(R.drawable.account_privacy, "Account Privacy") { }
+                MenuItem(R.drawable.account_privacy, "Account Privacy",{navController.navigate(Route.AccountPrivacy.path)})
                 MenuDivider()
                 MenuItem(R.drawable.notification, "Notification Preferences") { }
                 MenuDivider()
