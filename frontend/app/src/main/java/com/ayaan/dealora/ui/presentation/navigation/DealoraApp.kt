@@ -18,12 +18,14 @@ import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpViewModel
 import com.ayaan.dealora.ui.presentation.couponsList.CouponsList
 import com.ayaan.dealora.ui.presentation.home.HomeScreen
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
+import com.ayaan.dealora.ui.presentation.navigation.Route.NotificationPreferences
 import com.ayaan.dealora.ui.presentation.profile.ProfileScreen
 import com.ayaan.dealora.ui.presentation.profile.about.AboutUsScreen
 import com.ayaan.dealora.ui.presentation.profile.accountprivacy.AccountPrivacyScreen
 import com.ayaan.dealora.ui.presentation.profile.appprivacy.AppPrivacyScreen
 import com.ayaan.dealora.ui.presentation.profile.contactsupport.ContactSupportScreen
 import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
+import com.ayaan.dealora.ui.presentation.profile.notificationprefs.NotificationPreferencesScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -34,7 +36,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     val startDestination = if(user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
-        startDestination = startDestination,
+        startDestination = NotificationPreferences.path,
         modifier = modifier
     ) {
         composable(Route.AccountPrivacy.path) {
@@ -43,9 +45,14 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         composable(Route.AboutUs.path){
             AboutUsScreen(navController)
         }
-        composable(Route.AppPrivacy.path){AppPrivacyScreen(navController)}
+        composable(Route.AppPrivacy.path){
+            AppPrivacyScreen(navController)
+        }
         composable(Route.ContactSupport.path){
             ContactSupportScreen(navController)
+        }
+        composable(Route.NotificationPreferences.path) {
+            NotificationPreferencesScreen(navController)
         }
         composable(Route.FAQ.path){
             FAQScreen(navController)

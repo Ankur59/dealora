@@ -326,7 +326,7 @@ fun ProfileContent(
                 MenuDivider()
                 MenuItem(R.drawable.account_privacy, "Account Privacy",{navController.navigate(Route.AccountPrivacy.path)})
                 MenuDivider()
-                MenuItem(R.drawable.notification, "Notification Preferences") { }
+                MenuItem(R.drawable.notification, "Notification Preferences",{navController.navigate(Route.NotificationPreferences.path)})
                 MenuDivider()
                 MenuItem(R.drawable.logout, "Logout") { showLogoutDialog = true }
             }
