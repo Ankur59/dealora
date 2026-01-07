@@ -20,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -27,10 +29,15 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,32 +48,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.window.Dialog
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.AppColors
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
 fun ProfileScreen(
-    navController: NavController,
-    viewModel: ProfileViewModel = hiltViewModel()
+    navController: NavController, viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     val gradientColors = listOf(
-        Color(0xFF1B8B8F),
-        Color(0xFF7DDFE3),
-        Color.White
+        Color(0xFF1B8B8F), Color(0xFF7DDFE3), Color.White
     )
 
     Box(
@@ -87,15 +84,14 @@ fun ProfileScreen(
             uiState.isLoading -> {
                 // Loading State
                 Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(48.dp)
+                        color = Color.White, modifier = Modifier.size(48.dp)
                     )
                 }
             }
+
             uiState.errorMessage != null -> {
                 // Error State with Retry Button
                 Column(
@@ -114,20 +110,17 @@ fun ProfileScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
-                        onClick = { viewModel.retry() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF0D7275)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                        onClick = { viewModel.retry() }, colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White, contentColor = Color(0xFF0D7275)
+                        ), shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = "Retry",
-                            fontWeight = FontWeight.Medium
+                            text = "Retry", fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
+
             else -> {
                 // Content State
                 ProfileContent(
@@ -143,8 +136,7 @@ fun ProfileScreen(
                         navController.navigate(Route.SignIn.path) {
                             popUpTo(0) { inclusive = true }
                         }
-                    }
-                )
+                    })
             }
         }
     }
@@ -179,8 +171,7 @@ fun ProfileContent(
                 .size(100.dp)
                 .align(Alignment.CenterHorizontally)
                 .clip(CircleShape)
-                .background(Color.White),
-            contentAlignment = Alignment.Center
+                .background(Color.White), contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(R.drawable.profile_placeholder),
@@ -210,21 +201,13 @@ fun ProfileContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = phone,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color.Black
+                text = phone, fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Black
             )
             Text(
-                text = "  •  ",
-                fontSize = 14.sp,
-                color = Color.Black
+                text = "  •  ", fontSize = 14.sp, color = Color.Black
             )
             Text(
-                text = email,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color.Black
+                text = email, fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Black
             )
         }
 
@@ -247,19 +230,13 @@ fun ProfileContent(
 
         // Sync Coupons Card
         MenuCard(
-            icon = R.drawable.sync_coupons,
-            text = "Sync coupons from other apps",
-            onClick = { }
-        )
+            icon = R.drawable.sync_coupons, text = "Sync coupons from other apps", onClick = { })
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // De-Sync Apps Card
         MenuCard(
-            icon = R.drawable.desync_coupons,
-            text = "De-Sync Apps",
-            onClick = { }
-        )
+            icon = R.drawable.desync_coupons, text = "De-Sync Apps", onClick = { navController.navigate(Route.DesyncApps.path)})
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -285,14 +262,23 @@ fun ProfileContent(
             shape = RoundedCornerShape(12.dp)
         ) {
             Column {
-                MenuItem(R.drawable.contact_support, "Contact support", {navController.navigate(
-                    Route.ContactSupport.path)})
+                MenuItem(R.drawable.contact_support, "Contact support", {
+                    navController.navigate(
+                        Route.ContactSupport.path
+                    )
+                })
                 MenuDivider()
-                MenuItem(R.drawable.faq, "FAQ", {navController.navigate(
-                    Route.FAQ.path)})
+                MenuItem(R.drawable.faq, "FAQ", {
+                    navController.navigate(
+                        Route.FAQ.path
+                    )
+                })
                 MenuDivider()
-                MenuItem(R.drawable.app_privacy, "App Privacy",{navController.navigate(
-                    Route.AppPrivacy.path)})
+                MenuItem(R.drawable.app_privacy, "App Privacy", {
+                    navController.navigate(
+                        Route.AppPrivacy.path
+                    )
+                })
             }
         }
 
@@ -322,11 +308,18 @@ fun ProfileContent(
             Column {
                 MenuItem(R.drawable.share, "Share the app") { }
                 MenuDivider()
-                MenuItem(R.drawable.about_us, "About Us", {navController.navigate(Route.AboutUs.path)})
+                MenuItem(
+                    R.drawable.about_us, "About Us", { navController.navigate(Route.AboutUs.path) })
                 MenuDivider()
-                MenuItem(R.drawable.account_privacy, "Account Privacy",{navController.navigate(Route.AccountPrivacy.path)})
+                MenuItem(
+                    R.drawable.account_privacy,
+                    "Account Privacy",
+                    { navController.navigate(Route.AccountPrivacy.path) })
                 MenuDivider()
-                MenuItem(R.drawable.notification, "Notification Preferences",{navController.navigate(Route.NotificationPreferences.path)})
+                MenuItem(
+                    R.drawable.notification,
+                    "Notification Preferences",
+                    { navController.navigate(Route.NotificationPreferences.path) })
                 MenuDivider()
                 MenuItem(R.drawable.logout, "Logout") { showLogoutDialog = true }
             }
@@ -337,31 +330,25 @@ fun ProfileContent(
 
     // Show Logout Dialog
     if (showLogoutDialog) {
-        LogOutDialog(
-            onDismiss = { showLogoutDialog = false },
-            onConfirm = {
-                showLogoutDialog = false
-                onLogout()
-            }
-        )
+        LogOutDialog(onDismiss = { showLogoutDialog = false }, onConfirm = {
+            showLogoutDialog = false
+            onLogout()
+        })
     }
 }
+
 @Composable
 fun CouponStatItem(label: String, iconRes: Int) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(80.dp)
+        horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(80.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(60.dp)
                 .border(
-                    width = 2.dp,
-                    color = Color(0xff0D7275),
-                    shape = CircleShape
+                    width = 2.dp, color = Color(0xff0D7275), shape = CircleShape
                 )
-                .background(Color.Transparent, CircleShape),
-            contentAlignment = Alignment.Center
+                .background(Color.Transparent, CircleShape), contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(iconRes),
@@ -435,7 +422,7 @@ fun MenuItem(icon: Int, text: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            .clickable{onClick()},
+            .clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -449,10 +436,7 @@ fun MenuItem(icon: Int, text: String, onClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = text,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color.Black
+                text = text, fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Black
             )
         }
         Icon(
@@ -511,8 +495,7 @@ fun ProfileTopBar(
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             color = Color.White,
-            modifier = Modifier.clickable { showEditDialog = true }
-        )
+            modifier = Modifier.clickable { showEditDialog = true })
     }
 
     if (showEditDialog) {
@@ -524,10 +507,10 @@ fun ProfileTopBar(
             onSave = { newName, newEmail, newPhone ->
                 onSaveChanges(newName, newEmail, newPhone)
                 showEditDialog = false
-            }
-        )
+            })
     }
 }
+
 @Composable
 fun EditProfileDialog(
     name: String,
@@ -542,8 +525,7 @@ fun EditProfileDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color.White
@@ -556,12 +538,10 @@ fun EditProfileDialog(
             ) {
                 // Close Button
                 Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.TopEnd
+                    modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd
                 ) {
                     IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(24.dp)
+                        onClick = onDismiss, modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -690,10 +670,10 @@ fun EditProfileDialog(
         }
     }
 }
+
 @Composable
 fun LogOutDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onDismiss: () -> Unit, onConfirm: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -733,8 +713,7 @@ fun LogOutDialog(
                     }
 
                     IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(24.dp)
+                        onClick = onDismiss, modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,

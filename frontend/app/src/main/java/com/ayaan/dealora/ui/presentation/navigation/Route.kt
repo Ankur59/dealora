@@ -16,4 +16,5 @@ sealed class Route(val path: String) {
     data object AboutUs:Route("aboutus")
     data object AccountPrivacy:Route("accountprivacy")
     data object NotificationPreferences:Route("notificationpreferences")
+    data object DesyncApps:Route("desyncapp")
 }

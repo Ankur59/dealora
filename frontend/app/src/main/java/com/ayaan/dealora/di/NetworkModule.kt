@@ -20,9 +20,9 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "http://192.168.1.4:3000" // Android emulator localhost
+//    private const val BASE_URL = "http://10.0.2.2:3000/" // Android emulator localhost
     // For physical device, use your computer's IP address:
-    // private const val BASE_URL = "http://192.168.x.x:3000/"
+     private const val BASE_URL = "https://dealora.onrender.com"
 
     @Provides
     @Singleton

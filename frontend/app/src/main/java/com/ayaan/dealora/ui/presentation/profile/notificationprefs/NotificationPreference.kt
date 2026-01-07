@@ -1,4 +1,3 @@
-// NotificationPreferencesScreen.kt
 package com.ayaan.dealora.ui.presentation.profile.notificationprefs
 
 import androidx.annotation.DrawableRes
@@ -40,14 +39,14 @@ fun NotificationPreferencesScreen(navController: NavController) {
             title = "Receive Whatsapp Messages",
             description = "Receive occasional updates and offers from partners.",
             iconColor = Color.Transparent,
-            iconRes = R.drawable.whatsapp, // Replace with your drawable resource
+            iconRes = R.drawable.whatsapp,
             isEnabled = whatsappEnabled
         ),
         NotificationPreference(
             title = "Receive SMS Messages",
             description = "Receive occasional updates and offers from partners.",
             iconColor = Color.Transparent,
-            iconRes = R.drawable.sms, // Replace with your drawable resource
+            iconRes = R.drawable.sms,
             isEnabled = smsEnabled
         )
     )

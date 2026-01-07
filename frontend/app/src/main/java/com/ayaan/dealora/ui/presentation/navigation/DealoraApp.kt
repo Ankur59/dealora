@@ -24,6 +24,7 @@ import com.ayaan.dealora.ui.presentation.profile.about.AboutUsScreen
 import com.ayaan.dealora.ui.presentation.profile.accountprivacy.AccountPrivacyScreen
 import com.ayaan.dealora.ui.presentation.profile.appprivacy.AppPrivacyScreen
 import com.ayaan.dealora.ui.presentation.profile.contactsupport.ContactSupportScreen
+import com.ayaan.dealora.ui.presentation.profile.desync.DesyncAppScreen
 import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
 import com.ayaan.dealora.ui.presentation.profile.notificationprefs.NotificationPreferencesScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
@@ -36,7 +37,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     val startDestination = if(user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
-        startDestination = NotificationPreferences.path,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable(Route.AccountPrivacy.path) {
@@ -50,6 +51,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.ContactSupport.path){
             ContactSupportScreen(navController)
+        }
+        composable(Route.DesyncApps.path){
+            DesyncAppScreen(navController)
         }
         composable(Route.NotificationPreferences.path) {
             NotificationPreferencesScreen(navController)
