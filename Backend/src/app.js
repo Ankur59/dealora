@@ -16,9 +16,7 @@ const couponRoutes = require('./routes/couponRoutes');
 
 const app = express();
 
-if (process.env.NODE_ENV === 'production') {
-    app.set('trust proxy', 1);
-}
+app.set('trust proxy', 1);
 
 app.use(helmet({
     contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
@@ -68,7 +66,7 @@ app.use(limiter);
 
 app.get('/health', (req, res) => {
     const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-    
+
     const health = {
         success: true,
         message: 'Server is running',
