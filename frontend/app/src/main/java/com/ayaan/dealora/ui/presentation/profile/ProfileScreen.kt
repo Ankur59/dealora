@@ -278,7 +278,8 @@ fun ProfileContent(
                 MenuItem(R.drawable.faq, "FAQ", {navController.navigate(
                     Route.FAQ.path)})
                 MenuDivider()
-                MenuItem(R.drawable.app_privacy, "App Privacy") { }
+                MenuItem(R.drawable.app_privacy, "App Privacy",{navController.navigate(
+                    Route.AppPrivacy.path)})
             }
         }
 

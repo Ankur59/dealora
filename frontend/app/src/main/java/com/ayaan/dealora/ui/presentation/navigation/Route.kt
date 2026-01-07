@@ -12,4 +12,5 @@ sealed class Route(val path: String) {
     data object ExploreCoupons:Route("explorecoupons")
     data object ContactSupport:Route("contactsupport")
     data object FAQ:Route("faq")
+    data object AppPrivacy:Route("appprivacy")
 }
