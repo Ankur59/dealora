@@ -108,39 +108,25 @@ Early partners benefit directly from being part of the unified coupon experience
 ```mermaid
 flowchart LR
     %% Styling
-    classDef user fill:#E3F2FD,stroke:#1E88E5,color:#0D47A1,stroke-width:1.5px;
-    classDef partner fill:#FFF3E0,stroke:#FB8C00,color:#E65100,stroke-width:1.5px;
-    classDef data fill:#F3E5F5,stroke:#8E24AA,color:#4A148C,stroke-width:1.5px;
-    classDef app fill:#E8F5E9,stroke:#43A047,color:#1B5E20,stroke-width:1.5px;
+    classDef user fill:#E3F2FD,stroke:#1E88E5,color:#0D47A1,stroke-width:1.5px
+    classDef partner fill:#FFF3E0,stroke:#FB8C00,color:#E65100,stroke-width:1.5px
+    classDef data fill:#F3E5F5,stroke:#8E24AA,color:#4A148C,stroke-width:1.5px
+    classDef app fill:#E8F5E9,stroke:#43A047,color:#1B5E20,stroke-width:1.5px
 
-    %% User Layer
-    U[👤 User]:::user
-
-    %% Partner Layer
-    subgraph PL[Partner Platforms]
-        P1[📱 Consumer Apps\n(E‑commerce, Wallets,\nBanks, Delivery)]
-        P2[🌐 Coupon Aggregators\n(GrabOn, CashKaro)]
-    end
-    class P1,P2 partner
-
-    %% Data Layer
-    CD[(🎫 Coupon Data\n• Title\n• Code\n• Expiry\n• Eligibility\n• Category\n• Brand)]:::data
-
-    %% Our App Layer
-    subgraph APP[Unified Coupon App]
-        IN[📥 Secure Ingestion\n& Normalization\n(Read‑only)]
-        DB[(🗂 Coupon Store)]
-        UI[📊 Unified Coupon Dashboard\nActive • Expired • Redeemed]
-    end
-    class IN,DB,UI app
+    %% Nodes
+    U["👤 User"]:::user
+    P1["📱 Consumer Apps<br/>(E-commerce, Wallets, Banks, Delivery)"]:::partner
+    P2["🌐 Coupon Aggregators<br/>(GrabOn, CashKaro)"]:::partner
+    CD[("🎫 Coupon Data<br/>• Title<br/>• Code<br/>• Expiry<br/>• Eligibility<br/>• Category<br/>• Brand")]:::data
+    IN["📥 Secure Ingestion & Normalization<br/>(Read-only)"]:::app
+    DB[("🗂 Coupon Store")]:::app
+    UI["📊 Unified Coupon Dashboard<br/>Active • Expired • Redeemed"]:::app
 
     %% Flows
     U -->|Uses| P1
     U -->|Discovers| P2
-
     P1 -->|Shares Coupons| CD
     P2 -->|Shares Coupons| CD
-
     CD --> IN
     IN --> DB
     DB --> UI
