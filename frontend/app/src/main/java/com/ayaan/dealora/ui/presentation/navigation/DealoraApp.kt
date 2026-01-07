@@ -20,6 +20,7 @@ import com.ayaan.dealora.ui.presentation.home.HomeScreen
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
 import com.ayaan.dealora.ui.presentation.profile.ProfileScreen
 import com.ayaan.dealora.ui.presentation.profile.contactsupport.ContactSupportScreen
+import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -35,6 +36,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     ) {
         composable(Route.ContactSupport.path){
             ContactSupportScreen(navController)
+        }
+        composable(Route.FAQ.path){
+            FAQScreen(navController)
         }
         // Sign Up Flow
         composable(Route.SignUp.path) { backStackEntry ->

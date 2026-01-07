@@ -2,8 +2,6 @@ package com.ayaan.dealora.ui.presentation.profile.contactsupport
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,37 +11,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.ayaan.dealora.ui.presentation.profile.components.TopBar
 import com.ayaan.dealora.ui.theme.AppColors
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TopBar(
-    navController: NavController,
-    title: String
-) {
-    TopAppBar(
-        title = {
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppColors.PrimaryText
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = { navController.navigateUp() }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = AppColors.IconTint
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = AppColors.Background
-        )
-    )
-}
+
 
 @Composable
 fun ContactSupportScreen(navController: NavController) {

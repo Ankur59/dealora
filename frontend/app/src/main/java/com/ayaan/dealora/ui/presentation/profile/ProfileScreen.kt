@@ -275,7 +275,8 @@ fun ProfileContent(
                 MenuItem(R.drawable.contact_support, "Contact support", {navController.navigate(
                     Route.ContactSupport.path)})
                 MenuDivider()
-                MenuItem(R.drawable.faq, "FAQ") { }
+                MenuItem(R.drawable.faq, "FAQ", {navController.navigate(
+                    Route.FAQ.path)})
                 MenuDivider()
                 MenuItem(R.drawable.app_privacy, "App Privacy") { }
             }
