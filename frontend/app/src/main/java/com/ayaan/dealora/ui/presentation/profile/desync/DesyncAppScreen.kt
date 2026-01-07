@@ -8,15 +8,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.theme.AppColors
 import com.ayaan.dealora.R
@@ -28,17 +31,15 @@ data class ActiveApp(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DesyncAppScreen(navController: NavController) {
+    var showRemoveDialog by remember { mutableStateOf(false) }
+    var selectedApp by remember { mutableStateOf<ActiveApp?>(null) }
     val activeApps = listOf(
         ActiveApp("Phone Pay", R.drawable.phonepay),
         ActiveApp("Blinkit", R.drawable.blinkit),
         ActiveApp("Myntra", R.drawable.myntra),
         ActiveApp("Cred", R.drawable.cred),
         ActiveApp("Nykaa", R.drawable.nykaa),
-        ActiveApp("Flipkart", R.drawable.flipkart),
-//        ActiveApp("Phone Pay", R.drawable.ic_phonepe_6),
-//        ActiveApp("Phone Pay", R.drawable.ic_phonepe_7),
-//        ActiveApp("Phone Pay", R.drawable.ic_phonepe_8),
-//        ActiveApp("Phone Pay", R.drawable.ic_phonepe_9)
+        ActiveApp("Flipkart", R.drawable.flipkart)
     )
 
     Scaffold(
@@ -72,7 +73,8 @@ fun DesyncAppScreen(navController: NavController) {
                     ActiveAppCard(
                         app = app,
                         onRemoveClick = {
-                            // Handle remove app
+                            selectedApp = app
+                            showRemoveDialog = true
                         }
                     )
                 }
@@ -81,6 +83,21 @@ fun DesyncAppScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
+        }
+
+        // Remove Synced App Dialog
+        if (showRemoveDialog) {
+            RemoveSyncedAppDialog(
+                onDismiss = {
+                    showRemoveDialog = false
+                    selectedApp = null
+                },
+                onConfirm = {
+                    // Handle de-sync app logic here
+                    showRemoveDialog = false
+                    selectedApp = null
+                }
+            )
         }
     }
 }
@@ -186,6 +203,96 @@ fun ActiveAppCard(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Normal
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun RemoveSyncedAppDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = AppColors.CardBackground
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                // Header with close button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Are you sure do you want to",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppColors.PrimaryText,
+                            lineHeight = 24.sp
+                        )
+                        Text(
+                            text = "De-sync this App ?",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppColors.PrimaryText,
+                            lineHeight = 24.sp
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = AppColors.IconTint
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Description text
+                Text(
+                    text = "De-sync will delete all the coupons from this app.",
+                    fontSize = 14.sp,
+                    color = AppColors.SecondaryText,
+                    lineHeight = 20.sp
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // De-Sync Button
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF5B4CFF)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "De-Sync",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
+                }
             }
         }
     }
