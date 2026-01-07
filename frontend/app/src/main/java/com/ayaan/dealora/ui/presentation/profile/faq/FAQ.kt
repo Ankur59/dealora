@@ -20,7 +20,9 @@ import com.ayaan.dealora.ui.presentation.profile.components.TopBar
 import com.ayaan.dealora.ui.theme.AppColors
 
 data class FAQItem(
-    val question: String, val answer: String? = null, val isExpandable: Boolean = true
+    val question: String,
+    val answer: String? = null,
+    val isExpandable: Boolean = true
 )
 
 @Composable
@@ -31,25 +33,47 @@ fun FAQScreen(navController: NavController) {
 
     val faqList = listOf(
         FAQItem(
-            question = "How does the app sync coupons from other apps?", answer = "We are working on that"
-        ), FAQItem(
-            question = "Is it safe to sync my coupons with this app?", answer = "We are working on that"
-        ), FAQItem(
-            question = "How long does the syncing process take?", answer = "We are working on that"
-        ), FAQItem(
-            question = "Why are some coupons not visible after syncing?", answer = "We are working on that"
-        ), FAQItem(
+            question = "How does the app sync coupons from other apps?",
+            answer = "We are working on that"
+        ),
+        FAQItem(
+            question = "Is it safe to sync my coupons with this app?",
+            answer = "We are working on that"
+        ),
+        FAQItem(
+            question = "How long does the syncing process take?",
+            answer = "We are working on that"
+        ),
+        FAQItem(
+            question = "Why are some coupons not visible after syncing?",
+            answer = "We are working on that"
+        ),
+        FAQItem(
             question = "Are my personal details shared with other apps?",
             answer = "No. We never share your personal details with any third-party apps or services. When you sync an app, we only access the information required to fetch your coupons—nothing else."
         )
     )
 
+    // Filter FAQ list based on search query
+    val filteredFaqList = remember(searchQuery, faqList) {
+        if (searchQuery.isBlank()) {
+            faqList
+        } else {
+            faqList.filter { faq ->
+                faq.question.contains(searchQuery, ignoreCase = true) ||
+                        (faq.answer?.contains(searchQuery, ignoreCase = true) == true)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopBar(
-                navController = navController, title = "FAQ"
+                navController = navController,
+                title = "FAQ"
             )
-        }, containerColor = AppColors.Background
+        },
+        containerColor = AppColors.Background
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -65,15 +89,20 @@ fun FAQScreen(navController: NavController) {
             // Search Bar
             item {
                 SearchBar(
-                    query = searchQuery, onQueryChange = { searchQuery = it })
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it }
+                )
             }
 
             // FAQ Items
-            items(faqList.size) { index ->
+            items(filteredFaqList.size) { index ->
                 FAQCard(
-                    faqItem = faqList[index], isExpanded = expandedIndex == index, onClick = {
+                    faqItem = filteredFaqList[index],
+                    isExpanded = expandedIndex == index,
+                    onClick = {
                         expandedIndex = if (expandedIndex == index) null else index
-                    })
+                    }
+                )
             }
 
             // Ask Question Input
@@ -85,7 +114,8 @@ fun FAQScreen(navController: NavController) {
                     onSend = {
                         // Handle send action
                         questionInput = ""
-                    })
+                    }
+                )
             }
 
             item {
@@ -98,7 +128,8 @@ fun FAQScreen(navController: NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchBar(
-    query: String, onQueryChange: (String) -> Unit
+    query: String,
+    onQueryChange: (String) -> Unit
 ) {
     TextField(
         value = query,
@@ -108,7 +139,9 @@ fun SearchBar(
             .height(56.dp),
         placeholder = {
             Text(
-                text = "Search Questions", color = AppColors.SecondaryText, fontSize = 15.sp
+                text = "Search Questions",
+                color = AppColors.SecondaryText,
+                fontSize = 15.sp
             )
         },
         leadingIcon = {
@@ -133,10 +166,13 @@ fun SearchBar(
 
 @Composable
 fun FAQCard(
-    faqItem: FAQItem, isExpanded: Boolean, onClick: () -> Unit
+    faqItem: FAQItem,
+    isExpanded: Boolean,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = AppColors.CardBackground
@@ -178,7 +214,8 @@ fun FAQCard(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Divider(
-                    color = AppColors.Background, thickness = 1.dp
+                    color = AppColors.Background,
+                    thickness = 1.dp
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -197,7 +234,9 @@ fun FAQCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AskQuestionInput(
-    value: String, onValueChange: (String) -> Unit, onSend: () -> Unit
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSend: () -> Unit
 ) {
     TextField(
         value = value,
@@ -207,7 +246,9 @@ fun AskQuestionInput(
             .height(56.dp),
         placeholder = {
             Text(
-                text = "Ask your question here", color = AppColors.SecondaryText, fontSize = 15.sp
+                text = "Ask your question here",
+                color = AppColors.SecondaryText,
+                fontSize = 15.sp
             )
         },
         trailingIcon = {
