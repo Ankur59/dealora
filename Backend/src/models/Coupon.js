@@ -48,8 +48,8 @@ const couponSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Category is required'],
             enum: {
-                values: ['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'All'],
-                message: 'Category must be one of: Food, Fashion, Grocery, Travel, Wallet Rewards, Beauty, Entertainment, All',
+                values: ['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'Electronics', 'All'],
+                message: 'Category must be one of: Food, Fashion, Grocery, Travel, Wallet Rewards, Beauty, Entertainment, Electronics, All',
             },
         },
 
@@ -65,13 +65,19 @@ const couponSchema = new mongoose.Schema(
 
         discountType: {
             type: String,
-            enum: ['percentage', 'flat', 'cashback', 'freebie', 'unknown'],
+            enum: ['percentage', 'flat', 'cashback', 'freebie', 'buy1get1', 'free_delivery', 'wallet_upi', 'prepaid_only', 'unknown'],
             default: 'unknown',
         },
 
         discountValue: {
             type: mongoose.Schema.Types.Mixed,
             default: null,
+        },
+
+        minimumOrder: {
+            type: Number,
+            default: null,
+            min: [0, 'Minimum order value cannot be negative'],
         },
 
         couponCode: {
