@@ -34,8 +34,30 @@ class GenericAdapter {
             const response = await this.client.get(endpoint);
             return response.data;
         } catch (error) {
-            logger.error(`Error fetching from ${this.sourceName} (${endpoint}):`, error.message);
-            throw error;
+            // Handle axios errors properly
+            if (error.response) {
+                // Server responded with error status
+                const status = error.response.status;
+                const statusText = error.response.statusText || 'Unknown Error';
+                const errorMsg = `Request failed with status ${status} (${statusText})`;
+                
+                // Don't throw for 404s, just log and return null
+                if (status === 404) {
+                    logger.warn(`${this.sourceName}: Page not found (404) - ${endpoint}`);
+                    return null;
+                }
+                
+                logger.error(`${this.sourceName}: ${errorMsg} - ${endpoint}`);
+                throw new Error(errorMsg);
+            } else if (error.request) {
+                // Request was made but no response received
+                logger.error(`${this.sourceName}: No response received - ${endpoint}`);
+                throw new Error('No response received from server');
+            } else {
+                // Error setting up the request
+                logger.error(`${this.sourceName}: ${error.message} - ${endpoint}`);
+                throw error;
+            }
         }
     }
 
