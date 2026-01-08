@@ -19,6 +19,7 @@ const createCoupon = async (req, res, next) => {
             couponCode,
             couponVisitingLink,
             couponDetails,
+            minimumOrder,
         } = req.body;
 
         logger.info(`Creating coupon for user: ${userId}, coupon: ${couponName}`);
@@ -32,6 +33,7 @@ const createCoupon = async (req, res, next) => {
             categoryLabel,
             useCouponVia,
             couponDetails: couponDetails || null,
+            minimumOrder: minimumOrder || null,
             addedMethod: 'manual',
         };
 
@@ -95,20 +97,71 @@ const getUserCoupons = async (req, res, next) => {
             status
         };
 
-        // Filter Logic
-        if (brand) query.brandName = new RegExp(brand, 'i');
-        if (category) query.categoryLabel = category; // Exact match for category
-
-        if (discountType === 'Saved Coupons') {
-            query.userId = userId;
-            delete query.$or;
-        } else if (discountType) {
-            query.discountType = discountType;
+        // Filter Logic - Brand
+        if (brand) {
+            query.brandName = new RegExp(brand, 'i');
         }
 
-        // Validity Filter (screenshot matching)
+        // Filter Logic - Category
+        if (category && category !== 'All' && category !== 'See all') {
+            query.categoryLabel = category; // Exact match for category
+        }
+
+        // Filter Logic - Discount Type (matching screenshot options)
+        if (discountType) {
+            if (discountType === 'Saved Coupons') {
+                query.userId = userId;
+                delete query.$or;
+            } else if (discountType === 'percentage_off' || discountType === 'Percentage Off') {
+                query.discountType = 'percentage';
+            } else if (discountType === 'flat_discount' || discountType === 'Flat Discount') {
+                query.discountType = 'flat';
+            } else if (discountType === 'cashback' || discountType === 'Cashback') {
+                query.discountType = 'cashback';
+            } else if (discountType === 'buy1get1' || discountType === 'Buy 1 Get 1') {
+                query.discountType = 'buy1get1';
+            } else if (discountType === 'free_delivery' || discountType === 'Free Delivery') {
+                query.discountType = 'free_delivery';
+            } else if (discountType === 'wallet_upi' || discountType === 'Wallet/UPI Offers') {
+                query.discountType = 'wallet_upi';
+            } else if (discountType === 'prepaid_only' || discountType === 'Prepaid Only Offers') {
+                query.discountType = 'prepaid_only';
+            } else {
+                // Direct match for standard discount types
+                query.discountType = discountType;
+            }
+        }
+
+        // Filter Logic - Price/Minimum Order (matching screenshot options)
+        if (req.query.minimumOrder || req.query.price) {
+            const priceFilter = req.query.minimumOrder || req.query.price;
+            
+            if (priceFilter === 'no_minimum' || priceFilter === 'No Minimum Order') {
+                // Use $and to combine with existing $or query
+                if (!query.$and) query.$and = [];
+                query.$and.push({
+                    $or: [
+                        { minimumOrder: null },
+                        { minimumOrder: 0 },
+                        { minimumOrder: { $exists: false } }
+                    ]
+                });
+            } else if (priceFilter === 'below_300' || priceFilter === 'Minimum Order Below ₹300') {
+                query.minimumOrder = { $lt: 300 };
+            } else if (priceFilter === '300_700' || priceFilter === '₹300-₹700') {
+                query.minimumOrder = { $gte: 300, $lte: 700 };
+            } else if (priceFilter === '700_1500' || priceFilter === '₹700-₹1500') {
+                query.minimumOrder = { $gte: 700, $lte: 1500 };
+            } else if (priceFilter === 'above_1500' || priceFilter === 'Above ₹1500') {
+                query.minimumOrder = { $gt: 1500 };
+            }
+        }
+
+        // Filter Logic - Validity (matching screenshot options)
         if (req.query.validity) {
             const now = new Date();
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
             const todayEnd = new Date();
             todayEnd.setHours(23, 59, 59, 999);
 
@@ -121,14 +174,26 @@ const getUserCoupons = async (req, res, next) => {
             monthEnd.setDate(0); // Last day of current month
             monthEnd.setHours(23, 59, 59, 999);
 
-            if (req.query.validity === 'today') {
+            if (req.query.validity === 'valid_today' || req.query.validity === 'Valid Today') {
+                query.expireBy = { $gte: now, $lte: todayEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'valid_this_week' || req.query.validity === 'Valid This Week') {
+                query.expireBy = { $gte: now, $lte: weekEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'valid_this_month' || req.query.validity === 'Valid This Month') {
+                query.expireBy = { $gte: now, $lte: monthEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'expired' || req.query.validity === 'Expired') {
+                query.status = 'expired';
+            } else if (req.query.validity === 'today') {
+                // Legacy support
                 query.expireBy = { $gte: now, $lte: todayEnd };
             } else if (req.query.validity === 'week') {
+                // Legacy support
                 query.expireBy = { $gte: now, $lte: weekEnd };
             } else if (req.query.validity === 'month') {
+                // Legacy support
                 query.expireBy = { $gte: now, $lte: monthEnd };
-            } else if (req.query.validity === 'expired') {
-                query.status = 'expired'; // Override status if explicit expired filter
             }
         }
 
@@ -150,13 +215,31 @@ const getUserCoupons = async (req, res, next) => {
 
         logger.info(`Fetching coupons. Filters: brand=${brand}, category=${category}, discountType=${discountType}, search=${search}, sortBy=${sortBy}`);
 
-        // Sort Logic
-        let sortOption = { createdAt: -1 }; // Default: newest
-        if (sortBy === 'oldest') sortOption = { createdAt: 1 };
-        else if (sortBy === 'expiring_soon') sortOption = { expireBy: 1 };
-        else if (sortBy === 'highest_discount') sortOption = { discountValue: -1 }; // Best effort
-        else if (sortBy === 'a_z') sortOption = { brandName: 1 };
-        else if (sortBy === 'z_a') sortOption = { brandName: -1 };
+        // Sort Logic - matching screenshot options
+        let sortOption = {};
+        if (sortBy === 'none' || sortBy === 'None') {
+            // No sorting - return in natural order
+            sortOption = {};
+        } else if (sortBy === 'newest' || sortBy === 'newest_first') {
+            sortOption = { createdAt: -1 };
+        } else if (sortBy === 'oldest') {
+            sortOption = { createdAt: 1 };
+        } else if (sortBy === 'expiring_soon' || sortBy === 'expiring_soon_first') {
+            sortOption = { expireBy: 1 };
+        } else if (sortBy === 'highest_discount') {
+            // Sort by discount value descending (highest first)
+            sortOption = { discountValue: -1 };
+        } else if (sortBy === 'lowest_minimum_order') {
+            // Sort by minimum order ascending (lowest first)
+            sortOption = { minimumOrder: 1 };
+        } else if (sortBy === 'a_z' || sortBy === 'a_to_z') {
+            sortOption = { brandName: 1 };
+        } else if (sortBy === 'z_a' || sortBy === 'z_to_a') {
+            sortOption = { brandName: -1 };
+        } else {
+            // Default: newest first
+            sortOption = { createdAt: -1 };
+        }
 
         const pageNumber = parseInt(page) || 1;
         const limitNumber = parseInt(limit) || 20;
@@ -198,7 +281,8 @@ const getUserCoupons = async (req, res, next) => {
                     expireBy: coupon.expireBy,
                     discountType: coupon.discountType,
                     discountValue: coupon.discountValue,
-                    categoryLabel: coupon.categoryLabel
+                    categoryLabel: coupon.categoryLabel,
+                    minimumOrder: coupon.minimumOrder || null
                 };
             })
         );
@@ -243,20 +327,70 @@ const getUserCouponsTest = async (req, res, next) => {
             status
         };
 
-        // Filter Logic
-        if (brand) query.brandName = new RegExp(brand, 'i');
-        if (category) query.categoryLabel = category;
-
-        if (discountType === 'Saved Coupons') {
-            query.userId = uid;
-            delete query.$or;
-        } else if (discountType) {
-            query.discountType = discountType;
+        // Filter Logic - Brand
+        if (brand) {
+            query.brandName = new RegExp(brand, 'i');
         }
 
-        // Validity Filter
+        // Filter Logic - Category
+        if (category && category !== 'All' && category !== 'See all') {
+            query.categoryLabel = category;
+        }
+
+        // Filter Logic - Discount Type (matching screenshot options)
+        if (discountType) {
+            if (discountType === 'Saved Coupons') {
+                query.userId = uid;
+                delete query.$or;
+            } else if (discountType === 'percentage_off' || discountType === 'Percentage Off') {
+                query.discountType = 'percentage';
+            } else if (discountType === 'flat_discount' || discountType === 'Flat Discount') {
+                query.discountType = 'flat';
+            } else if (discountType === 'cashback' || discountType === 'Cashback') {
+                query.discountType = 'cashback';
+            } else if (discountType === 'buy1get1' || discountType === 'Buy 1 Get 1') {
+                query.discountType = 'buy1get1';
+            } else if (discountType === 'free_delivery' || discountType === 'Free Delivery') {
+                query.discountType = 'free_delivery';
+            } else if (discountType === 'wallet_upi' || discountType === 'Wallet/UPI Offers') {
+                query.discountType = 'wallet_upi';
+            } else if (discountType === 'prepaid_only' || discountType === 'Prepaid Only Offers') {
+                query.discountType = 'prepaid_only';
+            } else {
+                query.discountType = discountType;
+            }
+        }
+
+        // Filter Logic - Price/Minimum Order (matching screenshot options)
+        if (req.query.minimumOrder || req.query.price) {
+            const priceFilter = req.query.minimumOrder || req.query.price;
+            
+            if (priceFilter === 'no_minimum' || priceFilter === 'No Minimum Order') {
+                // Use $and to combine with existing $or query
+                if (!query.$and) query.$and = [];
+                query.$and.push({
+                    $or: [
+                        { minimumOrder: null },
+                        { minimumOrder: 0 },
+                        { minimumOrder: { $exists: false } }
+                    ]
+                });
+            } else if (priceFilter === 'below_300' || priceFilter === 'Minimum Order Below ₹300') {
+                query.minimumOrder = { $lt: 300 };
+            } else if (priceFilter === '300_700' || priceFilter === '₹300-₹700') {
+                query.minimumOrder = { $gte: 300, $lte: 700 };
+            } else if (priceFilter === '700_1500' || priceFilter === '₹700-₹1500') {
+                query.minimumOrder = { $gte: 700, $lte: 1500 };
+            } else if (priceFilter === 'above_1500' || priceFilter === 'Above ₹1500') {
+                query.minimumOrder = { $gt: 1500 };
+            }
+        }
+
+        // Filter Logic - Validity (matching screenshot options)
         if (req.query.validity) {
             const now = new Date();
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
             const todayEnd = new Date();
             todayEnd.setHours(23, 59, 59, 999);
 
@@ -269,14 +403,23 @@ const getUserCouponsTest = async (req, res, next) => {
             monthEnd.setDate(0);
             monthEnd.setHours(23, 59, 59, 999);
 
-            if (req.query.validity === 'today') {
+            if (req.query.validity === 'valid_today' || req.query.validity === 'Valid Today') {
+                query.expireBy = { $gte: now, $lte: todayEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'valid_this_week' || req.query.validity === 'Valid This Week') {
+                query.expireBy = { $gte: now, $lte: weekEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'valid_this_month' || req.query.validity === 'Valid This Month') {
+                query.expireBy = { $gte: now, $lte: monthEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'expired' || req.query.validity === 'Expired') {
+                query.status = 'expired';
+            } else if (req.query.validity === 'today') {
                 query.expireBy = { $gte: now, $lte: todayEnd };
             } else if (req.query.validity === 'week') {
                 query.expireBy = { $gte: now, $lte: weekEnd };
             } else if (req.query.validity === 'month') {
                 query.expireBy = { $gte: now, $lte: monthEnd };
-            } else if (req.query.validity === 'expired') {
-                query.status = 'expired';
             }
         }
 
@@ -298,13 +441,31 @@ const getUserCouponsTest = async (req, res, next) => {
 
         logger.info(`[TEST] Fetching coupons for uid: ${uid}. Filters: brand=${brand}, category=${category}, search=${search}, sortBy=${sortBy}`);
 
-        // Sort Logic
-        let sortOption = { createdAt: -1 }; // Default: newest
-        if (sortBy === 'oldest') sortOption = { createdAt: 1 };
-        else if (sortBy === 'expiring_soon') sortOption = { expireBy: 1 };
-        else if (sortBy === 'highest_discount') sortOption = { discountValue: -1 };
-        else if (sortBy === 'a_z') sortOption = { brandName: 1 };
-        else if (sortBy === 'z_a') sortOption = { brandName: -1 };
+        // Sort Logic - matching screenshot options
+        let sortOption = {};
+        if (sortBy === 'none' || sortBy === 'None') {
+            // No sorting - return in natural order
+            sortOption = {};
+        } else if (sortBy === 'newest' || sortBy === 'newest_first') {
+            sortOption = { createdAt: -1 };
+        } else if (sortBy === 'oldest') {
+            sortOption = { createdAt: 1 };
+        } else if (sortBy === 'expiring_soon' || sortBy === 'expiring_soon_first') {
+            sortOption = { expireBy: 1 };
+        } else if (sortBy === 'highest_discount') {
+            // Sort by discount value descending (highest first)
+            sortOption = { discountValue: -1 };
+        } else if (sortBy === 'lowest_minimum_order') {
+            // Sort by minimum order ascending (lowest first)
+            sortOption = { minimumOrder: 1 };
+        } else if (sortBy === 'a_z' || sortBy === 'a_to_z') {
+            sortOption = { brandName: 1 };
+        } else if (sortBy === 'z_a' || sortBy === 'z_to_a') {
+            sortOption = { brandName: -1 };
+        } else {
+            // Default: newest first
+            sortOption = { createdAt: -1 };
+        }
 
         const pageNumber = parseInt(page) || 1;
         const limitNumber = parseInt(limit) || 20;
@@ -330,7 +491,8 @@ const getUserCouponsTest = async (req, res, next) => {
                         expireBy: coupon.expireBy,
                         discountType: coupon.discountType,
                         discountValue: coupon.discountValue,
-                        categoryLabel: coupon.categoryLabel
+                        categoryLabel: coupon.categoryLabel,
+                        minimumOrder: coupon.minimumOrder || null
                     };
                 } catch (error) {
                     logger.error(`Failed to generate image for coupon ${coupon._id}:`, error);
@@ -342,7 +504,8 @@ const getUserCouponsTest = async (req, res, next) => {
                         expireBy: coupon.expireBy,
                         discountType: coupon.discountType,
                         discountValue: coupon.discountValue,
-                        categoryLabel: coupon.categoryLabel
+                        categoryLabel: coupon.categoryLabel,
+                        minimumOrder: coupon.minimumOrder || null
                     };
                 }
             })
@@ -481,6 +644,7 @@ const updateCoupon = async (req, res, next) => {
             'couponCode',
             'couponVisitingLink',
             'couponDetails',
+            'minimumOrder',
         ];
 
         allowedFields.forEach((field) => {
@@ -561,12 +725,113 @@ const deleteCoupon = async (req, res, next) => {
 
 const getCategories = async (req, res, next) => {
     try {
-        const categories = ['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'All'];
+        // Categories matching screenshot
+        const categories = [
+            { value: 'All', label: 'See all' },
+            { value: 'Food', label: 'Food' },
+            { value: 'Fashion', label: 'Fashion' },
+            { value: 'Beauty', label: 'Beauty' },
+            { value: 'Electronics', label: 'Electronics' },
+            { value: 'Travel', label: 'Travel' },
+            { value: 'Grocery', label: 'Grocery' },
+            { value: 'Entertainment', label: 'Entertainment' }
+        ];
         return successResponse(res, STATUS_CODES.OK, 'Categories fetched successfully', {
             categories
         });
     } catch (error) {
         logger.error('Get categories error:', error);
+        next(error);
+    }
+};
+
+const getSortOptions = async (req, res, next) => {
+    try {
+        // Sort options matching the screenshot exactly
+        const sortOptions = [
+            { value: 'none', label: 'None' },
+            { value: 'newest_first', label: 'Newest First' },
+            { value: 'expiring_soon', label: 'Expiring Soon' },
+            { value: 'highest_discount', label: 'Highest Discount' },
+            { value: 'lowest_minimum_order', label: 'Lowest Minimum Order' },
+            { value: 'a_to_z', label: 'A-Z (Brand Name)' },
+            { value: 'z_to_a', label: 'Z-A (Brand Name)' }
+        ];
+        
+        return successResponse(res, STATUS_CODES.OK, 'Sort options fetched successfully', {
+            sortOptions
+        });
+    } catch (error) {
+        logger.error('Get sort options error:', error);
+        next(error);
+    }
+};
+
+const getFilterOptions = async (req, res, next) => {
+    try {
+        // Discount Type options matching screenshot
+        const discountTypes = [
+            { value: 'percentage_off', label: 'Percentage Off (% Off)' },
+            { value: 'flat_discount', label: 'Flat Discount' },
+            { value: 'cashback', label: 'Cashback' },
+            { value: 'buy1get1', label: 'Buy 1 Get 1' },
+            { value: 'free_delivery', label: 'Free Delivery' },
+            { value: 'wallet_upi', label: 'Wallet/UPI Offers' },
+            { value: 'prepaid_only', label: 'Prepaid Only Offers' },
+            { value: 'saved_coupons', label: 'Saved Coupons' }
+        ];
+
+        // Price/Minimum Order options matching screenshot
+        const priceOptions = [
+            { value: 'no_minimum', label: 'No Minimum Order' },
+            { value: 'below_300', label: 'Minimum Order Below ₹300' },
+            { value: '300_700', label: '₹300-₹700' },
+            { value: '700_1500', label: '₹700-₹1500' },
+            { value: 'above_1500', label: 'Above ₹1500' }
+        ];
+
+        // Validity options matching screenshot
+        const validityOptions = [
+            { value: 'valid_today', label: 'Valid Today' },
+            { value: 'valid_this_week', label: 'Valid This Week' },
+            { value: 'valid_this_month', label: 'Valid This Month' },
+            { value: 'expired', label: 'Expired' }
+        ];
+
+        // Get unique brands from database
+        const brands = await Coupon.distinct('brandName', { 
+            $or: [
+                { userId: req.uid },
+                { userId: 'system_scraper' }
+            ]
+        });
+        
+        const brandOptions = brands
+            .filter(b => b && b.trim() !== '')
+            .sort()
+            .map(brand => ({ value: brand, label: brand }));
+
+        // Category options (already have this, but include here for completeness)
+        const categoryOptions = [
+            { value: 'All', label: 'See all' },
+            { value: 'Food', label: 'Food' },
+            { value: 'Fashion', label: 'Fashion' },
+            { value: 'Beauty', label: 'Beauty' },
+            { value: 'Electronics', label: 'Electronics' },
+            { value: 'Travel', label: 'Travel' },
+            { value: 'Grocery', label: 'Grocery' },
+            { value: 'Entertainment', label: 'Entertainment' }
+        ];
+
+        return successResponse(res, STATUS_CODES.OK, 'Filter options fetched successfully', {
+            discountTypes,
+            priceOptions,
+            validityOptions,
+            brandOptions,
+            categoryOptions
+        });
+    } catch (error) {
+        logger.error('Get filter options error:', error);
         next(error);
     }
 };
@@ -581,5 +846,7 @@ module.exports = {
     redeemCoupon,
     getExpiringSoon,
     getCouponsByBrand,
-    getCategories
+    getCategories,
+    getSortOptions,
+    getFilterOptions
 };
