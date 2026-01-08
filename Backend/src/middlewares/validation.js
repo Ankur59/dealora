@@ -188,6 +188,17 @@ const couponValidationRules = [
         .isLength({ max: 1000 })
         .withMessage('Coupon details cannot exceed 1000 characters'),
 
+    body('minimumOrder')
+        .optional()
+        .isNumeric()
+        .withMessage('Minimum order value must be a number')
+        .custom((value) => {
+            if (value !== null && value !== undefined && value < 0) {
+                throw new Error('Minimum order value cannot be negative');
+            }
+            return true;
+        }),
+
     body().custom((value) => {
         const useCouponVia = value.useCouponVia;
 
