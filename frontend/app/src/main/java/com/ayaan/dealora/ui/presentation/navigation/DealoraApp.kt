@@ -5,9 +5,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.ayaan.dealora.ui.presentation.addcoupon.AddCoupons
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginFormScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginOtpScreen
@@ -41,7 +43,10 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         startDestination = startDestination,
         modifier = modifier
     ) {
-        composable(Route.CouponDetails.path) {
+        composable(
+            route = Route.CouponDetails.path,
+            arguments = listOf(navArgument("couponId") { type = NavType.StringType })
+        ) {
             CouponDetailsScreen(navController)
         }
         composable(Route.AccountPrivacy.path) {

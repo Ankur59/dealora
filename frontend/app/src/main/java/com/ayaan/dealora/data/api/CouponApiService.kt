@@ -1,6 +1,7 @@
 package com.ayaan.dealora.data.api
 
 import com.ayaan.dealora.data.api.models.ApiResponse
+import com.ayaan.dealora.data.api.models.CouponDetailResponseData
 import com.ayaan.dealora.data.api.models.CouponListResponseData
 import com.ayaan.dealora.data.api.models.CouponResponseData
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
@@ -8,6 +9,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
@@ -32,4 +34,10 @@ interface CouponApiService {
         @Query("search") search: String? = null,
         @Query("sortBy") sortBy: String? = null
     ): Response<ApiResponse<CouponListResponseData>>
+
+    @GET("api/coupons/test/{couponId}")
+    suspend fun getCouponById(
+        @Path("couponId") couponId: String,
+        @Query("uid") uid: String
+    ): Response<ApiResponse<CouponDetailResponseData>>
 }

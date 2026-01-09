@@ -45,7 +45,7 @@ fun CouponListItemCard(
             contentDescription = coupon.couponTitle ?: "Coupon",
             contentScale = ContentScale.FillWidth,
             modifier = modifier.fillMaxWidth().clickable{
-                navController.navigate(Route.CouponDetails.path)
+                navController.navigate(Route.CouponDetails.createRoute(coupon.id))
             }
         )
     } else {
