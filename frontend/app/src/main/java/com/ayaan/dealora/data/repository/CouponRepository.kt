@@ -46,6 +46,8 @@ class CouponRepository @Inject constructor(
         brand: String? = null,
         category: String? = null,
         discountType: String? = null,
+        price: String? = null,
+        validity: String? = null,
         search: String? = null,
         sortBy: String? = null
     ): Flow<PagingData<CouponListItem>> {
@@ -64,6 +66,8 @@ class CouponRepository @Inject constructor(
                     brand = brand,
                     category = category,
                     discountType = discountType,
+                    price = price,
+                    validity = validity,
                     search = search,
                     sortBy = sortBy
                 )

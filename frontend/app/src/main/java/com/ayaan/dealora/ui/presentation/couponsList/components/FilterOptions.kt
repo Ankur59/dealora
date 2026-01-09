@@ -43,9 +43,45 @@ data class FilterOptions(
     val discountType: String? = null,
     val price: String? = null,
     val validity: String? = null,
-    val brand: String? = null,
-    val category: String? = null
-)
+    val brand: String? = null
+) {
+    /**
+     * Convert UI discount type label to API value
+     */
+    fun getDiscountTypeApiValue(): String? {
+        return when (discountType) {
+            "Percentage Off (%)" -> "Percentage Off"
+            else -> discountType // Others match exactly
+        }
+    }
+
+    /**
+     * Convert UI price label to API value
+     */
+    fun getPriceApiValue(): String? {
+        return when (price) {
+            "No Minimum Order" -> "no_minimum"
+            "Minimum Order Below ₹300" -> "below_300"
+            "₹300-₹700" -> "300_700"
+            "₹700-₹1500" -> "700_1500"
+            "Above ₹1500" -> "above_1500"
+            else -> null
+        }
+    }
+
+    /**
+     * Convert UI validity label to API value
+     */
+    fun getValidityApiValue(): String? {
+        return when (validity) {
+            "Valid Today" -> "valid_today"
+            "Valid This Week" -> "valid_this_week"
+            "Valid This Month" -> "valid_this_month"
+            "Expired" -> "expired"
+            else -> null
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -58,7 +94,6 @@ fun FiltersBottomSheet(
     var selectedPrice by remember { mutableStateOf(currentFilters.price) }
     var selectedValidity by remember { mutableStateOf(currentFilters.validity) }
     var selectedBrand by remember { mutableStateOf(currentFilters.brand) }
-    var selectedCategory by remember { mutableStateOf(currentFilters.category) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollState = rememberScrollState()
@@ -159,16 +194,6 @@ fun FiltersBottomSheet(
                     selectedOption = selectedBrand,
                     onOptionSelected = { selectedBrand = it }
                 )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Category Section
-                FilterSection(
-                    title = "Category",
-                    options = listOf("See All", "Food", "Fashion", "Beauty", "Electronics", "Travel", "Grocery", "Entertainment"),
-                    selectedOption = selectedCategory,
-                    onOptionSelected = { selectedCategory = it }
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -196,8 +221,7 @@ fun FiltersBottomSheet(
                                 discountType = selectedDiscountType,
                                 price = selectedPrice,
                                 validity = selectedValidity,
-                                brand = selectedBrand,
-                                category = selectedCategory
+                                brand = selectedBrand
                             )
                         )
                         onDismiss()

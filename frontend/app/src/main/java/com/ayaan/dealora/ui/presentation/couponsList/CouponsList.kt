@@ -37,9 +37,7 @@ import com.ayaan.dealora.ui.presentation.couponsList.components.CouponListItemCa
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
-import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
-import com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 
 @Composable
@@ -52,11 +50,11 @@ fun CouponsList(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSortOption by viewModel.currentSortOption.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
+    val currentFilters by viewModel.currentFilters.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
 
     var showFiltersDialog by remember { mutableStateOf(false) }
-    var currentFilters by remember { mutableStateOf(FilterOptions()) }
 
     var showCategoryDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit){
@@ -210,9 +208,7 @@ fun CouponsList(
                 currentFilters = currentFilters,
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { filters ->
-                    currentFilters = filters
-                    // TODO: Apply filters logic here
-                    // viewModel.applyFilters(filters)
+                    viewModel.onFiltersChanged(filters)
                 }
             )
         }

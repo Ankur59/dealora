@@ -18,6 +18,8 @@ class CouponPagingSource(
     private val brand: String? = null,
     private val category: String? = null,
     private val discountType: String? = null,
+    private val price: String? = null,
+    private val validity: String? = null,
     private val search: String? = null,
     private val sortBy: String? = null
 ) : PagingSource<Int, CouponListItem>() {
@@ -42,6 +44,8 @@ class CouponPagingSource(
                 brand = brand,
                 category = category,
                 discountType = discountType,
+                price = price,
+                validity = validity,
                 search = search,
                 sortBy = sortBy
             )

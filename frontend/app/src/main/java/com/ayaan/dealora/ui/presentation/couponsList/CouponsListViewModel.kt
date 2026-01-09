@@ -52,6 +52,9 @@ class CouponsListViewModel @Inject constructor(
     private val _currentCategory = MutableStateFlow<String?>(null)
     val currentCategory: StateFlow<String?> = _currentCategory.asStateFlow()
 
+    private val _currentFilters = MutableStateFlow(com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions())
+    val currentFilters: StateFlow<com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions> = _currentFilters.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
@@ -62,10 +65,15 @@ class CouponsListViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collectLatest { query ->
                     Log.d(TAG, "Debounced search triggered with query: $query")
+                    val filters = _currentFilters.value
                     loadCouponsInternal(
                         search = query.ifBlank { null },
                         sortBy = _currentSortOption.value.apiValue,
-                        category = _currentCategory.value
+                        category = _currentCategory.value,
+                        brand = filters.brand,
+                        discountType = filters.getDiscountTypeApiValue(),
+                        price = filters.getPriceApiValue(),
+                        validity = filters.getValidityApiValue()
                     )
                 }
         }
@@ -81,10 +89,15 @@ class CouponsListViewModel @Inject constructor(
 
     fun onSortOptionChanged(sortOption: SortOption) {
         _currentSortOption.value = sortOption
+        val filters = _currentFilters.value
         loadCouponsInternal(
             search = _searchQuery.value.ifBlank { null },
             sortBy = sortOption.apiValue,
-            category = _currentCategory.value
+            category = _currentCategory.value,
+            brand = filters.brand,
+            discountType = filters.getDiscountTypeApiValue(),
+            price = filters.getPriceApiValue(),
+            validity = filters.getValidityApiValue()
         )
     }
 
@@ -92,10 +105,28 @@ class CouponsListViewModel @Inject constructor(
         // "See All" or null means no category filter
         val apiCategory = if (category == "See All") null else category
         _currentCategory.value = apiCategory
+        val filters = _currentFilters.value
         loadCouponsInternal(
             search = _searchQuery.value.ifBlank { null },
             sortBy = _currentSortOption.value.apiValue,
-            category = apiCategory
+            category = apiCategory,
+            brand = filters.brand,
+            discountType = filters.getDiscountTypeApiValue(),
+            price = filters.getPriceApiValue(),
+            validity = filters.getValidityApiValue()
+        )
+    }
+
+    fun onFiltersChanged(filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions) {
+        _currentFilters.value = filters
+        loadCouponsInternal(
+            search = _searchQuery.value.ifBlank { null },
+            sortBy = _currentSortOption.value.apiValue,
+            category = _currentCategory.value,
+            brand = filters.brand,
+            discountType = filters.getDiscountTypeApiValue(),
+            price = filters.getPriceApiValue(),
+            validity = filters.getValidityApiValue()
         )
     }
 
@@ -104,13 +135,16 @@ class CouponsListViewModel @Inject constructor(
         brand: String? = null,
         discountType: String? = null
     ) {
+        val filters = _currentFilters.value
         loadCouponsInternal(
             status = status,
             brand = brand,
             category = _currentCategory.value,
             discountType = discountType,
             search = _searchQuery.value.ifBlank { null },
-            sortBy = _currentSortOption.value.apiValue
+            sortBy = _currentSortOption.value.apiValue,
+            price = filters.getPriceApiValue(),
+            validity = filters.getValidityApiValue()
         )
     }
 
@@ -119,6 +153,8 @@ class CouponsListViewModel @Inject constructor(
         brand: String? = null,
         category: String? = null,
         discountType: String? = null,
+        price: String? = null,
+        validity: String? = null,
         search: String? = null,
         sortBy: String? = null
     ) {
@@ -145,6 +181,8 @@ class CouponsListViewModel @Inject constructor(
                     brand = brand,
                     category = category,
                     discountType = discountType,
+                    price = price,
+                    validity = validity,
                     search = search,
                     sortBy = sortBy
                 ).cachedIn(viewModelScope).collectLatest { pagingData ->
