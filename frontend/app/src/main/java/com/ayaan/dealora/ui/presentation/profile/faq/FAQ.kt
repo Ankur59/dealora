@@ -113,7 +113,6 @@ fun FAQScreen(navController: NavController) {
                     value = questionInput,
                     onValueChange = { questionInput = it },
                     onSend = {
-                        // Handle send action
                         questionInput = ""
                     }
                 )
