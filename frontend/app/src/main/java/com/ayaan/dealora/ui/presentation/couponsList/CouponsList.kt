@@ -136,7 +136,8 @@ fun CouponsList(
                                         if (coupon != null) {
                                             CouponListItemCard(
                                                 coupon = coupon,
-                                                modifier = Modifier.fillMaxWidth()
+                                                modifier = Modifier.fillMaxWidth(),
+                                                navController = navController
                                             )
                                         }
                                     }

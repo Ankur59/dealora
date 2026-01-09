@@ -4,8 +4,9 @@ const couponController = require('../controllers/couponController');
 const authenticate = require('../middlewares/authenticate');
 const { validateCoupon } = require('../middlewares/validation');
 
-// Test route - No authentication, accepts uid as query parameter
+// Test routes - No authentication, accepts uid as query parameter
 router.get('/test', couponController.getUserCouponsTest);
+router.get('/test/:id', couponController.getCouponByIdTest);
 
 // Apply authentication to all routes below
 router.use(authenticate);

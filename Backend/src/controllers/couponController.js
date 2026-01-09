@@ -135,7 +135,7 @@ const getUserCoupons = async (req, res, next) => {
         // Filter Logic - Price/Minimum Order (matching screenshot options)
         if (req.query.minimumOrder || req.query.price) {
             const priceFilter = req.query.minimumOrder || req.query.price;
-            
+
             if (priceFilter === 'no_minimum' || priceFilter === 'No Minimum Order') {
                 // Use $and to combine with existing $or query
                 if (!query.$and) query.$and = [];
@@ -364,7 +364,7 @@ const getUserCouponsTest = async (req, res, next) => {
         // Filter Logic - Price/Minimum Order (matching screenshot options)
         if (req.query.minimumOrder || req.query.price) {
             const priceFilter = req.query.minimumOrder || req.query.price;
-            
+
             if (priceFilter === 'no_minimum' || priceFilter === 'No Minimum Order') {
                 // Use $and to combine with existing $or query
                 if (!query.$and) query.$and = [];
@@ -616,6 +616,39 @@ const getCouponById = async (req, res, next) => {
     }
 };
 
+// Test version - accepts uid from query parameter (no auth required)
+const getCouponByIdTest = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { uid } = req.query;
+
+        if (!uid) {
+            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'uid query parameter is required');
+        }
+
+        logger.info(`[TEST] Fetching coupon: ${id} for uid: ${uid}`);
+
+        const coupon = await Coupon.findOne({
+            _id: id,
+            $or: [{ userId: uid }, { userId: 'system_scraper' }]
+        }).lean();
+
+        if (!coupon) {
+            logger.warn(`[TEST] Coupon not found: ${id}`);
+            throw new NotFoundError('Coupon not found');
+        }
+
+        const couponWithDisplay = addDisplayFields(coupon);
+
+        return successResponse(res, STATUS_CODES.OK, 'Coupon fetched successfully', {
+            coupon: couponWithDisplay,
+        });
+    } catch (error) {
+        logger.error('[TEST] Get coupon by id error:', error);
+        next(error);
+    }
+};
+
 const updateCoupon = async (req, res, next) => {
     try {
         const userId = req.uid;
@@ -757,7 +790,7 @@ const getSortOptions = async (req, res, next) => {
             { value: 'a_to_z', label: 'A-Z (Brand Name)' },
             { value: 'z_to_a', label: 'Z-A (Brand Name)' }
         ];
-        
+
         return successResponse(res, STATUS_CODES.OK, 'Sort options fetched successfully', {
             sortOptions
         });
@@ -799,13 +832,13 @@ const getFilterOptions = async (req, res, next) => {
         ];
 
         // Get unique brands from database
-        const brands = await Coupon.distinct('brandName', { 
+        const brands = await Coupon.distinct('brandName', {
             $or: [
                 { userId: req.uid },
                 { userId: 'system_scraper' }
             ]
         });
-        
+
         const brandOptions = brands
             .filter(b => b && b.trim() !== '')
             .sort()
@@ -841,6 +874,7 @@ module.exports = {
     getUserCoupons,
     getUserCouponsTest,
     getCouponById,
+    getCouponByIdTest,
     updateCoupon,
     deleteCoupon,
     redeemCoupon,
