@@ -2,6 +2,7 @@ package com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,9 +18,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.AppColors
+import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
-fun CouponCodeCard(couponCode: String?, onCopyCode: () -> Unit) {
+fun CouponCodeCard(
+    couponCode: String?,
+    onCopyCode: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -29,17 +34,18 @@ fun CouponCodeCard(couponCode: String?, onCopyCode: () -> Unit) {
             containerColor = Color(0xFFE8DCFF)
         )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
             Text(
                 text = couponCode ?: "No Code",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = AppColors.PrimaryText,
                 letterSpacing = 2.sp
             )
@@ -48,8 +54,9 @@ fun CouponCodeCard(couponCode: String?, onCopyCode: () -> Unit) {
                 text = "📋 Copy Code",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF5B4CFF)
+                color = DealoraPrimary
             )
         }
     }
 }
+

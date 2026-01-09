@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.AppColors
+import com.ayaan.dealora.ui.theme.DealoraPrimary
 @Composable
 fun BottomActionButtons(
     couponLink: String?, onRedeemed: () -> Unit
@@ -56,7 +57,7 @@ fun BottomActionButtons(
                     .height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF5B4CFF)
+                    containerColor = DealoraPrimary
                 ),
                 enabled = !couponLink.isNullOrBlank()
             ) {

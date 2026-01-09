@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.AppColors
+import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
 fun TabRow(
@@ -26,7 +27,7 @@ fun TabRow(
         tabs.forEachIndexed { index, tab ->
             Button(
                 onClick = { onTabSelected(index) }, colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedTab == index) Color(0xFF5B4CFF) else Color(
+                    containerColor = if (selectedTab == index) DealoraPrimary else Color(
                         0xFFE0E0E0
                     ),
                     contentColor = if (selectedTab == index) Color.White else AppColors.SecondaryText
