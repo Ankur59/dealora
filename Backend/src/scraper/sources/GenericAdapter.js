@@ -1,6 +1,7 @@
 const axios = require('axios');
 const axiosRetry = require('axios-retry').default;
 const logger = require('../../utils/logger');
+const geminiExtractionService = require('../../services/geminiExtractionService');
 
 class GenericAdapter {
     constructor(sourceName, baseUrl) {
@@ -62,37 +63,79 @@ class GenericAdapter {
     }
 
     /**
-     * Map raw data to standardized coupon object
-     * Should be overridden by subclasses
+     * Map raw data to standardized coupon object using Gemini AI for intelligent extraction
+     * Gemini will properly segregate fields (couponName, couponCode, couponDetails, etc.)
      */
-    normalize(rawData) {
-        const title = rawData.couponTitle?.trim() || 'Exciting Offer';
-        const brand = this.normalizeBrand(rawData.brandName);
+    async normalize(rawData) {
+        try {
+            // First, use Gemini AI to intelligently extract and segregate coupon data
+            logger.info(`🔍 Using Gemini AI to extract and segregate coupon data for: ${rawData.couponTitle || rawData.couponName || 'Unknown'}`);
+            const extractedData = await geminiExtractionService.extractCouponData(rawData);
+            
+            // Apply basic normalization on top of Gemini's extracted data
+            const title = extractedData.couponName?.trim() || extractedData.couponTitle?.trim() || 'Exciting Offer';
+            const brand = this.normalizeBrand(extractedData.brandName || rawData.brandName);
 
-        // Ensure description is at least 10 chars for model validation
-        let description = rawData.description?.trim() || title;
-        if (description.length < 10) {
-            description = `${description} - Limited time offer from ${brand}`;
+            // Ensure description is at least 10 chars for model validation
+            let description = extractedData.description?.trim() || extractedData.couponTitle?.trim() || title;
+            if (description.length < 10) {
+                description = `${description} - Limited time offer from ${brand}`;
+            }
+
+            // Build final normalized object
+            const normalized = {
+                userId: 'system_scraper',
+                couponName: (extractedData.couponName || title).substring(0, 100),
+                brandName: brand,
+                couponTitle: (extractedData.couponTitle || title).substring(0, 200),
+                description: description.substring(0, 1000),
+                couponCode: extractedData.couponCode ? extractedData.couponCode : this.normalizeCode(rawData.couponCode),
+                discountType: extractedData.discountType || this.normalizeDiscountType(rawData.discountType),
+                discountValue: extractedData.discountValue || rawData.discountValue || null,
+                expireBy: extractedData.expireBy ? new Date(extractedData.expireBy) : (rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry()),
+                categoryLabel: extractedData.categoryLabel || this.normalizeCategory(extractedData.category || rawData.category),
+                couponVisitingLink: extractedData.couponVisitingLink || rawData.couponLink || this.baseUrl,
+                sourceWebsite: this.sourceName,
+                addedMethod: 'scraper',
+                useCouponVia: extractedData.useCouponVia || (extractedData.couponCode ? 'Coupon Code' : (extractedData.couponVisitingLink ? 'Coupon Visiting Link' : 'None')),
+                status: 'active',
+                couponDetails: extractedData.couponDetails || rawData.terms || null,
+                minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
+            };
+
+            logger.info(`✅ Successfully normalized coupon: ${normalized.couponName} (Code: ${normalized.couponCode || 'N/A'}, Link: ${normalized.couponVisitingLink ? 'Yes' : 'No'})`);
+            return normalized;
+
+        } catch (error) {
+            logger.error(`Error in normalize with Gemini: ${error.message}. Using fallback normalization.`);
+            
+            // Fallback to basic normalization if Gemini fails
+            const title = rawData.couponTitle?.trim() || 'Exciting Offer';
+            const brand = this.normalizeBrand(rawData.brandName);
+            let description = rawData.description?.trim() || title;
+            if (description.length < 10) {
+                description = `${description} - Limited time offer from ${brand}`;
+            }
+
+            return {
+                userId: 'system_scraper',
+                couponName: title.substring(0, 100),
+                brandName: brand,
+                couponTitle: title.substring(0, 200),
+                description: description.substring(0, 1000),
+                couponCode: this.normalizeCode(rawData.couponCode),
+                discountType: this.normalizeDiscountType(rawData.discountType),
+                discountValue: rawData.discountValue,
+                expireBy: rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry(),
+                categoryLabel: this.normalizeCategory(rawData.category),
+                couponVisitingLink: rawData.couponLink || this.baseUrl,
+                sourceWebsite: this.sourceName,
+                addedMethod: 'scraper',
+                useCouponVia: rawData.couponCode ? 'Coupon Code' : 'Coupon Visiting Link',
+                status: 'active',
+                couponDetails: rawData.terms || null,
+            };
         }
-
-        return {
-            userId: 'system_scraper',
-            couponName: title.substring(0, 100),
-            brandName: brand,
-            couponTitle: title.substring(0, 200),
-            description: description.substring(0, 1000),
-            couponCode: this.normalizeCode(rawData.couponCode),
-            discountType: this.normalizeDiscountType(rawData.discountType),
-            discountValue: rawData.discountValue,
-            expireBy: rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry(),
-            categoryLabel: this.normalizeCategory(rawData.category),
-            couponVisitingLink: rawData.couponLink || this.baseUrl,
-            sourceWebsite: this.sourceName,
-            addedMethod: 'scraper',
-            useCouponVia: rawData.couponCode ? 'Coupon Code' : 'Coupon Visiting Link',
-            status: 'active',
-            couponDetails: rawData.terms || null,
-        };
     }
 
     normalizeBrand(brand) {

@@ -30,7 +30,8 @@ class ScraperEngine {
 
                 for (const rawData of coupons) {
                     try {
-                        const normalizedData = adapter.normalize(rawData);
+                        // normalize() is now async due to Gemini integration
+                        const normalizedData = await adapter.normalize(rawData);
                         const result = await this.saveOrUpdate(normalizedData);
                         if (result.isNew) totalAdded++;
                         else totalUpdated++;
