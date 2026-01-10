@@ -4,6 +4,9 @@ const CouponDuniyaAdapter = require('./sources/CouponDuniyaAdapter');
 const DesidimeAdapter = require('./sources/DesidimeAdapter');
 const CashkaroAdapter = require('./sources/CashkaroAdapter');
 const DealivoreAdapter = require('./sources/DealivoreAdapter');
+const CouponDekhoAdapter = require('./sources/CouponDekhoAdapter');
+const PaisaWapasAdapter = require('./sources/PaisaWapasAdapter');
+const DealsMagnetAdapter = require('./sources/DealsMagnetAdapter');
 const logger = require('../utils/logger');
 
 const runScraper = async () => {
@@ -14,6 +17,9 @@ const runScraper = async () => {
             new DesidimeAdapter(),
             new CashkaroAdapter(),
             new DealivoreAdapter(),
+            new CouponDekhoAdapter(),
+            new PaisaWapasAdapter(),
+            new DealsMagnetAdapter(),
         ];
 
         if (adapters.length === 0) {
