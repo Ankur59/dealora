@@ -48,8 +48,8 @@ const couponSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Category is required'],
             enum: {
-                values: ['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'Electronics', 'All'],
-                message: 'Category must be one of: Food, Fashion, Grocery, Travel, Wallet Rewards, Beauty, Entertainment, Electronics, All',
+                values: ['Food', 'Fashion', 'Grocery', 'Wallet Rewards', 'Beauty', 'Travel', 'Entertainment', 'Other'],
+                message: 'Category must be one of: Food, Fashion, Grocery, Wallet Rewards, Beauty, Travel, Entertainment, Other',
             },
         },
 

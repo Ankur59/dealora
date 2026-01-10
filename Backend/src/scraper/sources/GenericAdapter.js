@@ -41,13 +41,13 @@ class GenericAdapter {
                 const status = error.response.status;
                 const statusText = error.response.statusText || 'Unknown Error';
                 const errorMsg = `Request failed with status ${status} (${statusText})`;
-                
+
                 // Don't throw for 404s, just log and return null
                 if (status === 404) {
                     logger.warn(`${this.sourceName}: Page not found (404) - ${endpoint}`);
                     return null;
                 }
-                
+
                 logger.error(`${this.sourceName}: ${errorMsg} - ${endpoint}`);
                 throw new Error(errorMsg);
             } else if (error.request) {
@@ -71,7 +71,7 @@ class GenericAdapter {
             // First, use Gemini AI to intelligently extract and segregate coupon data
             logger.info(`🔍 Using Gemini AI to extract and segregate coupon data for: ${rawData.couponTitle || rawData.couponName || 'Unknown'}`);
             const extractedData = await geminiExtractionService.extractCouponData(rawData);
-            
+
             // Apply basic normalization on top of Gemini's extracted data
             const title = extractedData.couponName?.trim() || extractedData.couponTitle?.trim() || 'Exciting Offer';
             const brand = this.normalizeBrand(extractedData.brandName || rawData.brandName);
@@ -114,7 +114,7 @@ class GenericAdapter {
 
         } catch (error) {
             logger.error(`Error in normalize with Gemini: ${error.message}. Using fallback normalization.`);
-            
+
             // Fallback to basic normalization if Gemini fails
             const title = rawData.couponTitle?.trim() || 'Exciting Offer';
             const brand = this.normalizeBrand(rawData.brandName);
@@ -151,26 +151,26 @@ class GenericAdapter {
 
     normalizeCode(code) {
         if (!code || typeof code !== 'string' || code === 'Show Coupon Code') return null;
-        
+
         let cleanCode = code.toString().toUpperCase().trim();
-        
+
         // Remove common non-code phrases
         cleanCode = cleanCode.replace(/(SHOW CODE|CLICK HERE|REVEAL CODE|COPY CODE|GET CODE|GET DEAL|ACTIVATE OFFER)/gi, '').trim();
-        
+
         // Remove special characters and spaces - codes should be alphanumeric only
         cleanCode = cleanCode.replace(/[^A-Z0-9]/g, '');
-        
+
         // Validate length - real coupon codes are typically 3-20 characters
         // If it's longer than 20 chars, it's likely not a real code (probably scraped description/title)
         if (cleanCode.length < 3 || cleanCode.length > 20) {
             return null;
         }
-        
+
         // Must have at least one letter or number
         if (!/[A-Z0-9]/.test(cleanCode)) {
             return null;
         }
-        
+
         return cleanCode;
     }
 
@@ -181,9 +181,9 @@ class GenericAdapter {
     }
 
     normalizeCategory(category) {
-        const validCategories = ['Food', 'Fashion', 'Grocery', 'Travel', 'Wallet Rewards', 'Beauty', 'Entertainment', 'All'];
+        const validCategories = ['Food', 'Fashion', 'Grocery', 'Wallet Rewards', 'Beauty', 'Travel', 'Entertainment', 'Other'];
         const found = validCategories.find(c => c.toLowerCase() === category?.toLowerCase());
-        return found || 'All';
+        return found || 'Other';
     }
 
     getDefaultExpiry() {
