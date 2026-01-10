@@ -15,21 +15,19 @@ const initCronJobs = () => {
         }
     });
 
-    // 2. Daily Cleanup of Expired Coupons at 4:00 AM
+    // 2. Daily Cleanup of Expired Coupons at 4:00 AM - Remove expired coupons from DB
     cron.schedule('0 4 * * *', async () => {
-        logger.info('CRON: Starting daily expired coupons cleanup...');
+        logger.info('CRON: Starting daily expired coupons cleanup (removing from DB)...');
         try {
             const today = new Date();
-            const result = await Coupon.updateMany(
-                {
-                    expireBy: { $lt: today },
-                    status: 'active'
-                },
-                {
-                    $set: { status: 'expired' }
-                }
-            );
-            logger.info(`CRON: Cleanup completed. Marked ${result.modifiedCount} coupons as expired.`);
+            today.setHours(0, 0, 0, 0); // Set to start of today
+            
+            const result = await Coupon.deleteMany({
+                expireBy: { $lt: today },
+                userId: 'system_scraper' // Only remove scraper-created coupons
+            });
+            
+            logger.info(`CRON: Cleanup completed. Removed ${result.deletedCount} expired coupon(s) from database.`);
         } catch (error) {
             logger.error('CRON: Cleanup job failed:', error);
         }
