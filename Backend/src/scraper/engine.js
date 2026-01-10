@@ -36,8 +36,17 @@ class ScraperEngine {
                         if (result.isNew) totalAdded++;
                         else totalUpdated++;
                     } catch (err) {
-                        logger.error(`Error processing coupon from ${adapter.sourceName}:`, err.message);
-                        logger.error(`Raw data was:`, JSON.stringify(rawData, null, 2).substring(0, 200));
+                        // Extract relevant info for better error logging
+                        const couponInfo = rawData.couponTitle || rawData.couponName || 'Unknown Coupon';
+                        const brandInfo = rawData.brandName || 'Unknown Brand';
+                        
+                        logger.error(`Error processing coupon from ${adapter.sourceName}: ${couponInfo} (${brandInfo})`);
+                        logger.error(`Error details: ${err.message}`);
+                        
+                        // Only log raw data in debug mode to avoid cluttering logs
+                        if (process.env.LOG_LEVEL === 'debug') {
+                            logger.debug(`Raw data was:`, JSON.stringify(rawData, null, 2).substring(0, 500));
+                        }
                     }
                 }
             } catch (error) {

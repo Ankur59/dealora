@@ -82,6 +82,12 @@ class GenericAdapter {
                 description = `${description} - Limited time offer from ${brand}`;
             }
 
+            // Determine coupon code - prefer Gemini extraction, fallback to normalized raw data
+            let finalCouponCode = extractedData.couponCode || null;
+            if (!finalCouponCode && rawData.couponCode) {
+                finalCouponCode = this.normalizeCode(rawData.couponCode);
+            }
+
             // Build final normalized object
             const normalized = {
                 userId: 'system_scraper',
@@ -89,7 +95,7 @@ class GenericAdapter {
                 brandName: brand,
                 couponTitle: (extractedData.couponTitle || title).substring(0, 200),
                 description: description.substring(0, 1000),
-                couponCode: extractedData.couponCode ? extractedData.couponCode : this.normalizeCode(rawData.couponCode),
+                couponCode: finalCouponCode,
                 discountType: extractedData.discountType || this.normalizeDiscountType(rawData.discountType),
                 discountValue: extractedData.discountValue || rawData.discountValue || null,
                 expireBy: extractedData.expireBy ? new Date(extractedData.expireBy) : (rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry()),
@@ -97,7 +103,7 @@ class GenericAdapter {
                 couponVisitingLink: extractedData.couponVisitingLink || rawData.couponLink || this.baseUrl,
                 sourceWebsite: this.sourceName,
                 addedMethod: 'scraper',
-                useCouponVia: extractedData.useCouponVia || (extractedData.couponCode ? 'Coupon Code' : (extractedData.couponVisitingLink ? 'Coupon Visiting Link' : 'None')),
+                useCouponVia: extractedData.useCouponVia || (finalCouponCode ? 'Coupon Code' : (extractedData.couponVisitingLink ? 'Coupon Visiting Link' : 'None')),
                 status: 'active',
                 couponDetails: extractedData.couponDetails || rawData.terms || null,
                 minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
@@ -144,9 +150,28 @@ class GenericAdapter {
     }
 
     normalizeCode(code) {
-        if (!code || code === 'Show Coupon Code') return null;
+        if (!code || typeof code !== 'string' || code === 'Show Coupon Code') return null;
+        
         let cleanCode = code.toString().toUpperCase().trim();
-        return cleanCode.substring(0, 50);
+        
+        // Remove common non-code phrases
+        cleanCode = cleanCode.replace(/(SHOW CODE|CLICK HERE|REVEAL CODE|COPY CODE|GET CODE|GET DEAL|ACTIVATE OFFER)/gi, '').trim();
+        
+        // Remove special characters and spaces - codes should be alphanumeric only
+        cleanCode = cleanCode.replace(/[^A-Z0-9]/g, '');
+        
+        // Validate length - real coupon codes are typically 3-20 characters
+        // If it's longer than 20 chars, it's likely not a real code (probably scraped description/title)
+        if (cleanCode.length < 3 || cleanCode.length > 20) {
+            return null;
+        }
+        
+        // Must have at least one letter or number
+        if (!/[A-Z0-9]/.test(cleanCode)) {
+            return null;
+        }
+        
+        return cleanCode;
     }
 
     normalizeDiscountType(type) {

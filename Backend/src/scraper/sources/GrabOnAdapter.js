@@ -65,13 +65,28 @@ class GrabOnAdapter extends GenericAdapter {
                     const discount = $(el).find('.bm, .txt').text().trim();
                     const code = $(el).attr('data-couponid');
                     const desc = $(el).find('p').text().trim();
+                    
+                    // Extract coupon code more carefully - only get actual code text, not button text
+                    let couponCode = $(el).find('.go-cpn-show').text().trim();
+                    
+                    // Common button text that should NOT be treated as coupon codes
+                    const buttonTexts = [
+                        'SHOW COUPON CODE', 'GET CODE', 'REVEAL CODE', 'COPY CODE',
+                        'ACTIVATE OFFER', 'GET DEAL', 'SHOP NOW', 'CLICK HERE',
+                        'VIEW OFFER', 'GRAB OFFER', 'REDEEM NOW'
+                    ];
+                    
+                    // If the extracted "code" is actually button text or too long, it's not a real code
+                    if (couponCode && (buttonTexts.some(btn => couponCode.toUpperCase().includes(btn)) || couponCode.length > 20)) {
+                        couponCode = null; // Not a real coupon code, just button text
+                    }
 
                     if (title) {
                         allCoupons.push({
                             brandName: page.brand,
                             couponTitle: title,
                             description: desc,
-                            couponCode: $(el).find('.go-cpn-show').text().trim() || null,
+                            couponCode: couponCode || null,
                             discountType: this.inferDiscountType(title + discount),
                             discountValue: discount || title,
                             category: page.category,

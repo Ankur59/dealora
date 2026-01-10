@@ -153,8 +153,8 @@ Extract and return ONLY a valid JSON object with these EXACT fields (use null if
 {
   "couponName": "Clean coupon name/title ONLY (max 100 chars). Should NOT contain coupon codes, URLs, or terms. Example: 'Get 50% Off on Electronics'",
   "couponTitle": "Full title/title text (max 200 chars). Similar to couponName but can be longer",
-  "description": "Detailed description of the offer (min 10 chars, max 1000 chars). Should explain the deal clearly",
-  "couponCode": "ONLY the alphanumeric coupon code if present (e.g., 'SAVE20', 'WELCOME50'). If no code, use null. Remove phrases like 'Show Code', 'Click Here', 'Reveal Code'",
+  "description": "Detailed description of the offer by reading the ENTIRE coupon/deal data (min 10 chars, max 1000 chars). Should be DIFFERENT from couponName/couponTitle. Explain what the offer is about, what products/services it applies to, any conditions mentioned. Create a meaningful description from all the available coupon information. DO NOT just copy the title.",
+  "couponCode": "ONLY extract if there is a REAL alphanumeric coupon code (e.g., 'SAVE20', 'WELCOME50', 'FLAT50'). Must be a SINGLE WORD/CODE (not a sentence, not text, not the title). If the coupon title or description contains text like 'Get 50% off' or 'Save money' - that is NOT a coupon code. Only extract actual codes like 'SAVE20', 'WELCOME50', etc. If no actual coupon code exists, use null (NOT the title, NOT description text, NOT discount info).",
   "couponVisitingLink": "ONLY the actual merchant/deal URL where coupon can be used (full URL starting with http:// or https://). If no link, use null",
   "expireBy": "Expiry date in YYYY-MM-DD format or null. Parse any date format (e.g., 'expires on 15 Jan 2025', 'valid till 2025-01-15', 'ends Jan 15')",
   "brandName": "Brand name (single word preferred, max 50 chars)",
@@ -168,13 +168,14 @@ Extract and return ONLY a valid JSON object with these EXACT fields (use null if
 
 CRITICAL EXTRACTION RULES:
 1. couponName: Extract ONLY the offer title/name. Remove coupon codes, URLs, expiry dates, terms, and special characters. Just the clean name.
-2. couponCode: Extract ONLY alphanumeric codes (A-Z, 0-9). Ignore phrases, text, or descriptions. If you see "SAVE20" or "WELCOME50", extract exactly that. Remove spaces, special chars.
-3. couponVisitingLink: Extract ONLY valid URLs. Must start with http:// or https://. Not aggregator homepages. Actual merchant/deal pages.
-4. couponDetails: Extract terms, conditions, restrictions, validity info. Should NOT contain coupon codes or URLs. Only terms text.
-5. description: Should be a clear, readable description of the offer. Not codes, not URLs, just what the offer is about.
+2. description: Read and analyze the ENTIRE coupon data (title, discount info, terms, category, all available text). Create a COMPREHENSIVE and MEANINGFUL description that explains what the offer is about, what products/services it applies to, any conditions, and key details. This description MUST be DIFFERENT from couponName/couponTitle. DO NOT just copy the title. DO NOT repeat the title. Read all the coupon information and create a unique description from the entire data. For example, if title is "Get 50% Off", description should be something like "Avail amazing 50% discount on electronics, fashion, and lifestyle products. Valid on minimum purchase. Limited period offer."
+3. couponCode: Extract ONLY if there is a REAL alphanumeric coupon code (single word/code like 'SAVE20', 'WELCOME50', 'FLAT50'). Must be A-Z and 0-9 only, typically 3-20 characters, usually one word. IMPORTANT: If you see text like "Get 50% off", "Save money", "Big sale", "Limited offer", "Shop now" - that is NOT a coupon code, use null. Only extract actual coupon codes that look like codes: 'SAVE20', 'WELCOME50', 'FLAT50', 'OFFER100'. If the couponTitle, description, or discountValue contains text but NO actual code, use null. Check the ENTIRE coupon data carefully - if no actual code exists anywhere, use null (NOT the title, NOT description, NOT discount text, NOT brand name).
+4. couponVisitingLink: Extract ONLY valid URLs. Must start with http:// or https://. Not aggregator homepages. Actual merchant/deal pages.
+5. couponDetails: Extract terms, conditions, restrictions, validity info. Should NOT contain coupon codes or URLs. Only terms text.
 6. expireBy: Parse any date format to YYYY-MM-DD. If date mentions "expires", "valid till", "ends", extract that date.
 7. discountType: "50% off" or "50 percent" = percentage, "₹100 off" or "Rs 100 off" = flat, "₹50 cashback" = cashback, "free delivery" = free_delivery, "buy 1 get 1" = buy1get1.
-8. If a field value is found in wrong field (e.g., code in title), extract it correctly to the right field.
+8. useCouponVia: Set to "Both" if both couponCode AND couponVisitingLink have values. Set to "Coupon Code" if only couponCode has value (link is null/empty). Set to "Coupon Visiting Link" if only couponVisitingLink has value (code is null/empty). Set to "None" if both are null/empty.
+9. If a field value is found in wrong field (e.g., code in title), extract it correctly to the right field.
 
 Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure JSON.`;
     }
@@ -202,21 +203,31 @@ Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure
             const parsed = JSON.parse(jsonString);
             
             // Clean and validate each field
+            // Clean couponCode first
+            const cleanedCode = this.cleanCouponCode(parsed.couponCode || fallbackData.couponCode);
+            // Clean couponVisitingLink first
+            const cleanedLink = this.cleanUrl(parsed.couponVisitingLink || fallbackData.couponVisitingLink || fallbackData.couponLink);
+            // Get title for description comparison
+            const title = parsed.couponName || fallbackData.couponName || fallbackData.couponTitle;
+            
             const result = {
                 ...fallbackData,
                 ...parsed,
                 
                 // Clean couponName - remove codes, URLs, dates
-                couponName: this.cleanCouponName(parsed.couponName || fallbackData.couponName || fallbackData.couponTitle),
+                couponName: this.cleanCouponName(title),
                 
-                // Clean couponCode - only alphanumeric
-                couponCode: this.cleanCouponCode(parsed.couponCode || fallbackData.couponCode),
+                // Clean couponCode - only alphanumeric (must be a real code, not title/description)
+                couponCode: cleanedCode,
                 
                 // Clean couponVisitingLink - only valid URLs
-                couponVisitingLink: this.cleanUrl(parsed.couponVisitingLink || fallbackData.couponVisitingLink || fallbackData.couponLink),
+                couponVisitingLink: cleanedLink,
                 
-                // Clean description
-                description: this.cleanDescription(parsed.description || fallbackData.description || parsed.couponName || fallbackData.couponTitle),
+                // Clean description - make sure it's different from title, read from entire coupon data
+                description: this.cleanDescription(
+                    parsed.description || fallbackData.description, 
+                    title
+                ),
                 
                 // Parse expiry date
                 expireBy: this.parseDate(parsed.expireBy || fallbackData.expireBy),
@@ -239,11 +250,8 @@ Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure
                 // Set minimumOrder
                 minimumOrder: parsed.minimumOrder || fallbackData.minimumOrder || null,
                 
-                // Set useCouponVia based on what we have
-                useCouponVia: this.determineUseCouponVia(
-                    this.cleanCouponCode(parsed.couponCode || fallbackData.couponCode),
-                    this.cleanUrl(parsed.couponVisitingLink || fallbackData.couponVisitingLink || fallbackData.couponLink)
-                ),
+                // Set useCouponVia based on cleaned code and link
+                useCouponVia: this.determineUseCouponVia(cleanedCode, cleanedLink),
             };
 
             return result;
@@ -287,6 +295,7 @@ Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure
 
     /**
      * Clean coupon code - only alphanumeric, uppercase
+     * Must be a single word/code, not a sentence, title, or description
      */
     cleanCouponCode(code) {
         if (!code || typeof code !== 'string') return null;
@@ -294,13 +303,36 @@ Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure
         let cleaned = code.trim().toUpperCase();
         
         // Remove common phrases
-        cleaned = cleaned.replace(/(SHOW CODE|CLICK HERE|REVEAL CODE|COPY CODE|GET CODE|CODE:)/gi, '').trim();
+        cleaned = cleaned.replace(/(SHOW CODE|CLICK HERE|REVEAL CODE|COPY CODE|GET CODE|CODE:|COUPON CODE:)/gi, '').trim();
         
-        // Extract only alphanumeric (remove special chars)
+        // Extract only alphanumeric (remove special chars, spaces, punctuation, etc.)
         cleaned = cleaned.replace(/[^A-Z0-9]/g, '');
         
-        // Must be between 3-50 characters to be valid
+        // Must be between 3-50 characters to be valid coupon code
         if (cleaned.length < 3 || cleaned.length > 50) {
+            return null;
+        }
+        
+        // Check if it looks like actual coupon code (not sentence/text/title)
+        // Valid codes are typically: short (3-20 chars), mix of letters and numbers
+        // If it's too long (>20 chars), it's likely not a code (might be title/description)
+        if (cleaned.length > 20) {
+            return null;
+        }
+        
+        // Check if it has at least one number or one letter (real codes have mix)
+        const hasNumber = /[0-9]/.test(cleaned);
+        const hasLetter = /[A-Z]/.test(cleaned);
+        
+        // Must have at least letters OR numbers
+        if (!hasNumber && !hasLetter) {
+            return null;
+        }
+        
+        // If too many vowels (like "AAAAA" or "EEEEE"), likely not a code
+        // Codes typically have balanced consonants and vowels
+        const vowelCount = (cleaned.match(/[AEIOU]/g) || []).length;
+        if (cleaned.length >= 10 && vowelCount / cleaned.length > 0.6) {
             return null;
         }
         
@@ -330,12 +362,22 @@ Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure
     }
 
     /**
-     * Clean description
+     * Clean description - ensure it's different from title, read from entire coupon data
      */
-    cleanDescription(desc) {
-        if (!desc || typeof desc !== 'string') return 'Limited time offer';
+    cleanDescription(desc, title) {
+        if (!desc || typeof desc !== 'string' || desc.trim().length === 0) {
+            // If no description provided, create a generic one (but don't just copy title)
+            return 'Limited time offer. Shop now and save big on your favorite products!';
+        }
         
         let cleaned = desc.trim();
+        
+        // If description is same as title (or very similar), reject it and create proper description
+        // Description should come from reading the ENTIRE coupon data, not copying title
+        if (title && (cleaned.toLowerCase() === title.toLowerCase() || cleaned.toLowerCase() === title.toLowerCase().substring(0, cleaned.length))) {
+            // Description was just copied from title - create a meaningful one instead
+            cleaned = 'Limited time offer. Shop now and save big on your favorite products!';
+        }
         
         // Remove URLs
         cleaned = cleaned.replace(/https?:\/\/[^\s]+/gi, '').trim();
@@ -346,9 +388,15 @@ Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure
         // Clean up extra spaces
         cleaned = cleaned.replace(/\s+/g, ' ').trim();
         
-        // Ensure minimum length
+        // Ensure minimum length and it's meaningful
         if (cleaned.length < 10) {
-            cleaned = `${cleaned} - Limited time offer`;
+            cleaned = `${cleaned} Limited time offer. Shop now and save big!`;
+        }
+        
+        // If cleaned description is too short or just repeats title, enhance it
+        if (title && cleaned.length < 50 && cleaned.toLowerCase().includes(title.toLowerCase().substring(0, 20))) {
+            // Too similar to title, create a proper description
+            cleaned = 'Limited time offer. Shop now and save big on your favorite products!';
         }
         
         // Limit length
@@ -421,15 +469,25 @@ Return ONLY the JSON object. No markdown code blocks. No explanations. Just pure
 
     /**
      * Determine useCouponVia based on available data
+     * Check properly for null/empty values
      */
     determineUseCouponVia(code, link) {
-        const hasCode = code && code.length >= 3;
-        const hasLink = link && link.startsWith('http');
+        // Check if code exists and is valid (not null, not empty, not just whitespace)
+        const hasCode = code && typeof code === 'string' && code.trim().length >= 3;
         
-        if (hasCode && hasLink) return 'Both';
-        if (hasCode) return 'Coupon Code';
-        if (hasLink) return 'Coupon Visiting Link';
-        return 'None';
+        // Check if link exists and is valid URL (not null, not empty, starts with http)
+        const hasLink = link && typeof link === 'string' && link.trim().length > 0 && link.trim().startsWith('http');
+        
+        // Return based on what we have
+        if (hasCode && hasLink) {
+            return 'Both';
+        } else if (hasCode && !hasLink) {
+            return 'Coupon Code';
+        } else if (!hasCode && hasLink) {
+            return 'Coupon Visiting Link';
+        } else {
+            return 'None';
+        }
     }
 
     /**
