@@ -19,6 +19,7 @@
     "author": "Dealora Team",
     "license": "ISC",
     "dependencies": {
+        "@google/generative-ai": "^0.24.1",
         "axios": "^1.13.2",
         "axios-retry": "^4.5.0",
         "cheerio": "^1.1.2",
