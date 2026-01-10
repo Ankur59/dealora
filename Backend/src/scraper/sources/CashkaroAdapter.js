@@ -4,49 +4,66 @@ const logger = require('../../utils/logger');
 
 class CashkaroAdapter extends GenericAdapter {
     constructor() {
-        super('Cashkaro', 'https://www.cashkaro.com');
+        super('Cashkaro', 'https://cashkaro.com');
+    }
+
+    /**
+     * Convert brand name to URL-friendly slug
+     * Example: "Amazon" -> "amazon", "Rebel foods" -> "rebel-foods"
+     */
+    brandToSlug(brand) {
+        return brand.toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
     }
 
     async scrape() {
-        const pages = [
+        const brands = [
             // Target Apps from the list
-            { brand: 'TWID', path: '/twid-coupons', category: 'Wallet Rewards' },
-            { brand: 'Pop', path: '/pop-coupons', category: 'Wallet Rewards' },
-            { brand: 'NPCL', path: '/npcl-coupons', category: 'All' },
-            { brand: 'Dhani', path: '/dhani-coupons', category: 'Wallet Rewards' },
-            { brand: 'Kiwi', path: '/kiwi-coupons', category: 'Wallet Rewards' },
-            { brand: 'Payzapp', path: '/payzapp-coupons', category: 'Wallet Rewards' },
-            { brand: 'Freo', path: '/freo-coupons', category: 'Wallet Rewards' },
-            { brand: 'Freecharge', path: '/freecharge-coupons', category: 'Wallet Rewards' },
-            { brand: 'BharatNxt', path: '/bharatnxt-coupons', category: 'Wallet Rewards' },
-            { brand: 'Sarvatra tech', path: '/sarvatra-coupons', category: 'All' },
-            { brand: 'Payworld', path: '/payworld-coupons', category: 'Wallet Rewards' },
-            { brand: 'Rio Money', path: '/rio-money-coupons', category: 'Wallet Rewards' },
-            { brand: 'Payinstacard', path: '/payinstacard-coupons', category: 'Wallet Rewards' },
-            { brand: 'nearwala', path: '/nearwala-coupons', category: 'Grocery' },
-            { brand: 'Limeroad', path: '/limeroad-coupons', category: 'Grocery' },
-            { brand: 'Shopclues', path: '/shopclues-coupons', category: 'Grocery' },
-            { brand: 'Snapdeal', path: '/snapdeal-coupons', category: 'Grocery' },
-            { brand: 'Eatsure', path: '/eatsure-coupons', category: 'Food' },
-            { brand: 'Box8', path: '/box8-coupons', category: 'Food' },
-            { brand: 'Rebel foods', path: '/rebel-foods-coupons', category: 'Food' },
-            { brand: 'Fassos', path: '/fassos-coupons', category: 'Food' },
-            { brand: 'Zingbus', path: '/zingbus-coupons', category: 'Travel' },
-            { brand: 'Satvacart', path: '/satvacart-coupons', category: 'Grocery' },
-            { brand: 'Dealshare', path: '/dealshare-coupons', category: 'Grocery' },
-            { brand: 'Salon Nayana', path: '/salon-nayana-coupons', category: 'Beauty' },
-            { brand: 'HR Wellness', path: '/hr-wellness-coupons', category: 'Beauty' },
-            { brand: 'Freshmenu', path: '/freshmenu-coupons', category: 'Food' },
+            { brand: 'TWID', category: 'Wallet Rewards' },
+            { brand: 'Pop', category: 'Wallet Rewards' },
+            { brand: 'NPCL', category: 'All' },
+            { brand: 'Dhani', category: 'Wallet Rewards' },
+            { brand: 'Kiwi', category: 'Wallet Rewards' },
+            { brand: 'Payzapp', category: 'Wallet Rewards' },
+            { brand: 'Freo', category: 'Wallet Rewards' },
+            { brand: 'Freecharge', category: 'Wallet Rewards' },
+            { brand: 'BharatNxt', category: 'Wallet Rewards' },
+            { brand: 'Sarvatra tech', category: 'All' },
+            { brand: 'Payworld', category: 'Wallet Rewards' },
+            { brand: 'Rio Money', category: 'Wallet Rewards' },
+            { brand: 'Payinstacard', category: 'Wallet Rewards' },
+            { brand: 'nearwala', category: 'Grocery' },
+            { brand: 'Limeroad', category: 'Grocery' },
+            { brand: 'Shopclues', category: 'Grocery' },
+            { brand: 'Snapdeal', category: 'Grocery' },
+            { brand: 'Eatsure', category: 'Food' },
+            { brand: 'Box8', category: 'Food' },
+            { brand: 'Rebel foods', category: 'Food' },
+            { brand: 'Fassos', category: 'Food' },
+            { brand: 'Zingbus', category: 'Travel' },
+            { brand: 'Satvacart', category: 'Grocery' },
+            { brand: 'Dealshare', category: 'Grocery' },
+            { brand: 'Salon Nayana', category: 'Beauty' },
+            { brand: 'HR Wellness', category: 'Beauty' },
+            { brand: 'Freshmenu', category: 'Food' },
             // Popular brands (keeping for coverage)
-            { brand: 'Zomato', path: '/zomato-coupons', category: 'Food' },
-            { brand: 'Swiggy', path: '/swiggy-coupons', category: 'Food' },
-            { brand: 'Amazon', path: '/amazon-coupons', category: 'Grocery' },
-            { brand: 'Flipkart', path: '/flipkart-coupons', category: 'Grocery' },
-            { brand: 'Myntra', path: '/myntra-coupons', category: 'Fashion' },
-            { brand: 'Nykaa', path: '/nykaa-coupons', category: 'Beauty' },
-            { brand: 'MakeMyTrip', path: '/makemytrip-coupons', category: 'Travel' },
-            { brand: 'Paytm', path: '/paytm-coupons', category: 'Wallet Rewards' }
+            { brand: 'Zomato', category: 'Food' },
+            { brand: 'Swiggy', category: 'Food' },
+            { brand: 'Amazon', category: 'Grocery' },
+            { brand: 'Flipkart', category: 'Grocery' },
+            { brand: 'Myntra', category: 'Fashion' },
+            { brand: 'Nykaa', category: 'Beauty' },
+            { brand: 'MakeMyTrip', category: 'Travel' },
+            { brand: 'Paytm', category: 'Wallet Rewards' }
         ];
+
+        // Convert to pages with correct URL format: /stores/brand (e.g., /stores/amazon)
+        const pages = brands.map(b => ({
+            brand: b.brand,
+            path: `/stores/${this.brandToSlug(b.brand)}`,
+            category: b.category
+        }));
 
         let allCoupons = [];
 
@@ -57,7 +74,8 @@ class CashkaroAdapter extends GenericAdapter {
                 
                 // Skip if page not found (404)
                 if (!html) {
-                    logger.warn(`CashkaroAdapter: Skipping ${page.brand} - page not found`);
+                    logger.warn(`CashkaroAdapter: Skipping ${page.brand} - page not found (404). Path may be incorrect: ${this.baseUrl}${page.path}`);
+                    logger.warn(`CashkaroAdapter: Note - Cashkaro website structure may have changed. These paths may not exist.`);
                     continue;
                 }
                 
