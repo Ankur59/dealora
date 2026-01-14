@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.data.api.models.CouponDetail
@@ -18,11 +19,13 @@ fun TermsAndConditionsContent(coupon: CouponDetail) {
             text = "Terms & conditions",
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = AppColors.PrimaryText
+            color = AppColors.PrimaryText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (coupon.terms.toString().isNotBlank()) {
+        if (coupon.terms.toString().isNotBlank()&&coupon.terms!=null) {
             BulletPoint(coupon.terms.toString())
         } else {
             BulletPoint("Valid for a limited time only.")

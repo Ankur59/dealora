@@ -166,7 +166,7 @@ fun CouponDetailsContent(
     coupon: CouponDetail
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Details", "How to redeem", "Terms & condition")
+    val tabs = listOf("Details", "How to redeem", "Terms & conditions")
     val clipboardManager = LocalClipboardManager.current
 
     Scaffold(topBar = {

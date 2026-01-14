@@ -63,7 +63,8 @@ fun CouponCodeCard(
                 fontWeight = FontWeight.SemiBold,
                 color = AppColors.PrimaryText,
                 letterSpacing = if (isCodeAvailable) 2.sp else 0.sp,
-                overflow = TextOverflow.MiddleEllipsis
+                overflow = TextOverflow.MiddleEllipsis,
+                maxLines = 1
             )
 
             Text(
