@@ -175,7 +175,7 @@ fun CouponDetailsContent(
         )
     }, containerColor = AppColors.Background, bottomBar = {
         BottomActionButtons(
-            couponLink = coupon.couponVisitingLink,
+            couponLink = coupon.couponVisitingLink?.toString(),
             onRedeemed = { /* Handle Redeemed */ }
         )
     }) { paddingValues ->
@@ -192,10 +192,10 @@ fun CouponDetailsContent(
             // Brand Header
             item {
                 BrandHeader(
-                    brandName = coupon.brandName ?: "Brand",
-                    categoryLabel = coupon.categoryLabel,
+                    brandName = coupon.brandName?.toString() ?: "Brand",
+                    categoryLabel = coupon.categoryLabel?.toString(),
                     daysUntilExpiry = coupon.display?.daysUntilExpiry,
-                    initial = coupon.display?.initial ?: coupon.brandName?.firstOrNull()?.toString() ?: "?"
+                    initial = coupon.display?.initial ?: coupon.brandName?.toString()?.firstOrNull()?.toString() ?: "?"
                 )
             }
 
@@ -206,8 +206,8 @@ fun CouponDetailsContent(
             // Offer Title
             item {
                 OfferTitle(
-                    title = coupon.couponTitle ?: "Special Offer",
-                    description = coupon.description
+                    title = coupon.couponTitle?.toString() ?: "Special Offer",
+                    description = coupon.description?.toString()
                 )
             }
 
@@ -219,8 +219,14 @@ fun CouponDetailsContent(
             item {
                 CouponCodeCard(
                     couponCode = coupon.couponCode,
+                    couponLink = coupon.couponVisitingLink,
                     onCopyCode = {
-                        coupon.couponCode?.let {
+                        coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let {
+                            clipboardManager.setText(AnnotatedString(it))
+                        }
+                    },
+                    onCopyLink = {
+                        coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let {
                             clipboardManager.setText(AnnotatedString(it))
                         }
                     }

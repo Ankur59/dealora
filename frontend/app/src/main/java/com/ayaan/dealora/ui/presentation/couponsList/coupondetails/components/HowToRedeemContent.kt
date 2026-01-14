@@ -25,7 +25,7 @@ fun HowToRedeemContent(coupon: CouponDetail) {
         NumberedPoint(1, "Copy the coupon code${coupon.couponCode?.let { " ($it)" } ?: ""}.")
         NumberedPoint(
             2,
-            "Go to ${coupon.brandName ?: "the partner"} ${if (coupon.useCouponVia?.lowercase() == "app") "app" else if (coupon.useCouponVia?.lowercase() == "website") "website" else "app/website"}."
+            "Go to ${coupon.brandName ?: "the partner"} ${if (coupon.useCouponVia?.toString()?.lowercase() == "app") "app" else if (coupon.useCouponVia?.toString()?.lowercase() == "website") "website" else "app/website"}."
         )
         NumberedPoint(3, "Add items to cart and apply the code at checkout.")
         NumberedPoint(4, "Complete payment to claim the offer.")

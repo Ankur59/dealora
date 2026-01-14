@@ -30,7 +30,7 @@ fun DetailsContent(coupon: CouponDetail) {
         coupon.discountValue?.let { value ->
             // Handle both String and numeric values
             val valueStr = value.toString()
-            val discountText = when (coupon.discountType?.lowercase()) {
+            val discountText = when (coupon.discountType?.toString()?.lowercase()) {
                 "flat" -> "Flat ₹$valueStr off"
                 "percentage" -> "$valueStr% off"
                 else -> valueStr
@@ -44,10 +44,10 @@ fun DetailsContent(coupon: CouponDetail) {
         }
 
         coupon.couponDetails?.let {
-            BulletPoint(it)
+            BulletPoint(it.toString())
         }
 
-        when (coupon.useCouponVia?.lowercase()) {
+        when (coupon.useCouponVia?.toString()?.lowercase()) {
             "both" -> BulletPoint("Valid on App and Website")
             "app" -> BulletPoint("Valid only on App")
             "website" -> BulletPoint("Valid only on Website")

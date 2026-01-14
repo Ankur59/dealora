@@ -11,7 +11,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.ui.theme.AppColors
-
 @Composable
 fun TermsAndConditionsContent(coupon: CouponDetail) {
     Column {
@@ -23,8 +22,8 @@ fun TermsAndConditionsContent(coupon: CouponDetail) {
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (!coupon.terms.isNullOrBlank()) {
-            BulletPoint(coupon.terms)
+        if (coupon.terms.toString().isNotBlank()) {
+            BulletPoint(coupon.terms.toString())
         } else {
             BulletPoint("Valid for a limited time only.")
             BulletPoint("One-time use per user.")

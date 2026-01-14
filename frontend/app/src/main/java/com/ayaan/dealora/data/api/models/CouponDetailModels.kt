@@ -18,72 +18,72 @@ data class CouponDetailResponseData(
 @JsonClass(generateAdapter = true)
 data class CouponDetail(
     @Json(name = "_id")
-    val id: String,
+    val id: Any?=null,
 
     @Json(name = "userId")
-    val userId: String,
+    val userId: Any?=null,
 
     @Json(name = "couponName")
-    val couponName: String?,
+    val couponName: Any?=null,
 
     @Json(name = "brandName")
-    val brandName: String?,
+    val brandName: Any?=null,
 
     @Json(name = "couponTitle")
-    val couponTitle: String?,
+    val couponTitle: Any?=null,
 
     @Json(name = "description")
-    val description: String?,
+    val description: Any?=null,
 
     @Json(name = "expireBy")
-    val expireBy: String?,
+    val expireBy: Any?=null,
 
     @Json(name = "categoryLabel")
-    val categoryLabel: String?,
+    val categoryLabel: Any?=null,
 
     @Json(name = "useCouponVia")
-    val useCouponVia: String?,
+    val useCouponVia: Any?=null,
 
     @Json(name = "discountType")
-    val discountType: String?,
+    val discountType: Any?=null,
 
     @Json(name = "discountValue")
-    val discountValue: Any?,
+    val discountValue: Any?=null,
 
     @Json(name = "minimumOrder")
-    val minimumOrder: Any?,
+    val minimumOrder: Any?=null,
 
     @Json(name = "couponCode")
-    val couponCode: String?,
+    val couponCode: Any?=null,
 
     @Json(name = "couponVisitingLink")
-    val couponVisitingLink: String?,
+    val couponVisitingLink: Any?=null,
 
     @Json(name = "couponDetails")
-    val couponDetails: String?,
+    val couponDetails: Any?=null,
 
     @Json(name = "terms")
-    val terms: String?,
+    val terms: Any?=null,
 
     @Json(name = "status")
-    val status: String?,
+    val status: Any?=null,
 
     @Json(name = "addedMethod")
-    val addedMethod: String?,
+    val addedMethod: Any?=null,
 
     @Json(name = "base64ImageUrl")
-    val base64ImageUrl: String?,
+    val base64ImageUrl: Any?=null,
 
     @Json(name = "createdAt")
-    val createdAt: String?,
+    val createdAt: Any?=null,
 
     @Json(name = "updatedAt")
-    val updatedAt: String?,
+    val updatedAt: Any?=null,
 
     @Json(name = "display")
-    val display: CouponDisplay?,
+    val display: CouponDisplay?=null,
 
     @Json(name = "actions")
-    val actions: CouponActions?
+    val actions: CouponActions?=null
 )
 

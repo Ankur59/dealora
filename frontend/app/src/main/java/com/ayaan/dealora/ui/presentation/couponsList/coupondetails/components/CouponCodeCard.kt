@@ -3,7 +3,6 @@ package com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.AppColors
@@ -22,13 +22,28 @@ import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
 fun CouponCodeCard(
-    couponCode: String?,
-    onCopyCode: () -> Unit
+    couponCode: Any?,
+    couponLink: Any? = null,
+    onCopyCode: () -> Unit,
+    onCopyLink: () -> Unit = {}
 ) {
+    // Convert Any? to String and check if it's not null or blank
+    val code = couponCode?.toString()?.takeIf { it.isNotBlank() }
+    val link = couponLink?.toString()?.takeIf { it.isNotBlank() }
+
+    // If neither code nor link is available, don't display anything
+    if (code == null && link == null) return
+
+    // Determine what to display
+    val isCodeAvailable = code != null
+    val displayText = if (isCodeAvailable) code else link ?: ""
+    val actionText = if (isCodeAvailable) "📋 Copy Code" else "🔗 Copy Link"
+    val onClickAction = if (isCodeAvailable) onCopyCode else onCopyLink
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onCopyCode),
+            .clickable(onClick = onClickAction),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFFE8DCFF)
@@ -43,15 +58,16 @@ fun CouponCodeCard(
         ) {
 
             Text(
-                text = couponCode ?: "No Code",
+                text = displayText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = AppColors.PrimaryText,
-                letterSpacing = 2.sp
+                letterSpacing = if (isCodeAvailable) 2.sp else 0.sp,
+                overflow = TextOverflow.MiddleEllipsis
             )
 
             Text(
-                text = "📋 Copy Code",
+                text = actionText,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = DealoraPrimary
