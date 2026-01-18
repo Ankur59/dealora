@@ -52,6 +52,7 @@ fun CouponDetailsScreen(
     navController: NavController, viewModel: CouponDetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isPrivateMode by viewModel.isPrivateMode.collectAsState()
 
     when (val state = uiState) {
         is CouponDetailsUiState.Loading -> {
@@ -67,7 +68,9 @@ fun CouponDetailsScreen(
 
         is CouponDetailsUiState.Success -> {
             CouponDetailsContent(
-                navController = navController, coupon = state.coupon
+                navController = navController,
+                coupon = state.coupon,
+                isPrivateMode = isPrivateMode
             )
         }
     }
@@ -147,21 +150,31 @@ fun ErrorContent(
 
 @Composable
 fun CouponDetailsContent(
-    navController: NavController, coupon: CouponDetail
+    navController: NavController,
+    coupon: CouponDetail,
+    isPrivateMode: Boolean = false
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Details", "How to redeem", "Terms & conditions")
     val clipboardManager = LocalClipboardManager.current
 
-    Scaffold(topBar = {
-        TopBar(
-            navController = navController, title = "Details"
-        )
-    }, containerColor = AppColors.Background, bottomBar = {
-        BottomActionButtons(
-            couponLink = coupon.couponVisitingLink?.toString(),
-            onRedeemed = { /* Handle Redeemed */ })
-    }) { paddingValues ->
+    Scaffold(
+        topBar = {
+            TopBar(
+                navController = navController, title = "Details"
+            )
+        },
+        containerColor = AppColors.Background,
+        bottomBar = {
+            // Only show bottom action buttons when in private mode
+            if (isPrivateMode) {
+                BottomActionButtons(
+                    couponLink = coupon.couponVisitingLink?.toString(),
+                    onRedeemed = { /* Handle Redeemed */ }
+                )
+            }
+        }
+    ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

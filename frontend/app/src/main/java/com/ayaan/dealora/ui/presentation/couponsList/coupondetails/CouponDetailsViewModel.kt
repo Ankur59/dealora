@@ -32,10 +32,15 @@ class CouponDetailsViewModel @Inject constructor(
     }
 
     private val couponId: String = checkNotNull(savedStateHandle["couponId"])
-    private val isPrivate: Boolean = savedStateHandle["isPrivate"] ?: false
+    private val _isPrivate: Boolean = savedStateHandle["isPrivate"] ?: false
+    private val _couponCode: String? = savedStateHandle["couponCode"]
 
     private val _uiState = MutableStateFlow<CouponDetailsUiState>(CouponDetailsUiState.Loading)
     val uiState: StateFlow<CouponDetailsUiState> = _uiState.asStateFlow()
+
+    // Expose isPrivate as StateFlow
+    private val _isPrivateState = MutableStateFlow(_isPrivate)
+    val isPrivateMode: StateFlow<Boolean> = _isPrivateState.asStateFlow()
 
     init {
         loadCouponDetails()
@@ -47,7 +52,7 @@ class CouponDetailsViewModel @Inject constructor(
 
             try {
                 // If it's a private coupon, generate mock data
-                if (isPrivate) {
+                if (_isPrivate) {
                     Log.d(TAG, "Loading private coupon with id: $couponId")
                     val mockCoupon = generateMockPrivateCoupon(couponId)
                     _uiState.value = CouponDetailsUiState.Success(mockCoupon)
@@ -86,8 +91,8 @@ class CouponDetailsViewModel @Inject constructor(
     }
 
     private fun generateMockPrivateCoupon(couponId: String): CouponDetail {
-        // Generate a random coupon code
-        val randomCode = generateRandomCouponCode()
+        // Use the passed coupon code, or generate a random one as fallback
+        val couponCode = _couponCode ?: generateRandomCouponCode()
 
         return CouponDetail(
             id = couponId,
@@ -102,7 +107,7 @@ class CouponDetailsViewModel @Inject constructor(
             discountType = "percentage",
             discountValue = 10,
             minimumOrder = 0,
-            couponCode = randomCode,
+            couponCode = couponCode,
             couponVisitingLink = null,
             couponDetails = "This is a private coupon. Visit the brand website to redeem.",
             terms = "• Valid for online purchases only\n• One time use per customer\n• Cannot be combined with other offers",

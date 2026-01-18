@@ -49,6 +49,11 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
                 navArgument("isPrivate") {
                     type = NavType.BoolType
                     defaultValue = false
+                },
+                navArgument("couponCode") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 })) {
             CouponDetailsScreen(navController)
         }

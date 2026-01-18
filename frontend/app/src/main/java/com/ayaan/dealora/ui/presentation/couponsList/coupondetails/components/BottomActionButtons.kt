@@ -59,7 +59,7 @@ fun BottomActionButtons(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DealoraPrimary
                 ),
-                enabled = !couponLink.isNullOrBlank()
+//                enabled = !couponLink.isNullOrBlank()
             ) {
                 Text(
                     text = "Discover",

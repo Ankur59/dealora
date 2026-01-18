@@ -132,6 +132,11 @@ fun CouponsList(
                                 if (privateCouponsCount == 0) {
                                     PrivateEmptyState()
                                 } else {
+                                    // Generate coupon codes once for all cards
+                                    val couponCodes = remember(privateCouponsCount) {
+                                        List(privateCouponsCount) { generateRandomCouponCode() }
+                                    }
+
                                     LazyColumn(
                                         modifier = Modifier.fillMaxSize(),
                                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -139,13 +144,15 @@ fun CouponsList(
                                     ) {
                                         items(privateCouponsCount) { index ->
                                             CouponCard(
+                                                couponCode = couponCodes[index],
                                                 onDetailsClick = {
                                                     // Generate a random ID for private coupon
                                                     val randomId = "private_${System.currentTimeMillis()}_$index"
                                                     navController.navigate(
                                                         Route.CouponDetails.createRoute(
                                                             couponId = randomId,
-                                                            isPrivate = true
+                                                            isPrivate = true,
+                                                            couponCode = couponCodes[index]
                                                         )
                                                     )
                                                 }
@@ -348,3 +355,15 @@ private fun EmptyContent() {
         }
     }
 }
+
+/**
+ * Helper function to generate random coupon code
+ */
+private fun generateRandomCouponCode(): String {
+//    val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+//    return (1..8)
+//        .map { chars.random() }
+//        .joinToString("")
+    return "GROOMING999"
+}
+

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun CouponCard(
+    couponCode: String = "",
     onDetailsClick: () -> Unit = {}
 ) {
     var isRedeemed by remember { mutableStateOf(false) }
