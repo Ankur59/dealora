@@ -63,11 +63,6 @@ fun CouponsList(
     val privateCouponsCount by viewModel.privateCouponsCount.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
-//    if (privateCouponsCount == 0) {
-//        PrivateEmptyState()
-//    } else {
-//        PrivateCouponsList(count = privateCouponsCount)
-//    }
     LaunchedEffect(Unit){
         viewModel.loadCoupons()
     }

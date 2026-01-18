@@ -1,9 +1,11 @@
 package com.ayaan.dealora.ui.presentation.common.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,10 +16,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,175 +46,155 @@ fun CouponCard(
 ) {
     var isRedeemed by remember { mutableStateOf(false) }
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // Top Purple Section
+            // Purple Header Section
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF5B3FD9))
-                    .padding(20.dp)
+                    .padding(12.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Logo
+                    // Logo Circle
                     Box(
                         modifier = Modifier
-                            .size(80.dp)
-                            .background(Color(0xFF1E88A8), CircleShape)
-                            .padding(12.dp), contentAlignment = Alignment.Center
+                            .size(50.dp)
+                            .background(Color(0xFF1E88A8), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "BOMBAY\nSHAVING\nCOMPANY",
                             color = Color.White,
-                            fontSize = 9.sp,
+                            fontSize = 7.sp,
                             fontWeight = FontWeight.Bold,
-                            lineHeight = 10.sp,
+                            lineHeight = 8.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
 
-                    // Title and Info
+                    // Center Content
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 12.dp)
                     ) {
                         Text(
-                            text = "Buy 1 items, Get extra 10% off",
+                            text = "Buy 1 items,\nGet extra 10% off",
                             color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 20.sp
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Chip(text = "Beauty")
-                            Chip(text = "Expiry by 23 days")
+                            Chip(text = "Expiry ... days")
                         }
                     }
 
-                    // Bookmark Icon
-                    IconButton(onClick = {}) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Bookmark",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+                    // Star Icon
+                    Icon(
+                        imageVector = Icons.Outlined.BookmarkBorder,
+                        contentDescription = "Featured",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
 
-            // Divider with circles
-//            Box(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .height(30.dp)
-//            ) {
-//                Canvas(modifier = Modifier.fillMaxSize()) {
-//                    val circleRadius = 15.dp.toPx()
-//                    val spacing = size.width / 20
-//
-//                    // Draw the background
-//                    drawRect(Color(0xFFE5E5E5))
-//
-//                    // Draw semi-circles on left and right
-//                    drawCircle(
-//                        color = Color.White,
-//                        radius = circleRadius,
-//                        center = Offset(-circleRadius, size.height / 2)
-//                    )
-//                    drawCircle(
-//                        color = Color.White,
-//                        radius = circleRadius,
-//                        center = Offset(size.width + circleRadius, size.height / 2)
-//                    )
-//
-//                    // Draw dashed line
-//                    for (i in 0..19) {
-//                        drawCircle(
-//                            color = Color.White,
-//                            radius = 3.dp.toPx(),
-//                            center = Offset(spacing * i, size.height / 2)
-//                        )
-//                    }
-//                }
-//            }
-
-            // Bottom Gray Section
-            Box(
+            // Gray Footer Section
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFE5E5E5))
-                    .padding(20.dp)
+                    .background(Color(0xFFE8E8E8))
+                    .padding(12.dp)
             ) {
+                Text(
+                    text = "Get Extra 10% off on mcaffine Bodywash, lotion and many more.",
+                    fontSize = 13.sp,
+                    color = Color(0xFF333333),
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Buttons Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "Get Extra 10% off on mcaffine Bodywash, lotion and many more.",
-                        fontSize = 16.sp,
-                        color = Color(0xFF333333),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 60.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                    // Details Button
                     TextButton(
-                        onClick = onDetailsClick, modifier = Modifier.weight(1f)
+                        onClick = onDetailsClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp),
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Text(
-                            text = "Details", fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                            text = "Details",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF5B3FD9)
                         )
                     }
 
+                    // Redeemed Button
                     OutlinedButton(
                         onClick = { isRedeemed = true },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isRedeemed) Color.LightGray else Color.White
+                            containerColor = if (isRedeemed) Color(0xFFD0D0D0) else Color.White,
+                            contentColor = Color(0xFF666666)
                         ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFCCCCCC))
+                        ),
+                        contentPadding = PaddingValues(0.dp),
                         enabled = !isRedeemed
                     ) {
                         Text(
-                            text = if (isRedeemed) "Redeemed" else "Redeemed",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF666666)
+                            text = "Redeemed",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
 
+                    // Discover Button
                     Button(
                         onClick = {},
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF5B3FD9)
-                        )
+                        ),
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Text(
-                            text = "Discover", fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                            text = "Discover",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -223,11 +207,14 @@ fun CouponCard(
 fun Chip(text: String) {
     Box(
         modifier = Modifier
-            .background(Color(0x40FFFFFF), RoundedCornerShape(16.dp))
-            .padding(horizontal = 2.dp, vertical = 6.dp)
+            .background(Color(0x40FFFFFF), RoundedCornerShape(12.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
-            text = text, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.MiddleEllipsis
+            text = text,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Normal
         )
     }
 }

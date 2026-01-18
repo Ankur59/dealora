@@ -20,6 +20,7 @@ foundation = "1.10.0"
 paging = "3.3.2"
 
 [libraries]
+compose-material-icons = { group = "androidx.compose.material", name = "material-icons-core" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
