@@ -36,11 +36,12 @@ import com.google.firebase.auth.FirebaseAuth
 fun DealoraApp(navController: NavHostController = rememberNavController(), modifier: Modifier) {
     val auth = FirebaseAuth.getInstance()
     val user = auth.currentUser?.uid
-    if (user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
+   val startDestination= if (user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
-//        startDestination = startDestination,
-        modifier = modifier, startDestination = Route.ExploreCoupons.path
+        startDestination = startDestination,
+        modifier = modifier,
+//        startDestination = Route.ExploreCoupons.path
     ) {
         composable(
             route = Route.CouponDetails.path,
