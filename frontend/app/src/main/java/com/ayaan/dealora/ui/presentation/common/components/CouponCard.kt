@@ -43,7 +43,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun CouponCard(
     couponCode: String = "",
-    onDetailsClick: () -> Unit = {}
+    onDetailsClick: () -> Unit = {},
+    onDiscoverClick: () -> Unit = {}
 ) {
     var isRedeemed by remember { mutableStateOf(false) }
 
@@ -183,7 +184,7 @@ fun CouponCard(
 
                     // Discover Button
                     Button(
-                        onClick = {},
+                        onClick = onDiscoverClick,
                         modifier = Modifier
                             .weight(1f)
                             .height(36.dp),

@@ -1,5 +1,8 @@
 package com.ayaan.dealora.ui.presentation.couponsList
 
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,6 +53,7 @@ fun CouponsList(
     navController: NavController,
     viewModel: CouponsListViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -155,6 +160,31 @@ fun CouponsList(
                                                             couponCode = couponCodes[index]
                                                         )
                                                     )
+                                                },
+                                                onDiscoverClick = {
+                                                    // Try to open Bombay Shaving Company app
+                                                    val packageName = "com.ayaan.dealoracouponviewer"
+                                                    try {
+                                                        val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+                                                        Log.d("CouponDetailsScreen", "Intent: $intent")
+                                                        if (intent != null) {
+                                                            // App is installed, open it
+                                                            context.startActivity(intent)
+                                                        } else {
+                                                            // App not installed, open Play Store
+                                                            val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+                                                                setPackage("com.android.vending")
+                                                            }
+                                                            context.startActivity(playStoreIntent)
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        // Fallback to browser if Play Store not available
+                                                        val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                            data = Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+                                                        }
+                                                        context.startActivity(browserIntent)
+                                                    }
                                                 }
                                             )
                                         }
