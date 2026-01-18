@@ -45,7 +45,13 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
     ) {
         composable(
             route = Route.CouponDetails.path,
-            arguments = listOf(navArgument("couponId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("couponId") { type = NavType.StringType },
+                navArgument("isPrivate") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
         ) {
             CouponDetailsScreen(navController)
         }

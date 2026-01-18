@@ -1,6 +1,5 @@
 package com.ayaan.dealora.ui.presentation.couponsList
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +34,6 @@ import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
-import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponListItemCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
@@ -44,6 +42,7 @@ import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.PrivateEmptyState
+import com.ayaan.dealora.ui.presentation.navigation.Route
 
 @Composable
 fun CouponsList(
@@ -143,8 +142,19 @@ fun CouponsList(
                                         verticalArrangement = Arrangement.spacedBy(16.dp),
                                         contentPadding = PaddingValues(16.dp)
                                     ) {
-                                        items(privateCouponsCount) {
-                                            CouponCard()
+                                        items(privateCouponsCount) { index ->
+                                            CouponCard(
+                                                onDetailsClick = {
+                                                    // Generate a random ID for private coupon
+                                                    val randomId = "private_${System.currentTimeMillis()}_$index"
+                                                    navController.navigate(
+                                                        Route.CouponDetails.createRoute(
+                                                            couponId = randomId,
+                                                            isPrivate = true
+                                                        )
+                                                    )
+                                                }
+                                            )
                                         }
                                     }
                                 }

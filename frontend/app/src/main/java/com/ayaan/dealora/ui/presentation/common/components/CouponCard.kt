@@ -37,7 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun CouponCard() {
+fun CouponCard(
+    onDetailsClick: () -> Unit = {}
+) {
     var isRedeemed by remember { mutableStateOf(false) }
 
     Box(
@@ -177,7 +179,7 @@ fun CouponCard() {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     TextButton(
-                        onClick = {}, modifier = Modifier.weight(1f)
+                        onClick = onDetailsClick, modifier = Modifier.weight(1f)
                     ) {
                         Text(
                             text = "Details", fontSize = 16.sp, fontWeight = FontWeight.SemiBold
