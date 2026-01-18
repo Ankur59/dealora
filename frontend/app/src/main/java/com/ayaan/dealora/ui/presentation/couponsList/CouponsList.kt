@@ -51,6 +51,7 @@ fun CouponsList(
     val currentSortOption by viewModel.currentSortOption.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentFilters by viewModel.currentFilters.collectAsState()
+    val isPublicMode by viewModel.isPublicMode.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
 
@@ -70,6 +71,10 @@ fun CouponsList(
                 },
                 onBackClick = {
                     navController.popBackStack()
+                },
+                isPublicMode = isPublicMode,
+                onPublicModeChanged = { isPublic ->
+                    viewModel.onPublicModeChanged(isPublic)
                 }
             )
         }
@@ -118,7 +123,37 @@ fun CouponsList(
                             )
                         }
                         is LoadState.NotLoading -> {
-                            if (coupons.itemCount == 0) {
+                            if (!isPublicMode) {
+                                // Show message when in private mode
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.padding(24.dp)
+                                    ) {
+                                        Text(
+                                            text = "🔒",
+                                            style = MaterialTheme.typography.displayMedium
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = "Switch to Public Mode",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = Color.Black
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Toggle the switch above to view your coupons",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            textAlign = TextAlign.Center,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            } else if (coupons.itemCount == 0) {
                                 EmptyContent()
                             } else {
                                 // Coupon cards stretch edge-to-edge with 16dp vertical spacing

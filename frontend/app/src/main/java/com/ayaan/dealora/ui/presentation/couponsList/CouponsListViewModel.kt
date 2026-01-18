@@ -55,6 +55,9 @@ class CouponsListViewModel @Inject constructor(
     private val _currentFilters = MutableStateFlow(com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions())
     val currentFilters: StateFlow<com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions> = _currentFilters.asStateFlow()
 
+    private val _isPublicMode = MutableStateFlow(false)
+    val isPublicMode: StateFlow<Boolean> = _isPublicMode.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
@@ -128,6 +131,10 @@ class CouponsListViewModel @Inject constructor(
             price = filters.getPriceApiValue(),
             validity = filters.getValidityApiValue()
         )
+    }
+
+    fun onPublicModeChanged(isPublic: Boolean) {
+        _isPublicMode.value = isPublic
     }
 
     fun loadCoupons(
