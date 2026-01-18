@@ -59,6 +59,7 @@ class CouponsListViewModel @Inject constructor(
     val isPublicMode: StateFlow<Boolean> = _isPublicMode.asStateFlow()
 
     private var searchJob: Job? = null
+    val privateCouponsCount = MutableStateFlow(10)
 
     init {
         // Setup debounced search

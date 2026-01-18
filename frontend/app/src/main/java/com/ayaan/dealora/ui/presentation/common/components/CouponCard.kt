@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -221,10 +222,10 @@ fun Chip(text: String) {
     Box(
         modifier = Modifier
             .background(Color(0x40FFFFFF), RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 2.dp, vertical = 6.dp)
     ) {
         Text(
-            text = text, color = Color.White, fontSize = 13.sp
+            text = text, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.MiddleEllipsis
         )
     }
 }

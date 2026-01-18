@@ -1,9 +1,11 @@
 package com.ayaan.dealora.ui.presentation.couponsList
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,12 +35,15 @@ import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import com.ayaan.dealora.R
+import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponListItemCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.PrivateEmptyState
 
 @Composable
 fun CouponsList(
@@ -56,8 +61,14 @@ fun CouponsList(
     var showSortDialog by remember { mutableStateOf(false) }
 
     var showFiltersDialog by remember { mutableStateOf(false) }
+    val privateCouponsCount by viewModel.privateCouponsCount.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
+//    if (privateCouponsCount == 0) {
+//        PrivateEmptyState()
+//    } else {
+//        PrivateCouponsList(count = privateCouponsCount)
+//    }
     LaunchedEffect(Unit){
         viewModel.loadCoupons()
     }
@@ -124,36 +135,21 @@ fun CouponsList(
                         }
                         is LoadState.NotLoading -> {
                             if (!isPublicMode) {
-                                // Show message when in private mode
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center,
-                                        modifier = Modifier.padding(24.dp)
+                                if (privateCouponsCount == 0) {
+                                    PrivateEmptyState()
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                                        contentPadding = PaddingValues(16.dp)
                                     ) {
-                                        Text(
-                                            text = "🔒",
-                                            style = MaterialTheme.typography.displayMedium
-                                        )
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Text(
-                                            text = "Switch to Public Mode",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = Color.Black
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "Toggle the switch above to view your coupons",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            textAlign = TextAlign.Center,
-                                            color = Color.Gray
-                                        )
+                                        items(privateCouponsCount) {
+                                            CouponCard()
+                                        }
                                     }
                                 }
-                            } else if (coupons.itemCount == 0) {
+                            }
+                            else if (coupons.itemCount == 0) {
                                 EmptyContent()
                             } else {
                                 // Coupon cards stretch edge-to-edge with 16dp vertical spacing
