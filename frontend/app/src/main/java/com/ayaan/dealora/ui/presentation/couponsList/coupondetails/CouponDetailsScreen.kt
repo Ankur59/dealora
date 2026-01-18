@@ -1,34 +1,29 @@
 package com.ayaan.dealora.ui.presentation.couponsList.coupondetails
 
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,26 +53,28 @@ import com.ayaan.dealora.ui.theme.AppColors
 
 @Composable
 fun CouponDetailsScreen(
-    navController: NavController,
-    viewModel: CouponDetailsViewModel = hiltViewModel()
+    navController: NavController, viewModel: CouponDetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isPrivateMode by viewModel.isPrivateMode.collectAsState()
 
     when (val state = uiState) {
         is CouponDetailsUiState.Loading -> {
             LoadingContent(navController)
         }
+
         is CouponDetailsUiState.Error -> {
             ErrorContent(
                 navController = navController,
                 message = state.message,
-                onRetry = { viewModel.retry() }
-            )
+                onRetry = { viewModel.retry() })
         }
+
         is CouponDetailsUiState.Success -> {
             CouponDetailsContent(
                 navController = navController,
-                coupon = state.coupon
+                coupon = state.coupon,
+                isPrivateMode = isPrivateMode
             )
         }
     }
@@ -87,8 +85,7 @@ fun LoadingContent(navController: NavController) {
     Scaffold(
         topBar = {
             TopBar(navController = navController, title = "Details")
-        },
-        containerColor = AppColors.Background
+        }, containerColor = AppColors.Background
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -114,15 +111,12 @@ fun LoadingContent(navController: NavController) {
 
 @Composable
 fun ErrorContent(
-    navController: NavController,
-    message: String,
-    onRetry: () -> Unit
+    navController: NavController, message: String, onRetry: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopBar(navController = navController, title = "Details")
-        },
-        containerColor = AppColors.Background
+        }, containerColor = AppColors.Background
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -136,8 +130,7 @@ fun ErrorContent(
                 modifier = Modifier.padding(24.dp)
             ) {
                 Text(
-                    text = "😕",
-                    fontSize = 48.sp
+                    text = "😕", fontSize = 48.sp
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -148,8 +141,7 @@ fun ErrorContent(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
-                    onClick = onRetry,
-                    colors = ButtonDefaults.buttonColors(
+                    onClick = onRetry, colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF5B4CFF)
                     )
                 ) {
@@ -163,22 +155,75 @@ fun ErrorContent(
 @Composable
 fun CouponDetailsContent(
     navController: NavController,
-    coupon: CouponDetail
+    coupon: CouponDetail,
+    isPrivateMode: Boolean = false
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Details", "How to redeem", "Terms & conditions")
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
-    Scaffold(topBar = {
-        TopBar(
-            navController = navController, title = "Details"
-        )
-    }, containerColor = AppColors.Background, bottomBar = {
-        BottomActionButtons(
-            couponLink = coupon.couponVisitingLink?.toString(),
-            onRedeemed = { /* Handle Redeemed */ }
-        )
-    }) { paddingValues ->
+    Scaffold(
+        topBar = {
+            TopBar(
+                navController = navController, title = "Details"
+            )
+        },
+        containerColor = AppColors.Background,
+        bottomBar = {
+            // Only show bottom action buttons when in private mode
+            if (isPrivateMode) {
+                BottomActionButtons(
+                    couponLink = coupon.couponVisitingLink?.toString(),
+                    onRedeemed = { /* Handle Redeemed */ },
+                    onDiscoverClick = {
+                        try {
+                            val intent = Intent().apply {
+                                action = "com.ayaan.couponviewer.SHOW_COUPON"
+
+                                // Add coupon data as extras
+                                putExtra("EXTRA_COUPON_CODE", coupon.couponCode.toString())
+                                putExtra("EXTRA_COUPON_TITLE", coupon.couponTitle?.toString() ?: "Special Offer")
+                                putExtra("EXTRA_DESCRIPTION", coupon.description?.toString())
+                                putExtra("EXTRA_BRAND_NAME", coupon.brandName?.toString() ?: "Brand")
+                                putExtra("EXTRA_CATEGORY", coupon.categoryLabel?.toString())
+                                putExtra("EXTRA_EXPIRY_DATE", coupon.display?.daysUntilExpiry?.toString())
+                                putExtra("EXTRA_MINIMUM_ORDER", coupon.minimumOrder?.toString())
+                                putExtra("EXTRA_DISCOUNT_VALUE", coupon.discountValue?.toString())
+                                putExtra("EXTRA_DISCOUNT_TYPE", coupon.discountType?.toString())
+                                putExtra("EXTRA_TERMS", coupon.terms?.toString())
+                                putExtra("EXTRA_COUPON_LINK", coupon.couponVisitingLink?.toString())
+                                putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
+
+                                setPackage("com.ayaan.couponviewer")
+                                addCategory(Intent.CATEGORY_DEFAULT)
+                            }
+
+                            Log.d("CouponDetailsScreen", "Launching CouponViewer with intent: $intent")
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("CouponDetailsScreen", "Failed to open CouponViewer app: ${e.message}", e)
+
+                            // Fallback to Play Store
+                            try {
+                                val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                    setPackage("com.android.vending")
+                                }
+                                context.startActivity(playStoreIntent)
+                            } catch (e2: Exception) {
+                                // Last resort - open in browser
+                                val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                }
+                                context.startActivity(browserIntent)
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -195,7 +240,8 @@ fun CouponDetailsContent(
                     brandName = coupon.brandName?.toString() ?: "Brand",
                     categoryLabel = coupon.categoryLabel?.toString(),
                     daysUntilExpiry = coupon.display?.daysUntilExpiry,
-                    initial = coupon.display?.initial ?: coupon.brandName?.toString()?.firstOrNull()?.toString() ?: "?"
+                    initial = coupon.display?.initial ?: coupon.brandName?.toString()?.firstOrNull()
+                        ?.toString() ?: "?"
                 )
             }
 
@@ -229,8 +275,7 @@ fun CouponDetailsContent(
                         coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let {
                             clipboardManager.setText(AnnotatedString(it))
                         }
-                    }
-                )
+                    })
             }
 
             item {
@@ -279,10 +324,7 @@ fun CouponDetailsContent(
 
 @Composable
 fun BrandHeader(
-    brandName: String,
-    categoryLabel: String?,
-    daysUntilExpiry: Int?,
-    initial: String
+    brandName: String, categoryLabel: String?, daysUntilExpiry: Int?, initial: String
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -297,10 +339,7 @@ fun BrandHeader(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = initial,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+                text = initial, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White
             )
         }
 

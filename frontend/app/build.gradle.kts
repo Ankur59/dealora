@@ -88,4 +88,6 @@ dependencies {
     // Paging
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
+    implementation (libs.compose.material.icons)
+    implementation("androidx.compose.material:material-icons-extended:1.6.8")
 }

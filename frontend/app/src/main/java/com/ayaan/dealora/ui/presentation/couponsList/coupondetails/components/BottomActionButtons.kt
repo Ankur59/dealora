@@ -21,7 +21,9 @@ import com.ayaan.dealora.ui.theme.AppColors
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 @Composable
 fun BottomActionButtons(
-    couponLink: String?, onRedeemed: () -> Unit
+    couponLink: String?,
+    onRedeemed: () -> Unit,
+    onDiscoverClick: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(), color = AppColors.CardBackground, shadowElevation = 8.dp
@@ -48,18 +50,14 @@ fun BottomActionButtons(
             }
 
             Button(
-                onClick = {
-                    // Open coupon link in browser or app
-                    // This would typically use Android Intent to open the URL
-                },
+                onClick = onDiscoverClick,
                 modifier = Modifier
                     .weight(1f)
                     .height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DealoraPrimary
-                ),
-                enabled = !couponLink.isNullOrBlank()
+                )
             ) {
                 Text(
                     text = "Discover",

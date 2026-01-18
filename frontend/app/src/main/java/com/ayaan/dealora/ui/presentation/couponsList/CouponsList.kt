@@ -1,9 +1,13 @@
 package com.ayaan.dealora.ui.presentation.couponsList
 
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,28 +38,34 @@ import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponListItemCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.PrivateEmptyState
+import com.ayaan.dealora.ui.presentation.navigation.Route
 
 @Composable
 fun CouponsList(
     navController: NavController,
     viewModel: CouponsListViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSortOption by viewModel.currentSortOption.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentFilters by viewModel.currentFilters.collectAsState()
+    val isPublicMode by viewModel.isPublicMode.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
 
     var showFiltersDialog by remember { mutableStateOf(false) }
+    val privateCouponsCount by viewModel.privateCouponsCount.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit){
@@ -70,6 +81,10 @@ fun CouponsList(
                 },
                 onBackClick = {
                     navController.popBackStack()
+                },
+                isPublicMode = isPublicMode,
+                onPublicModeChanged = { isPublic ->
+                    viewModel.onPublicModeChanged(isPublic)
                 }
             )
         }
@@ -118,7 +133,90 @@ fun CouponsList(
                             )
                         }
                         is LoadState.NotLoading -> {
-                            if (coupons.itemCount == 0) {
+                            if (!isPublicMode) {
+                                if (privateCouponsCount == 0) {
+                                    PrivateEmptyState()
+                                } else {
+                                    // Generate coupon codes once for all cards
+                                    val couponCodes = remember(privateCouponsCount) {
+                                        List(privateCouponsCount) { generateRandomCouponCode() }
+                                    }
+
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                                        contentPadding = PaddingValues(16.dp)
+                                    ) {
+                                        items(privateCouponsCount) { index ->
+                                            CouponCard(
+                                                couponCode = couponCodes[index],
+                                                onDetailsClick = {
+                                                    // Generate a random ID for private coupon
+                                                    val randomId = "private_${System.currentTimeMillis()}_$index"
+                                                    navController.navigate(
+                                                        Route.CouponDetails.createRoute(
+                                                            couponId = randomId,
+                                                            isPrivate = true,
+                                                            couponCode = couponCodes[index]
+                                                        )
+                                                    )
+                                                },
+                                                onDiscoverClick = {
+                                                    try {
+                                                        // Create implicit intent with custom action
+                                                        val intent = Intent().apply {
+                                                            action = "com.ayaan.couponviewer.SHOW_COUPON"
+
+                                                            // Add coupon data as extras
+                                                            putExtra("EXTRA_COUPON_CODE", couponCodes[index])
+                                                            putExtra("EXTRA_COUPON_TITLE", "Buy 1 items, Get extra 10% off")
+                                                            putExtra("EXTRA_DESCRIPTION", "Get Extra 10% off on mcaffine Bodywash, lotion and many more.")
+                                                            putExtra("EXTRA_BRAND_NAME", "Bombay Shaving Company")
+                                                            putExtra("EXTRA_CATEGORY", "Beauty")
+                                                            putExtra("EXTRA_EXPIRY_DATE", "23 days")
+                                                            putExtra("EXTRA_MINIMUM_ORDER", "₹299")
+                                                            putExtra("EXTRA_DISCOUNT_VALUE", "₹100")
+                                                            putExtra("EXTRA_DISCOUNT_TYPE", "Percentage")
+                                                            putExtra("EXTRA_TERMS", "• Valid on all products\n• Cannot be combined with other offers\n• Valid till expiry date")
+                                                            putExtra("EXTRA_COUPON_LINK", "https://bombayhair.com/offers")
+                                                            putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
+
+                                                            // Set package to ensure it opens the right app
+                                                            setPackage("com.ayaan.couponviewer")
+
+                                                            // Add category to help Android find the intent handler
+                                                            addCategory(Intent.CATEGORY_DEFAULT)
+                                                        }
+
+                                                        Log.d("CouponsList", "Attempting to launch CouponViewer with intent: $intent")
+                                                        Log.d("CouponsList", "Coupon Code: ${couponCodes[index]}")
+
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Log.e("CouponsList", "Failed to open CouponViewer app: ${e.message}", e)
+
+                                                        // Fallback to Play Store
+                                                        try {
+                                                            val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                                setPackage("com.android.vending")
+                                                            }
+                                                            context.startActivity(playStoreIntent)
+                                                        } catch (e2: Exception) {
+                                                            // Last resort - open in browser
+                                                            val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                            }
+                                                            context.startActivity(browserIntent)
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            else if (coupons.itemCount == 0) {
                                 EmptyContent()
                             } else {
                                 // Coupon cards stretch edge-to-edge with 16dp vertical spacing
@@ -312,3 +410,15 @@ private fun EmptyContent() {
         }
     }
 }
+
+/**
+ * Helper function to generate random coupon code
+ */
+private fun generateRandomCouponCode(): String {
+//    val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+//    return (1..8)
+//        .map { chars.random() }
+//        .joinToString("")
+    return "GROOMING999"
+}
+

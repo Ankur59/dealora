@@ -20,7 +20,6 @@ import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpViewModel
 import com.ayaan.dealora.ui.presentation.couponsList.CouponsList
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.CouponDetailsScreen
 import com.ayaan.dealora.ui.presentation.home.HomeScreen
-import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
 import com.ayaan.dealora.ui.presentation.navigation.Route.NotificationPreferences
 import com.ayaan.dealora.ui.presentation.profile.ProfileScreen
 import com.ayaan.dealora.ui.presentation.profile.about.AboutUsScreen
@@ -36,38 +35,48 @@ import com.google.firebase.auth.FirebaseAuth
 @Composable
 fun DealoraApp(navController: NavHostController = rememberNavController(), modifier: Modifier) {
     val auth = FirebaseAuth.getInstance()
-    val user= auth.currentUser?.uid
-    val startDestination = if(user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
+    val user = auth.currentUser?.uid
+   val startDestination= if (user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier
+        modifier = modifier,
+//        startDestination = Route.ExploreCoupons.path
     ) {
         composable(
             route = Route.CouponDetails.path,
-            arguments = listOf(navArgument("couponId") { type = NavType.StringType })
-        ) {
+            arguments = listOf(
+                navArgument("couponId") { type = NavType.StringType },
+                navArgument("isPrivate") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
+                navArgument("couponCode") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                })) {
             CouponDetailsScreen(navController)
         }
         composable(Route.AccountPrivacy.path) {
             AccountPrivacyScreen(navController)
         }
-        composable(Route.AboutUs.path){
+        composable(Route.AboutUs.path) {
             AboutUsScreen(navController)
         }
-        composable(Route.AppPrivacy.path){
+        composable(Route.AppPrivacy.path) {
             AppPrivacyScreen(navController)
         }
-        composable(Route.ContactSupport.path){
+        composable(Route.ContactSupport.path) {
             ContactSupportScreen(navController)
         }
-        composable(Route.DesyncApps.path){
+        composable(Route.DesyncApps.path) {
             DesyncAppScreen(navController)
         }
-        composable(Route.NotificationPreferences.path) {
+        composable(NotificationPreferences.path) {
             NotificationPreferencesScreen(navController)
         }
-        composable(Route.FAQ.path){
+        composable(Route.FAQ.path) {
             FAQScreen(navController)
         }
         // Sign Up Flow
@@ -79,13 +88,13 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
                 viewModel = viewModel
             )
         }
-        composable(Route.Splash.path){
+        composable(Route.Splash.path) {
             SplashScreen(navController)
         }
         composable(Route.ExploreCoupons.path) {
             CouponsList(navController)
         }
-        composable(Route.Profile.path){
+        composable(Route.Profile.path) {
             ProfileScreen(navController)
         }
         composable(Route.SignUpOtp.path) { backStackEntry ->
@@ -94,14 +103,12 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
             }
             val viewModel: SignUpViewModel = hiltViewModel(parentEntry)
             SignUpOtpScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToHome = {
+                onNavigateBack = { navController.popBackStack() }, onNavigateToHome = {
                     navController.navigate(Route.Home.path) {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
-                },
-                viewModel = viewModel
+                }, viewModel = viewModel
             )
         }
 
@@ -121,14 +128,12 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
             }
             val viewModel: LoginViewModel = hiltViewModel(parentEntry)
             LoginOtpScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToHome = {
+                onNavigateBack = { navController.popBackStack() }, onNavigateToHome = {
                     navController.navigate(Route.Home.path) {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
-                },
-                viewModel = viewModel
+                }, viewModel = viewModel
             )
         }
 
