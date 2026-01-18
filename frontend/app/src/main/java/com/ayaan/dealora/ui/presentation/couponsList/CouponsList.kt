@@ -162,28 +162,53 @@ fun CouponsList(
                                                     )
                                                 },
                                                 onDiscoverClick = {
-                                                    // Try to open Bombay Shaving Company app
-                                                    val packageName = "com.ayaan.dealoracouponviewer"
                                                     try {
-                                                        val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-                                                        Log.d("CouponDetailsScreen", "Intent: $intent")
-                                                        if (intent != null) {
-                                                            // App is installed, open it
-                                                            context.startActivity(intent)
-                                                        } else {
-                                                            // App not installed, open Play Store
+                                                        // Create implicit intent with custom action
+                                                        val intent = Intent().apply {
+                                                            action = "com.ayaan.couponviewer.SHOW_COUPON"
+
+                                                            // Add coupon data as extras
+                                                            putExtra("EXTRA_COUPON_CODE", couponCodes[index])
+                                                            putExtra("EXTRA_COUPON_TITLE", "Buy 1 items, Get extra 10% off")
+                                                            putExtra("EXTRA_DESCRIPTION", "Get Extra 10% off on mcaffine Bodywash, lotion and many more.")
+                                                            putExtra("EXTRA_BRAND_NAME", "Bombay Shaving Company")
+                                                            putExtra("EXTRA_CATEGORY", "Beauty")
+                                                            putExtra("EXTRA_EXPIRY_DATE", "23 days")
+                                                            putExtra("EXTRA_MINIMUM_ORDER", "₹299")
+                                                            putExtra("EXTRA_DISCOUNT_VALUE", "₹100")
+                                                            putExtra("EXTRA_DISCOUNT_TYPE", "Percentage")
+                                                            putExtra("EXTRA_TERMS", "• Valid on all products\n• Cannot be combined with other offers\n• Valid till expiry date")
+                                                            putExtra("EXTRA_COUPON_LINK", "https://bombayhair.com/offers")
+                                                            putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
+
+                                                            // Set package to ensure it opens the right app
+                                                            setPackage("com.ayaan.couponviewer")
+
+                                                            // Add category to help Android find the intent handler
+                                                            addCategory(Intent.CATEGORY_DEFAULT)
+                                                        }
+
+                                                        Log.d("CouponsList", "Attempting to launch CouponViewer with intent: $intent")
+                                                        Log.d("CouponsList", "Coupon Code: ${couponCodes[index]}")
+
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Log.e("CouponsList", "Failed to open CouponViewer app: ${e.message}", e)
+
+                                                        // Fallback to Play Store
+                                                        try {
                                                             val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
                                                                 setPackage("com.android.vending")
                                                             }
                                                             context.startActivity(playStoreIntent)
+                                                        } catch (e2: Exception) {
+                                                            // Last resort - open in browser
+                                                            val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                            }
+                                                            context.startActivity(browserIntent)
                                                         }
-                                                    } catch (e: Exception) {
-                                                        // Fallback to browser if Play Store not available
-                                                        val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                            data = Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
-                                                        }
-                                                        context.startActivity(browserIntent)
                                                     }
                                                 }
                                             )
