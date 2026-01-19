@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.data.api.models.CouponDisplay
 import com.ayaan.dealora.data.api.models.CouponActions
+import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponDetailResult
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -51,11 +52,19 @@ class CouponDetailsViewModel @Inject constructor(
             _uiState.value = CouponDetailsUiState.Loading
 
             try {
-                // If it's a private coupon, generate mock data
+                // If it's a private coupon, fetch from private coupons API
                 if (_isPrivate) {
                     Log.d(TAG, "Loading private coupon with id: $couponId")
-                    val mockCoupon = generateMockPrivateCoupon(couponId)
-                    _uiState.value = CouponDetailsUiState.Success(mockCoupon)
+                    val privateCoupon = couponRepository.getPrivateCouponById(couponId)
+
+                    if (privateCoupon != null) {
+                        // Convert PrivateCoupon to CouponDetail
+                        val couponDetail = convertPrivateCouponToCouponDetail(privateCoupon)
+                        _uiState.value = CouponDetailsUiState.Success(couponDetail)
+                    } else {
+                        Log.e(TAG, "Private coupon not found")
+                        _uiState.value = CouponDetailsUiState.Error("Coupon not found")
+                    }
                     return@launch
                 }
 
@@ -90,55 +99,53 @@ class CouponDetailsViewModel @Inject constructor(
         loadCouponDetails()
     }
 
-    private fun generateMockPrivateCoupon(couponId: String): CouponDetail {
-        // Use the passed coupon code, or generate a random one as fallback
-        val couponCode = _couponCode ?: generateRandomCouponCode()
-
+    private fun convertPrivateCouponToCouponDetail(privateCoupon: PrivateCoupon): CouponDetail {
         return CouponDetail(
-            id = couponId,
+            id = privateCoupon.id,
             userId = "private_user",
-            couponName = "Private Coupon",
-            brandName = "Bombay Shaving Company",
-            couponTitle = "Buy 1 items, Get extra 10% off",
-            description = "Get Extra 10% off on mcaffine Bodywash, lotion and many more.",
-            expireBy = null,
-            categoryLabel = "Beauty",
+            couponName = privateCoupon.brandName,
+            brandName = privateCoupon.brandName,
+            couponTitle = privateCoupon.couponTitle,
+            description = privateCoupon.description,
+            expireBy = privateCoupon.expiryDate,
+            categoryLabel = privateCoupon.category,
             useCouponVia = "Online",
             discountType = "percentage",
-            discountValue = 10,
-            minimumOrder = 0,
-            couponCode = couponCode,
-            couponVisitingLink = null,
-            couponDetails = "This is a private coupon. Visit the brand website to redeem.",
-            terms = "• Valid for online purchases only\n• One time use per customer\n• Cannot be combined with other offers",
+            discountValue = null,
+            minimumOrder = null,
+            couponCode = privateCoupon.couponCode,
+            couponVisitingLink = privateCoupon.couponLink,
+            couponDetails = privateCoupon.description ?: "Visit the brand website to redeem this coupon.",
+            terms = "• Check brand website for complete terms\n• Subject to availability\n• Cannot be combined with other offers",
             status = "active",
-            addedMethod = "manual",
+            addedMethod = "private",
             base64ImageUrl = null,
             createdAt = System.currentTimeMillis().toString(),
             updatedAt = System.currentTimeMillis().toString(),
             display = CouponDisplay(
-                initial = "B",
-                daysUntilExpiry = 23,
-                isExpiringSoon = false,
-                formattedExpiry = "23 days remaining",
-                expiryStatusColor = "green",
-                badgeLabels = listOf("Beauty", "Private Coupon"),
+                initial = privateCoupon.brandName.firstOrNull()?.toString() ?: "?",
+                daysUntilExpiry = privateCoupon.daysUntilExpiry,
+                isExpiringSoon = (privateCoupon.daysUntilExpiry ?: 0) <= 7,
+                formattedExpiry = privateCoupon.daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
+                expiryStatusColor = when {
+                    privateCoupon.daysUntilExpiry == null -> "gray"
+                    privateCoupon.daysUntilExpiry <= 3 -> "red"
+                    privateCoupon.daysUntilExpiry <= 7 -> "orange"
+                    else -> "green"
+                },
+                badgeLabels = listOfNotNull(
+                    privateCoupon.category,
+                    "Private Coupon"
+                ),
                 redemptionType = "online"
             ),
             actions = CouponActions(
                 canEdit = false,
                 canDelete = false,
-                canRedeem = true,
+                canRedeem = privateCoupon.redeemable ?: true,
                 canShare = false
             )
         )
-    }
-
-    private fun generateRandomCouponCode(): String {
-        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return (1..8)
-            .map { chars.random() }
-            .joinToString("")
     }
 }
 

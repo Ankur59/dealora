@@ -65,7 +65,7 @@ fun CouponsList(
     var showSortDialog by remember { mutableStateOf(false) }
 
     var showFiltersDialog by remember { mutableStateOf(false) }
-    val privateCouponsCount by viewModel.privateCouponsCount.collectAsState()
+    val privateCoupons by viewModel.privateCoupons.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
     LaunchedEffect(isPublicMode){
@@ -136,30 +136,32 @@ fun CouponsList(
                         }
                         is LoadState.NotLoading -> {
                             if (!isPublicMode) {
-                                if (privateCouponsCount == 0) {
+                                if (privateCoupons.isEmpty()) {
                                     PrivateEmptyState()
                                 } else {
-                                    // Generate coupon codes once for all cards
-                                    val couponCodes = remember(privateCouponsCount) {
-                                        List(privateCouponsCount) { generateRandomCouponCode() }
-                                    }
-
                                     LazyColumn(
                                         modifier = Modifier.fillMaxSize(),
                                         verticalArrangement = Arrangement.spacedBy(16.dp),
                                         contentPadding = PaddingValues(16.dp)
                                     ) {
-                                        items(privateCouponsCount) { index ->
+                                        items(
+                                            count = privateCoupons.size,
+                                            key = { index -> privateCoupons[index].id }
+                                        ) { index ->
+                                            val privateCoupon = privateCoupons[index]
                                             CouponCard(
-                                                couponCode = couponCodes[index],
+                                                brandName = privateCoupon.brandName.uppercase().replace(" ", "\n"),
+                                                couponTitle = privateCoupon.couponTitle,
+                                                description = privateCoupon.description ?: "",
+                                                category = privateCoupon.category,
+                                                expiryDays = privateCoupon.daysUntilExpiry,
+                                                couponCode = privateCoupon.couponCode ?: "",
                                                 onDetailsClick = {
-                                                    // Generate a random ID for private coupon
-                                                    val randomId = "private_${System.currentTimeMillis()}_$index"
                                                     navController.navigate(
                                                         Route.CouponDetails.createRoute(
-                                                            couponId = randomId,
+                                                            couponId = privateCoupon.id,
                                                             isPrivate = true,
-                                                            couponCode = couponCodes[index]
+                                                            couponCode = privateCoupon.couponCode ?: ""
                                                         )
                                                     )
                                                 },
@@ -170,17 +172,16 @@ fun CouponsList(
                                                             action = "com.ayaan.couponviewer.SHOW_COUPON"
 
                                                             // Add coupon data as extras
-                                                            putExtra("EXTRA_COUPON_CODE", couponCodes[index])
-                                                            putExtra("EXTRA_COUPON_TITLE", "Buy 1 items, Get extra 10% off")
-                                                            putExtra("EXTRA_DESCRIPTION", "Get Extra 10% off on mcaffine Bodywash, lotion and many more.")
-                                                            putExtra("EXTRA_BRAND_NAME", "Bombay Shaving Company")
-                                                            putExtra("EXTRA_CATEGORY", "Beauty")
-                                                            putExtra("EXTRA_EXPIRY_DATE", "23 days")
-                                                            putExtra("EXTRA_MINIMUM_ORDER", "₹299")
-                                                            putExtra("EXTRA_DISCOUNT_VALUE", "₹100")
-                                                            putExtra("EXTRA_DISCOUNT_TYPE", "Percentage")
-                                                            putExtra("EXTRA_TERMS", "• Valid on all products\n• Cannot be combined with other offers\n• Valid till expiry date")
-                                                            putExtra("EXTRA_COUPON_LINK", "https://bombayhair.com/offers")
+                                                            putExtra("EXTRA_COUPON_CODE", privateCoupon.couponCode ?: "")
+                                                            putExtra("EXTRA_COUPON_TITLE", privateCoupon.couponTitle)
+                                                            putExtra("EXTRA_DESCRIPTION", privateCoupon.description ?: "")
+                                                            putExtra("EXTRA_BRAND_NAME", privateCoupon.brandName)
+                                                            putExtra("EXTRA_CATEGORY", privateCoupon.category ?: "")
+                                                            privateCoupon.daysUntilExpiry?.let {
+                                                                putExtra("EXTRA_EXPIRY_DATE", "$it days")
+                                                            }
+                                                            putExtra("EXTRA_MINIMUM_ORDER", privateCoupon.minimumOrderValue ?: "")
+                                                            putExtra("EXTRA_COUPON_LINK", privateCoupon.couponLink ?: "")
                                                             putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
 
                                                             // Set package to ensure it opens the right app
@@ -191,7 +192,7 @@ fun CouponsList(
                                                         }
 
                                                         Log.d("CouponsList", "Attempting to launch CouponViewer with intent: $intent")
-                                                        Log.d("CouponsList", "Coupon Code: ${couponCodes[index]}")
+                                                        Log.d("CouponsList", "Coupon Code: ${privateCoupon.couponCode}")
 
                                                         context.startActivity(intent)
                                                     } catch (e: Exception) {
@@ -411,16 +412,5 @@ private fun EmptyContent() {
             )
         }
     }
-}
-
-/**
- * Helper function to generate random coupon code
- */
-private fun generateRandomCouponCode(): String {
-//    val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-//    return (1..8)
-//        .map { chars.random() }
-//        .joinToString("")
-    return "GROOMING999"
 }
 

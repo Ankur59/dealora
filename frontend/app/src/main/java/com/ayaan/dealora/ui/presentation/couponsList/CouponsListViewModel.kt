@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
+import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -58,8 +60,10 @@ class CouponsListViewModel @Inject constructor(
     private val _isPublicMode = MutableStateFlow(false)
     val isPublicMode: StateFlow<Boolean> = _isPublicMode.asStateFlow()
 
+    private val _privateCoupons = MutableStateFlow<List<PrivateCoupon>>(emptyList())
+    val privateCoupons: StateFlow<List<PrivateCoupon>> = _privateCoupons.asStateFlow()
+
     private var searchJob: Job? = null
-    val privateCouponsCount = MutableStateFlow(10)
 
     init {
         // Setup debounced search
@@ -81,6 +85,9 @@ class CouponsListViewModel @Inject constructor(
                     )
                 }
         }
+
+        // Load private coupons
+        loadPrivateCoupons()
     }
 
 //    init {
@@ -220,6 +227,31 @@ class CouponsListViewModel @Inject constructor(
 
     fun retry() {
         loadCoupons()
+    }
+
+    private fun loadPrivateCoupons() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Loading private coupons")
+                // Sync with popular brands
+                val brands = listOf("Zomato", "Swiggy", "Amazon", "Flipkart", "Myntra", "Ajio")
+
+                when (val result = couponRepository.syncPrivateCoupons(brands)) {
+                    is PrivateCouponResult.Success -> {
+                        Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
+                        _privateCoupons.value = result.coupons
+                    }
+                    is PrivateCouponResult.Error -> {
+                        Log.e(TAG, "Error loading private coupons: ${result.message}")
+                        // Keep empty list on error
+                        _privateCoupons.value = emptyList()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception loading private coupons", e)
+                _privateCoupons.value = emptyList()
+            }
+        }
     }
 }
 

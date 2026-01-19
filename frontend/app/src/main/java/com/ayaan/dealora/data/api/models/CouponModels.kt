@@ -111,7 +111,7 @@ data class CouponDisplay(
     val initial: String,
 
     @Json(name = "daysUntilExpiry")
-    val daysUntilExpiry: Int,
+    val daysUntilExpiry: Int?,
 
     @Json(name = "isExpiringSoon")
     val isExpiringSoon: Boolean,
