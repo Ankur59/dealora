@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.presentation.profile.components.TopBar
 import com.ayaan.dealora.ui.theme.AppColors
+import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
 fun AboutUsScreen(navController: NavController) {
@@ -81,7 +82,7 @@ fun AboutUsCard() {
                 Box(
                     modifier = Modifier
                         .background(
-                            color = Color(0xFF5B4CFF),
+                            color = DealoraPrimary,
                             shape = RoundedCornerShape(6.dp)
                         )
                         .padding(horizontal = 12.dp, vertical = 4.dp)

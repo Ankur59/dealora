@@ -21,7 +21,8 @@ import kotlin.coroutines.resume
 
 class FirebaseAuthRepository @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
-    private val backendAuthRepository: BackendAuthRepository
+    private val backendAuthRepository: BackendAuthRepository,
+    private val syncedAppRepository: com.ayaan.dealora.data.repository.SyncedAppRepository
 ) : AuthRepository {
 
     companion object {
@@ -204,6 +205,17 @@ class FirebaseAuthRepository @Inject constructor(
     override fun logout() {
         try {
             Log.d(TAG, "logout: Signing out user ${firebaseAuth.currentUser?.uid}")
+
+            // Clear synced apps database synchronously using runBlocking
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    syncedAppRepository.deleteAllSyncedApps()
+                    Log.d(TAG, "logout: Synced apps database cleared successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "logout: Error clearing synced apps database", e)
+                }
+            }
+
             firebaseAuth.signOut()
             currentVerificationId = null
             Log.d(TAG, "logout: User signed out successfully")
