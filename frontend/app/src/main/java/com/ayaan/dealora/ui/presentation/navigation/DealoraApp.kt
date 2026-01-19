@@ -71,15 +71,20 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         // Add this composable
         composable(
-            route = "syncingprogress/{selectedAppIds}",
+            route = Route.SyncingProgress.path,
             arguments = listOf(
-                navArgument("selectedAppIds") { type = NavType.StringType }
+                navArgument("selectedApps") {
+                    type = NavType.StringType
+                }
             )
         ) { backStackEntry ->
-            val selectedAppIds = backStackEntry.arguments?.getString("selectedAppIds")
-                ?.split(",") ?: emptyList()
 
-            // Get the full app list
+            val selectedAppIds =
+                backStackEntry.arguments
+                    ?.getString("selectedApps")
+                    ?.split(",")
+                    ?: emptyList()
+
             val allApps = listOf(
                 SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
                 SyncApp("phonepe", "Phone Pay", R.drawable.logo),
@@ -93,11 +98,11 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
                 SyncApp("dealora", "Dealora", R.drawable.logo),
             )
 
-            // Filter to get selected apps
             val selectedApps = allApps.filter { it.id in selectedAppIds }
 
             SyncingProgressScreen(selectedApps = selectedApps)
         }
+
         composable(Route.SelectAppsScreen.path) {
             SelectAppsScreen(
                 navController = navController,
