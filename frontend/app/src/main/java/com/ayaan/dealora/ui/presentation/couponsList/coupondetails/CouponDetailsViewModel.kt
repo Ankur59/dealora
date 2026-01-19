@@ -10,11 +10,13 @@ import com.ayaan.dealora.data.api.models.CouponActions
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponDetailResult
 import com.ayaan.dealora.data.repository.CouponRepository
+import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,6 +26,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CouponDetailsViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
+    private val syncedAppRepository: SyncedAppRepository,
     private val firebaseAuth: FirebaseAuth,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -55,7 +58,22 @@ class CouponDetailsViewModel @Inject constructor(
                 // If it's a private coupon, fetch from private coupons API
                 if (_isPrivate) {
                     Log.d(TAG, "Loading private coupon with id: $couponId")
-                    val privateCoupon = couponRepository.getPrivateCouponById(couponId)
+
+                    // Fetch synced apps from database
+                    val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+                    val brands = syncedApps.map { syncedApp ->
+                        syncedApp.appName.replaceFirstChar { it.uppercase() }
+                    }
+
+                    Log.d(TAG, "Fetching private coupon for brands: ${brands.joinToString()}")
+
+                    if (brands.isEmpty()) {
+                        Log.e(TAG, "No synced apps found")
+                        _uiState.value = CouponDetailsUiState.Error("No synced apps found. Please sync apps first.")
+                        return@launch
+                    }
+
+                    val privateCoupon = couponRepository.getPrivateCouponById(couponId, brands)
 
                     if (privateCoupon != null) {
                         // Convert PrivateCoupon to CouponDetail

@@ -9,6 +9,7 @@ import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
+import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -31,6 +33,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CouponsListViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
+    private val syncedAppRepository: SyncedAppRepository,
     private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
 
@@ -233,8 +236,24 @@ class CouponsListViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Loading private coupons")
-                // Sync with popular brands
-                val brands = listOf("Zomato", "Swiggy", "Amazon", "Flipkart", "Myntra", "Ajio")
+
+                // Fetch synced apps from database
+                val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+                Log.d(TAG, "Found ${syncedApps.size} synced apps in database")
+
+                // Extract app names and capitalize first letter to match API format
+                val brands = syncedApps.map { syncedApp ->
+                    syncedApp.appName.replaceFirstChar { it.uppercase() }
+                }
+
+                Log.d(TAG, "Syncing brands: ${brands.joinToString()}")
+
+                // If no synced apps, don't make API call
+                if (brands.isEmpty()) {
+                    Log.d(TAG, "No synced apps found, skipping private coupons sync")
+                    _privateCoupons.value = emptyList()
+                    return@launch
+                }
 
                 when (val result = couponRepository.syncPrivateCoupons(brands)) {
                     is PrivateCouponResult.Success -> {

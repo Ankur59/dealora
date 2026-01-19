@@ -182,10 +182,9 @@ class CouponRepository @Inject constructor(
      * Get a single private coupon by ID from the synced list
      * Note: This fetches all private coupons and filters by ID
      */
-    suspend fun getPrivateCouponById(couponId: String): PrivateCoupon? {
+    suspend fun getPrivateCouponById(couponId: String, brands: List<String>): PrivateCoupon? {
         return try {
             Log.d(TAG, "Fetching private coupon with id: $couponId")
-            val brands = listOf("Zomato", "Swiggy", "Amazon", "Flipkart", "Myntra", "Ajio")
             val result = syncPrivateCoupons(brands)
 
             when (result) {
