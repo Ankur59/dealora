@@ -68,8 +68,10 @@ fun CouponsList(
     val privateCouponsCount by viewModel.privateCouponsCount.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit){
-        viewModel.loadCoupons()
+    LaunchedEffect(isPublicMode){
+        if (isPublicMode) {
+            viewModel.loadCoupons()
+        }
     }
     Scaffold(
         containerColor = Color.White,

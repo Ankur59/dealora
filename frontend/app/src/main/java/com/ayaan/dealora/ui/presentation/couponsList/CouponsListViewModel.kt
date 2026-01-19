@@ -37,7 +37,7 @@ class CouponsListViewModel @Inject constructor(
         private const val SEARCH_DEBOUNCE_MS = 500L
     }
 
-    private val _uiState = MutableStateFlow<CouponsListUiState>(CouponsListUiState.Loading)
+    private val _uiState = MutableStateFlow<CouponsListUiState>(CouponsListUiState.Success)
     val uiState: StateFlow<CouponsListUiState> = _uiState.asStateFlow()
 
     private val _couponsFlow = MutableStateFlow<PagingData<CouponListItem>>(PagingData.empty())
@@ -136,6 +136,14 @@ class CouponsListViewModel @Inject constructor(
 
     fun onPublicModeChanged(isPublic: Boolean) {
         _isPublicMode.value = isPublic
+        if (isPublic) {
+            // Load coupons from API when switching to public mode
+            loadCoupons()
+        } else {
+            // Clear API data when switching to private mode
+            _couponsFlow.value = PagingData.empty()
+            _uiState.value = CouponsListUiState.Success
+        }
     }
 
     fun loadCoupons(
@@ -166,6 +174,13 @@ class CouponsListViewModel @Inject constructor(
         search: String? = null,
         sortBy: String? = null
     ) {
+        // Only load from API if in public mode
+        if (!_isPublicMode.value) {
+            Log.d(TAG, "Skipping API call - in private mode")
+            _uiState.value = CouponsListUiState.Success
+            return
+        }
+
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             _uiState.value = CouponsListUiState.Loading
