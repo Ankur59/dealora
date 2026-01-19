@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
 fun CouponCard(
@@ -48,10 +49,12 @@ fun CouponCard(
     category: String? = "Beauty",
     expiryDays: Int? = 3,
     couponCode: String = "",
+    couponId: String? = null,
+    isRedeemed: Boolean = false,
     onDetailsClick: () -> Unit = {},
-    onDiscoverClick: () -> Unit = {}
+    onDiscoverClick: () -> Unit = {},
+    onRedeem: ((String) -> Unit)? = null
 ) {
-    var isRedeemed by remember { mutableStateOf(false) }
     var showRedeemDialog by remember { mutableStateOf(false) }
 
     Card(
@@ -160,13 +163,14 @@ fun CouponCard(
                         modifier = Modifier
                             .weight(1f)
                             .height(36.dp),
-                        contentPadding = PaddingValues(0.dp)
+                        contentPadding = PaddingValues(0.dp),
+                        enabled = !isRedeemed
                     ) {
                         Text(
                             text = "Details",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF5B3FD9)
+                            color = if(!isRedeemed) DealoraPrimary else Color.Gray
                         )
                     }
 
@@ -207,7 +211,8 @@ fun CouponCard(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF5B3FD9)
                         ),
-                        contentPadding = PaddingValues(0.dp)
+                        contentPadding = PaddingValues(0.dp),
+                        enabled = !isRedeemed
                     ) {
                         Text(
                             text = "Discover",
@@ -224,8 +229,10 @@ fun CouponCard(
     if (showRedeemDialog) {
         RedeemConfirmationDialog(
             onConfirm = {
-                isRedeemed = true
                 showRedeemDialog = false
+                if (couponId != null && onRedeem != null) {
+                    onRedeem(couponId)
+                }
             },
             onDismiss = {
                 showRedeemDialog = false

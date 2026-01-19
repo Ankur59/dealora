@@ -232,6 +232,51 @@ class CouponsListViewModel @Inject constructor(
         loadCoupons()
     }
 
+    fun redeemCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        Log.d(TAG, "========== REDEEM COUPON (LIST) FLOW STARTED ==========")
+        Log.d(TAG, "Coupon ID: $couponId")
+
+        viewModelScope.launch {
+            try {
+                val currentUser = firebaseAuth.currentUser
+                if (currentUser == null) {
+                    Log.e(TAG, "User not authenticated")
+                    onError("Please login to redeem coupon")
+                    return@launch
+                }
+
+                val uid = currentUser.uid
+                Log.d(TAG, "✓ User authenticated - UID: $uid")
+                Log.d(TAG, "→ Calling repository.redeemPrivateCoupon(couponId=$couponId, uid=$uid)")
+
+                when (val result = couponRepository.redeemPrivateCoupon(couponId, uid)) {
+                    is PrivateCouponResult.Success -> {
+                        Log.d(TAG, "✓ SUCCESS: Coupon redeemed successfully")
+                        Log.d(TAG, "Response message: ${result.message}")
+                        if (result.coupons.isNotEmpty()) {
+                            val redeemedCoupon = result.coupons[0]
+                            Log.d(TAG, "Redeemed coupon details:")
+                            Log.d(TAG, "  - ID: ${redeemedCoupon.id}")
+                            Log.d(TAG, "  - Brand: ${redeemedCoupon.brandName}")
+                            Log.d(TAG, "  - Redeemed: ${redeemedCoupon.redeemed}")
+                        }
+                        onSuccess()
+                        // Reload private coupons to show updated state
+                        loadPrivateCoupons()
+                    }
+                    is PrivateCouponResult.Error -> {
+                        Log.e(TAG, "✗ ERROR: ${result.message}")
+                        onError(result.message)
+                    }
+                }
+                Log.d(TAG, "========== REDEEM COUPON (LIST) FLOW COMPLETED ==========")
+            } catch (e: Exception) {
+                Log.e(TAG, "✗ EXCEPTION in redeem flow: ${e.message}", e)
+                onError("Unable to redeem coupon. Please try again.")
+            }
+        }
+    }
+
     private fun loadPrivateCoupons() {
         viewModelScope.launch {
             try {
