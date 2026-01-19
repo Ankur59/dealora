@@ -18,6 +18,7 @@ sealed class Route(val path: String) {
     data object NotificationPreferences:Route("notificationpreferences")
     data object DesyncApps:Route("desyncapp")
     data object SyncAppsStart:Route("syncappsstart")
+    data object SelectAppsScreen:Route("selectapps")
     object CouponDetails:Route("coupondetails/{couponId}?isPrivate={isPrivate}&couponCode={couponCode}") {
         fun createRoute(couponId: String, isPrivate: Boolean = false, couponCode: String? = null) =
             "coupondetails/$couponId?isPrivate=$isPrivate&couponCode=${couponCode ?: ""}"

@@ -30,6 +30,7 @@ import com.ayaan.dealora.ui.presentation.profile.desync.DesyncAppScreen
 import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
 import com.ayaan.dealora.ui.presentation.profile.notificationprefs.NotificationPreferencesScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
+import com.ayaan.dealora.ui.presentation.syncapps.SelectAppsScreen
 import com.ayaan.dealora.ui.presentation.syncapps.SyncAppsStart
 import com.google.firebase.auth.FirebaseAuth
 
@@ -37,7 +38,7 @@ import com.google.firebase.auth.FirebaseAuth
 fun DealoraApp(navController: NavHostController = rememberNavController(), modifier: Modifier) {
     val auth = FirebaseAuth.getInstance()
     val user = auth.currentUser?.uid
-   val startDestination= if (user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
+    val startDestination= if (user.isNullOrEmpty()) Route.SignUp.path else Route.Home.path
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -100,6 +101,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.SyncAppsStart.path){
             SyncAppsStart(navController)
+        }
+        composable(Route.SelectAppsScreen.path){
+            SelectAppsScreen(navController = navController)
         }
         composable(Route.SignUpOtp.path) { backStackEntry ->
             val parentEntry = remember(backStackEntry) {

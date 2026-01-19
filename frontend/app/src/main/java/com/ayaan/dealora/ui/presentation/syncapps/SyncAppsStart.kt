@@ -23,7 +23,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -82,8 +81,7 @@ fun SyncAppsStart(
                 append("Give ")
                 withStyle(
                     style = SpanStyle(
-                        color = DealoraPrimary,
-                        fontWeight = FontWeight.SemiBold
+                        color = DealoraPrimary, fontWeight = FontWeight.SemiBold
                     )
                 ) {
                     append("Dealora")
@@ -116,8 +114,7 @@ fun SyncAppsStart(
                 append("Your information stays ")
                 withStyle(
                     style = SpanStyle(
-                        color = DealoraPrimary,
-                        fontWeight = FontWeight.SemiBold
+                        color = DealoraPrimary, fontWeight = FontWeight.SemiBold
                     )
                 ) {
                     append("Private")
@@ -125,8 +122,7 @@ fun SyncAppsStart(
                 append(" and ")
                 withStyle(
                     style = SpanStyle(
-                        color = DealoraPrimary,
-                        fontWeight = FontWeight.SemiBold
+                        color = DealoraPrimary, fontWeight = FontWeight.SemiBold
                     )
                 ) {
                     append("Encrypted.")
@@ -145,7 +141,7 @@ fun SyncAppsStart(
         // Start Sync Button
         Button(
             onClick = {
-                navController.navigate(Route.SyncAppsStart.path)
+                navController.navigate(Route.SelectAppsScreen.path)
             },
             modifier = Modifier
                 .fillMaxWidth()
