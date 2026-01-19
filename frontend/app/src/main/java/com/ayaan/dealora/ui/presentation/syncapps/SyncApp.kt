@@ -63,17 +63,17 @@ fun SelectAppsScreen(
 
     val apps = listOf(
         SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
-        SyncApp("phonepe", "Phone Pay", R.drawable.zomato_logo),
+        SyncApp("phonepe", "Phone Pay", R.drawable.logo),
         SyncApp("blinkit", "Blinkit", R.drawable.zomato_logo),
-        SyncApp("amazon", "Amazon", R.drawable.zomato_logo),
+        SyncApp("amazon", "Amazon", R.drawable.logo),
         SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
-        SyncApp("cred", "CRED", R.drawable.zomato_logo),
-//        SyncApp("googlepay", "Google Pay", R.drawable.zomato_logo),
-//        SyncApp("myntra", "Myntra", R.drawable.ic_myntra),
-//        SyncApp("swiggy", "Swiggy", R.drawable.ic_swiggy),
-//        SyncApp("makemytrip", "Make my Trip", R.drawable.ic_makemytrip),
-//        SyncApp("meesho", "Meesho", R.drawable.ic_meesho),
-//        SyncApp("flipkart", "Flipkart", R.drawable.ic_flipkart)
+        SyncApp("cred", "CRED", R.drawable.logo),
+        SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
+        SyncApp("phonepe", "Phone Pay", R.drawable.logo),
+        SyncApp("blinkit", "Blinkit", R.drawable.zomato_logo),
+        SyncApp("amazon", "Amazon", R.drawable.logo),
+        SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
+        SyncApp("cred", "CRED", R.drawable.logo),
     )
 
     Column(
