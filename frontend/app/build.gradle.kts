@@ -90,4 +90,9 @@ dependencies {
     implementation(libs.androidx.paging.compose)
     implementation (libs.compose.material.icons)
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 }

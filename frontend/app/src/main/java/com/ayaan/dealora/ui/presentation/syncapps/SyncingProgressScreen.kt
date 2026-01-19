@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -59,6 +58,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraPrimary
@@ -67,7 +67,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun SyncingProgressScreen(
     selectedApps: List<SyncApp> = emptyList(),
-    navController: NavController
+    navController: NavController,
+    viewModel: SyncingProgressViewModel = hiltViewModel()
 ) {
     var currentAppIndex by remember { mutableIntStateOf(0) }
     var syncedApps by remember { mutableIntStateOf(0) }
@@ -113,8 +114,7 @@ fun SyncingProgressScreen(
 
             // Title Section
             Column(
-                horizontalAlignment = Alignment.Start,
-                modifier = Modifier.fillMaxWidth()
+                horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = "Syncing in",
@@ -127,8 +127,7 @@ fun SyncingProgressScreen(
                 Box(
                     modifier = Modifier
                         .background(
-                            color = DealoraPrimary,
-                            shape = RoundedCornerShape(4.dp)
+                            color = DealoraPrimary, shape = RoundedCornerShape(4.dp)
                         )
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
@@ -163,8 +162,7 @@ fun SyncingProgressScreen(
                 ) {
                     selectedApps.take(5).forEachIndexed { index, app ->
                         SyncedAppIcon(
-                            app = app,
-                            isSynced = index < syncedApps
+                            app = app, isSynced = index < syncedApps
                         )
                     }
                 }
@@ -176,13 +174,11 @@ fun SyncingProgressScreen(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth(), contentAlignment = Alignment.Center
             ) {
                 if (selectedApps.isNotEmpty() && currentAppIndex < selectedApps.size) {
                     AnimatedSyncingApp(
-                        app = selectedApps[currentAppIndex],
-                        key = currentAppIndex
+                        app = selectedApps[currentAppIndex], key = currentAppIndex
                     )
                 }
             }
@@ -196,14 +192,16 @@ fun SyncingProgressScreen(
             ) {
                 Text(
                     text = buildAnnotatedString {
-                        withStyle(style = SpanStyle(color = DealoraPrimary, fontWeight = FontWeight.SemiBold)) {
+                        withStyle(
+                            style = SpanStyle(
+                                color = DealoraPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        ) {
                             append("Wait")
                         }
                         append(" till Syncing gets done")
-                    },
-                    fontSize = 15.sp,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center
+                    }, fontSize = 15.sp, color = Color.Black, textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -226,23 +224,20 @@ fun SyncingProgressScreen(
         // OTP Dialog
         if (showOtpDialog && currentAppForOtp != null) {
             OtpDialog(
-                app = currentAppForOtp!!,
-                onOtpVerified = {
+                app = currentAppForOtp!!, viewModel = viewModel, onOtpVerified = {
                     showOtpDialog = false
                     syncedApps++
                     currentAppIndex++
                     isWaitingForOtp = false
                     currentAppForOtp = null
-                }
-            )
+                })
         }
     }
 }
 
 @Composable
 fun OtpDialog(
-    app: SyncApp,
-    onOtpVerified: () -> Unit
+    app: SyncApp, viewModel: SyncingProgressViewModel, onOtpVerified: () -> Unit
 ) {
     var otpValue by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
@@ -267,8 +262,7 @@ fun OtpDialog(
                     modifier = Modifier
                         .size(80.dp)
                         .background(Color(0xFFF5F5F5), CircleShape)
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(16.dp), contentAlignment = Alignment.Center
                 ) {
                     Image(
                         painter = painterResource(id = app.iconRes),
@@ -300,22 +294,18 @@ fun OtpDialog(
 
                 // OTP Input Fields
                 OtpInputField(
-                    otpValue = otpValue,
-                    onOtpChange = {
+                    otpValue = otpValue, onOtpChange = {
                         if (it.length <= 6) {
                             otpValue = it
                             isError = false
                         }
-                    },
-                    isError = isError
+                    }, isError = isError
                 )
 
                 if (isError) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Invalid OTP. Please try again.",
-                        fontSize = 12.sp,
-                        color = Color.Red
+                        text = "Invalid OTP. Please try again.", fontSize = 12.sp, color = Color.Red
                     )
                 }
 
@@ -325,6 +315,8 @@ fun OtpDialog(
                 Button(
                     onClick = {
                         if (otpValue.length == 6) {
+                            // Save synced app to database
+                            viewModel.saveSyncedApp(app.id, app.name)
                             // Always accept the OTP (simulate successful verification)
                             onOtpVerified()
                         } else {
@@ -341,9 +333,7 @@ fun OtpDialog(
                     enabled = otpValue.length == 6
                 ) {
                     Text(
-                        text = "Verify OTP",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Verify OTP", fontSize = 16.sp, fontWeight = FontWeight.SemiBold
                     )
                 }
 
@@ -363,74 +353,61 @@ fun OtpDialog(
 
 @Composable
 fun OtpInputField(
-    otpValue: String,
-    onOtpChange: (String) -> Unit,
-    isError: Boolean
+    otpValue: String, onOtpChange: (String) -> Unit, isError: Boolean
 ) {
-    BasicTextField(
-        value = otpValue,
-        onValueChange = { value ->
-            if (value.all { it.isDigit() }) {
-                onOtpChange(value)
-            }
-        },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        decorationBox = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(6) { index ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .background(
-                                color = if (isError) Color(0xFFFFEBEE) else Color(0xFFF5F5F5),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = when {
-                                    isError -> Color.Red
-                                    index == otpValue.length -> DealoraPrimary
-                                    index < otpValue.length -> DealoraPrimary.copy(alpha = 0.5f)
-                                    else -> Color(0xFFE0E0E0)
-                                },
-                                shape = RoundedCornerShape(8.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (index < otpValue.length) otpValue[index].toString() else "",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isError) Color.Red else Color.Black
+    BasicTextField(value = otpValue, onValueChange = { value ->
+        if (value.all { it.isDigit() }) {
+            onOtpChange(value)
+        }
+    }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), decorationBox = {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(6) { index ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .background(
+                            color = if (isError) Color(0xFFFFEBEE) else Color(0xFFF5F5F5),
+                            shape = RoundedCornerShape(8.dp)
                         )
-                    }
+                        .border(
+                            width = 1.dp, color = when {
+                                isError -> Color.Red
+                                index == otpValue.length -> DealoraPrimary
+                                index < otpValue.length -> DealoraPrimary.copy(alpha = 0.5f)
+                                else -> Color(0xFFE0E0E0)
+                            }, shape = RoundedCornerShape(8.dp)
+                        ), contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (index < otpValue.length) otpValue[index].toString() else "",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isError) Color.Red else Color.Black
+                    )
                 }
             }
         }
-    )
+    })
 }
 
 @Composable
 fun SyncedAppIcon(
-    app: SyncApp,
-    isSynced: Boolean
+    app: SyncApp, isSynced: Boolean
 ) {
     Box(
-        modifier = Modifier.size(56.dp),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center
     ) {
         // App Icon Background
         Box(
             modifier = Modifier
                 .size(56.dp)
                 .background(Color.White, CircleShape)
-                .border(1.dp, Color(0xFFE0E0E0), CircleShape),
-            contentAlignment = Alignment.Center
+                .border(1.dp, Color(0xFFE0E0E0), CircleShape), contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = app.iconRes),
@@ -446,8 +423,7 @@ fun SyncedAppIcon(
                     .size(20.dp)
                     .align(Alignment.TopEnd)
                     .background(Color(0xFF00C853), CircleShape)
-                    .border(2.dp, Color.White, CircleShape),
-                contentAlignment = Alignment.Center
+                    .border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
@@ -462,29 +438,22 @@ fun SyncedAppIcon(
 
 @Composable
 fun AnimatedSyncingApp(
-    app: SyncApp,
-    key: Int
+    app: SyncApp, key: Int
 ) {
     // Pulsing animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(
+        initialValue = 1f, targetValue = 1.1f, animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = LinearEasing),
             repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "scale"
+        ), label = "scale"
     )
 
     AnimatedVisibility(
-        visible = true,
-        enter = fadeIn() + scaleIn(),
-        exit = fadeOut() + scaleOut()
+        visible = true, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()
     ) {
         Box(
-            modifier = Modifier.size(240.dp),
-            contentAlignment = Alignment.Center
+            modifier = Modifier.size(240.dp), contentAlignment = Alignment.Center
         ) {
             // Outer glow circle
             Box(
@@ -492,8 +461,7 @@ fun AnimatedSyncingApp(
                     .size(240.dp)
                     .scale(scale)
                     .background(
-                        color = Color(0xFFE8E8FF),
-                        shape = CircleShape
+                        color = Color(0xFFE8E8FF), shape = CircleShape
                     )
             )
 
@@ -502,8 +470,7 @@ fun AnimatedSyncingApp(
                 modifier = Modifier
                     .size(180.dp)
                     .background(
-                        color = Color(0xFFD0D0FF),
-                        shape = CircleShape
+                        color = Color(0xFFD0D0FF), shape = CircleShape
                     )
             )
 
@@ -512,8 +479,7 @@ fun AnimatedSyncingApp(
                 modifier = Modifier
                     .size(120.dp)
                     .background(
-                        color = Color.White,
-                        shape = CircleShape
+                        color = Color.White, shape = CircleShape
                     )
                     .border(2.dp, Color(0xFFE0E0E0), CircleShape),
                 contentAlignment = Alignment.Center
