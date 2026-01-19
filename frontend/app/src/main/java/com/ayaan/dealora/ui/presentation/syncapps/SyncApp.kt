@@ -55,7 +55,7 @@ data class SyncApp(
 
 @Composable
 fun SelectAppsScreen(
-    onAllowSyncClick: () -> Unit = {},
+    onAllowSyncClick: (List<String>) -> Unit,
     navController: NavController
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -68,13 +68,16 @@ fun SelectAppsScreen(
         SyncApp("amazon", "Amazon", R.drawable.logo),
         SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
         SyncApp("cred", "CRED", R.drawable.logo),
-        SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
-        SyncApp("phonepe", "Phone Pay", R.drawable.logo),
-        SyncApp("blinkit", "Blinkit", R.drawable.zomato_logo),
-        SyncApp("amazon", "Amazon", R.drawable.logo),
-        SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
-        SyncApp("cred", "CRED", R.drawable.logo),
+        SyncApp("swiggy", "Swiggy", R.drawable.zomato_logo),
+        SyncApp("zepto", "Zepto", R.drawable.logo),
+        SyncApp("licious", "Licious", R.drawable.zomato_logo),
+        SyncApp("dealora", "Dealora", R.drawable.logo),
+//        SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
+//        SyncApp("cred", "CRED", R.drawable.logo),
     )
+    val filteredApps = apps.filter {
+        it.name.contains(searchQuery, ignoreCase = true)
+    }
 
     Column(
         modifier = Modifier
@@ -158,6 +161,10 @@ fun SelectAppsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Apps Grid
+//        val filteredApps = apps.filter {
+//            it.name.contains(searchQuery, ignoreCase = true)
+//        }
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(4),
             modifier = Modifier.weight(1f),
@@ -165,7 +172,7 @@ fun SelectAppsScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            items(apps) { app ->
+            items(filteredApps) { app ->
                 AppItem(
                     app = app,
                     isSelected = selectedApps.contains(app.id),
@@ -214,14 +221,16 @@ fun SelectAppsScreen(
 
         // Allow Sync Button
         Button(
-            onClick = onAllowSyncClick,
+            onClick = {
+                onAllowSyncClick(selectedApps.toList())
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = DealoraPrimary
             ),
-            shape = RoundedCornerShape(28.dp)
+            shape = RoundedCornerShape(8.dp)
         ) {
             Text(
                 text = "Allow Sync",

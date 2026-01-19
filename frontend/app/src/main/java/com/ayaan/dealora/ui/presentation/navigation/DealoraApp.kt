@@ -10,6 +10,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.addcoupon.AddCoupons
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginFormScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginOtpScreen
@@ -31,7 +32,9 @@ import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
 import com.ayaan.dealora.ui.presentation.profile.notificationprefs.NotificationPreferencesScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
 import com.ayaan.dealora.ui.presentation.syncapps.SelectAppsScreen
+import com.ayaan.dealora.ui.presentation.syncapps.SyncApp
 import com.ayaan.dealora.ui.presentation.syncapps.SyncAppsStart
+import com.ayaan.dealora.ui.presentation.syncapps.SyncingProgressScreen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -65,6 +68,43 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.AboutUs.path) {
             AboutUsScreen(navController)
+        }
+        // Add this composable
+        composable(
+            route = "syncingprogress/{selectedAppIds}",
+            arguments = listOf(
+                navArgument("selectedAppIds") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val selectedAppIds = backStackEntry.arguments?.getString("selectedAppIds")
+                ?.split(",") ?: emptyList()
+
+            // Get the full app list
+            val allApps = listOf(
+                SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
+                SyncApp("phonepe", "Phone Pay", R.drawable.logo),
+                SyncApp("blinkit", "Blinkit", R.drawable.zomato_logo),
+                SyncApp("amazon", "Amazon", R.drawable.logo),
+                SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
+                SyncApp("cred", "CRED", R.drawable.logo),
+                SyncApp("swiggy", "Swiggy", R.drawable.zomato_logo),
+                SyncApp("zepto", "Zepto", R.drawable.logo),
+                SyncApp("licious", "Licious", R.drawable.zomato_logo),
+                SyncApp("dealora", "Dealora", R.drawable.logo),
+            )
+
+            // Filter to get selected apps
+            val selectedApps = allApps.filter { it.id in selectedAppIds }
+
+            SyncingProgressScreen(selectedApps = selectedApps)
+        }
+        composable(Route.SelectAppsScreen.path) {
+            SelectAppsScreen(
+                navController = navController,
+                onAllowSyncClick = { selectedAppIds ->
+                    navController.navigate(Route.SyncingProgress.createRoute(selectedAppIds))
+                }
+            )
         }
         composable(Route.AppPrivacy.path) {
             AppPrivacyScreen(navController)
@@ -102,9 +142,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         composable(Route.SyncAppsStart.path){
             SyncAppsStart(navController)
         }
-        composable(Route.SelectAppsScreen.path){
-            SelectAppsScreen(navController = navController)
-        }
+//        composable(Route.SelectAppsScreen.path){
+//            SelectAppsScreen(navController = navController)
+//        }
         composable(Route.SignUpOtp.path) { backStackEntry ->
             val parentEntry = remember(backStackEntry) {
                 navController.getBackStackEntry(Route.SignUp.path)
