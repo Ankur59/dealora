@@ -20,7 +20,8 @@
         }
 
         .coupon-wrapper {
-            width: 1160px; /* ← CHANGED from 1200px */
+            width: 1160px;
+            /* ← CHANGED from 1200px */
             position: relative;
             margin: 0;
         }
@@ -181,7 +182,7 @@
             font-weight: 400;
         }
 
-        /* Actions Section */
+        /* Actions Section (Commented Out)
         .actions {
             display: flex;
             gap: 24px;
@@ -226,6 +227,7 @@
             border: none;
             cursor: pointer;
         }
+        */
     </style>
 </head>
 
@@ -261,7 +263,7 @@
                         </svg>
                     </div>
                     <div class="manually-added">
-                        <%= addedMethod === 'scraper' ? 'Scraped' : 'Manually Added' %>
+                        <%= addedMethod==='scraper' ? 'Scraped' : 'Manually Added' %>
                     </div>
                 </div>
             </div>
@@ -272,6 +274,7 @@
                     <%= description %>
                 </div>
 
+                <!-- 
                 <div class="actions">
                     <button class="details-link">Details</button>
 
@@ -280,6 +283,7 @@
                         <button class="discover-btn">Discover</button>
                     </div>
                 </div>
+                -->
             </div>
         </div>
     </div>
