@@ -35,42 +35,38 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 data class SyncApp(
-    val id: String,
-    val name: String,
-    val iconRes: Int // Drawable resource for app icon
+    val id: String, val name: String, val iconRes: Int // Drawable resource for app icon
 )
 
 @Composable
 fun SelectAppsScreen(
-    onAllowSyncClick: (List<String>) -> Unit,
-    navController: NavController
+    onAllowSyncClick: (List<String>) -> Unit, navController: NavController
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
 
     val apps = listOf(
         SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
-        SyncApp("phonepe", "Phone Pay", R.drawable.logo),
-        SyncApp("blinkit", "Blinkit", R.drawable.zomato_logo),
-        SyncApp("amazon", "Amazon", R.drawable.logo),
-        SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
-        SyncApp("cred", "CRED", R.drawable.logo),
-        SyncApp("swiggy", "Swiggy", R.drawable.zomato_logo),
-        SyncApp("zepto", "Zepto", R.drawable.logo),
-        SyncApp("licious", "Licious", R.drawable.zomato_logo),
+        SyncApp("phonepe", "Phone Pay", R.drawable.phonepe_logo),
+        SyncApp("blinkit", "Blinkit", R.drawable.blinkit_logo),
+        SyncApp("amazon", "Amazon", R.drawable.azon_logo),
+        SyncApp("nykaa", "Nykaa", R.drawable.nykaa_logo),
+        SyncApp("cred", "CRED", R.drawable.cred_logo),
+        SyncApp("swiggy", "Swiggy", R.drawable.swiggy_logo),
+//        SyncApp("zepto", "Zepto", R.drawable.logo),
+//        SyncApp("licious", "Licious", R.drawable.zomato_logo),
         SyncApp("dealora", "Dealora", R.drawable.logo),
 //        SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
 //        SyncApp("cred", "CRED", R.drawable.logo),
@@ -90,8 +86,7 @@ fun SelectAppsScreen(
 
         // Title Section
         Column(
-            horizontalAlignment = Alignment.Start,
-            modifier = Modifier.fillMaxWidth()
+            horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()
         ) {
             Text(
                 text = "Select the Apps you",
@@ -104,8 +99,7 @@ fun SelectAppsScreen(
             Box(
                 modifier = Modifier
                     .background(
-                        color = DealoraPrimary,
-                        shape = RoundedCornerShape(4.dp)
+                        color = DealoraPrimary, shape = RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
@@ -138,9 +132,7 @@ fun SelectAppsScreen(
             modifier = Modifier.fillMaxWidth(),
             placeholder = {
                 Text(
-                    text = "Search Apps",
-                    color = Color.Gray,
-                    fontSize = 15.sp
+                    text = "Search Apps", color = Color.Gray, fontSize = 15.sp
                 )
             },
             leadingIcon = {
@@ -151,8 +143,7 @@ fun SelectAppsScreen(
                 )
             },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = DealoraPrimary,
-                unfocusedBorderColor = Color(0xFFE0E0E0)
+                focusedBorderColor = DealoraPrimary, unfocusedBorderColor = Color(0xFFE0E0E0)
             ),
             shape = RoundedCornerShape(12.dp),
             singleLine = true
@@ -174,16 +165,13 @@ fun SelectAppsScreen(
         ) {
             items(filteredApps) { app ->
                 AppItem(
-                    app = app,
-                    isSelected = selectedApps.contains(app.id),
-                    onToggleSelection = {
+                    app = app, isSelected = selectedApps.contains(app.id), onToggleSelection = {
                         selectedApps = if (selectedApps.contains(app.id)) {
                             selectedApps - app.id
                         } else {
                             selectedApps + app.id
                         }
-                    }
-                )
+                    })
             }
         }
 
@@ -195,8 +183,7 @@ fun SelectAppsScreen(
                 append("Your information stays ")
                 withStyle(
                     style = SpanStyle(
-                        color = DealoraPrimary,
-                        fontWeight = FontWeight.SemiBold
+                        color = DealoraPrimary, fontWeight = FontWeight.SemiBold
                     )
                 ) {
                     append("Private")
@@ -204,8 +191,7 @@ fun SelectAppsScreen(
                 append(" and ")
                 withStyle(
                     style = SpanStyle(
-                        color = DealoraPrimary,
-                        fontWeight = FontWeight.SemiBold
+                        color = DealoraPrimary, fontWeight = FontWeight.SemiBold
                     )
                 ) {
                     append("Encrypted.")
@@ -230,7 +216,8 @@ fun SelectAppsScreen(
             colors = ButtonDefaults.buttonColors(
                 containerColor = DealoraPrimary
             ),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(8.dp),
+            enabled = selectedApps.isNotEmpty()
         ) {
             Text(
                 text = "Allow Sync",
@@ -246,32 +233,26 @@ fun SelectAppsScreen(
 
 @Composable
 fun AppItem(
-    app: SyncApp,
-    isSelected: Boolean,
-    onToggleSelection: () -> Unit
+    app: SyncApp, isSelected: Boolean, onToggleSelection: () -> Unit
 ) {
     Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.TopCenter
+        modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.clickable { onToggleSelection() }
-        ) {
+            modifier = Modifier.clickable { onToggleSelection() }) {
             // App Icon
             Box(
                 modifier = Modifier
                     .size(64.dp)
                     .background(
-                        color = Color.White,
-                        shape = RoundedCornerShape(16.dp)
+                        color = Color.White, shape = RoundedCornerShape(16.dp)
                     )
                     .border(
                         width = if (isSelected) 2.dp else 1.dp,
                         color = if (isSelected) DealoraPrimary else Color(0xFFE0E0E0),
                         shape = RoundedCornerShape(16.dp)
-                    ),
-                contentAlignment = Alignment.Center
+                    ), contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = app.iconRes),
