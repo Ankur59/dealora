@@ -161,6 +161,9 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
+                    .clickable {
+                        navController.navigate(Route.SyncAppsStart.path)
+                    }
             )
 
             Spacer(modifier = Modifier.height(24.dp))

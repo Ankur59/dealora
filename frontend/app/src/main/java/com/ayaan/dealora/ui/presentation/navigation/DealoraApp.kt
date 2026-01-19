@@ -30,6 +30,7 @@ import com.ayaan.dealora.ui.presentation.profile.desync.DesyncAppScreen
 import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
 import com.ayaan.dealora.ui.presentation.profile.notificationprefs.NotificationPreferencesScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
+import com.ayaan.dealora.ui.presentation.syncapps.SyncAppsStart
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -96,6 +97,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.Profile.path) {
             ProfileScreen(navController)
+        }
+        composable(Route.SyncAppsStart.path){
+            SyncAppsStart(navController)
         }
         composable(Route.SignUpOtp.path) { backStackEntry ->
             val parentEntry = remember(backStackEntry) {
