@@ -36,6 +36,19 @@ const privateCouponSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        redeemed: {
+            type: Boolean,
+            default: false,
+        },
+        redeemedBy: {
+            type: String,
+            trim: true,
+            default: null,
+        },
+        redeemedAt: {
+            type: Date,
+            default: null,
+        },
         minimumOrderValue: {
             type: String,
             trim: true,
