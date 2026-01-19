@@ -161,7 +161,7 @@ fun CouponDetailsContent(
     navController: NavController,
     coupon: CouponDetail,
     isPrivateMode: Boolean = false,
-    viewModel: CouponDetailsViewModel? = null
+    viewModel: CouponDetailsViewModel
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Details", "How to redeem", "Terms & conditions")
@@ -368,12 +368,15 @@ fun CouponDetailsContent(
             confirmButton = {
                 Button(
                     onClick = {
+                        Log.d("CouponDetailsScreen", "Redeem button clicked")
                         showRedeemDialog = false
-                        viewModel?.redeemCoupon(
+                        viewModel.redeemCoupon(
                             onSuccess = {
+                                Log.d("CouponDetailsScreen", "Redeem success callback")
                                 showRedeemSuccess = true
                             },
                             onError = { error ->
+                                Log.e("CouponDetailsScreen", "Redeem error: $error")
                                 redeemError = error
                             }
                         )
