@@ -17,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
-    private val firebaseAuth: FirebaseAuth
+    private val firebaseAuth: FirebaseAuth,
+    private val syncedAppRepository: com.ayaan.dealora.data.repository.SyncedAppRepository
 ) : ViewModel() {
 
     companion object {
@@ -145,9 +146,23 @@ class ProfileViewModel @Inject constructor(
         }
     }
     fun logout() {
-        Log.d(TAG, "logout: Signing out user")
-        firebaseAuth.signOut()
-        Log.d(TAG, "logout: User signed out successfully")
+        Log.d(TAG, "logout: Clearing synced apps from database")
+        viewModelScope.launch {
+            try {
+                // Clear all synced apps from Room database
+                syncedAppRepository.deleteAllSyncedApps()
+                Log.d(TAG, "logout: Database cleared successfully")
+
+                // Sign out from Firebase
+//                firebaseAuth.signOut()
+                Log.d(TAG, "logout: User signed out successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "logout: Error clearing database", e)
+                // Still sign out even if database clear fails
+//                firebaseAuth.signOut()
+                Log.d(TAG, "logout: User signed out successfully (despite database error)")
+            }
+        }
     }
 }
 
