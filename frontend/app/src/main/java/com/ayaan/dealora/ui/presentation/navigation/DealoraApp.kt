@@ -100,7 +100,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
 
             val selectedApps = allApps.filter { it.id in selectedAppIds }
 
-            SyncingProgressScreen(selectedApps = selectedApps)
+            SyncingProgressScreen(selectedApps = selectedApps,navController=navController)
         }
 
         composable(Route.SelectAppsScreen.path) {
