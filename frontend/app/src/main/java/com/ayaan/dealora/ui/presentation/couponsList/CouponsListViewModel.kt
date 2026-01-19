@@ -6,7 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
+import com.ayaan.dealora.data.repository.PrivateCouponResult
+import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -29,6 +33,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CouponsListViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
+    private val syncedAppRepository: SyncedAppRepository,
     private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
 
@@ -37,7 +42,7 @@ class CouponsListViewModel @Inject constructor(
         private const val SEARCH_DEBOUNCE_MS = 500L
     }
 
-    private val _uiState = MutableStateFlow<CouponsListUiState>(CouponsListUiState.Loading)
+    private val _uiState = MutableStateFlow<CouponsListUiState>(CouponsListUiState.Success)
     val uiState: StateFlow<CouponsListUiState> = _uiState.asStateFlow()
 
     private val _couponsFlow = MutableStateFlow<PagingData<CouponListItem>>(PagingData.empty())
@@ -58,8 +63,10 @@ class CouponsListViewModel @Inject constructor(
     private val _isPublicMode = MutableStateFlow(false)
     val isPublicMode: StateFlow<Boolean> = _isPublicMode.asStateFlow()
 
+    private val _privateCoupons = MutableStateFlow<List<PrivateCoupon>>(emptyList())
+    val privateCoupons: StateFlow<List<PrivateCoupon>> = _privateCoupons.asStateFlow()
+
     private var searchJob: Job? = null
-    val privateCouponsCount = MutableStateFlow(10)
 
     init {
         // Setup debounced search
@@ -81,6 +88,9 @@ class CouponsListViewModel @Inject constructor(
                     )
                 }
         }
+
+        // Load private coupons
+        loadPrivateCoupons()
     }
 
 //    init {
@@ -136,6 +146,14 @@ class CouponsListViewModel @Inject constructor(
 
     fun onPublicModeChanged(isPublic: Boolean) {
         _isPublicMode.value = isPublic
+        if (isPublic) {
+            // Load coupons from API when switching to public mode
+            loadCoupons()
+        } else {
+            // Clear API data when switching to private mode
+            _couponsFlow.value = PagingData.empty()
+            _uiState.value = CouponsListUiState.Success
+        }
     }
 
     fun loadCoupons(
@@ -166,6 +184,13 @@ class CouponsListViewModel @Inject constructor(
         search: String? = null,
         sortBy: String? = null
     ) {
+        // Only load from API if in public mode
+        if (!_isPublicMode.value) {
+            Log.d(TAG, "Skipping API call - in private mode")
+            _uiState.value = CouponsListUiState.Success
+            return
+        }
+
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             _uiState.value = CouponsListUiState.Loading
@@ -205,6 +230,47 @@ class CouponsListViewModel @Inject constructor(
 
     fun retry() {
         loadCoupons()
+    }
+
+    private fun loadPrivateCoupons() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Loading private coupons")
+
+                // Fetch synced apps from database
+                val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+                Log.d(TAG, "Found ${syncedApps.size} synced apps in database")
+
+                // Extract app names and capitalize first letter to match API format
+                val brands = syncedApps.map { syncedApp ->
+                    syncedApp.appName.replaceFirstChar { it.uppercase() }
+                }
+
+                Log.d(TAG, "Syncing brands: ${brands.joinToString()}")
+
+                // If no synced apps, don't make API call
+                if (brands.isEmpty()) {
+                    Log.d(TAG, "No synced apps found, skipping private coupons sync")
+                    _privateCoupons.value = emptyList()
+                    return@launch
+                }
+
+                when (val result = couponRepository.syncPrivateCoupons(brands)) {
+                    is PrivateCouponResult.Success -> {
+                        Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
+                        _privateCoupons.value = result.coupons
+                    }
+                    is PrivateCouponResult.Error -> {
+                        Log.e(TAG, "Error loading private coupons: ${result.message}")
+                        // Keep empty list on error
+                        _privateCoupons.value = emptyList()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception loading private coupons", e)
+                _privateCoupons.value = emptyList()
+            }
+        }
     }
 }
 
