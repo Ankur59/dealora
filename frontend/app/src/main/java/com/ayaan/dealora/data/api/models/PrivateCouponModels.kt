@@ -25,6 +25,15 @@ data class PrivateCouponResponseData(
 )
 
 /**
+ * Response data for private coupon redeem
+ */
+@JsonClass(generateAdapter = true)
+data class PrivateCouponRedeemResponseData(
+    @Json(name = "coupon")
+    val coupon: PrivateCoupon
+)
+
+/**
  * Private coupon model
  */
 @JsonClass(generateAdapter = true)
@@ -56,9 +65,24 @@ data class PrivateCoupon(
     @Json(name = "redeemable")
     val redeemable: Boolean? = true,
 
+    @Json(name = "redeemed")
+    val redeemed: Boolean? = false,
+
+    @Json(name = "redeemedBy")
+    val redeemedBy: String? = null,
+
+    @Json(name = "redeemedAt")
+    val redeemedAt: String? = null,
+
     @Json(name = "minimumOrderValue")
     val minimumOrderValue: String? = null,
 
     @Json(name = "couponLink")
-    val couponLink: String? = null
+    val couponLink: String? = null,
+
+    @Json(name = "createdAt")
+    val createdAt: String? = null,
+
+    @Json(name = "updatedAt")
+    val updatedAt: String? = null
 )

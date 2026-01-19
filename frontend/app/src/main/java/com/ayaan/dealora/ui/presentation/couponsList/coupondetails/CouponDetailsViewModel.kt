@@ -117,6 +117,44 @@ class CouponDetailsViewModel @Inject constructor(
         loadCouponDetails()
     }
 
+    fun redeemCoupon(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Only allow redeeming private coupons for now
+                if (!_isPrivate) {
+                    onError("Only private coupons can be redeemed")
+                    return@launch
+                }
+
+                val currentUser = firebaseAuth.currentUser
+                if (currentUser == null) {
+                    Log.e(TAG, "User not authenticated")
+                    onError("Please login to redeem coupon")
+                    return@launch
+                }
+
+                val uid = currentUser.uid
+                Log.d(TAG, "Redeeming coupon: $couponId for uid: $uid")
+
+                when (val result = couponRepository.redeemPrivateCoupon(couponId, uid)) {
+                    is com.ayaan.dealora.data.repository.PrivateCouponResult.Success -> {
+                        Log.d(TAG, "Coupon redeemed successfully")
+                        onSuccess()
+                        // Reload the coupon details to show updated state
+                        loadCouponDetails()
+                    }
+                    is com.ayaan.dealora.data.repository.PrivateCouponResult.Error -> {
+                        Log.e(TAG, "Error redeeming coupon: ${result.message}")
+                        onError(result.message)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception redeeming coupon", e)
+                onError("Unable to redeem coupon. Please try again.")
+            }
+        }
+    }
+
     private fun convertPrivateCouponToCouponDetail(privateCoupon: PrivateCoupon): CouponDetail {
         return CouponDetail(
             id = privateCoupon.id,
