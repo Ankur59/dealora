@@ -7,5 +7,6 @@ router.post('/sync', privateCouponController.syncCoupons);
 
 router.use(authenticate);
 router.get('/', privateCouponController.getAllPrivateCoupons);
+router.patch('/:id/redeem', privateCouponController.redeemPrivateCoupon);
 
 module.exports = router;
