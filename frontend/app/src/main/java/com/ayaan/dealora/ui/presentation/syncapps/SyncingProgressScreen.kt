@@ -13,6 +13,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -241,6 +242,8 @@ fun OtpDialog(
 ) {
     var otpValue by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
+    var useDealoraPhone by remember { mutableStateOf(true) }
+    var phoneNumber by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = { /* Cannot dismiss */ }) {
         Card(
@@ -292,6 +295,92 @@ fun OtpDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Use Dealora Phone Checkbox
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { useDealoraPhone = !useDealoraPhone }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(
+                                color = if (useDealoraPhone) DealoraPrimary else Color.White,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .border(
+                                width = 2.dp,
+                                color = if (useDealoraPhone) DealoraPrimary else Color.Gray,
+                                shape = RoundedCornerShape(4.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (useDealoraPhone) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Checked",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Use my Dealora phone number",
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
+                }
+
+                // Phone Number Field (shown when checkbox is unchecked)
+                AnimatedVisibility(visible = !useDealoraPhone) {
+                    Column {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        BasicTextField(
+                            value = phoneNumber,
+                            onValueChange = { value ->
+                                if (value.all { it.isDigit() } && value.length <= 10) {
+                                    phoneNumber = value
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp)
+                                        .background(
+                                            color = Color(0xFFF5F5F5),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color(0xFFE0E0E0),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 16.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (phoneNumber.isEmpty()) {
+                                        Text(
+                                            text = "Enter phone number",
+                                            fontSize = 14.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 // OTP Input Fields
                 OtpInputField(
                     otpValue = otpValue, onOtpChange = {
@@ -330,7 +419,7 @@ fun OtpDialog(
                         containerColor = DealoraPrimary
                     ),
                     shape = RoundedCornerShape(8.dp),
-                    enabled = otpValue.length == 6
+                    enabled = otpValue.length == 6 && (useDealoraPhone || phoneNumber.length == 10)
                 ) {
                     Text(
                         text = "Verify OTP", fontSize = 16.sp, fontWeight = FontWeight.SemiBold
