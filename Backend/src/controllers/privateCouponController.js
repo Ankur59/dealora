@@ -10,17 +10,29 @@ const logger = require('../utils/logger');
 exports.syncCoupons = async (req, res) => {
     try {
         const { brands } = req.body;
+        const uid = req.uid || req.body.uid;
 
         if (!brands || !Array.isArray(brands) || brands.length === 0) {
             return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Please provide an array of brand names');
         }
 
-        logger.info(`Syncing private coupons for brands: ${brands.join(', ')}`);
+        logger.info(`Syncing private coupons for brands: ${brands.join(', ')} for user: ${uid || 'public'}`);
 
-
-        const coupons = await PrivateCoupon.find({
+        const query = {
             brandName: { $in: brands.map(b => new RegExp(`^${b}$`, 'i')) }
-        });
+        };
+
+        if (uid) {
+            query.$or = [
+                { userId: null },
+                { userId: 'system' },
+                { userId: uid }
+            ];
+        } else {
+            query.userId = { $in: [null, 'system'] };
+        }
+
+        const coupons = await PrivateCoupon.find(query);
 
         return successResponse(res, STATUS_CODES.OK, 'Private coupons synced successfully', {
             count: coupons.length,
@@ -61,7 +73,14 @@ exports.redeemPrivateCoupon = async (req, res) => {
             return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'User ID (uid) is required');
         }
 
-        const coupon = await PrivateCoupon.findById(id);
+        const coupon = await PrivateCoupon.findOne({
+            _id: id,
+            $or: [
+                { userId: null },
+                { userId: 'system' },
+                { userId: uid }
+            ]
+        });
 
         if (!coupon) {
             return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Private coupon not found');
