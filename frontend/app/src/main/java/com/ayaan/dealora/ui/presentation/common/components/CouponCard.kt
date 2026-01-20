@@ -42,6 +42,11 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun CouponCard(
+    brandName: String = "BOMBAY\nSHAVING\nCOMPANY",
+    couponTitle: String = "Buy 1 items,\nGet extra 10% off",
+    description: String = "Get Extra 10% off on mcaffine Bodywash, lotion and many more.",
+    category: String? = "Beauty",
+    expiryDays: Int? = 3,
     couponCode: String = "",
     onDetailsClick: () -> Unit = {},
     onDiscoverClick: () -> Unit = {}
@@ -79,7 +84,7 @@ fun CouponCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "BOMBAY\nSHAVING\nCOMPANY",
+                            text = brandName,
                             color = Color.White,
                             fontSize = 7.sp,
                             fontWeight = FontWeight.Bold,
@@ -95,18 +100,24 @@ fun CouponCard(
                             .padding(horizontal = 12.dp)
                     ) {
                         Text(
-                            text = "Buy 1 items,\nGet extra 10% off",
+                            text = couponTitle,
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            lineHeight = 20.sp
+                            lineHeight = 20.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Chip(text = "Beauty")
-                            Chip(text = "Expiry in 3 days")
+                            if (category != null) {
+                                Chip(text = category)
+                            }
+                            if (expiryDays != null) {
+                                Chip(text = "Expiry in $expiryDays days")
+                            }
                         }
                     }
 
@@ -128,7 +139,7 @@ fun CouponCard(
                     .padding(12.dp)
             ) {
                 Text(
-                    text = "Get Extra 10% off on mcaffine Bodywash, lotion and many more.",
+                    text = description,
                     fontSize = 13.sp,
                     color = Color(0xFF333333),
                     lineHeight = 16.sp,
