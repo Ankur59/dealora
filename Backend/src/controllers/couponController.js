@@ -1,5 +1,4 @@
 const Coupon = require('../models/Coupon');
-const PrivateCoupon = require('../models/PrivateCoupon');
 const { successResponse, errorResponse } = require('../utils/responseHandler');
 const { STATUS_CODES, ERROR_MESSAGES } = require('../config/constants');
 const { ConflictError, NotFoundError, ValidationError } = require('../middlewares/errorHandler');
@@ -46,49 +45,19 @@ const createCoupon = async (req, res, next) => {
             couponData.couponVisitingLink = couponVisitingLink.trim();
         }
 
-        const categoryToBrandMap = {
-            'Food': 'Zomato',
-            'Fashion': 'Nykaa',
-            'Grocery': 'Blinkit',
-            'Wallet Rewards': 'PhonePe',
-            'Beauty': 'Nykaa',
-            'Travel': 'Dealora',
-            'Entertainment': 'Dealora',
-            'Other': 'Dealora'
-        };
+        const couponWithDisplay = addDisplayFields(couponData);
 
-        if (categoryLabel && categoryToBrandMap[categoryLabel]) {
-            couponData.brandName = categoryToBrandMap[categoryLabel];
-        }
+        // Generate base64 image
+        const imageBase64 = await generateCouponImage(couponWithDisplay);
+        couponData.base64ImageUrl = `data:image/png;base64,${imageBase64}`;
 
-        // Create in standard Coupon model
         const newCoupon = await Coupon.create(couponData);
 
-        // Also create in PrivateCoupon model for consistency and sync
-        const expiryDate = new Date(expireBy);
-        const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
-
-        const privateCouponData = {
-            brandName: couponData.brandName,
-            couponTitle: couponName,
-            category: categoryLabel,
-            expiryDate: expiryDate,
-            daysUntilExpiry: daysUntilExpiry >= 0 ? daysUntilExpiry : 0,
-            description: description,
-            couponCode: couponCode ? couponCode.toUpperCase().trim() : null,
-            minimumOrderValue: minimumOrder ? `₹${minimumOrder}` : null,
-            couponLink: couponVisitingLink || null,
-            userId: userId,
-            redeemable: true,
-            redeemed: false
-        };
-
-        const newPrivateCoupon = await PrivateCoupon.create(privateCouponData);
-
-        logger.info(`Coupon created successfully in both models: ${newCoupon._id}, Private: ${newPrivateCoupon._id} for user: ${userId}`);
+        logger.info(`Coupon created successfully: ${newCoupon._id} for user: ${userId}`);
 
         return successResponse(res, STATUS_CODES.CREATED, 'Coupon created successfully', {
-            coupon: newPrivateCoupon
+            id: newCoupon._id,
+            couponImageBase64: newCoupon.base64ImageUrl
         });
     } catch (error) {
         logger.error('Create coupon error:', error);
@@ -158,14 +127,17 @@ const getUserCoupons = async (req, res, next) => {
             } else if (discountType === 'prepaid_only' || discountType === 'Prepaid Only Offers') {
                 query.discountType = 'prepaid_only';
             } else {
+                // Direct match for standard discount types
                 query.discountType = discountType;
             }
         }
 
+        // Filter Logic - Price/Minimum Order (matching screenshot options)
         if (req.query.minimumOrder || req.query.price) {
             const priceFilter = req.query.minimumOrder || req.query.price;
 
             if (priceFilter === 'no_minimum' || priceFilter === 'No Minimum Order') {
+                // Use $and to combine with existing $or query
                 if (!query.$and) query.$and = [];
                 query.$and.push({
                     $or: [
@@ -185,6 +157,7 @@ const getUserCoupons = async (req, res, next) => {
             }
         }
 
+        // Filter Logic - Validity (matching screenshot options)
         if (req.query.validity) {
             const now = new Date();
             const todayStart = new Date();
@@ -245,6 +218,7 @@ const getUserCoupons = async (req, res, next) => {
         // Sort Logic - matching screenshot options
         let sortOption = {};
         if (sortBy === 'none' || sortBy === 'None') {
+            // No sorting - return in natural order
             sortOption = {};
         } else if (sortBy === 'newest' || sortBy === 'newest_first') {
             sortOption = { createdAt: -1 };
@@ -253,8 +227,10 @@ const getUserCoupons = async (req, res, next) => {
         } else if (sortBy === 'expiring_soon' || sortBy === 'expiring_soon_first') {
             sortOption = { expireBy: 1 };
         } else if (sortBy === 'highest_discount') {
+            // Sort by discount value descending (highest first)
             sortOption = { discountValue: -1 };
         } else if (sortBy === 'lowest_minimum_order') {
+            // Sort by minimum order ascending (lowest first)
             sortOption = { minimumOrder: 1 };
         } else if (sortBy === 'a_z' || sortBy === 'a_to_z') {
             sortOption = { brandName: 1 };
