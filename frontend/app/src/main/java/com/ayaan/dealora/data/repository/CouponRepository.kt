@@ -201,6 +201,42 @@ class CouponRepository @Inject constructor(
             null
         }
     }
+
+    /**
+     * Redeem a private coupon
+     */
+    suspend fun redeemPrivateCoupon(couponId: String, uid: String): PrivateCouponResult {
+        return try {
+            Log.d(TAG, "Redeeming private coupon: $couponId for uid: $uid")
+            val response = couponApiService.redeemPrivateCoupon(couponId, uid)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Log.d(TAG, "Private coupon redeemed successfully")
+                    PrivateCouponResult.Success(
+                        message = body.message,
+                        coupons = listOf(body.data.coupon)
+                    )
+                } else {
+                    val errorMsg = body?.message ?: "Failed to redeem private coupon"
+                    Log.e(TAG, "Redeem private coupon failed: $errorMsg")
+                    PrivateCouponResult.Error(errorMsg)
+                }
+            } else {
+                val errorMsg = when (response.code()) {
+                    400 -> "Coupon is already redeemed or not redeemable"
+                    404 -> "Private coupon not found"
+                    else -> "HTTP ${response.code()}: ${response.message()}"
+                }
+                Log.e(TAG, "Redeem private coupon HTTP error: $errorMsg")
+                PrivateCouponResult.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Redeem private coupon exception", e)
+            PrivateCouponResult.Error(e.message ?: "Network error occurred")
+        }
+    }
 }
 
 /**

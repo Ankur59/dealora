@@ -5,11 +5,13 @@ import com.ayaan.dealora.data.api.models.CouponDetailResponseData
 import com.ayaan.dealora.data.api.models.CouponListResponseData
 import com.ayaan.dealora.data.api.models.CouponResponseData
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
+import com.ayaan.dealora.data.api.models.PrivateCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -47,4 +49,10 @@ interface CouponApiService {
     suspend fun syncPrivateCoupons(
         @Body request: SyncPrivateCouponsRequest
     ): Response<ApiResponse<PrivateCouponResponseData>>
+
+    @PATCH("api/private-coupons/{couponId}/redeem/")
+    suspend fun redeemPrivateCoupon(
+        @Path("couponId") couponId: String,
+        @Query("uid") uid: String
+    ): Response<ApiResponse<PrivateCouponRedeemResponseData>>
 }

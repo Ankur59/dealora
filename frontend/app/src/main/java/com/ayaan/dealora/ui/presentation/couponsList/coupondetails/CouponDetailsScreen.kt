@@ -15,15 +15,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -74,7 +77,8 @@ fun CouponDetailsScreen(
             CouponDetailsContent(
                 navController = navController,
                 coupon = state.coupon,
-                isPrivateMode = isPrivateMode
+                isPrivateMode = isPrivateMode,
+                viewModel = viewModel
             )
         }
     }
@@ -156,12 +160,18 @@ fun ErrorContent(
 fun CouponDetailsContent(
     navController: NavController,
     coupon: CouponDetail,
-    isPrivateMode: Boolean = false
+    isPrivateMode: Boolean = false,
+    viewModel: CouponDetailsViewModel
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Details", "How to redeem", "Terms & conditions")
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
+
+    // State for redeem dialog
+    var showRedeemDialog by remember { mutableStateOf(false) }
+    var showRedeemSuccess by remember { mutableStateOf(false) }
+    var redeemError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -175,7 +185,10 @@ fun CouponDetailsContent(
             if (isPrivateMode) {
                 BottomActionButtons(
                     couponLink = coupon.couponVisitingLink?.toString(),
-                    onRedeemed = { /* Handle Redeemed */ },
+                    onRedeemed = {
+                        // Show confirmation dialog
+                        showRedeemDialog = true
+                    },
                     onDiscoverClick = {
                         try {
                             val intent = Intent().apply {
@@ -319,6 +332,158 @@ fun CouponDetailsContent(
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }
+    }
+
+    // Redeem Confirmation Dialog
+    if (showRedeemDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showRedeemDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    text = "Mark as Redeemed?",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Are you sure you want to mark this coupon as redeemed?",
+                        fontSize = 14.sp,
+                        color = Color(0xFF666666),
+                        lineHeight = 20.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "This action cannot be undone and the coupon will be marked as used.",
+                        fontSize = 13.sp,
+                        color = Color(0xFF999999),
+                        lineHeight = 18.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        Log.d("CouponDetailsScreen", "Redeem button clicked")
+                        showRedeemDialog = false
+                        viewModel.redeemCoupon(
+                            onSuccess = {
+                                Log.d("CouponDetailsScreen", "Redeem success callback")
+                                showRedeemSuccess = true
+                            },
+                            onError = { error ->
+                                Log.e("CouponDetailsScreen", "Redeem error: $error")
+                                redeemError = error
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF5B3FD9)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Yes, Mark Redeemed",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showRedeemDialog = false }
+                ) {
+                    Text(
+                        text = "Cancel",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        )
+    }
+
+    // Success Dialog
+    if (showRedeemSuccess) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showRedeemSuccess = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    text = "Success!",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00C853)
+                )
+            },
+            text = {
+                Text(
+                    text = "Coupon has been marked as redeemed successfully.",
+                    fontSize = 14.sp,
+                    color = Color(0xFF666666)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showRedeemSuccess = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00C853)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "OK",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
+    }
+
+    // Error Dialog
+    redeemError?.let { error ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { redeemError = null },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    text = "Error",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Red
+                )
+            },
+            text = {
+                Text(
+                    text = error,
+                    fontSize = 14.sp,
+                    color = Color(0xFF666666)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { redeemError = null },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Red
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "OK",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
     }
 }
 

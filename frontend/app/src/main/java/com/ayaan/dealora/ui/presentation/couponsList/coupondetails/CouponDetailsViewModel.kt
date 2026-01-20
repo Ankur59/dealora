@@ -47,6 +47,10 @@ class CouponDetailsViewModel @Inject constructor(
     val isPrivateMode: StateFlow<Boolean> = _isPrivateState.asStateFlow()
 
     init {
+        Log.d(TAG, "========== ViewModel Initialized ==========")
+        Log.d(TAG, "Coupon ID: $couponId")
+        Log.d(TAG, "Is Private: $_isPrivate")
+        Log.d(TAG, "Coupon Code: $_couponCode")
         loadCouponDetails()
     }
 
@@ -115,6 +119,64 @@ class CouponDetailsViewModel @Inject constructor(
 
     fun retry() {
         loadCouponDetails()
+    }
+
+    fun redeemCoupon(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        Log.d(TAG, "========== REDEEM COUPON FLOW STARTED ==========")
+        Log.d(TAG, "Coupon ID from SavedStateHandle: $couponId")
+        Log.d(TAG, "Is Private Mode: $_isPrivate")
+
+        viewModelScope.launch {
+            try {
+                // Only allow redeeming private coupons for now
+                if (!_isPrivate) {
+                    Log.e(TAG, "Not a private coupon, aborting redeem")
+                    onError("Only private coupons can be redeemed")
+                    return@launch
+                }
+
+                val currentUser = firebaseAuth.currentUser
+                if (currentUser == null) {
+                    Log.e(TAG, "User not authenticated")
+                    onError("Please login to redeem coupon")
+                    return@launch
+                }
+
+                val uid = currentUser.uid
+                Log.d(TAG, "✓ User authenticated - UID: $uid")
+                Log.d(TAG, "→ Calling repository.redeemPrivateCoupon(couponId=$couponId, uid=$uid)")
+
+                when (val result = couponRepository.redeemPrivateCoupon(couponId, uid)) {
+                    is com.ayaan.dealora.data.repository.PrivateCouponResult.Success -> {
+                        Log.d(TAG, "✓ SUCCESS: Coupon redeemed successfully")
+                        Log.d(TAG, "Response message: ${result.message}")
+                        Log.d(TAG, "Response coupons count: ${result.coupons.size}")
+                        if (result.coupons.isNotEmpty()) {
+                            val redeemedCoupon = result.coupons[0]
+                            Log.d(TAG, "Redeemed coupon details:")
+                            Log.d(TAG, "  - ID: ${redeemedCoupon.id}")
+                            Log.d(TAG, "  - Brand: ${redeemedCoupon.brandName}")
+                            Log.d(TAG, "  - Redeemable: ${redeemedCoupon.redeemable}")
+                            Log.d(TAG, "  - Redeemed: ${redeemedCoupon.redeemed}")
+                            Log.d(TAG, "  - Redeemed By: ${redeemedCoupon.redeemedBy}")
+                            Log.d(TAG, "  - Redeemed At: ${redeemedCoupon.redeemedAt}")
+                        }
+                        onSuccess()
+                        // Reload the coupon details to show updated state
+                        loadCouponDetails()
+                    }
+                    is com.ayaan.dealora.data.repository.PrivateCouponResult.Error -> {
+                        Log.e(TAG, "✗ ERROR: ${result.message}")
+                        onError(result.message)
+                    }
+                }
+                Log.d(TAG, "========== REDEEM COUPON FLOW COMPLETED ==========")
+            } catch (e: Exception) {
+                Log.e(TAG, "✗ EXCEPTION in redeem flow: ${e.message}", e)
+                Log.e(TAG, "Exception stack trace:", e)
+                onError("Unable to redeem coupon. Please try again.")
+            }
+        }
     }
 
     private fun convertPrivateCouponToCouponDetail(privateCoupon: PrivateCoupon): CouponDetail {
