@@ -14,15 +14,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.navigation.compose.rememberNavController
 import com.ayaan.couponviewer.data.models.CouponData
+import com.ayaan.couponviewer.data.repository.CouponRepository
+import com.ayaan.couponviewer.navigation.NavGraph
 import com.ayaan.couponviewer.ui.screens.CouponViewerScreen
 import com.ayaan.couponviewer.ui.theme.CouponViewerTheme
 import com.ayaan.couponviewer.utils.IntentParser
 
 class MainActivity : ComponentActivity() {
     
-    private lateinit var couponData: CouponData
-    
+    private var couponData: CouponData? = null
+    private val couponRepository = CouponRepository()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -32,41 +36,15 @@ class MainActivity : ComponentActivity() {
             else -> IntentParser.parseIntent(intent)
         }
         
-        if (data == null) {
-            // Check if launched from launcher (no data expected)
-            if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
-                // Use sample data for testing/demo
-                couponData = CouponData(
-                    couponCode = "WELCOME2024",
-                    brandName = "Coupon Viewer",
-                    title = "Welcome to Coupon Viewer",
-                    description = "This is a sample coupon to demonstrate the app interface. Integrate with source app to see real coupons.",
-                    category = "Demo",
-                    discountType = "percentage",
-                    discountValue = "100",
-                    minimumOrder = "0",
-                    expiryDate = "Valid Forever",
-                    terms = "• This is a demo coupon\n• Use it to test the UI\n• Enjoy!",
-                    sourcePackage = null,
-                    couponLink = "https://example.com"
-                )
-            } else {
-                // Invalid data from deep link or intent
-                Toast.makeText(
-                    this,
-                    "Invalid coupon data",
-                    Toast.LENGTH_SHORT
-                ).show()
-                finish()
-                return
-            }
-        } else {
+        // Check if launched from another app with coupon data
+        val isExternalLaunch = data != null
+
+        if (isExternalLaunch) {
             couponData = data
+            // Auto-copy code for external launches
+            copyToClipboard(couponData!!.couponCode, showToast = true)
         }
-        
-        // Auto-copy code
-        copyToClipboard(couponData.couponCode, showToast = true)
-        
+
         // Set UI
         setContent {
             CouponViewerTheme {
@@ -74,12 +52,33 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    CouponViewerScreen(
-                        couponData = couponData,
-                        onRedeemClick = { redeemCoupon() },
-                        onShareClick = { shareCoupon() },
-                        onCopyClick = { copyToClipboard(couponData.couponCode) }
-                    )
+                    if (isExternalLaunch && couponData != null) {
+                        // Show coupon directly if launched from external app
+                        CouponViewerScreen(
+                            couponData = couponData!!,
+                            onRedeemClick = { redeemCoupon(couponData!!) },
+                            onShareClick = { shareCoupon(couponData!!) },
+                            onCopyClick = { copyToClipboard(couponData!!.couponCode) }
+                        )
+                    } else {
+                        // Show navigation with home screen
+                        val navController = rememberNavController()
+                        NavGraph(
+                            navController = navController,
+                            couponRepository = couponRepository,
+                            onRedeemClick = { couponId ->
+                                couponRepository.getCouponById(couponId)?.let { redeemCoupon(it) }
+                            },
+                            onShareClick = { couponId ->
+                                couponRepository.getCouponById(couponId)?.let { shareCoupon(it) }
+                            },
+                            onCopyClick = { couponId ->
+                                couponRepository.getCouponById(couponId)?.let {
+                                    copyToClipboard(it.couponCode)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -107,10 +106,10 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    private fun redeemCoupon() {
-        val sourcePackage = couponData.sourcePackage
-        val couponLink = couponData.couponLink
-        
+    private fun redeemCoupon(coupon: CouponData) {
+        val sourcePackage = coupon.sourcePackage
+        val couponLink = coupon.couponLink
+
         when {
             !sourcePackage.isNullOrBlank() -> openApp(sourcePackage, couponLink)
             !couponLink.isNullOrBlank() -> openLink(couponLink)
@@ -158,20 +157,20 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    private fun shareCoupon() {
+    private fun shareCoupon(coupon: CouponData) {
         val shareText = buildString {
-            append("🎟️ ${couponData.brandName} Coupon\n\n")
-            couponData.title?.let { append("💰 $it\n") }
-            append("🔑 Code: ${couponData.couponCode}\n\n")
-            couponData.description?.let { append("📝 $it\n\n") }
-            couponData.expiryDate?.let { append("⏰ Valid: $it\n\n") }
+            append("🎟️ ${coupon.brandName} Coupon\n\n")
+            coupon.title?.let { append("💰 $it\n") }
+            append("🔑 Code: ${coupon.couponCode}\n\n")
+            coupon.description?.let { append("📝 $it\n\n") }
+            coupon.expiryDate?.let { append("⏰ Valid: $it\n\n") }
             append("Use Coupon Viewer app to redeem!")
         }
         
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, shareText)
-            putExtra(Intent.EXTRA_SUBJECT, "${couponData.brandName} Coupon")
+            putExtra(Intent.EXTRA_SUBJECT, "${coupon.brandName} Coupon")
         }
         
         startActivity(Intent.createChooser(intent, "Share coupon"))
