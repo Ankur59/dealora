@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.paging.LoadState
@@ -149,6 +150,12 @@ fun CouponsList(
                                             key = { index -> privateCoupons[index].id }
                                         ) { index ->
                                             val privateCoupon = privateCoupons[index]
+
+                                            // State for this specific card
+                                            var showSuccessDialog by remember { mutableStateOf(false) }
+                                            var showErrorDialog by remember { mutableStateOf(false) }
+                                            var errorMessage by remember { mutableStateOf("") }
+
                                             CouponCard(
                                                 brandName = privateCoupon.brandName.uppercase().replace(" ", "\n"),
                                                 couponTitle = privateCoupon.couponTitle,
@@ -156,6 +163,23 @@ fun CouponsList(
                                                 category = privateCoupon.category,
                                                 expiryDays = privateCoupon.daysUntilExpiry,
                                                 couponCode = privateCoupon.couponCode ?: "",
+                                                couponId = privateCoupon.id,
+                                                isRedeemed = privateCoupon.redeemed ?: false,
+                                                onRedeem = { couponId ->
+                                                    Log.d("CouponsList", "Redeem clicked for coupon: $couponId")
+                                                    viewModel.redeemCoupon(
+                                                        couponId = couponId,
+                                                        onSuccess = {
+                                                            Log.d("CouponsList", "Redeem success for coupon: $couponId")
+                                                            showSuccessDialog = true
+                                                        },
+                                                        onError = { error ->
+                                                            Log.e("CouponsList", "Redeem error for coupon: $couponId - $error")
+                                                            errorMessage = error
+                                                            showErrorDialog = true
+                                                        }
+                                                    )
+                                                },
                                                 onDetailsClick = {
                                                     navController.navigate(
                                                         Route.CouponDetails.createRoute(
@@ -215,6 +239,84 @@ fun CouponsList(
                                                     }
                                                 }
                                             )
+
+                                            // Success Dialog for this card
+                                            if (showSuccessDialog) {
+                                                androidx.compose.material3.AlertDialog(
+                                                    onDismissRequest = { showSuccessDialog = false },
+                                                    containerColor = androidx.compose.ui.graphics.Color.White,
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                                    title = {
+                                                        androidx.compose.material3.Text(
+                                                            text = "Success!",
+                                                            fontSize = 20.sp,
+                                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                            color = androidx.compose.ui.graphics.Color(0xFF00C853)
+                                                        )
+                                                    },
+                                                    text = {
+                                                        androidx.compose.material3.Text(
+                                                            text = "Coupon has been marked as redeemed successfully.",
+                                                            fontSize = 14.sp,
+                                                            color = androidx.compose.ui.graphics.Color(0xFF666666)
+                                                        )
+                                                    },
+                                                    confirmButton = {
+                                                        androidx.compose.material3.Button(
+                                                            onClick = { showSuccessDialog = false },
+                                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                                                containerColor = androidx.compose.ui.graphics.Color(0xFF00C853)
+                                                            ),
+                                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                                        ) {
+                                                            androidx.compose.material3.Text(
+                                                                text = "OK",
+                                                                fontSize = 14.sp,
+                                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                                            )
+                                                        }
+                                                    }
+                                                )
+                                            }
+
+                                            // Error Dialog for this card
+                                            if (showErrorDialog) {
+                                                androidx.compose.material3.AlertDialog(
+                                                    onDismissRequest = { showErrorDialog = false },
+                                                    containerColor = androidx.compose.ui.graphics.Color.White,
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                                    title = {
+                                                        androidx.compose.material3.Text(
+                                                            text = "Error",
+                                                            fontSize = 20.sp,
+                                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                            color = androidx.compose.ui.graphics.Color.Red
+                                                        )
+                                                    },
+                                                    text = {
+                                                        androidx.compose.material3.Text(
+                                                            text = errorMessage,
+                                                            fontSize = 14.sp,
+                                                            color = androidx.compose.ui.graphics.Color(0xFF666666)
+                                                        )
+                                                    },
+                                                    confirmButton = {
+                                                        androidx.compose.material3.Button(
+                                                            onClick = { showErrorDialog = false },
+                                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                                                containerColor = androidx.compose.ui.graphics.Color.Red
+                                                            ),
+                                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                                        ) {
+                                                            androidx.compose.material3.Text(
+                                                                text = "OK",
+                                                                fontSize = 14.sp,
+                                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                                            )
+                                                        }
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }

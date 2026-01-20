@@ -42,30 +42,30 @@ fun DetailsSection(
         }
         
         // Discount Info Card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    color = CouponViewerColors.CardBackground,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .padding(16.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "💰 $discountText",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = CouponViewerColors.TextPrimary
-                )
-                
-                if (!minimumOrder.isNullOrBlank() && minimumOrder != "0") {
-                    Text(
-                        text = "📦 Min. Order: ₹$minimumOrder",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = CouponViewerColors.TextSecondary
-                    )
-                }
-            }
-        }
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .background(
+//                    color = CouponViewerColors.CardBackground,
+//                    shape = RoundedCornerShape(12.dp)
+//                )
+//                .padding(16.dp)
+//        ) {
+//            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+//                Text(
+//                    text = "💰 $discountText",
+//                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+//                    color = CouponViewerColors.TextPrimary
+//                )
+//
+//                if (!minimumOrder.isNullOrBlank() && minimumOrder != "0") {
+//                    Text(
+//                        text = "📦 Min. Order: ₹$minimumOrder",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = CouponViewerColors.TextSecondary
+//                    )
+//                }
+//            }
+//        }
     }
 }
