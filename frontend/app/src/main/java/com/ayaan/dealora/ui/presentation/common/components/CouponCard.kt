@@ -1,6 +1,7 @@
 package com.ayaan.dealora.ui.presentation.common.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,13 +34,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
@@ -56,6 +60,45 @@ fun CouponCard(
     onRedeem: ((String) -> Unit)? = null
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
+    var painter: Int by remember { mutableStateOf(0) }
+    if (brandName.equals(
+            "zomato", ignoreCase = true
+        )
+    ) {
+        painter = R.drawable.zomato_logo
+    } else if (brandName.equals(
+            "swiggy", ignoreCase = true
+        )
+    ) {
+        painter = R.drawable.swiggy_logo
+    }else if (brandName.equals(
+            "blinkit", ignoreCase = true
+        )
+    ) {
+        painter = R.drawable.blinkit_logo
+    }else if (brandName.equals(
+            "amazon", ignoreCase = true
+        )
+    ) {
+        painter = R.drawable.azon_logo
+    }else if (brandName.equals(
+            "flipkart", ignoreCase = true
+        )
+    ) {
+        painter = R.drawable.flipkart
+    }
+    else if (brandName.equals(
+            "nykaa", ignoreCase = true
+        )
+    ) {
+        painter = R.drawable.nykaa_logo
+    }
+    else if (brandName.equals(
+            "cred", ignoreCase = true
+        )
+    ) {
+        painter = R.drawable.cred_logo
+    }
 
     Card(
         modifier = Modifier
@@ -86,14 +129,21 @@ fun CouponCard(
                             .background(Color(0xFF1E88A8), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = brandName,
-                            color = Color.White,
-                            fontSize = 7.sp,
-                            fontWeight = FontWeight.Bold,
-                            lineHeight = 8.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        Image(
+                            painter = painterResource(painter),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
                         )
+//                        Text(
+//                            text = brandName,
+//                            color = Color.White,
+//                            fontSize = 7.sp,
+//                            fontWeight = FontWeight.Bold,
+//                            lineHeight = 8.sp,
+//                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+//                        )
                     }
 
                     // Center Content
@@ -170,7 +220,7 @@ fun CouponCard(
                             text = "Details",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if(!isRedeemed) DealoraPrimary else Color.Gray
+                            color = if (!isRedeemed) DealoraPrimary else Color.Gray
                         )
                     }
 
@@ -215,9 +265,7 @@ fun CouponCard(
                         enabled = !isRedeemed
                     ) {
                         Text(
-                            text = "Discover",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                            text = "Discover", fontSize = 13.sp, fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -227,24 +275,20 @@ fun CouponCard(
 
     // Redeem Confirmation Dialog
     if (showRedeemDialog) {
-        RedeemConfirmationDialog(
-            onConfirm = {
-                showRedeemDialog = false
-                if (couponId != null && onRedeem != null) {
-                    onRedeem(couponId)
-                }
-            },
-            onDismiss = {
-                showRedeemDialog = false
+        RedeemConfirmationDialog(onConfirm = {
+            showRedeemDialog = false
+            if (couponId != null && onRedeem != null) {
+                onRedeem(couponId)
             }
-        )
+        }, onDismiss = {
+            showRedeemDialog = false
+        })
     }
 }
 
 @Composable
 fun RedeemConfirmationDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onConfirm: () -> Unit, onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -277,16 +321,12 @@ fun RedeemConfirmationDialog(
         },
         confirmButton = {
             Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
+                onClick = onConfirm, colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF5B3FD9)
-                ),
-                shape = RoundedCornerShape(8.dp)
+                ), shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    text = "Yes, Mark Redeemed",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+                    text = "Yes, Mark Redeemed", fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                 )
             }
         },
@@ -301,8 +341,7 @@ fun RedeemConfirmationDialog(
                     color = Color(0xFF666666)
                 )
             }
-        }
-    )
+        })
 }
 
 @Composable
@@ -313,10 +352,7 @@ fun Chip(text: String) {
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
-            text = text,
-            color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Normal
+            text = text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Normal
         )
     }
 }
