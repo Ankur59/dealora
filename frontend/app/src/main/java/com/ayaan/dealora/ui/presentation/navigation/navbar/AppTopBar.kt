@@ -46,7 +46,10 @@ fun AppTopBar(navController: NavController) {
                     modifier = Modifier
                         .size(35.dp)
                         .border(1.dp, DealoraGray, CircleShape)
-                        .padding(5.dp),
+                        .padding(5.dp)
+                        .clickable {
+                            navController.navigate(Route.Notifications.path)
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

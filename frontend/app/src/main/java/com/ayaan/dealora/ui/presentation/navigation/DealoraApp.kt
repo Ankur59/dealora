@@ -29,6 +29,7 @@ import com.ayaan.dealora.ui.presentation.profile.appprivacy.AppPrivacyScreen
 import com.ayaan.dealora.ui.presentation.profile.contactsupport.ContactSupportScreen
 import com.ayaan.dealora.ui.presentation.profile.desync.DesyncAppScreen
 import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
+import com.ayaan.dealora.ui.presentation.notifications.NotificationsScreen
 import com.ayaan.dealora.ui.presentation.profile.notificationprefs.NotificationPreferencesScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
 import com.ayaan.dealora.ui.presentation.syncapps.SelectAppsScreen
@@ -122,6 +123,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(NotificationPreferences.path) {
             NotificationPreferencesScreen(navController)
+        }
+        composable(Route.Notifications.path) {
+            NotificationsScreen(navController)
         }
         composable(Route.FAQ.path) {
             FAQScreen(navController)
