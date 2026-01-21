@@ -53,17 +53,6 @@ const privateCouponSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
-        userId: {
-            type: String,
-            index: true,
-            trim: true,
-            default: null,
-        },
-        base64ImageUrl: {
-            type: String,
-            trim: true,
-            default: null,
-        },
         couponLink: {
             type: String,
             trim: true,
