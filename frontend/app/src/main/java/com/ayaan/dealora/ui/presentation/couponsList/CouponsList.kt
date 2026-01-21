@@ -40,7 +40,6 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
-import com.ayaan.dealora.ui.presentation.couponsList.components.CouponListItemCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
@@ -324,12 +323,11 @@ fun CouponsList(
                             else if (coupons.itemCount == 0) {
                                 EmptyContent()
                             } else {
-                                // Coupon cards stretch edge-to-edge with 16dp vertical spacing
+                                // Coupon cards with CouponCard component
                                 LazyColumn(
-                                    modifier = Modifier.fillMaxSize()
-                                        .padding(start = 54.dp),
+                                    modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                    contentPadding = PaddingValues(16.dp)
                                 ) {
                                     items(
                                         count = coupons.itemCount,
@@ -337,10 +335,32 @@ fun CouponsList(
                                     ) { index ->
                                         val coupon = coupons[index]
                                         if (coupon != null) {
-                                            CouponListItemCard(
-                                                coupon = coupon,
-                                                modifier = Modifier.fillMaxWidth(),
-                                                navController = navController
+                                            CouponCard(
+                                                brandName = coupon.brandName?.uppercase()?.replace(" ", "\n") ?: "DEALORA",
+                                                couponTitle = coupon.couponTitle ?: "Special Offer",
+                                                description = "", // Not available in list API
+                                                category = null, // Not available in list API
+                                                expiryDays = null, // Not available in list API
+                                                couponCode = "", // Not available in list API
+                                                couponId = coupon.id,
+                                                isRedeemed = false,
+                                                onDetailsClick = {
+                                                    navController.navigate(
+                                                        Route.CouponDetails.createRoute(
+                                                            couponId = coupon.id,
+                                                            isPrivate = false
+                                                        )
+                                                    )
+                                                },
+                                                onDiscoverClick = {
+                                                    // Navigate to details for public coupons
+                                                    navController.navigate(
+                                                        Route.CouponDetails.createRoute(
+                                                            couponId = coupon.id,
+                                                            isPrivate = false
+                                                        )
+                                                    )
+                                                }
                                             )
                                         }
                                     }

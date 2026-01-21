@@ -45,6 +45,24 @@ import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
+/**
+ * Helper function to get brand logo resource with fallback to default logo
+ */
+private fun getBrandLogoResource(brandName: String): Int {
+    return when (brandName.replace("\n", "").trim().lowercase()) {
+        "zomato" -> R.drawable.zomato_logo
+        "swiggy" -> R.drawable.swiggy_logo
+        "blinkit" -> R.drawable.blinkit_logo
+        "amazon" -> R.drawable.azon_logo
+        "flipkart" -> R.drawable.flipkart
+        "nykaa" -> R.drawable.nykaa_logo
+        "cred" -> R.drawable.cred_logo
+        "phonepe", "phone pay" -> R.drawable.phonepe_logo
+        "myntra" -> R.drawable.myntra
+        "dealora" -> R.drawable.logo
+        else -> R.drawable.logo
+    }
+}
 @Composable
 fun CouponCard(
     brandName: String = "BOMBAY\nSHAVING\nCOMPANY",
@@ -60,44 +78,10 @@ fun CouponCard(
     onRedeem: ((String) -> Unit)? = null
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
-    var painter: Int by remember { mutableStateOf(0) }
-    if (brandName.equals(
-            "zomato", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.zomato_logo
-    } else if (brandName.equals(
-            "swiggy", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.swiggy_logo
-    }else if (brandName.equals(
-            "blinkit", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.blinkit_logo
-    }else if (brandName.equals(
-            "amazon", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.azon_logo
-    }else if (brandName.equals(
-            "flipkart", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.flipkart
-    }
-    else if (brandName.equals(
-            "nykaa", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.nykaa_logo
-    }
-    else if (brandName.equals(
-            "cred", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.cred_logo
+
+    // Get brand logo with fallback to default logo
+    val painter: Int = remember(brandName) {
+        getBrandLogoResource(brandName)
     }
 
     Card(
