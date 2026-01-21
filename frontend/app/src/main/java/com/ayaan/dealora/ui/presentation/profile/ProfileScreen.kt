@@ -230,7 +230,9 @@ fun ProfileContent(
 
         // Sync Coupons Card
         MenuCard(
-            icon = R.drawable.sync_coupons, text = "Sync coupons from other apps", onClick = { })
+            icon = R.drawable.sync_coupons, text = "Sync coupons from other apps", onClick = {
+                navController.navigate(Route.SelectAppsScreen.path)
+            })
 
         Spacer(modifier = Modifier.height(12.dp))
 
