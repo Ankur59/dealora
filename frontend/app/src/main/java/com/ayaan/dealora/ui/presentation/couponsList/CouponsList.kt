@@ -194,17 +194,24 @@ fun CouponsList(
                                                         val intent = Intent().apply {
                                                             action = "com.ayaan.couponviewer.SHOW_COUPON"
 
-                                                            // Add coupon data as extras
-                                                            putExtra("EXTRA_COUPON_CODE", privateCoupon.couponCode ?: "")
-                                                            putExtra("EXTRA_COUPON_TITLE", privateCoupon.couponTitle)
-                                                            putExtra("EXTRA_DESCRIPTION", privateCoupon.description ?: "")
-                                                            putExtra("EXTRA_BRAND_NAME", privateCoupon.brandName)
-                                                            putExtra("EXTRA_CATEGORY", privateCoupon.category ?: "")
+                                                            // Add coupon data as extras with defaults for null/empty values
+                                                            putExtra("EXTRA_COUPON_CODE", 
+                                                                privateCoupon.couponCode?.takeIf { it.isNotEmpty() } ?: "NO CODE")
+                                                            putExtra("EXTRA_COUPON_TITLE", 
+                                                                privateCoupon.couponTitle?.takeIf { it.isNotEmpty() } ?: "Special Offer")
+                                                            putExtra("EXTRA_DESCRIPTION", 
+                                                                privateCoupon.description?.takeIf { it.isNotEmpty() } ?: "Check app for details")
+                                                            putExtra("EXTRA_BRAND_NAME", 
+                                                                privateCoupon.brandName?.takeIf { it.isNotEmpty() } ?: "Dealora")
+                                                            putExtra("EXTRA_CATEGORY", 
+                                                                privateCoupon.category?.takeIf { it.isNotEmpty() } ?: "General")
                                                             privateCoupon.daysUntilExpiry?.let {
                                                                 putExtra("EXTRA_EXPIRY_DATE", "$it days")
-                                                            }
-                                                            putExtra("EXTRA_MINIMUM_ORDER", privateCoupon.minimumOrderValue ?: "")
-                                                            putExtra("EXTRA_COUPON_LINK", privateCoupon.couponLink ?: "")
+                                                            } ?: putExtra("EXTRA_EXPIRY_DATE", "Check app for expiry")
+                                                            putExtra("EXTRA_MINIMUM_ORDER", 
+                                                                privateCoupon.minimumOrderValue?.takeIf { it.isNotEmpty() } ?: "No minimum")
+                                                            putExtra("EXTRA_COUPON_LINK", 
+                                                                privateCoupon.couponLink?.takeIf { it.isNotEmpty() } ?: "")
                                                             putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
 
                                                             // Set package to ensure it opens the right app
@@ -353,13 +360,50 @@ fun CouponsList(
                                                     )
                                                 },
                                                 onDiscoverClick = {
-                                                    // Navigate to details for public coupons
-                                                    navController.navigate(
-                                                        Route.CouponDetails.createRoute(
-                                                            couponId = coupon.id,
-                                                            isPrivate = false
-                                                        )
-                                                    )
+                                                    try {
+                                                        // Create implicit intent with custom action
+                                                        val intent = Intent().apply {
+                                                            action = "com.ayaan.couponviewer.SHOW_COUPON"
+
+                                                            // Add coupon data as extras with defaults for missing data
+                                                            putExtra("EXTRA_COUPON_CODE", coupon.couponTitle ?: "DISCOVER")
+                                                            putExtra("EXTRA_COUPON_TITLE", coupon.couponTitle ?: "Special Offer")
+                                                            putExtra("EXTRA_DESCRIPTION", "View details in the app for more information")
+                                                            putExtra("EXTRA_BRAND_NAME", coupon.brandName ?: "Dealora")
+                                                            putExtra("EXTRA_CATEGORY", "General")
+                                                            putExtra("EXTRA_MINIMUM_ORDER", "No minimum")
+                                                            putExtra("EXTRA_COUPON_LINK", "")
+                                                            putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
+
+                                                            // Set package to ensure it opens the right app
+                                                            setPackage("com.ayaan.couponviewer")
+
+                                                            // Add category to help Android find the intent handler
+                                                            addCategory(Intent.CATEGORY_DEFAULT)
+                                                        }
+
+                                                        Log.d("CouponsList", "Attempting to launch CouponViewer with intent: $intent")
+                                                        Log.d("CouponsList", "Coupon Title: ${coupon.couponTitle}")
+
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Log.e("CouponsList", "Failed to open CouponViewer app: ${e.message}", e)
+
+                                                        // Fallback to Play Store
+                                                        try {
+                                                            val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                                setPackage("com.android.vending")
+                                                            }
+                                                            context.startActivity(playStoreIntent)
+                                                        } catch (e2: Exception) {
+                                                            // Last resort - open in browser
+                                                            val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                            }
+                                                            context.startActivity(browserIntent)
+                                                        }
+                                                    }
                                                 }
                                             )
                                         }
