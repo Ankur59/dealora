@@ -164,7 +164,7 @@ fun NotificationCard(notification: NotificationItem) {
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFF1E1E1E)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+//                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = notification.description,
                     fontSize = 12.sp,
@@ -182,7 +182,7 @@ fun NotificationCard(notification: NotificationItem) {
                         color = notification.timeBadgeColor,
                         shape = RoundedCornerShape(28.dp)
                     )
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                    .padding(horizontal = 10.dp,),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
