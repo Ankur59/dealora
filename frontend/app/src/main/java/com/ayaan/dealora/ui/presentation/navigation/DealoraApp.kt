@@ -87,14 +87,14 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
 
             val allApps = listOf(
                 SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
-                SyncApp("phonepe", "Phone Pay", R.drawable.logo),
-                SyncApp("blinkit", "Blinkit", R.drawable.zomato_logo),
-                SyncApp("amazon", "Amazon", R.drawable.logo),
-                SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
-                SyncApp("cred", "CRED", R.drawable.logo),
-                SyncApp("swiggy", "Swiggy", R.drawable.zomato_logo),
+                SyncApp("phonepe", "Phone Pay", R.drawable.phonepe_logo),
+                SyncApp("blinkit", "Blinkit", R.drawable.blinkit_logo),
+                SyncApp("amazon", "Amazon", R.drawable.azon_logo),
+                SyncApp("nykaa", "Nykaa", R.drawable.nykaa_logo),
+                SyncApp("cred", "CRED", R.drawable.cred_logo),
+                SyncApp("swiggy", "Swiggy", R.drawable.swiggy_logo),
                 SyncApp("zepto", "Zepto", R.drawable.logo),
-                SyncApp("licious", "Licious", R.drawable.zomato_logo),
+                SyncApp("licious", "Licious", R.drawable.logo),
                 SyncApp("dealora", "Dealora", R.drawable.logo),
             )
 

@@ -150,7 +150,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             // Coupons Card
-            CouponsCard()
+//            CouponsCard()
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -211,5 +211,3 @@ fun HomeScreen(
         }
     }
 }
-
-
