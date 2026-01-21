@@ -43,7 +43,7 @@ fun getAppIconResource(appId: String): Int {
         "swiggy" -> R.drawable.swiggy_logo
         "flipkart" -> R.drawable.flipkart
         "myntra" -> R.drawable.myntra
-        else -> R.drawable.logo // Default logo
+        else -> R.drawable.logo
     }
 }
 
