@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +46,15 @@ class DashboardViewModel @Inject constructor(
 
     private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
     val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
+
+    private val _currentSortOption = MutableStateFlow(SortOption.NONE)
+    val currentSortOption: StateFlow<SortOption> = _currentSortOption.asStateFlow()
+
+    private val _currentCategory = MutableStateFlow<String?>(null)
+    val currentCategory: StateFlow<String?> = _currentCategory.asStateFlow()
+
+    private val _currentFilters = MutableStateFlow(com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions())
+    val currentFilters: StateFlow<com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions> = _currentFilters.asStateFlow()
 
     init {
         // Load all private coupons and saved IDs
@@ -110,21 +120,57 @@ class DashboardViewModel @Inject constructor(
         val allCoupons = _allPrivateCoupons.value
         val saved = _savedCouponIds.value
         val query = _searchQuery.value.lowercase()
+        val sortOption = _currentSortOption.value
+        val categoryFilter = _currentCategory.value
+        val filters = _currentFilters.value
 
-        val filtered = allCoupons.filter { coupon ->
-            saved.contains(coupon.id) && (
+        var filtered = allCoupons.filter { coupon ->
+            // Must be saved
+            saved.contains(coupon.id) && 
+            // Search query match
+            (query.isEmpty() || (
                 coupon.brandName.lowercase().contains(query) ||
                 coupon.couponTitle.lowercase().contains(query) ||
                 (coupon.description?.lowercase()?.contains(query) ?: false)
-            )
+            )) &&
+            // Category filter
+            (categoryFilter == null || categoryFilter == "See All" || coupon.category == categoryFilter) &&
+            // Brand filter
+            (filters.brand == null || coupon.brandName.equals(filters.brand, ignoreCase = true))
+        }
+
+        // Apply sort
+        filtered = when (sortOption) {
+            SortOption.NEWEST_FIRST -> filtered.sortedByDescending { it.createdAt }
+            SortOption.OLDEST_FIRST -> filtered.sortedBy { it.createdAt }
+            SortOption.EXPIRING_SOON -> filtered.sortedBy { it.daysUntilExpiry ?: Int.MAX_VALUE }
+            SortOption.HIGHEST_DISCOUNT -> filtered // Private coupons don't have discount value, keep as-is
+            SortOption.A_TO_Z -> filtered.sortedBy { it.brandName }
+            SortOption.Z_TO_A -> filtered.sortedByDescending { it.brandName }
+            SortOption.NONE -> filtered
         }
 
         _filteredCoupons.value = filtered
-        Log.d(TAG, "Filtered coupons: ${filtered.size} out of ${allCoupons.size}")
+        Log.d(TAG, "Filtered coupons: ${filtered.size} out of ${allCoupons.size}, sort: $sortOption, category: $categoryFilter")
     }
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+        filterCoupons()
+    }
+
+    fun onSortOptionChanged(sortOption: SortOption) {
+        _currentSortOption.value = sortOption
+        filterCoupons()
+    }
+
+    fun onCategoryChanged(category: String?) {
+        _currentCategory.value = category
+        filterCoupons()
+    }
+
+    fun onFiltersChanged(filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions) {
+        _currentFilters.value = filters
         filterCoupons()
     }
 

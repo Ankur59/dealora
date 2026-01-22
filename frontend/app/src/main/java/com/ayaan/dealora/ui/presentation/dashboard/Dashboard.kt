@@ -34,6 +34,9 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +50,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
+import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
+import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraGray
 import com.ayaan.dealora.ui.theme.DealoraPrimary
@@ -61,6 +68,13 @@ fun Dashboard(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredCoupons by viewModel.filteredCoupons.collectAsState()
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
+    val currentSortOption by viewModel.currentSortOption.collectAsState()
+    val currentCategory by viewModel.currentCategory.collectAsState()
+    val currentFilters by viewModel.currentFilters.collectAsState()
+
+    var showSortDialog by remember { mutableStateOf(false) }
+    var showFiltersDialog by remember { mutableStateOf(false) }
+    var showCategoryDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.White,
@@ -114,7 +128,37 @@ fun Dashboard(
                 .fillMaxSize()
         ) {
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Search Bar
+            TextField(
+                value = searchQuery,
+                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                placeholder = { Text("Search saved coupons...") },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF5F5F5),
+                    unfocusedContainerColor = Color(0xFFF5F5F5),
+                    focusedIndicatorColor = DealoraPrimary,
+                    unfocusedIndicatorColor = Color(0xFFE0E0E0)
+                ),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Filter section
+            Box(modifier = Modifier) {
+                CouponsFilterSection(
+                    onSortClick = { showSortDialog = true },
+                    onCategoryClick = { showCategoryDialog = true },
+                    onFiltersClick = { showFiltersDialog = true }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Content
             when (uiState) {
@@ -302,6 +346,39 @@ fun Dashboard(
                     }
                 }
             }
+        }
+
+        // Sort Bottom Sheet
+        if (showSortDialog) {
+            SortBottomSheet(
+                currentSort = currentSortOption,
+                onDismiss = { showSortDialog = false },
+                onSortSelected = { sortOption ->
+                    viewModel.onSortOptionChanged(sortOption)
+                }
+            )
+        }
+
+        // Filters Bottom Sheet
+        if (showFiltersDialog) {
+            FiltersBottomSheet(
+                currentFilters = currentFilters,
+                onDismiss = { showFiltersDialog = false },
+                onApplyFilters = { filters ->
+                    viewModel.onFiltersChanged(filters)
+                }
+            )
+        }
+
+        // Category Bottom Sheet
+        if (showCategoryDialog) {
+            CategoryBottomSheet(
+                currentCategory = currentCategory,
+                onDismiss = { showCategoryDialog = false },
+                onCategorySelected = { category ->
+                    viewModel.onCategoryChanged(category)
+                }
+            )
         }
     }
 }
