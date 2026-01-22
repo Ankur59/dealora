@@ -146,12 +146,32 @@ class CouponRepository @Inject constructor(
     }
 
     /**
-     * Sync private coupons based on selected brands
+     * Sync private coupons with filter support
      */
-    suspend fun syncPrivateCoupons(brands: List<String>): PrivateCouponResult {
+    suspend fun syncPrivateCoupons(
+        brands: List<String>,
+        category: String? = null,
+        search: String? = null,
+        discountType: String? = null,
+        price: String? = null,
+        validity: String? = null,
+        sortBy: String? = null,
+        page: Int? = null,
+        limit: Int? = null
+    ): PrivateCouponResult {
         return try {
-            Log.d(TAG, "Syncing private coupons for brands: ${brands.joinToString()}")
-            val request = SyncPrivateCouponsRequest(brands)
+            Log.d(TAG, "Syncing private coupons for brands: $brands, search: $search, category: $category, sortBy: $sortBy")
+            val request = SyncPrivateCouponsRequest(
+                brands = brands,
+                category = category,
+                search = search,
+                discountType = discountType,
+                price = price,
+                validity = validity,
+                sortBy = sortBy,
+                page = page,
+                limit = limit
+            )
             val response = couponApiService.syncPrivateCoupons(request)
 
             if (response.isSuccessful) {
@@ -185,7 +205,17 @@ class CouponRepository @Inject constructor(
     suspend fun getPrivateCouponById(couponId: String, brands: List<String>): PrivateCoupon? {
         return try {
             Log.d(TAG, "Fetching private coupon with id: $couponId")
-            val result = syncPrivateCoupons(brands)
+            val result = syncPrivateCoupons(
+                brands = brands,
+                category = null,
+                search = null,
+                discountType = null,
+                price = null,
+                validity = null,
+                sortBy = null,
+                page = null,
+                limit = null
+            )
 
             when (result) {
                 is PrivateCouponResult.Success -> {

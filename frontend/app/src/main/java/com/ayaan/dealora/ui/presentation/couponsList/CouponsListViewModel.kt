@@ -317,7 +317,17 @@ class CouponsListViewModel @Inject constructor(
                     return@launch
                 }
 
-                when (val result = couponRepository.syncPrivateCoupons(brands)) {
+                when (val result = couponRepository.syncPrivateCoupons(
+                    brands = brands,
+                    category = null,
+                    search = null,
+                    discountType = null,
+                    price = null,
+                    validity = null,
+                    sortBy = null,
+                    page = null,
+                    limit = null
+                )) {
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
                         _privateCoupons.value = result.coupons
