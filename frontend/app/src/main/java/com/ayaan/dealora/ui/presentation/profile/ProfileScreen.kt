@@ -1,5 +1,10 @@
 package com.ayaan.dealora.ui.presentation.profile
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,6 +48,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -128,8 +136,9 @@ fun ProfileScreen(
                     name = uiState.user?.name ?: "",
                     phone = uiState.user?.phone ?: "",
                     email = uiState.user?.email ?: "",
-                    onSaveChanges = { name, email, phone ->
-                        viewModel.updateProfile(name, email, phone)
+                    profilePicture = uiState.user?.profilePicture,
+                    onSaveChanges = { name, email, phone, profilePictureBase64 ->
+                        viewModel.updateProfile(name, email, phone, profilePictureBase64)
                     },
                     onLogout = {
                         viewModel.logout()
@@ -148,7 +157,8 @@ fun ProfileContent(
     name: String,
     phone: String,
     email: String,
-    onSaveChanges: (String, String, String) -> Unit = { _, _, _ -> },
+    profilePicture: String? = null,
+    onSaveChanges: (String, String, String, String?) -> Unit = { _, _, _, _ -> },
     onLogout: () -> Unit = {}
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -163,21 +173,52 @@ fun ProfileContent(
             name = name,
             email = email,
             phone = phone,
+            profilePicture = profilePicture,
             onSaveChanges = onSaveChanges
         )
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Profile Picture - decode base64 outside composable context
+        val profileBitmap = remember(profilePicture) {
+            if (profilePicture != null && profilePicture.isNotEmpty()) {
+                try {
+                    val imageBytes = Base64.decode(profilePicture, Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            } else {
+                null
+            }
+        }
+
         Box(
             modifier = Modifier
                 .size(100.dp)
                 .align(Alignment.CenterHorizontally)
                 .clip(CircleShape)
-                .background(Color.White), contentAlignment = Alignment.Center
+                .background(Color.White),
+            contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(R.drawable.profile_placeholder),
-                contentDescription = "Profile Picture",
-                modifier = Modifier.size(60.dp)
-            )
+            if (profileBitmap != null) {
+                // Display decoded base64 image
+                Image(
+                    bitmap = profileBitmap.asImageBitmap(),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // Default placeholder
+                Image(
+                    painter = painterResource(R.drawable.profile_placeholder),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier.size(60.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -496,7 +537,8 @@ fun ProfileTopBar(
     name: String,
     email: String,
     phone: String,
-    onSaveChanges: (String, String, String) -> Unit
+    profilePicture: String? = null,
+    onSaveChanges: (String, String, String, String?) -> Unit
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
 
@@ -534,9 +576,10 @@ fun ProfileTopBar(
             name = name,
             email = email,
             phone = phone,
+            profilePicture = profilePicture,
             onDismiss = { showEditDialog = false },
-            onSave = { newName, newEmail, newPhone ->
-                onSaveChanges(newName, newEmail, newPhone)
+            onSave = { newName, newEmail, newPhone, newProfilePicture ->
+                onSaveChanges(newName, newEmail, newPhone, newProfilePicture)
                 showEditDialog = false
             })
     }
@@ -547,12 +590,49 @@ fun EditProfileDialog(
     name: String,
     email: String,
     phone: String,
+    profilePicture: String? = null,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit
+    onSave: (String, String, String, String?) -> Unit
 ) {
+    val context = LocalContext.current
     var editedName by remember { mutableStateOf(name) }
     var editedEmail by remember { mutableStateOf(email) }
     var editedPhone by remember { mutableStateOf(phone) }
+    var selectedImageBase64 by remember { mutableStateOf<String?>(profilePicture) }
+
+    // Image picker launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                // Read image and convert to base64
+                val inputStream = context.contentResolver.openInputStream(it)
+                val bytes = inputStream?.readBytes()
+                inputStream?.close()
+
+                if (bytes != null) {
+                    selectedImageBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Decode current profile picture for display
+    val currentProfileBitmap = remember(selectedImageBase64) {
+        if (selectedImageBase64 != null && selectedImageBase64!!.isNotEmpty()) {
+            try {
+                val imageBytes = Base64.decode(selectedImageBase64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -569,10 +649,12 @@ fun EditProfileDialog(
             ) {
                 // Close Button
                 Box(
-                    modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopEnd
                 ) {
                     IconButton(
-                        onClick = onDismiss, modifier = Modifier.size(24.dp)
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -581,6 +663,47 @@ fun EditProfileDialog(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Profile Picture
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .align(Alignment.CenterHorizontally)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF5F5F5))
+                        .border(2.dp, Color(0xFF0D7275), CircleShape)
+                        .clickable { imagePickerLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (currentProfileBitmap != null) {
+                        Image(
+                            bitmap = currentProfileBitmap.asImageBitmap(),
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier
+                                .size(100.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(R.drawable.profile_placeholder),
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier.size(50.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Click to change text
+                Text(
+                    text = "Tap to change photo",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -628,60 +751,11 @@ fun EditProfileDialog(
                     shape = RoundedCornerShape(8.dp)
                 )
 
-//                Spacer(modifier = Modifier.height(16.dp))
-//                // Phone Number Field
-//                Text(
-//                    text = "Phone Number",
-//                    fontSize = 14.sp,
-//                    fontWeight = FontWeight.Medium,
-//                    color = Color.Black
-//                )
-//                Spacer(modifier = Modifier.height(2.dp))
-//                Row(
-//                    modifier = Modifier.fillMaxWidth(),
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    // Country Code
-//                    Box(
-//                        modifier = Modifier
-//                            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
-//                            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
-//                            .padding(horizontal = 12.dp, vertical = 16.dp)
-//                    ) {
-//                        Row(verticalAlignment = Alignment.CenterVertically) {
-//                            Text(text = "🇮🇳", fontSize = 20.sp)
-//                            Spacer(modifier = Modifier.width(4.dp))
-//                            Text(
-//                                text = "+91",
-//                                fontSize = 14.sp,
-//                                color = Color.Black
-//                            )
-//                        }
-//                    }
-//
-//                    Spacer(modifier = Modifier.width(12.dp))
-//
-//                    // Phone Number
-//                    OutlinedTextField(
-//                        value = editedPhone,
-//                        onValueChange = { editedPhone = it },
-//                        modifier = Modifier.weight(1f),
-//                        colors = OutlinedTextFieldDefaults.colors(
-//                            focusedBorderColor = Color(0xFF0D7275),
-//                            unfocusedBorderColor = Color.LightGray,
-//                            focusedContainerColor = Color(0xFFF5F5F5),
-//                            unfocusedContainerColor = Color(0xFFF5F5F5)
-//                        ),
-//                        shape = RoundedCornerShape(8.dp),
-//                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
-//                    )
-//                }
-
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Save Changes Button
                 Button(
-                    onClick = { onSave(editedName, editedEmail, editedPhone) },
+                    onClick = { onSave(editedName, editedEmail, editedPhone, selectedImageBase64) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),

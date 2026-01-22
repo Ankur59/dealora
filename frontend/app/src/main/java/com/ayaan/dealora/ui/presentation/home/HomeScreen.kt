@@ -145,7 +145,11 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            SearchBar()
+            SearchBar(
+//                onClick = {
+//                    navController.navigate(Route.Dashboard.createRoute())
+//                }
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 

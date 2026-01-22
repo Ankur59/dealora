@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -333,6 +335,11 @@ fun Dashboard(
                             ) { index ->
                                 val coupon = filteredCoupons[index]
 
+                                // State for this specific card
+                                var showSuccessDialog by remember { mutableStateOf(false) }
+                                var showErrorDialog by remember { mutableStateOf(false) }
+                                var errorMessage by remember { mutableStateOf("") }
+
                                 CouponCard(
                                     brandName = coupon.brandName.uppercase()
                                         .replace(" ", "\n"),
@@ -343,10 +350,26 @@ fun Dashboard(
                                     couponCode = coupon.couponCode ?: "",
                                     couponId = coupon.id,
                                     isRedeemed = coupon.redeemed ?: false,
-                                    isSaved = true, // Always true since we're only showing saved ones
+                                    isSaved = savedCouponIds.contains(coupon.id),
                                     onRemoveSave = { couponId ->
                                         // Remove from saved but keep showing in list with unsaved state
                                         viewModel.removeSavedCoupon(couponId)
+                                    },
+                                    onSave = {},
+                                    onRedeem = { couponId ->
+                                        Log.d("Dashboard", "Redeem clicked for coupon: $couponId")
+                                        viewModel.redeemCoupon(
+                                            couponId = couponId,
+                                            onSuccess = {
+                                                Log.d("Dashboard", "Coupon redeemed successfully")
+                                                showSuccessDialog = true
+                                            },
+                                            onError = { error ->
+                                                Log.e("Dashboard", "Failed to redeem coupon: $error")
+                                                errorMessage = error
+                                                showErrorDialog = true
+                                            }
+                                        )
                                     },
                                     onDetailsClick = {
                                         navController.navigate(
@@ -421,6 +444,34 @@ fun Dashboard(
                                         }
                                     }
                                 )
+
+                                // Success Dialog
+                                if (showSuccessDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showSuccessDialog = false },
+                                        title = { Text("Success") },
+                                        text = { Text("Coupon redeemed successfully!") },
+                                        confirmButton = {
+                                            TextButton(onClick = { showSuccessDialog = false }) {
+                                                Text("OK")
+                                            }
+                                        }
+                                    )
+                                }
+
+                                // Error Dialog
+                                if (showErrorDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showErrorDialog = false },
+                                        title = { Text("Error") },
+                                        text = { Text(errorMessage) },
+                                        confirmButton = {
+                                            TextButton(onClick = { showErrorDialog = false }) {
+                                                Text("OK")
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

@@ -79,7 +79,7 @@ class ProfileViewModel @Inject constructor(
         fetchProfile()
     }
 
-    fun updateProfile(name: String, email: String, phone: String) {
+    fun updateProfile(name: String, email: String, phone: String, profilePictureBase64: String? = null) {
         val uid = firebaseAuth.currentUser?.uid
 
         if (uid == null) {
@@ -100,7 +100,7 @@ class ProfileViewModel @Inject constructor(
         }
 
         // Build update data map with only changed fields
-        val updateData = mutableMapOf<String, String>()
+        val updateData = mutableMapOf<String, Any>()
         if (name != currentUser.name) {
             updateData["name"] = name
         }
@@ -109,6 +109,10 @@ class ProfileViewModel @Inject constructor(
         }
         if (phone != currentUser.phone) {
             updateData["phone"] = phone
+        }
+        // Add profile picture if provided
+        if (profilePictureBase64 != null) {
+            updateData["profilePicture"] = profilePictureBase64
         }
 
         // If no changes, don't make API call
