@@ -173,11 +173,25 @@ class DashboardViewModel @Inject constructor(
         val saved = _savedCouponIds.value
         val statusFilterValue = _statusFilter.value
 
+        Log.d(TAG, "=== FILTER DEBUG START ===")
+        Log.d(TAG, "Total coupons: ${allCoupons.size}")
+        Log.d(TAG, "Status filter: $statusFilterValue")
+        Log.d(TAG, "Saved coupon IDs: ${saved.size}")
+
+        // Log all coupons with their expiry info
+        allCoupons.forEachIndexed { index, coupon ->
+            Log.d(TAG, "Coupon $index: ${coupon.couponTitle}, daysUntilExpiry: ${coupon.daysUntilExpiry}, redeemed: ${coupon.redeemed}, saved: ${saved.contains(coupon.id)}")
+        }
+
         val filtered = allCoupons.filter { coupon ->
             when (statusFilterValue) {
                 "saved" -> saved.contains(coupon.id)
                 "redeemed" -> coupon.redeemed == true
-                "expired" -> (coupon.daysUntilExpiry ?: 0) < 0
+                "expired" -> {
+                    val isExpired = ((coupon.daysUntilExpiry?.minus(1)) ?: 0) < 0
+                    Log.d(TAG, "Checking expired for ${coupon.couponTitle}: daysUntilExpiry=${coupon.daysUntilExpiry}, isExpired=$isExpired")
+                    isExpired
+                }
                 "active" -> {
                     // Active: neither expired nor redeemed
                     (coupon.daysUntilExpiry ?: 0) >= 0 && coupon.redeemed != true
@@ -188,6 +202,7 @@ class DashboardViewModel @Inject constructor(
 
         _filteredCoupons.value = filtered
         Log.d(TAG, "Filtered coupons by status: ${filtered.size} out of ${allCoupons.size}, status: $statusFilterValue")
+        Log.d(TAG, "=== FILTER DEBUG END ===")
     }
 
     fun onSearchQueryChanged(query: String) {

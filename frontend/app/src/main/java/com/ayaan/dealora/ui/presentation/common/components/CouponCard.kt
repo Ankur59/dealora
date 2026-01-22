@@ -165,7 +165,13 @@ fun CouponCard(
                                 Chip(text = category)
                             }
                             if (expiryDays != null) {
-                                Chip(text = "Expiry in $expiryDays days")
+                                if (expiryDays>0) {
+                                    Chip(text = "Expiry in $expiryDays days")
+                                }else if(expiryDays<0){
+                                    Chip(text = "Expired")
+                                }else{
+                                    Chip(text = "Expiring Today")
+                                }
                             }
                         }
                     }
@@ -230,6 +236,9 @@ fun CouponCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Check if coupon is expired
+                    val isExpired = expiryDays != null && expiryDays < 0
+
                     // Details Button
                     TextButton(
                         onClick = onDetailsClick,
@@ -237,13 +246,13 @@ fun CouponCard(
                             .weight(1f)
                             .height(36.dp),
                         contentPadding = PaddingValues(0.dp),
-                        enabled = !isRedeemed
+                        enabled = !isRedeemed && !isExpired
                     ) {
                         Text(
                             text = "Details",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (!isRedeemed) DealoraPrimary else Color.Gray
+                            color = if (!isRedeemed && !isExpired) DealoraPrimary else Color.Gray
                         )
                     }
 
@@ -307,14 +316,14 @@ fun CouponCard(
                                 .height(36.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = Color.White,
-                                contentColor = Color(0xFF666666)
+                                contentColor = if (!isExpired) Color(0xFF666666) else Color.Gray
                             ),
                             border = BorderStroke(
                                 width = 1.dp,
-                                brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFCCCCCC))
+                                brush = androidx.compose.ui.graphics.SolidColor(if (!isExpired) Color(0xFFCCCCCC) else Color.Gray)
                             ),
                             contentPadding = PaddingValues(0.dp),
-                            enabled = true
+                            enabled = !isExpired
                         ) {
                             Text(
                                 text = "Redeem",
@@ -331,10 +340,11 @@ fun CouponCard(
                             .weight(1f)
                             .height(36.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF5B3FD9)
+                            containerColor = Color(0xFF5B3FD9),
+                            disabledContainerColor = Color.Gray
                         ),
                         contentPadding = PaddingValues(0.dp),
-                        enabled = !isRedeemed
+                        enabled = !isRedeemed && !isExpired
                     ) {
                         Text(
                             text = "Discover", fontSize = 13.sp, fontWeight = FontWeight.SemiBold
