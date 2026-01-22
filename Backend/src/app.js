@@ -40,6 +40,35 @@ app.use(sanitize);
 app.use(express.json({ limit: '10mb', strict: true }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Middleware to handle duplicate query parameters (convert to array)
+app.use((req, res, next) => {
+    // Parse raw query string to handle duplicate parameters
+    if (req.url.includes('?')) {
+        const urlParts = req.url.split('?');
+        if (urlParts[1]) {
+            const params = new URLSearchParams(urlParts[1]);
+            const paramMap = {};
+            
+            params.forEach((value, key) => {
+                if (paramMap[key]) {
+                    // If key already exists, convert to array
+                    if (Array.isArray(paramMap[key])) {
+                        paramMap[key].push(value);
+                    } else {
+                        paramMap[key] = [paramMap[key], value];
+                    }
+                } else {
+                    paramMap[key] = value;
+                }
+            });
+            
+            // Merge with existing req.query
+            req.query = { ...req.query, ...paramMap };
+        }
+    }
+    next();
+});
+
 app.use((req, res, next) => {
     req.setTimeout(30000);
     res.setTimeout(30000);

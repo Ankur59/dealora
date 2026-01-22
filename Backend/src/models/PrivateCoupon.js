@@ -53,6 +53,15 @@ const privateCouponSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        discountType: {
+            type: String,
+            enum: ['percentage', 'flat', 'cashback', 'freebie', 'buy1get1', 'free_delivery', 'wallet_upi', 'prepaid_only', 'unknown'],
+            default: 'unknown',
+        },
+        discountValue: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
         couponLink: {
             type: String,
             trim: true,
