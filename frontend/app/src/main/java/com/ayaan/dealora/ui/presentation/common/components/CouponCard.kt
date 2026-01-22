@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.common.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -78,11 +80,15 @@ fun CouponCard(
     discountType: String? = null,
     discountValue: String? = null,
     terms: String? = null,
+    isSaved: Boolean = false,
     onDetailsClick: () -> Unit = {},
     onDiscoverClick: () -> Unit = {},
-    onRedeem: ((String) -> Unit)? = null
+    onRedeem: ((String) -> Unit)? = null,
+    onSave: ((String) -> Unit)? = null,
+    onRemoveSave: ((String) -> Unit)? = null
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
+    var isSavedLocal by remember(isSaved) { mutableStateOf(isSaved) }
 
     // Get brand logo with fallback to default logo
     val painter: Int = remember(brandName) {
@@ -163,13 +169,40 @@ fun CouponCard(
                         }
                     }
 
-                    // Star Icon
-                    Icon(
-                        imageVector = Icons.Outlined.BookmarkBorder,
-                        contentDescription = "Featured",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    // Bookmark Icon with Save Status
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clickable {
+                                if (couponId != null) {
+                                    if (isSavedLocal) {
+                                        isSavedLocal = false
+                                        onRemoveSave?.invoke(couponId)
+                                    } else {
+                                        isSavedLocal = true
+                                        onSave?.invoke(couponId)
+                                    }
+                                }
+                            }
+                    ) {
+                        Icon(
+                            imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = "Save coupon",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        if (isSavedLocal) {
+                            Text(
+                                text = "Saved",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                                lineHeight = 10.sp
+                            )
+                        }
+                    }
                 }
             }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.ayaan.dealora.data.local.DealoraDatabase
 import com.ayaan.dealora.data.local.dao.SyncedAppDao
+import com.ayaan.dealora.data.local.dao.SavedCouponDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,12 +25,18 @@ object DatabaseModule {
             context,
             DealoraDatabase::class.java,
             "dealora_database"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
     @Singleton
     fun provideSyncedAppDao(database: DealoraDatabase): SyncedAppDao {
         return database.syncedAppDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideSavedCouponDao(database: DealoraDatabase): SavedCouponDao {
+        return database.savedCouponDao()
     }
 }

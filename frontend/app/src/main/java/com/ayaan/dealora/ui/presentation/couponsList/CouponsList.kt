@@ -65,6 +65,7 @@ fun CouponsList(
 
     var showFiltersDialog by remember { mutableStateOf(false) }
     val privateCoupons by viewModel.privateCoupons.collectAsState()
+    val savedCouponIds by viewModel.savedCouponIds.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
     LaunchedEffect(isPublicMode) {
@@ -155,6 +156,13 @@ fun CouponsList(
                                                 couponCode = privateCoupon.couponCode ?: "",
                                                 couponId = privateCoupon.id,
                                                 isRedeemed = privateCoupon.redeemed ?: false,
+                                                isSaved = savedCouponIds.contains(privateCoupon.id),
+                                                onSave = { couponId ->
+                                                    viewModel.saveCouponFromModel(couponId, privateCoupon)
+                                                },
+                                                onRemoveSave = { couponId ->
+                                                    viewModel.removeSavedCoupon(couponId)
+                                                },
                                                 onRedeem = { couponId ->
                                                     Log.d(
                                                         "CouponsList",
@@ -403,6 +411,14 @@ fun CouponsList(
                                                 couponCode = "", // Not available in list API
                                                 couponId = coupon.id,
                                                 isRedeemed = false,
+                                                isSaved = savedCouponIds.contains(coupon.id),
+                                                onSave = { couponId ->
+                                                    // For public coupons, save with minimal data since we don't have full details
+                                                    viewModel.saveCoupon(couponId, "{}")
+                                                },
+                                                onRemoveSave = { couponId ->
+                                                    viewModel.removeSavedCoupon(couponId)
+                                                },
                                                 onDetailsClick = {
                                                     navController.navigate(
                                                         Route.CouponDetails.createRoute(
