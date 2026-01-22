@@ -199,7 +199,15 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         composable(Route.Home.path) {
             HomeScreen(navController)
         }
-        composable(Route.Dashboard.path) {
+        composable(
+            route = Route.Dashboard.path,
+            arguments = listOf(
+                navArgument("tab") {
+                    type = NavType.StringType
+                    defaultValue = "saved"
+                }
+            )
+        ) {
             Dashboard(navController)
         }
         composable(Route.RedeemedCoupons.path) {
