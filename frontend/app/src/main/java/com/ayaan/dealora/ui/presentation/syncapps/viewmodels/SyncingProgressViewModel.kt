@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.syncapps
+package com.ayaan.dealora.ui.presentation.syncapps.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

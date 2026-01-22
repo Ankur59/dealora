@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.syncapps
+package com.ayaan.dealora.ui.presentation.syncapps.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -41,11 +42,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
+import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.SelectAppsViewModel
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 data class SyncApp(
@@ -168,7 +171,7 @@ fun SelectAppsScreen(
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.CircularProgressIndicator(color = DealoraPrimary)
+                CircularProgressIndicator(color = DealoraPrimary)
             }
         } else if (availableApps.isEmpty()) {
             // Empty State - All apps are synced
@@ -193,7 +196,7 @@ fun SelectAppsScreen(
                         text = "You've already synced all available apps. Check De-Sync Apps to manage them.",
                         fontSize = 14.sp,
                         color = Color.Gray,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -258,7 +261,7 @@ fun SelectAppsScreen(
             fontSize = 14.sp,
             color = Color.Black,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -327,7 +330,7 @@ fun AppItem(
                 fontSize = 12.sp,
                 color = Color.Black,
                 maxLines = 1,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
 

@@ -39,7 +39,7 @@ fun DealoraBottomBar(
     navController: NavController
 ) {
     val items = listOf(
-        BottomBarItem(R.drawable.dashboard_48, "Dashboard", {}),
+        BottomBarItem(R.drawable.dashboard_48, "Dashboard", {navController.navigate(Route.Dashboard.path)}),
         BottomBarItem(R.drawable.add_coupon_48, "Add Coupon",{navController.navigate(Route.AddCoupon.path)}),
         BottomBarItem(R.drawable.redeemed_coupon_48, "Redeemed\nCoupons",{})
     )

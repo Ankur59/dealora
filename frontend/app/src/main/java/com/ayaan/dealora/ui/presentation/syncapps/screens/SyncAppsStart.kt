@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.syncapps
+package com.ayaan.dealora.ui.presentation.syncapps.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
