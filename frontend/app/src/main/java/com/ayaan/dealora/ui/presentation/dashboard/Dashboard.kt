@@ -19,10 +19,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,6 +78,7 @@ fun Dashboard(
     var showSortDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
     var showCategoryDialog by remember { mutableStateOf(false) }
+    var selectedStatusFilter by remember { mutableStateOf("saved") } // "active", "redeemed", "expired", "saved"
 
     Scaffold(
         containerColor = Color.White,
@@ -130,7 +134,8 @@ fun Dashboard(
 
 //            Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
+
+            Spacer(modifier = Modifier.height(12.dp))            // Status Filter Buttons
 
             // Filter section
             Box(modifier = Modifier) {
@@ -140,8 +145,43 @@ fun Dashboard(
                     onFiltersClick = { showFiltersDialog = true }
                 )
             }
-
             Spacer(modifier = Modifier.height(12.dp))
+
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) {
+                items(4) { index ->
+                    val (label, value) = when (index) {
+                        0 -> "Active Coupons" to "active"
+                        1 -> "Redeemed Coupons" to "redeemed"
+                        2 -> "Expired Coupons" to "expired"
+                        else -> "Saved Coupons" to "saved"
+                    }
+
+                    val isSelected = selectedStatusFilter == value
+
+                    Button(
+                        onClick = { selectedStatusFilter = value },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isSelected) DealoraPrimary else Color(0xFFE8E8E8),
+                            contentColor = if (isSelected) Color.White else Color(0xFF666666)
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+//            Spacer(modifier = Modifier.height(12.dp))
 
             // Content
             when (uiState) {
