@@ -17,7 +17,6 @@ exports.syncCoupons = async (req, res) => {
             price, 
             minimumOrder,
             sortBy = 'newest_first',
-            status,  // No default - show all when not provided
             validity,
             page = 1,
             limit = 20
@@ -36,20 +35,6 @@ exports.syncCoupons = async (req, res) => {
         query.brandName = { 
             $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i')) 
         };
-
-        // Status Logic - Only filter when status is explicitly provided
-        if (status) {
-            if (status === 'active') {
-                query.redeemable = true;
-                query.expiryDate = { $gte: now };
-            } else if (status === 'expired') {
-                query.expiryDate = { $lt: now };
-                query.redeemed = { $ne: true };
-            } else if (status === 'redeemed') {
-                query.redeemed = true;
-            }
-        }
-        // If no status provided, fetch all coupons (active, expired, redeemed)
 
         // Category Filter
         if (category && category !== 'All' && category !== 'See all') {
