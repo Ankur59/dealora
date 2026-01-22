@@ -21,6 +21,7 @@ import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpViewModel
 import com.ayaan.dealora.ui.presentation.couponsList.CouponsList
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.CouponDetailsScreen
 import com.ayaan.dealora.ui.presentation.dashboard.Dashboard
+import com.ayaan.dealora.ui.presentation.redeemedcoupons.RedeemedCoupons
 import com.ayaan.dealora.ui.presentation.home.HomeScreen
 import com.ayaan.dealora.ui.presentation.navigation.Route.NotificationPreferences
 import com.ayaan.dealora.ui.presentation.profile.ProfileScreen
@@ -200,6 +201,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.Dashboard.path) {
             Dashboard(navController)
+        }
+        composable(Route.RedeemedCoupons.path) {
+            RedeemedCoupons(navController)
         }
         composable(Route.AddCoupon.path) {
             AddCoupons(navController)

@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.dashboard
+package com.ayaan.dealora.ui.presentation.redeemedcoupons
 
 import android.content.Intent
 import android.net.Uri
@@ -20,12 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -59,15 +55,14 @@ import com.ayaan.dealora.ui.theme.DealoraGray
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
-fun Dashboard(
+fun RedeemedCoupons(
     navController: NavController,
-    viewModel: DashboardViewModel = hiltViewModel()
+    viewModel: RedeemedCouponsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredCoupons by viewModel.filteredCoupons.collectAsState()
-    val savedCouponIds by viewModel.savedCouponIds.collectAsState()
     val currentSortOption by viewModel.currentSortOption.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentFilters by viewModel.currentFilters.collectAsState()
@@ -109,7 +104,7 @@ fun Dashboard(
                 }
 
                 Text(
-                    text = "Dashboard",
+                    text = "Redeemed Coupons",
                     color = Color.Black,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -127,9 +122,6 @@ fun Dashboard(
                 .background(Color.White)
                 .fillMaxSize()
         ) {
-
-//            Spacer(modifier = Modifier.height(12.dp))
-
             Spacer(modifier = Modifier.height(12.dp))
 
             // Filter section
@@ -145,7 +137,7 @@ fun Dashboard(
 
             // Content
             when (uiState) {
-                is DashboardUiState.Loading -> {
+                is RedeemedCouponsUiState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -157,7 +149,7 @@ fun Dashboard(
                             CircularProgressIndicator()
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Loading your saved coupons...",
+                                text = "Loading your redeemed coupons...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color.Gray
                             )
@@ -165,7 +157,7 @@ fun Dashboard(
                     }
                 }
 
-                is DashboardUiState.Error -> {
+                is RedeemedCouponsUiState.Error -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -181,7 +173,7 @@ fun Dashboard(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = (uiState as DashboardUiState.Error).message,
+                                text = (uiState as RedeemedCouponsUiState.Error).message,
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center,
                                 color = Color.Gray
@@ -194,7 +186,7 @@ fun Dashboard(
                     }
                 }
 
-                is DashboardUiState.Success -> {
+                is RedeemedCouponsUiState.Success -> {
                     if (filteredCoupons.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -211,13 +203,13 @@ fun Dashboard(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "No saved coupons yet",
+                                    text = "No redeemed coupons yet",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color.Black
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Save your favorite coupons to see them here!",
+                                    text = "Redeem your favorite coupons to see them here!",
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center,
                                     color = Color.Gray
@@ -245,12 +237,8 @@ fun Dashboard(
                                     expiryDays = coupon.daysUntilExpiry,
                                     couponCode = coupon.couponCode ?: "",
                                     couponId = coupon.id,
-                                    isRedeemed = coupon.redeemed ?: false,
-                                    isSaved = true, // Always true since we're only showing saved ones
-                                    onRemoveSave = { couponId ->
-                                        // Remove from saved but keep showing in list with unsaved state
-                                        viewModel.removeSavedCoupon(couponId)
-                                    },
+                                    isRedeemed = true, // Always true since we're only showing redeemed ones
+                                    isSaved = false,
                                     onDetailsClick = {
                                         navController.navigate(
                                             Route.CouponDetails.createRoute(
@@ -308,7 +296,7 @@ fun Dashboard(
 
                                             context.startActivity(intent)
                                         } catch (e: Exception) {
-                                            Log.e("Dashboard", "Failed to open CouponViewer: ${e.message}")
+                                            Log.e("RedeemedCoupons", "Failed to open CouponViewer: ${e.message}")
                                             try {
                                                 val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
                                                     data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
