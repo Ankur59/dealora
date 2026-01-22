@@ -153,16 +153,45 @@ exports.getPrivateCoupons = async (req, res, next) => {
             price,
             minimumOrder,
             sortBy = 'newest_first',
+            status = 'active', // Default to active
             validity,
             page = 1,
             limit = 20
         } = req.query;
 
         const query = {};
+        const now = new Date();
 
-        // Brand Filter
+        // Status Logic
+        if (status === 'active') {
+            query.redeemable = true;
+            query.expiryDate = { $gte: now };
+        } else if (status === 'expired') {
+            query.expiryDate = { $lt: now };
+            query.redeemed = { $ne: true }; // Only show expired that weren't redeemed
+        } else if (status === 'redeemed') {
+            query.redeemed = true;
+        }
+
+        // Brand Filter - Handle multiple brands
         if (brand) {
-            query.brandName = new RegExp(brand, 'i');
+            // Convert brand to array if it's a string (supports comma-separated or single value)
+            let brands = Array.isArray(brand) ? brand : [brand];
+            
+            // If it's a single string with commas, split it
+            if (brands.length === 1 && brands[0].includes(',')) {
+                brands = brands[0].split(',').map(b => b.trim());
+            }
+            
+            // If multiple brands, use $in with case-insensitive regex for each brand
+            if (brands.length > 1) {
+                query.brandName = { 
+                    $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i')) 
+                };
+            } else {
+                // Single brand - case-insensitive match
+                query.brandName = new RegExp(`^${brands[0].trim()}$`, 'i');
+            }
         }
 
         // Category Filter
@@ -170,7 +199,7 @@ exports.getPrivateCoupons = async (req, res, next) => {
             query.category = category;
         }
 
-        // Discount Type Filter (Note: Field might be missing in model, but adding logic for consistency)
+        // Discount Type Filter
         if (discountType) {
             if (discountType === 'percentage_off') query.discountType = 'percentage';
             else if (discountType === 'flat_discount') query.discountType = 'flat';
@@ -192,25 +221,26 @@ exports.getPrivateCoupons = async (req, res, next) => {
                     { minimumOrderValue: { $exists: false } }
                 ];
             } else if (priceFilter === 'below_300') {
-                query.minimumOrderValue = { $lt: 300 }; // Works only if stored as Number or if Mongo can compare
+                query.minimumOrderValue = { $lt: 300 };
             }
-            // More range logic can be added if minimumOrderValue type is changed to Number
         }
 
         // Search Logic
         if (search) {
             const searchRegex = new RegExp(search, 'i');
-            query.$or = [
-                { couponTitle: searchRegex },
-                { brandName: searchRegex },
-                { description: searchRegex },
-                { category: searchRegex }
-            ];
+            query.$and = query.$and || [];
+            query.$and.push({
+                $or: [
+                    { couponTitle: searchRegex },
+                    { brandName: searchRegex },
+                    { description: searchRegex },
+                    { category: searchRegex }
+                ]
+            });
         }
 
-        // Validity Filter
+        // Validity Filter (Additional granular filtering within status if needed)
         if (validity) {
-            const now = new Date();
             const todayEnd = new Date();
             todayEnd.setHours(23, 59, 59, 999);
 
@@ -225,15 +255,10 @@ exports.getPrivateCoupons = async (req, res, next) => {
 
             if (validity === 'valid_today' || validity === 'Valid Today') {
                 query.expiryDate = { $gte: now, $lte: todayEnd };
-                query.redeemable = true;
             } else if (validity === 'valid_this_week' || validity === 'Valid This Week') {
                 query.expiryDate = { $gte: now, $lte: weekEnd };
-                query.redeemable = true;
             } else if (validity === 'valid_this_month' || validity === 'Valid This Month') {
                 query.expiryDate = { $gte: now, $lte: monthEnd };
-                query.redeemable = true;
-            } else if (validity === 'expired' || validity === 'Expired') {
-                query.expiryDate = { $lt: now };
             }
         }
 
