@@ -137,12 +137,6 @@ const couponSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
-
-        base64ImageUrl: {
-            type: String,
-            trim: true,
-            default: null,
-        },
     },
     {
         timestamps: true,
