@@ -204,7 +204,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
             arguments = listOf(
                 navArgument("tab") {
                     type = NavType.StringType
-                    defaultValue = "saved"
+                    defaultValue = "active"
                 }
             )
         ) {

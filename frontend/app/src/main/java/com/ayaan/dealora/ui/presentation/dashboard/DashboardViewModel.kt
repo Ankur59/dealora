@@ -56,6 +56,9 @@ class DashboardViewModel @Inject constructor(
     private val _currentFilters = MutableStateFlow(com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions())
     val currentFilters: StateFlow<com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions> = _currentFilters.asStateFlow()
 
+    private val _statusFilter = MutableStateFlow("active") // "active", "redeemed", "expired", "saved"
+    val statusFilter: StateFlow<String> = _statusFilter.asStateFlow()
+
     init {
         // Load all private coupons and saved IDs
         viewModelScope.launch {
@@ -123,10 +126,22 @@ class DashboardViewModel @Inject constructor(
         val sortOption = _currentSortOption.value
         val categoryFilter = _currentCategory.value
         val filters = _currentFilters.value
+        val statusFilterValue = _statusFilter.value
 
         var filtered = allCoupons.filter { coupon ->
-            // Must be saved
-            saved.contains(coupon.id) && 
+            // Apply status filter
+            val statusMatch = when (statusFilterValue) {
+                "saved" -> saved.contains(coupon.id)
+                "redeemed" -> coupon.redeemed == true
+                "expired" -> (coupon.daysUntilExpiry ?: 0) < 0
+                "active" -> {
+                    // Active: neither expired nor redeemed
+                    (coupon.daysUntilExpiry ?: 0) >= 0 && coupon.redeemed != true
+                }
+                else -> saved.contains(coupon.id) // default to saved
+            }
+
+            statusMatch &&
             // Search query match
             (query.isEmpty() || (
                 coupon.brandName.lowercase().contains(query) ||
@@ -151,7 +166,7 @@ class DashboardViewModel @Inject constructor(
         }
 
         _filteredCoupons.value = filtered
-        Log.d(TAG, "Filtered coupons: ${filtered.size} out of ${allCoupons.size}, sort: $sortOption, category: $categoryFilter")
+        Log.d(TAG, "Filtered coupons: ${filtered.size} out of ${allCoupons.size}, status: $statusFilterValue, sort: $sortOption, category: $categoryFilter")
     }
 
     fun onSearchQueryChanged(query: String) {
@@ -171,6 +186,11 @@ class DashboardViewModel @Inject constructor(
 
     fun onFiltersChanged(filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions) {
         _currentFilters.value = filters
+        filterCoupons()
+    }
+
+    fun onStatusFilterChanged(status: String) {
+        _statusFilter.value = status
         filterCoupons()
     }
 

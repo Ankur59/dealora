@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -74,14 +75,22 @@ fun Dashboard(
     val currentSortOption by viewModel.currentSortOption.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentFilters by viewModel.currentFilters.collectAsState()
+    val currentStatusFilter by viewModel.statusFilter.collectAsState()
 
     // Get tab parameter from navigation
-    val tabParam = navController.currentBackStackEntry?.arguments?.getString("tab") ?: "saved"
+    val tabParam = navController.currentBackStackEntry?.arguments?.getString("tab") ?: "active"
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
     var showCategoryDialog by remember { mutableStateOf(false) }
-    var selectedStatusFilter by remember { mutableStateOf(tabParam) } // "active", "redeemed", "expired", "saved"
+
+    // Update ViewModel status filter when tab parameter changes
+    LaunchedEffect(tabParam) {
+        viewModel.onStatusFilterChanged(tabParam)
+    }
+
+    // Local state for UI (displays the current filter buttons state)
+    var selectedStatusFilter by remember(currentStatusFilter) { mutableStateOf(currentStatusFilter) }
 
     Scaffold(
         containerColor = Color.White,
@@ -168,7 +177,10 @@ fun Dashboard(
                     val isSelected = selectedStatusFilter == value
 
                     Button(
-                        onClick = { selectedStatusFilter = value },
+                        onClick = {
+                            selectedStatusFilter = value
+                            viewModel.onStatusFilterChanged(value)
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isSelected) DealoraPrimary else Color(0xFFE8E8E8),
                             contentColor = if (isSelected) Color.White else Color(0xFF666666)
