@@ -239,6 +239,7 @@ fun RedeemedCoupons(
                                     couponId = coupon.id,
                                     isRedeemed = true, // Always true since we're only showing redeemed ones
                                     isSaved = false,
+                                    showGreenRedeemedButton = true, // Show green button in redeemed screen
                                     onDetailsClick = {
                                         navController.navigate(
                                             Route.CouponDetails.createRoute(
