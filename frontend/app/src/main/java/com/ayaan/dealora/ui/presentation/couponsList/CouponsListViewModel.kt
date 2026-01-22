@@ -44,6 +44,7 @@ class CouponsListViewModel @Inject constructor(
     companion object {
         private const val TAG = "CouponsListViewModel"
         private const val SEARCH_DEBOUNCE_MS = 500L
+        private const val SEARCH_DEBOUNCE_PRIVATE_MS = 500L
     }
 
     private val _uiState = MutableStateFlow<CouponsListUiState>(CouponsListUiState.Success)
@@ -74,6 +75,7 @@ class CouponsListViewModel @Inject constructor(
     val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
 
     private var searchJob: Job? = null
+    private var privateSearchJob: Job? = null
 
     init {
         // Setup debounced search
@@ -116,49 +118,81 @@ class CouponsListViewModel @Inject constructor(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+
+        // If in private mode, debounce search for private coupons
+        if (!_isPublicMode.value) {
+            privateSearchJob?.cancel()
+            privateSearchJob = viewModelScope.launch {
+                kotlinx.coroutines.delay(SEARCH_DEBOUNCE_PRIVATE_MS)
+                Log.d(TAG, "Private coupon search debounced: $query")
+                loadPrivateCoupons()
+            }
+        }
+        // Public mode search is handled by the debounced flow in init
     }
 
     fun onSortOptionChanged(sortOption: SortOption) {
         _currentSortOption.value = sortOption
-        val filters = _currentFilters.value
-        loadCouponsInternal(
-            search = _searchQuery.value.ifBlank { null },
-            sortBy = sortOption.apiValue,
-            category = _currentCategory.value,
-            brand = filters.brand,
-            discountType = filters.getDiscountTypeApiValue(),
-            price = filters.getPriceApiValue(),
-            validity = filters.getValidityApiValue()
-        )
+
+        if (_isPublicMode.value) {
+            // Reload public coupons with new sort
+            val filters = _currentFilters.value
+            loadCouponsInternal(
+                search = _searchQuery.value.ifBlank { null },
+                sortBy = sortOption.apiValue,
+                category = _currentCategory.value,
+                brand = filters.brand,
+                discountType = filters.getDiscountTypeApiValue(),
+                price = filters.getPriceApiValue(),
+                validity = filters.getValidityApiValue()
+            )
+        } else {
+            // Reload private coupons with new sort
+            loadPrivateCoupons()
+        }
     }
 
     fun onCategoryChanged(category: String?) {
         // "See All" or null means no category filter
         val apiCategory = if (category == "See All") null else category
         _currentCategory.value = apiCategory
-        val filters = _currentFilters.value
-        loadCouponsInternal(
-            search = _searchQuery.value.ifBlank { null },
-            sortBy = _currentSortOption.value.apiValue,
-            category = apiCategory,
-            brand = filters.brand,
-            discountType = filters.getDiscountTypeApiValue(),
-            price = filters.getPriceApiValue(),
-            validity = filters.getValidityApiValue()
-        )
+
+        if (_isPublicMode.value) {
+            // Reload public coupons with new category
+            val filters = _currentFilters.value
+            loadCouponsInternal(
+                search = _searchQuery.value.ifBlank { null },
+                sortBy = _currentSortOption.value.apiValue,
+                category = apiCategory,
+                brand = filters.brand,
+                discountType = filters.getDiscountTypeApiValue(),
+                price = filters.getPriceApiValue(),
+                validity = filters.getValidityApiValue()
+            )
+        } else {
+            // Reload private coupons with new category
+            loadPrivateCoupons()
+        }
     }
 
     fun onFiltersChanged(filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions) {
         _currentFilters.value = filters
-        loadCouponsInternal(
-            search = _searchQuery.value.ifBlank { null },
-            sortBy = _currentSortOption.value.apiValue,
-            category = _currentCategory.value,
-            brand = filters.brand,
-            discountType = filters.getDiscountTypeApiValue(),
-            price = filters.getPriceApiValue(),
-            validity = filters.getValidityApiValue()
-        )
+
+        if (_isPublicMode.value) {
+            // Reload public coupons with new filters
+            loadCouponsInternal(
+                search = _searchQuery.value.ifBlank { null },
+                sortBy = _currentSortOption.value.apiValue,
+                category = _currentCategory.value,
+                brand = filters.brand,
+                discountType = filters.getDiscountTypeApiValue(),
+                price = filters.getPriceApiValue(),
+                validity = filters.getValidityApiValue()
+            )
+        } else {
+            // Reload private coupons with new filters
+            loadPrivateCoupons()
+        }
     }
 
     fun onPublicModeChanged(isPublic: Boolean) {
@@ -192,7 +226,7 @@ class CouponsListViewModel @Inject constructor(
     }
 
     private fun loadCouponsInternal(
-        status: String = "active",
+        status: String = "",
         brand: String? = null,
         category: String? = null,
         discountType: String? = null,
@@ -297,7 +331,7 @@ class CouponsListViewModel @Inject constructor(
     private fun loadPrivateCoupons() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Loading private coupons")
+                Log.d(TAG, "Loading private coupons with filters")
 
                 // Fetch synced apps from database
                 val syncedApps = syncedAppRepository.getAllSyncedApps().first()
@@ -317,14 +351,37 @@ class CouponsListViewModel @Inject constructor(
                     return@launch
                 }
 
+                // Convert UI sort option to API value
+                val sortByApi = when (_currentSortOption.value) {
+                    SortOption.NEWEST_FIRST -> "newest_first"
+                    SortOption.EXPIRING_SOON -> "expiring_soon"
+                    SortOption.A_TO_Z -> "a_to_z"
+                    SortOption.Z_TO_A -> "z_to_a"
+                    else -> null
+                }
+
+                // Get category filter - convert "See All" to null
+                val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
+
+                // Get filters from current filters
+                val filters = _currentFilters.value
+                val discountTypeApi = convertDiscountTypeToApi(filters.discountType)
+                val priceApi = filters.getPriceApiValue()
+                val validityApi = filters.getValidityApiValue()
+
+                // Get search query (empty string converts to null)
+                val searchApi = _searchQuery.value.takeIf { it.isNotBlank() }
+
+                Log.d(TAG, "Filter params - search: $searchApi, sort: $sortByApi, category: $categoryApi, discountType: $discountTypeApi, price: $priceApi, validity: $validityApi")
+
                 when (val result = couponRepository.syncPrivateCoupons(
                     brands = brands,
-                    category = null,
-                    search = null,
-                    discountType = null,
-                    price = null,
-                    validity = null,
-                    sortBy = null,
+                    category = categoryApi,
+                    search = searchApi,
+                    discountType = discountTypeApi,
+                    price = priceApi,
+                    validity = validityApi,
+                    sortBy = sortByApi,
                     page = null,
                     limit = null
                 )) {
@@ -342,6 +399,19 @@ class CouponsListViewModel @Inject constructor(
                 Log.e(TAG, "Exception loading private coupons", e)
                 _privateCoupons.value = emptyList()
             }
+        }
+    }
+
+    private fun convertDiscountTypeToApi(uiValue: String?): String? {
+        return when (uiValue) {
+            "Percentage Off (% Off)" -> "percentage_off"
+            "Flat Discount (₹ Off)" -> "flat_discount"
+            "Cashback" -> "cashback"
+            "Buy 1 Get 1" -> "buy1get1"
+            "Free Delivery" -> "free_delivery"
+            "Wallet/UPI" -> "wallet_upi"
+            "Prepaid Only" -> "prepaid_only"
+            else -> null
         }
     }
 

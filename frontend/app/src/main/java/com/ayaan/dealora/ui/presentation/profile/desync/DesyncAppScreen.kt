@@ -186,15 +186,15 @@ fun DesyncTopBar(navController: NavController) {
                 )
             }
         },
-        actions = {
-            IconButton(onClick = { /* Handle search */ }) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = AppColors.IconTint
-                )
-            }
-        },
+//        actions = {
+//            IconButton(onClick = { /* Handle search */ }) {
+//                Icon(
+//                    imageVector = Icons.Default.Search,
+//                    contentDescription = "Search",
+//                    tint = AppColors.IconTint
+//                )
+//            }
+//        },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = AppColors.Background
         )

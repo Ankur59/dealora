@@ -270,11 +270,7 @@ fun AddCoupons(
 //                                navController.navigateUp()
                             },
                             onError = { errorMessage ->
-                                Toast.makeText(
-                                    context,
-                                    "Error: $errorMessage",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                println(errorMessage)
                             }
                         )
                     },
