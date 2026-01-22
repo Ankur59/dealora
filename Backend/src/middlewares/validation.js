@@ -110,9 +110,27 @@ const validateProfileUpdate = [
 
     body('profilePicture')
         .optional()
+        .isString()
+        .withMessage('Profile picture must be a string')
         .custom((value) => {
-            if (value && !isValidUrl(value)) {
-                throw new Error('Profile picture must be a valid URL');
+            // Accept base64 strings or null/empty
+            if (value && value !== null && value !== '') {
+                // Check size limit (5MB for base64 string ~ 6.7MB original due to base64 encoding overhead)
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                if (value.length > maxSize) {
+                    throw new Error('Profile picture size exceeds maximum allowed size of 5MB');
+                }
+                
+                // Check if it's a base64 string (data URI format or raw base64)
+                const base64Regex = /^data:image\/(png|jpg|jpeg|gif|webp|bmp);base64,/;
+                const isDataUri = base64Regex.test(value);
+                
+                if (!isDataUri && value.length > 10) {
+                    const base64OnlyRegex = /^[A-Za-z0-9+/=]+$/;
+                    if (!base64OnlyRegex.test(value)) {
+                        throw new Error('Profile picture must be a valid base64 encoded image (with or without data URI prefix)');
+                    }
+                }
             }
             return true;
         }),
