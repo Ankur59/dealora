@@ -7,7 +7,9 @@ sealed class Route(val path: String) {
     data object LoginOtp: Route("login_otp")
     data object Home: Route("home")
     data object Profile: Route("profile")
-    data object Dashboard: Route("dashboard")
+    data object Dashboard: Route("dashboard?tab={tab}") {
+        fun createRoute(tab: String = "saved") = "dashboard?tab=$tab"
+    }
     data object RedeemedCoupons: Route("redeemedcoupons")
     data object AddCoupon:Route("addcoupon")
     data object Splash:Route("splash")
