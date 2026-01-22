@@ -6,15 +6,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -43,14 +44,15 @@ data class FilterOptions(
     val discountType: String? = null,
     val price: String? = null,
     val validity: String? = null,
-    val brand: String? = null
+    val brand: String? = null,
+    val category: String? = null
 ) {
     /**
      * Convert UI discount type label to API value
      */
     fun getDiscountTypeApiValue(): String? {
         return when (discountType) {
-            "Percentage Off (%)" -> "Percentage Off"
+            "Percentage Off (% Off)" -> "Percentage Off"
             else -> discountType // Others match exactly
         }
     }
@@ -83,7 +85,15 @@ data class FilterOptions(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+enum class FilterCategory {
+    DISCOUNT_TYPE,
+    PRICE,
+    VALIDITY,
+    BRAND,
+    CATEGORY
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FiltersBottomSheet(
     currentFilters: FilterOptions = FilterOptions(),
@@ -94,6 +104,9 @@ fun FiltersBottomSheet(
     var selectedPrice by remember { mutableStateOf(currentFilters.price) }
     var selectedValidity by remember { mutableStateOf(currentFilters.validity) }
     var selectedBrand by remember { mutableStateOf(currentFilters.brand) }
+    var selectedCategory by remember { mutableStateOf(currentFilters.category) }
+
+    var selectedFilterCategory by remember { mutableStateOf(FilterCategory.DISCOUNT_TYPE) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollState = rememberScrollState()
@@ -101,118 +114,210 @@ fun FiltersBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 12.dp, bottom = 8.dp)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .background(
-                        color = Color(0xFFE0E0E0),
-                        shape = RoundedCornerShape(2.dp)
-                    )
-            )
-        }
+        containerColor = Color(0xD9D9D9).copy(alpha = 0.58f),
+        shape = RoundedCornerShape(topStart = 41.dp, topEnd = 41.dp),
+        dragHandle = null
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 32.dp)
+                .height(828.dp)
+                .background(
+                    color = Color.White,
+                    shape = RoundedCornerShape(topStart = 41.dp, topEnd = 41.dp)
+                )
         ) {
             // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(start = 24.dp, end = 24.dp, top = 50.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Filters",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF1E1E1E)
                 )
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier
+                    modifier = Modifier.size(31.dp)
                 ) {
                     Icon(
                         painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
                         contentDescription = "Close",
-                        tint = Color.Black
+                        tint = Color.Black,
+                        modifier = Modifier.size(31.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Scrollable content
-            Column(
+            // Main content with sidebar and options
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = false)
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = 24.dp)
+                    .padding(top = 100.dp)
             ) {
-                // Discount Type Section
-                FilterSection(
-                    title = "Discount Type",
-                    options = listOf("Percentage Off (%)", "Flat Discount", "Cashback", "Buy 1 Get 1", "Free Delivery", "Wallet/UPI Offers", "Prepaid Only Offers", "Saved Coupons"),
-                    selectedOption = selectedDiscountType,
-                    onOptionSelected = { selectedDiscountType = it }
-                )
+                // Left sidebar with filter category buttons
+                Column(
+                    modifier = Modifier.width(142.dp), // 24dp left padding + 118dp button width
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    FilterCategoryButton(
+                        text = "Discount Type",
+                        isSelected = selectedFilterCategory == FilterCategory.DISCOUNT_TYPE,
+                        onClick = { selectedFilterCategory = FilterCategory.DISCOUNT_TYPE },
+                        modifier = Modifier.padding(start = 24.dp, top = 0.dp)
+                    )
+                    FilterCategoryButton(
+                        text = "Price",
+                        isSelected = selectedFilterCategory == FilterCategory.PRICE,
+                        onClick = { selectedFilterCategory = FilterCategory.PRICE },
+                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                    )
+                    FilterCategoryButton(
+                        text = "Validity",
+                        isSelected = selectedFilterCategory == FilterCategory.VALIDITY,
+                        onClick = { selectedFilterCategory = FilterCategory.VALIDITY },
+                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                    )
+                    FilterCategoryButton(
+                        text = "Brand",
+                        isSelected = selectedFilterCategory == FilterCategory.BRAND,
+                        onClick = { selectedFilterCategory = FilterCategory.BRAND },
+                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                    )
+                    FilterCategoryButton(
+                        text = "Category",
+                        isSelected = selectedFilterCategory == FilterCategory.CATEGORY,
+                        onClick = { selectedFilterCategory = FilterCategory.CATEGORY },
+                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                // Right content area
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                ) {
+                    // Light purple background - positioned to start right after sidebar
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = 24.dp)
+                            .fillMaxHeight()
+                            .background(
+                                color = Color(0xFFE8E4F8).copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(0.dp)
+                            )
+                    )
 
-                // Price Section
-                FilterSection(
-                    title = "Price",
-                    options = listOf("No Minimum Order", "Minimum Order Below ₹300", "₹300-₹700", "₹700-₹1500", "Above ₹1500"),
-                    selectedOption = selectedPrice,
-                    onOptionSelected = { selectedPrice = it }
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Validity Section
-                FilterSection(
-                    title = "Validity",
-                    options = listOf("Valid Today", "Valid This Week", "Valid This Month", "Expired"),
-                    selectedOption = selectedValidity,
-                    onOptionSelected = { selectedValidity = it }
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Brand Section
-                FilterSection(
-                    title = "Brand",
-                    options = listOf("Zomato", "Swiggy", "Myntra", "Amazon", "Nykaa", "Ajio", "Flipkart", "Uber", "Croma", "Manswearth"),
-                    selectedOption = selectedBrand,
-                    onOptionSelected = { selectedBrand = it }
-                )
+                    // Scrollable options list with proper positioning
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 30.dp, top = 20.dp, end = 24.dp)
+                            .verticalScroll(scrollState)
+                    ) {
+                        when (selectedFilterCategory) {
+                            FilterCategory.DISCOUNT_TYPE -> {
+                                FilterOptionList(
+                                    options = listOf(
+                                        "Percentage Off (% Off)",
+                                        "Flat Discount",
+                                        "Cashback",
+                                        "Buy 1 Get 1",
+                                        "Free Delivery",
+                                        "Wallet/UPI Offers",
+                                        "Prepaid Only Offers",
+                                        "Saved Coupons"
+                                    ),
+                                    selectedOption = selectedDiscountType,
+                                    onOptionSelected = { selectedDiscountType = it }
+                                )
+                            }
+                            FilterCategory.PRICE -> {
+                                FilterOptionList(
+                                    options = listOf(
+                                        "No Minimum Order",
+                                        "Minimum Order Below ₹300",
+                                        "₹300–₹700",
+                                        "₹700–₹1500",
+                                        "Above ₹1500"
+                                    ),
+                                    selectedOption = selectedPrice,
+                                    onOptionSelected = { selectedPrice = it }
+                                )
+                            }
+                            FilterCategory.VALIDITY -> {
+                                FilterOptionList(
+                                    options = listOf(
+                                        "Valid Today",
+                                        "Valid This Week",
+                                        "Valid This Month",
+                                        "Expired"
+                                    ),
+                                    selectedOption = selectedValidity,
+                                    onOptionSelected = { selectedValidity = it }
+                                )
+                            }
+                            FilterCategory.BRAND -> {
+                                FilterOptionList(
+                                    options = listOf(
+                                        "Zomato",
+                                        "Swiggy",
+                                        "Myntra",
+                                        "Amazon",
+                                        "Nykaa",
+                                        "Ajio",
+                                        "Flipkart",
+                                        "Uber",
+                                        "Croma",
+                                        "Mamaearth"
+                                    ),
+                                    selectedOption = selectedBrand,
+                                    onOptionSelected = { selectedBrand = it }
+                                )
+                            }
+                            FilterCategory.CATEGORY -> {
+                                FilterOptionList(
+                                    options = listOf(
+                                        "See all",
+                                        "Food",
+                                        "Fashion",
+                                        "Beauty",
+                                        "Electronics",
+                                        "Travel",
+                                        "Grocery",
+                                        "Entertainment"
+                                    ),
+                                    selectedOption = selectedCategory,
+                                    onOptionSelected = { selectedCategory = it }
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Footer with coupon count and button
+            // Footer with coupon count and Done button
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+                    .align(Alignment.BottomCenter)
             ) {
 //                Text(
 //                    text = "50+ Coupons",
-//                    fontSize = 14.sp,
-//                    color = Color(0xFF6C5CE7),
+//                    fontSize = 16.sp,
 //                    fontWeight = FontWeight.Medium,
-//                    modifier = Modifier.align(Alignment.CenterHorizontally)
+//                    color = DealoraPrimary,
+//                    modifier = Modifier
+//                        .align(Alignment.CenterHorizontally)
+//                        .padding(bottom = 16.dp)
 //                )
-
-                Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = {
@@ -221,22 +326,24 @@ fun FiltersBottomSheet(
                                 discountType = selectedDiscountType,
                                 price = selectedPrice,
                                 validity = selectedValidity,
-                                brand = selectedBrand
+                                brand = selectedBrand,
+                                category = selectedCategory
                             )
                         )
                         onDismiss()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
+                        .height(59.dp)
+                        .padding(horizontal = 24.dp),
+                    shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = DealoraPrimary
                     )
                 ) {
                     Text(
                         text = "Done",
-                        fontSize = 16.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -245,66 +352,107 @@ fun FiltersBottomSheet(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FilterSection(
-    title: String,
+private fun FilterCategoryButton(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .width(118.dp)
+            .height(49.dp)
+            .background(
+                color = if (isSelected) DealoraPrimary else Color(0xFFECECEC),
+                shape = RoundedCornerShape(5.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (isSelected) Color.White else Color(0xFF626262),
+            lineHeight = 61.sp // Match Figma line height
+        )
+    }
+}
+
+@Composable
+private fun FilterOptionList(
     options: List<String>,
     selectedOption: String?,
     onOptionSelected: (String?) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Black
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            options.forEach { option ->
-                FilterChip(
-                    text = option,
-                    isSelected = selectedOption == option,
-                    onClick = {
-                        onOptionSelected(if (selectedOption == option) null else option)
-                    }
-                )
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        options.forEachIndexed { index, option ->
+            FilterOptionItem(
+                text = option,
+                isSelected = selectedOption == option,
+                onClick = { onOptionSelected(if (selectedOption == option) null else option) }
+            )
+            if (index < options.size - 1) {
+                Spacer(modifier = Modifier.height(0.dp))
             }
         }
     }
 }
 
 @Composable
-private fun FilterChip(
+private fun FilterOptionItem(
     text: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Box(
+    Row(
         modifier = Modifier
-            .background(
-                color = if (isSelected) Color(0xFF6C5CE7) else Color.White,
-                shape = RoundedCornerShape(20.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = if (isSelected) Color(0xFF6C5CE7) else Color(0xFFE0E0E0),
-                shape = RoundedCornerShape(20.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .fillMaxWidth()
+            .height(50.dp)
+            .padding(end = 16.dp)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start
     ) {
+        // Radio button indicator
+        Box(
+            modifier = Modifier
+                .size(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(
+                            color = DealoraPrimary,
+                            shape = CircleShape
+                        )
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .border(
+                            width = 1.5.dp,
+                            color = Color(0xFF9E9E9E),
+                            shape = CircleShape
+                        )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
         Text(
             text = text,
-            fontSize = 14.sp,
-            color = if (isSelected) Color.White else Color.Gray
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Normal,
+            color = Color(0xFF1E1E1E)
         )
     }
 }

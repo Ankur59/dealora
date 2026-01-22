@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.syncapps
+package com.ayaan.dealora.ui.presentation.syncapps.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,15 +23,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,23 +42,29 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
+import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.SelectAppsViewModel
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 data class SyncApp(
-    val id: String, val name: String, val iconRes: Int // Drawable resource for app icon
+    val id: String, val name: String, val iconRes: Int
 )
 
 @Composable
 fun SelectAppsScreen(
-    onAllowSyncClick: (List<String>) -> Unit, navController: NavController
+    onAllowSyncClick: (List<String>) -> Unit, navController: NavController,
+    viewModel: SelectAppsViewModel = hiltViewModel()
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
+
+    val syncedAppIds by viewModel.syncedAppIds.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     val apps = listOf(
         SyncApp("zomato", "Zomato", R.drawable.zomato_logo),
@@ -65,13 +74,15 @@ fun SelectAppsScreen(
         SyncApp("nykaa", "Nykaa", R.drawable.nykaa_logo),
         SyncApp("cred", "CRED", R.drawable.cred_logo),
         SyncApp("swiggy", "Swiggy", R.drawable.swiggy_logo),
-//        SyncApp("zepto", "Zepto", R.drawable.logo),
-//        SyncApp("licious", "Licious", R.drawable.zomato_logo),
         SyncApp("dealora", "Dealora", R.drawable.logo),
-//        SyncApp("nykaa", "Nykaa", R.drawable.zomato_logo),
-//        SyncApp("cred", "CRED", R.drawable.logo),
     )
-    val filteredApps = apps.filter {
+
+    // Filter out apps that are already synced
+    val availableApps = apps.filter { app ->
+        !syncedAppIds.contains(app.id.lowercase())
+    }
+
+    val filteredApps = availableApps.filter {
         it.name.contains(searchQuery, ignoreCase = true)
     }
 
@@ -151,27 +162,77 @@ fun SelectAppsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Apps Grid
-//        val filteredApps = apps.filter {
-//            it.name.contains(searchQuery, ignoreCase = true)
-//        }
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            items(filteredApps) { app ->
-                AppItem(
-                    app = app, isSelected = selectedApps.contains(app.id), onToggleSelection = {
-                        selectedApps = if (selectedApps.contains(app.id)) {
-                            selectedApps - app.id
-                        } else {
-                            selectedApps + app.id
-                        }
-                    })
+        // Apps Grid with Loading and Empty States
+        if (isLoading) {
+            // Loading State
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = DealoraPrimary)
+            }
+        } else if (availableApps.isEmpty()) {
+            // Empty State - All apps are synced
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text(
+                        text = "All Apps Synced! 🎉",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "You've already synced all available apps. Check De-Sync Apps to manage them.",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else if (filteredApps.isEmpty()) {
+            // No search results
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No apps found",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+            }
+        } else {
+            // Apps Grid
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(4),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                items(filteredApps) { app ->
+                    AppItem(
+                        app = app, isSelected = selectedApps.contains(app.id), onToggleSelection = {
+                            selectedApps = if (selectedApps.contains(app.id)) {
+                                selectedApps - app.id
+                            } else {
+                                selectedApps + app.id
+                            }
+                        })
+                }
             }
         }
 
@@ -200,7 +261,7 @@ fun SelectAppsScreen(
             fontSize = 14.sp,
             color = Color.Black,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -269,7 +330,7 @@ fun AppItem(
                 fontSize = 12.sp,
                 color = Color.Black,
                 maxLines = 1,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
 
@@ -286,9 +347,3 @@ fun AppItem(
         }
     }
 }
-//
-//@Preview(showBackground = true, showSystemUi = true)
-//@Composable
-//fun SelectAppsScreenPreview() {
-//    SelectAppsScreen()
-//}

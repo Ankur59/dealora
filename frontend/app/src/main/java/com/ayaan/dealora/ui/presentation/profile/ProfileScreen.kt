@@ -230,13 +230,17 @@ fun ProfileContent(
 
         // Sync Coupons Card
         MenuCard(
-            icon = R.drawable.sync_coupons, text = "Sync coupons from other apps", onClick = { })
+            icon = R.drawable.sync_coupons, text = "Sync coupons from other apps", onClick = {
+                navController.navigate(Route.SelectAppsScreen.path)
+            })
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // De-Sync Apps Card
         MenuCard(
-            icon = R.drawable.desync_coupons, text = "De-Sync Apps", onClick = { navController.navigate(Route.DesyncApps.path)})
+            icon = R.drawable.desync_coupons,
+            text = "De-Sync Apps",
+            onClick = { navController.navigate(Route.DesyncApps.path) })
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -348,7 +352,7 @@ fun CouponStatItem(label: String, iconRes: Int) {
                 .border(
                     width = 2.dp, color = Color(0xff0D7275), shape = CircleShape
                 )
-                .background(Color.Transparent, CircleShape), contentAlignment = Alignment.Center
+                .background(Color.White, CircleShape), contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(iconRes),

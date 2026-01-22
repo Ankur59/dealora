@@ -17,30 +17,56 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.theme.AppColors
 import com.ayaan.dealora.R
 data class ActiveApp(
+    val id: String,
     val name: String,
     @DrawableRes val iconRes: Int
 )
 
+// Helper function to map app IDs to drawable resources
+fun getAppIconResource(appId: String): Int {
+    return when (appId.lowercase()) {
+        "zomato" -> R.drawable.zomato_logo
+        "phonepe", "phone pay" -> R.drawable.phonepe_logo
+        "blinkit" -> R.drawable.blinkit_logo
+        "amazon" -> R.drawable.azon_logo
+        "nykaa" -> R.drawable.nykaa_logo
+        "cred" -> R.drawable.cred_logo
+        "swiggy" -> R.drawable.swiggy_logo
+        "flipkart" -> R.drawable.flipkart
+        "myntra" -> R.drawable.myntra
+        else -> R.drawable.logo
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DesyncAppScreen(navController: NavController) {
+fun DesyncAppScreen(
+    navController: NavController,
+    viewModel: DesyncAppViewModel = hiltViewModel()
+) {
     var showRemoveDialog by remember { mutableStateOf(false) }
     var selectedApp by remember { mutableStateOf<ActiveApp?>(null) }
-    val activeApps = listOf(
-        ActiveApp("Phone Pay", R.drawable.phonepay),
-        ActiveApp("Blinkit", R.drawable.blinkit),
-        ActiveApp("Myntra", R.drawable.myntra),
-        ActiveApp("Cred", R.drawable.cred),
-        ActiveApp("Nykaa", R.drawable.nykaa),
-        ActiveApp("Flipkart", R.drawable.flipkart)
-    )
+
+    val syncedApps by viewModel.syncedApps.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    // Convert SyncedAppEntity to ActiveApp
+    val activeApps = syncedApps.map { syncedApp ->
+        ActiveApp(
+            id = syncedApp.appId,
+            name = syncedApp.appName,
+            iconRes = getAppIconResource(syncedApp.appId)
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -53,47 +79,84 @@ fun DesyncAppScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Active Apps Header
-            Text(
-                text = "Active Apps",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppColors.PrimaryText,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-            )
-
-            // Active Apps List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(activeApps) { app ->
-                    ActiveAppCard(
-                        app = app,
-                        onRemoveClick = {
-                            selectedApp = app
-                            showRemoveDialog = true
-                        }
-                    )
+            if (isLoading) {
+                // Loading State
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
+            } else if (activeApps.isEmpty()) {
+                // Empty State
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)
+                    ) {
+                        Text(
+                            text = "No Synced Apps",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppColors.PrimaryText
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "You haven't synced any apps yet. Go to Profile and sync apps to see them here.",
+                            fontSize = 14.sp,
+                            color = AppColors.SecondaryText,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                // Active Apps Header
+                Text(
+                    text = "Active Apps",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppColors.PrimaryText,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                )
 
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
+                // Active Apps List
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(activeApps) { app ->
+                        ActiveAppCard(
+                            app = app,
+                            onRemoveClick = {
+                                selectedApp = app
+                                showRemoveDialog = true
+                            }
+                        )
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
             }
         }
 
         // Remove Synced App Dialog
-        if (showRemoveDialog) {
+        if (showRemoveDialog && selectedApp != null) {
             RemoveSyncedAppDialog(
                 onDismiss = {
                     showRemoveDialog = false
                     selectedApp = null
                 },
                 onConfirm = {
-                    // Handle de-sync app logic here
+                    selectedApp?.let { app ->
+                        viewModel.removeSyncedApp(app.id)
+                    }
                     showRemoveDialog = false
                     selectedApp = null
                 }

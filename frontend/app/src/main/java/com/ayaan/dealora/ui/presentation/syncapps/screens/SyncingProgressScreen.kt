@@ -1,7 +1,8 @@
-package com.ayaan.dealora.ui.presentation.syncapps
+package com.ayaan.dealora.ui.presentation.syncapps.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -63,6 +64,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.presentation.navigation.Route
+import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.SyncingProgressViewModel
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import kotlinx.coroutines.delay
 
@@ -594,7 +596,7 @@ fun AnimatedSyncingApp(
         val scale by infiniteTransition.animateFloat(
             initialValue = 1f, targetValue = 1.1f, animationSpec = infiniteRepeatable(
                 animation = tween(1000, easing = LinearEasing),
-                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                repeatMode = RepeatMode.Reverse
             ), label = "scale"
         )
 

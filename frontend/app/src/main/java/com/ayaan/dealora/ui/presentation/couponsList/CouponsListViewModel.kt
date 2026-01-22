@@ -9,9 +9,11 @@ import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
+import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
+import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -34,7 +36,9 @@ import javax.inject.Inject
 class CouponsListViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
-    private val firebaseAuth: FirebaseAuth
+    private val savedCouponRepository: SavedCouponRepository,
+    private val firebaseAuth: FirebaseAuth,
+    private val moshi: Moshi
 ) : ViewModel() {
 
     companion object {
@@ -66,6 +70,9 @@ class CouponsListViewModel @Inject constructor(
     private val _privateCoupons = MutableStateFlow<List<PrivateCoupon>>(emptyList())
     val privateCoupons: StateFlow<List<PrivateCoupon>> = _privateCoupons.asStateFlow()
 
+    private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
+    val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
@@ -91,6 +98,16 @@ class CouponsListViewModel @Inject constructor(
 
         // Load private coupons
         loadPrivateCoupons()
+    }
+
+    init {
+        // Load saved coupon IDs
+        viewModelScope.launch {
+            savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
+                _savedCouponIds.value = savedCoupons.map { it.couponId }.toSet()
+                Log.d(TAG, "Updated saved coupon IDs: ${_savedCouponIds.value}")
+            }
+        }
     }
 
 //    init {
@@ -316,6 +333,62 @@ class CouponsListViewModel @Inject constructor(
                 _privateCoupons.value = emptyList()
             }
         }
+    }
+
+    fun saveCoupon(couponId: String, couponJson: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Saving coupon: $couponId")
+                savedCouponRepository.saveCoupon(
+                    couponId = couponId,
+                    couponJson = couponJson,
+                    couponType = "private"
+                )
+                // Update local state
+                _savedCouponIds.value = _savedCouponIds.value + couponId
+                Log.d(TAG, "Coupon saved successfully: $couponId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving coupon: $couponId", e)
+            }
+        }
+    }
+
+    fun saveCouponFromModel(couponId: String, coupon: PrivateCoupon) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Saving coupon model: $couponId")
+                val adapter = moshi.adapter(PrivateCoupon::class.java)
+                val couponJson = adapter.toJson(coupon)
+                savedCouponRepository.saveCoupon(
+                    couponId = couponId,
+                    couponJson = couponJson,
+                    couponType = "private"
+                )
+                // Update local state
+                _savedCouponIds.value = _savedCouponIds.value + couponId
+                Log.d(TAG, "Coupon model saved successfully: $couponId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving coupon model: $couponId", e)
+            }
+        }
+    }
+
+    fun removeSavedCoupon(couponId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Removing saved coupon: $couponId")
+                savedCouponRepository.removeSavedCoupon(couponId)
+                // Update local state
+                _savedCouponIds.value = _savedCouponIds.value - couponId
+                Log.d(TAG, "Coupon removed successfully: $couponId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing coupon: $couponId", e)
+            }
+        }
+    }
+
+    fun isCouponSaved(couponId: String): Boolean {
+        return _savedCouponIds.value.contains(couponId)
     }
 }
 

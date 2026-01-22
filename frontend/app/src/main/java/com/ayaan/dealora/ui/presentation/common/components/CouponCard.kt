@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.common.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -45,6 +47,24 @@ import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
+/**
+ * Helper function to get brand logo resource with fallback to default logo
+ */
+private fun getBrandLogoResource(brandName: String): Int {
+    return when (brandName.replace("\n", "").trim().lowercase()) {
+        "zomato" -> R.drawable.zomato_logo
+        "swiggy" -> R.drawable.swiggy_logo
+        "blinkit" -> R.drawable.blinkit_logo
+        "amazon" -> R.drawable.azon_logo
+        "flipkart" -> R.drawable.flipkart
+        "nykaa" -> R.drawable.nykaa_logo
+        "cred" -> R.drawable.cred_logo
+        "phonepe", "phone pay" -> R.drawable.phonepe_logo
+        "myntra" -> R.drawable.myntra
+        "dealora" -> R.drawable.logo
+        else -> R.drawable.logo
+    }
+}
 @Composable
 fun CouponCard(
     brandName: String = "BOMBAY\nSHAVING\nCOMPANY",
@@ -55,49 +75,24 @@ fun CouponCard(
     couponCode: String = "",
     couponId: String? = null,
     isRedeemed: Boolean = false,
+    couponLink: String? = null,
+    minimumOrderValue: String? = null,
+    discountType: String? = null,
+    discountValue: String? = null,
+    terms: String? = null,
+    isSaved: Boolean = false,
     onDetailsClick: () -> Unit = {},
     onDiscoverClick: () -> Unit = {},
-    onRedeem: ((String) -> Unit)? = null
+    onRedeem: ((String) -> Unit)? = null,
+    onSave: ((String) -> Unit)? = null,
+    onRemoveSave: ((String) -> Unit)? = null
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
-    var painter: Int by remember { mutableStateOf(0) }
-    if (brandName.equals(
-            "zomato", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.zomato_logo
-    } else if (brandName.equals(
-            "swiggy", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.swiggy_logo
-    }else if (brandName.equals(
-            "blinkit", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.blinkit_logo
-    }else if (brandName.equals(
-            "amazon", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.azon_logo
-    }else if (brandName.equals(
-            "flipkart", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.flipkart
-    }
-    else if (brandName.equals(
-            "nykaa", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.nykaa_logo
-    }
-    else if (brandName.equals(
-            "cred", ignoreCase = true
-        )
-    ) {
-        painter = R.drawable.cred_logo
+    var isSavedLocal by remember(isSaved) { mutableStateOf(isSaved) }
+
+    // Get brand logo with fallback to default logo
+    val painter: Int = remember(brandName) {
+        getBrandLogoResource(brandName)
     }
 
     Card(
@@ -174,13 +169,40 @@ fun CouponCard(
                         }
                     }
 
-                    // Star Icon
-                    Icon(
-                        imageVector = Icons.Outlined.BookmarkBorder,
-                        contentDescription = "Featured",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    // Bookmark Icon with Save Status
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clickable {
+                                if (couponId != null) {
+                                    if (isSavedLocal) {
+                                        isSavedLocal = false
+                                        onRemoveSave?.invoke(couponId)
+                                    } else {
+                                        isSavedLocal = true
+                                        onSave?.invoke(couponId)
+                                    }
+                                }
+                            }
+                    ) {
+                        Icon(
+                            imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = "Save coupon",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        if (isSavedLocal) {
+                            Text(
+                                text = "Saved",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                                lineHeight = 10.sp
+                            )
+                        }
+                    }
                 }
             }
 
@@ -225,31 +247,54 @@ fun CouponCard(
                     }
 
                     // Redeemed Button
-                    OutlinedButton(
-                        onClick = {
-                            if (!isRedeemed) {
+                    if (isRedeemed) {
+                        // Green filled button when redeemed
+                        Button(
+                            onClick = {},
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF4CAF50),
+                                contentColor = Color.White,
+                                disabledContainerColor = Color(0xFF4CAF50),
+                                disabledContentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(0.dp),
+                            enabled = false
+                        ) {
+                            Text(
+                                text = "Redeemed",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    } else {
+                        // Outlined button when not redeemed
+                        OutlinedButton(
+                            onClick = {
                                 showRedeemDialog = true
-                            }
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isRedeemed) Color(0xFFD0D0D0) else Color.White,
-                            contentColor = Color(0xFF666666)
-                        ),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFCCCCCC))
-                        ),
-                        contentPadding = PaddingValues(0.dp),
-                        enabled = !isRedeemed
-                    ) {
-                        Text(
-                            text = if (isRedeemed) "Redeemed" else "Redeem",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = Color(0xFF666666)
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFCCCCCC))
+                            ),
+                            contentPadding = PaddingValues(0.dp),
+                            enabled = true
+                        ) {
+                            Text(
+                                text = "Redeem",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
 
                     // Discover Button
