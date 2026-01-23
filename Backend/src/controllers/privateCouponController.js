@@ -192,14 +192,30 @@ exports.redeemPrivateCoupon = async (req, res) => {
 /**
  * Get private coupon statistics (active count and total savings)
  * @route GET /api/private-coupons/statistics
+ * @body { brands?: string[] } - Optional array of brand names to filter statistics
  */
 exports.getStatistics = async (req, res) => {
     try {
-        // Get active coupons count (redeemable = true)
-        const activeCouponsCount = await PrivateCoupon.countDocuments({ redeemable: true });
+        const { brands } = req.body;
 
-        // Get only redeemed coupons to calculate savings from titles
-        const redeemedCoupons = await PrivateCoupon.find({ redeemed: true }, { couponTitle: 1 }).lean();
+        const query = {};
+
+        if (brands && Array.isArray(brands) && brands.length > 0) {
+            query.brandName = {
+                $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i'))
+            };
+            logger.info(`Fetching statistics for brands: ${brands.join(', ')}`);
+        } else {
+            logger.info('Fetching statistics for all brands');
+        }
+
+        // Get active coupons count (redeemable = true) for the filtered brands
+        const activeCouponsQuery = { ...query, redeemable: true };
+        const activeCouponsCount = await PrivateCoupon.countDocuments(activeCouponsQuery);
+
+        // Get only redeemed coupons to calculate savings from titles for the filtered brands
+        const redeemedCouponsQuery = { ...query, redeemed: true };
+        const redeemedCoupons = await PrivateCoupon.find(redeemedCouponsQuery, { couponTitle: 1 }).lean();
 
         // Extract amounts from coupon titles and sum them up
         let totalSavings = 0;
