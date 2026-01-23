@@ -11,6 +11,12 @@ data class CouponStatistics(
     val totalSavings: Int
 )
 
+@JsonClass(generateAdapter = true)
+data class CouponStatisticsRequest(
+    @Json(name = "brands")
+    val brands: List<String>
+)
+
 /**
  * Request model for syncing private coupons
  */

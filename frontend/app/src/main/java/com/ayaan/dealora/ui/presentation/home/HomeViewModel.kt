@@ -16,11 +16,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.ayaan.dealora.data.repository.SyncedAppRepository
+import kotlinx.coroutines.flow.first
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val couponRepository: CouponRepository,
+    private val syncedAppRepository: SyncedAppRepository,
     private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
 
@@ -60,7 +64,7 @@ class HomeViewModel @Inject constructor(
                         )
                     }
                     // Fetch statistics after profile is successful
-//                    fetchStatistics()
+                    fetchStatistics()
                 }
                 is BackendResult.Error -> {
                     Log.e(TAG, "fetchProfile: Error - ${result.message}")
@@ -78,7 +82,14 @@ class HomeViewModel @Inject constructor(
     fun fetchStatistics() {
         viewModelScope.launch {
             Log.d(TAG, "fetchStatistics: Fetching private coupon statistics")
-            when (val result = couponRepository.getPrivateCouponStatistics()) {
+            
+            // Fetch synced brands from Room DB
+            val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+            val brands = syncedApps.map { it.appName.replaceFirstChar { char -> char.uppercase() } }
+            
+            Log.d(TAG, "fetchStatistics: Synced brands: $brands")
+
+            when (val result = couponRepository.getPrivateCouponStatistics(brands)) {
                 is com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult.Success -> {
                     Log.d(TAG, "fetchStatistics: Success - ${result.statistics.activeCouponsCount} coupons")
                     _uiState.update {

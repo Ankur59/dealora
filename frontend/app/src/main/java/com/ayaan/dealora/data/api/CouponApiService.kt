@@ -4,11 +4,13 @@ import com.ayaan.dealora.data.api.models.ApiResponse
 import com.ayaan.dealora.data.api.models.CouponDetailResponseData
 import com.ayaan.dealora.data.api.models.CouponListResponseData
 import com.ayaan.dealora.data.api.models.CouponResponseData
+import com.ayaan.dealora.data.api.models.CouponStatistics
+import com.ayaan.dealora.data.api.models.CouponStatisticsRequest
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.PrivateCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
-import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
+import com.google.firebase.auth.FirebaseAuth
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -42,8 +44,7 @@ interface CouponApiService {
 
     @GET("api/coupons/test/{couponId}")
     suspend fun getCouponById(
-        @Path("couponId") couponId: String,
-        @Query("uid") uid: String
+        @Path("couponId") couponId: String, @Query("uid") uid: String
     ): Response<ApiResponse<CouponDetailResponseData>>
 
     @POST("api/private-coupons/sync")
@@ -57,6 +58,8 @@ interface CouponApiService {
         @Query("uid") uid: String
     ): Response<ApiResponse<PrivateCouponRedeemResponseData>>
 
-    @GET("api/private-coupons/statistics")
-    suspend fun getPrivateCouponStatistics(): Response<ApiResponse<CouponStatistics>>
+    @POST("api/private-coupons/statistics")
+    suspend fun getPrivateCouponStatistics(
+        @Body request: CouponStatisticsRequest
+    ): Response<ApiResponse<CouponStatistics>>
 }
