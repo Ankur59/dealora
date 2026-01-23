@@ -82,6 +82,7 @@ fun CouponCard(
     terms: String? = null,
     isSaved: Boolean = false,
     showGreenRedeemedButton: Boolean = false,
+    showActionButtons: Boolean = true,
     onDetailsClick: () -> Unit = {},
     onDiscoverClick: () -> Unit = {},
     onRedeem: ((String) -> Unit)? = null,
@@ -255,100 +256,104 @@ fun CouponCard(
                             color = if (!isRedeemed && !isExpired) DealoraPrimary else Color.Gray
                         )
                     }
-
-                    // Redeemed Button
-                    if (isRedeemed) {
-                        if (showGreenRedeemedButton) {
-                            // Green filled button when redeemed (only in redeemed screen)
-                            Button(
-                                onClick = {},
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(36.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF4CAF50),
-                                    contentColor = Color.White,
-                                    disabledContainerColor = Color(0xFF4CAF50),
-                                    disabledContentColor = Color.White
-                                ),
-                                contentPadding = PaddingValues(0.dp),
-                                enabled = false
-                            ) {
-                                Text(
-                                    text = "Redeemed",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+ 
+                    if (showActionButtons) {
+                        // Redeemed Button
+                        if (isRedeemed) {
+                            if (showGreenRedeemedButton) {
+                                // Green filled button when redeemed (only in redeemed screen)
+                                Button(
+                                    onClick = {},
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF4CAF50),
+                                        contentColor = Color.White,
+                                        disabledContainerColor = Color(0xFF4CAF50),
+                                        disabledContentColor = Color.White
+                                    ),
+                                    contentPadding = PaddingValues(0.dp),
+                                    enabled = false
+                                ) {
+                                    Text(
+                                        text = "Redeemed",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            } else {
+                                // Gray outlined button when redeemed (in other screens)
+                                OutlinedButton(
+                                    onClick = {},
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = Color.White,
+                                        contentColor = Color.Gray
+                                    ),
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        brush = androidx.compose.ui.graphics.SolidColor(Color.Gray)
+                                    ),
+                                    contentPadding = PaddingValues(0.dp),
+                                    enabled = false
+                                ) {
+                                    Text(
+                                        text = "Redeemed",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         } else {
-                            // Gray outlined button when redeemed (in other screens)
+                            // Outlined button when not redeemed
                             OutlinedButton(
-                                onClick = {},
+                                onClick = {
+                                    showRedeemDialog = true
+                                },
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(36.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = Color.White,
-                                    contentColor = Color.Gray
+                                    contentColor = if (!isExpired) Color(0xFF666666) else Color.Gray
                                 ),
                                 border = BorderStroke(
                                     width = 1.dp,
-                                    brush = androidx.compose.ui.graphics.SolidColor(Color.Gray)
+                                    brush = androidx.compose.ui.graphics.SolidColor(if (!isExpired) Color(0xFFCCCCCC) else Color.Gray)
                                 ),
                                 contentPadding = PaddingValues(0.dp),
-                                enabled = false
+                                enabled = !isExpired
                             ) {
                                 Text(
-                                    text = "Redeemed",
+                                    text = "Redeem",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
-                    } else {
-                        // Outlined button when not redeemed
-                        OutlinedButton(
-                            onClick = {
-                                showRedeemDialog = true
-                            },
+
+                        // Discover Button
+                        Button(
+                            onClick = onDiscoverClick,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(36.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = Color.White,
-                                contentColor = if (!isExpired) Color(0xFF666666) else Color.Gray
-                            ),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                brush = androidx.compose.ui.graphics.SolidColor(if (!isExpired) Color(0xFFCCCCCC) else Color.Gray)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF5B3FD9),
+                                disabledContainerColor = Color.Gray
                             ),
                             contentPadding = PaddingValues(0.dp),
-                            enabled = !isExpired
+                            enabled = !isRedeemed && !isExpired
                         ) {
                             Text(
-                                text = "Redeem",
+                                text = "Discover",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                    }
-
-                    // Discover Button
-                    Button(
-                        onClick = onDiscoverClick,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF5B3FD9),
-                            disabledContainerColor = Color.Gray
-                        ),
-                        contentPadding = PaddingValues(0.dp),
-                        enabled = !isRedeemed && !isExpired
-                    ) {
-                        Text(
-                            text = "Discover", fontSize = 13.sp, fontWeight = FontWeight.SemiBold
-                        )
                     }
                 }
             }

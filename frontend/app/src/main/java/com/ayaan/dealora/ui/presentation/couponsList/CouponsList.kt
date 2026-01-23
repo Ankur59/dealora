@@ -422,6 +422,7 @@ fun CouponsList(
                                                 couponCode = "", // Not available in list API
                                                 couponId = coupon.id,
                                                 isRedeemed = false,
+                                                showActionButtons = false,
                                                 isSaved = savedCouponIds.contains(coupon.id),
                                                 onSave = { couponId ->
                                                     // For public coupons, save with minimal data since we don't have full details
