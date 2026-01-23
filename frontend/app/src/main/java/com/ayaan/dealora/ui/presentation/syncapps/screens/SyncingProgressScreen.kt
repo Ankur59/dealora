@@ -36,8 +36,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -249,6 +252,7 @@ fun SyncingProgressScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OtpDialog(
     app: SyncApp,
@@ -260,6 +264,8 @@ fun OtpDialog(
     var isError by remember { mutableStateOf(false) }
     var useDealoraPhone by remember { mutableStateOf(true) }
     var phoneNumber by remember { mutableStateOf("") }
+    var acceptedTerms by remember { mutableStateOf(false) }
+    var showTermsBottomSheet by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = { /* Cannot dismiss */ }) {
         Card(
@@ -419,10 +425,62 @@ fun OtpDialog(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Verify Button
+                    // Terms & Conditions Checkbox
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { acceptedTerms = !acceptedTerms }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(
+                                    color = if (acceptedTerms) DealoraPrimary else Color.White,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = if (acceptedTerms) DealoraPrimary else Color.Gray,
+                                    shape = RoundedCornerShape(4.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (acceptedTerms) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Checked",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = buildAnnotatedString {
+                                append("By clicking here I accept our ")
+                                withStyle(
+                                    style = SpanStyle(
+                                        color = DealoraPrimary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textDecoration = TextDecoration.Underline
+                                    )
+                                ) {
+                                    append("Terms & Conditions")
+                                }
+                            },
+                            fontSize = 13.sp,
+                            color = Color.Black,
+                            modifier = Modifier.clickable { showTermsBottomSheet = true }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = {
-                            if (otpValue.length == 6) {
+                            if (otpValue.length == 6 && acceptedTerms) {
                                 // Save synced app to database
                                 viewModel.saveSyncedApp(app.id, app.name)
                                 // Always accept the OTP (simulate successful verification)
@@ -438,7 +496,7 @@ fun OtpDialog(
                             containerColor = DealoraPrimary
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        enabled = otpValue.length == 6 && (useDealoraPhone || phoneNumber.length == 10)
+                        enabled = otpValue.length == 6 && (useDealoraPhone || phoneNumber.length == 10) && acceptedTerms
                     ) {
                         Text(
                             text = "Verify OTP", fontSize = 16.sp, fontWeight = FontWeight.SemiBold
@@ -496,6 +554,81 @@ fun OtpDialog(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+            }
+        }
+    }
+
+    // Terms & Conditions Bottom Sheet
+    if (showTermsBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showTermsBottomSheet = false },
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Text(
+                    text = "Terms & Conditions",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Text(
+                    text = """
+                        1. Acceptance of Terms
+                        By using Dealora's app syncing service, you agree to comply with these terms and conditions. If you do not agree, please do not use our service.
+
+                        2. Service Description
+                        Dealora provides a service to sync your shopping apps and manage your coupons efficiently. We access your app data solely for the purpose of providing coupon and deal information relevant to your synced apps.
+
+                        3. User Responsibilities
+                        You are responsible for maintaining the confidentiality of your account information. You agree to use the service only for lawful purposes and in ways that do not infringe upon the rights of others.
+
+                        4. Data Privacy
+                        Your privacy is important to us. We collect and process your data in accordance with our Privacy Policy. By syncing apps through Dealora, you consent to our data collection practices.
+
+                        5. Limitation of Liability
+                        Dealora is provided on an "as-is" basis. We shall not be liable for any damages arising from your use of or inability to use the service.
+
+                        6. Changes to Terms
+                        We reserve the right to modify these terms at any time. Changes will be effective immediately upon posting to the app.
+
+                        7. Termination
+                        We may terminate or suspend your access to our service at any time, without notice, for conduct that we believe violates these terms.
+
+                        8. Contact Us
+                        If you have questions about these terms, please contact our support team at support@dealora.com.
+                    """.trimIndent(),
+                    fontSize = 12.sp,
+                    color = Color.Black,
+                    lineHeight = 18.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = { showTermsBottomSheet = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "I Understand",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
