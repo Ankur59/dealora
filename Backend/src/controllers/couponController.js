@@ -491,6 +491,7 @@ const getUserCouponsTest = async (req, res, next) => {
                         expireBy: coupon.expireBy,
                         discountType: coupon.discountType,
                         discountValue: coupon.discountValue,
+                        description: coupon.description,
                         categoryLabel: coupon.categoryLabel,
                         minimumOrder: coupon.minimumOrder || null
                     };
