@@ -5,7 +5,7 @@ const authenticate = require('../middlewares/authenticate');
 
 
 router.post('/sync', privateCouponController.syncCoupons);
-router.get('/statistics', privateCouponController.getStatistics);
+router.post('/statistics', privateCouponController.getStatistics);
 
 
 router.use(authenticate);
