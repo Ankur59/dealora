@@ -220,10 +220,34 @@ fun ProfileContent(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            CouponStatItem("Active\ncoupons", R.drawable.coupons)
-            CouponStatItem("Expired\ncoupons", R.drawable.coupons)
-            CouponStatItem("Redeemed\ncoupons", R.drawable.coupons)
-            CouponStatItem("Saved\ncoupons", R.drawable.coupons)
+            CouponStatItem(
+                label = "Active\ncoupons",
+                iconRes = R.drawable.coupons,
+                onClick = {
+                    navController.navigate(Route.Dashboard.createRoute(tab = "active"))
+                }
+            )
+            CouponStatItem(
+                label = "Expired\ncoupons",
+                iconRes = R.drawable.coupons,
+                onClick = {
+                    navController.navigate(Route.Dashboard.createRoute(tab = "expired"))
+                }
+            )
+            CouponStatItem(
+                label = "Redeemed\ncoupons",
+                iconRes = R.drawable.coupons,
+                onClick = {
+                    navController.navigate(Route.Dashboard.createRoute(tab = "redeemed"))
+                }
+            )
+            CouponStatItem(
+                label = "Saved\ncoupons",
+                iconRes = R.drawable.coupons,
+                onClick = {
+                    navController.navigate(Route.Dashboard.createRoute(tab = "saved"))
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -342,9 +366,12 @@ fun ProfileContent(
 }
 
 @Composable
-fun CouponStatItem(label: String, iconRes: Int) {
+fun CouponStatItem(label: String, iconRes: Int, onClick: () -> Unit = {}) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(80.dp)
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(80.dp)
+            .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier

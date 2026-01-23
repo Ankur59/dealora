@@ -75,10 +75,13 @@ fun Dashboard(
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentFilters by viewModel.currentFilters.collectAsState()
 
+    // Get tab parameter from navigation
+    val tabParam = navController.currentBackStackEntry?.arguments?.getString("tab") ?: "saved"
+
     var showSortDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
     var showCategoryDialog by remember { mutableStateOf(false) }
-    var selectedStatusFilter by remember { mutableStateOf("saved") } // "active", "redeemed", "expired", "saved"
+    var selectedStatusFilter by remember { mutableStateOf(tabParam) } // "active", "redeemed", "expired", "saved"
 
     Scaffold(
         containerColor = Color.White,
