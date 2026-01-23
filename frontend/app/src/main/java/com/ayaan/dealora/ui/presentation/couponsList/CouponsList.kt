@@ -416,9 +416,9 @@ fun CouponsList(
                                                 brandName = coupon.brandName?.uppercase()
                                                     ?.replace(" ", "\n") ?: "DEALORA",
                                                 couponTitle = coupon.couponTitle ?: "Special Offer",
-                                                description = "", // Not available in list API
-                                                category = null, // Not available in list API
-                                                expiryDays = null, // Not available in list API
+                                                description = coupon.description ?: "",
+                                                category = coupon.category,
+                                                expiryDays = coupon.daysUntilExpiry,
                                                 couponCode = "", // Not available in list API
                                                 couponId = coupon.id,
                                                 isRedeemed = false,
