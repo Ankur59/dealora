@@ -3,7 +3,10 @@ const router = express.Router();
 const privateCouponController = require('../controllers/privateCouponController');
 const authenticate = require('../middlewares/authenticate');
 
+
 router.post('/sync', privateCouponController.syncCoupons);
+router.get('/statistics', privateCouponController.getStatistics);
+
 
 router.use(authenticate);
 

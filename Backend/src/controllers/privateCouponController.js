@@ -9,12 +9,12 @@ const logger = require('../utils/logger');
  */
 exports.syncCoupons = async (req, res) => {
     try {
-        const { 
-            brands, 
-            category, 
-            search, 
-            discountType, 
-            price, 
+        const {
+            brands,
+            category,
+            search,
+            discountType,
+            price,
             minimumOrder,
             sortBy = 'newest_first',
             validity,
@@ -32,8 +32,8 @@ exports.syncCoupons = async (req, res) => {
         const now = new Date();
 
         // Brand Filter (Required)
-        query.brandName = { 
-            $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i')) 
+        query.brandName = {
+            $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i'))
         };
 
         // Category Filter
@@ -186,5 +186,72 @@ exports.redeemPrivateCoupon = async (req, res) => {
     } catch (error) {
         logger.error(`Error redeeming private coupon: ${error.message}`);
         return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'An error occurred while redeeming the coupon');
+    }
+};
+
+/**
+ * Get private coupon statistics (active count and total savings)
+ * @route GET /api/private-coupons/statistics
+ */
+exports.getStatistics = async (req, res) => {
+    try {
+        // Get active coupons count (redeemable = true)
+        const activeCouponsCount = await PrivateCoupon.countDocuments({ redeemable: true });
+
+        // Get all coupons to calculate savings from titles
+        const allCoupons = await PrivateCoupon.find({}, { couponTitle: 1 }).lean();
+
+        // Extract amounts from coupon titles and sum them up
+        let totalSavings = 0;
+        const amountPatterns = [
+            /(?:rs\.?\s*|₹\s*)(\d+)/gi,           // Rs 200, Rs. 200, ₹ 200, rs200
+            /(\d+)\s*(?:rs|rupees)/gi,            // 200 rs, 200 rupees
+            /flat\s*(\d+)/gi,                     // flat 200
+            /save\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,  // save Rs 200, save 200
+            /upto\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,  // upto Rs 200, upto 200
+            /get\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,   // get Rs 200, get 200
+        ];
+
+        allCoupons.forEach(coupon => {
+            if (!coupon.couponTitle) return;
+
+            const title = coupon.couponTitle.toLowerCase();
+            let foundAmount = false;
+
+            for (const pattern of amountPatterns) {
+                const matches = [...title.matchAll(pattern)];
+                if (matches.length > 0) {
+                    // Take the first match found
+                    const amount = parseInt(matches[0][1], 10);
+                    if (!isNaN(amount)) {
+                        totalSavings += amount;
+                        foundAmount = true;
+                        break; // Only count once per coupon
+                    }
+                }
+            }
+
+            // If no pattern matched, try to find any standalone number (last resort)
+            if (!foundAmount) {
+                const standaloneNumber = title.match(/\b(\d{2,4})\b/); // 2-4 digit numbers
+                if (standaloneNumber) {
+                    const amount = parseInt(standaloneNumber[1], 10);
+                    // Only add if it looks like a reasonable discount (between 10 and 10000)
+                    if (!isNaN(amount) && amount >= 10 && amount <= 10000) {
+                        totalSavings += amount;
+                    }
+                }
+            }
+        });
+
+        logger.info(`Statistics fetched: ${activeCouponsCount} active coupons, ₹${totalSavings} total savings`);
+
+        return successResponse(res, STATUS_CODES.OK, 'Statistics fetched successfully', {
+            activeCouponsCount,
+            totalSavings
+        });
+    } catch (error) {
+        logger.error(`Error fetching private coupon statistics: ${error.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'An error occurred while fetching statistics');
     }
 };
