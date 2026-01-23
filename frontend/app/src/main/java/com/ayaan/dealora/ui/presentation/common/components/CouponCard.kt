@@ -59,7 +59,7 @@ private fun getBrandLogoResource(brandName: String): Int {
         "flipkart" -> R.drawable.flipkart
         "nykaa" -> R.drawable.nykaa_logo
         "cred" -> R.drawable.cred_logo
-        "phonepe", "phone pay" -> R.drawable.phonepe_logo
+        "phonepe", "Phone Pay" -> R.drawable.phonepe_logo
         "myntra" -> R.drawable.myntra
         "dealora" -> R.drawable.logo
         else -> R.drawable.logo
@@ -434,7 +434,7 @@ fun Chip(text: String) {
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
-            text = text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Normal
+            text = text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Normal, overflow = TextOverflow.StartEllipsis, maxLines = 1
         )
     }
 }

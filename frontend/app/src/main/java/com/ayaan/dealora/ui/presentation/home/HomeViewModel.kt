@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.BackendResult
 import com.ayaan.dealora.data.auth.AuthRepository
+import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.ProfileRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +20,7 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
+    private val couponRepository: CouponRepository,
     private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
 
@@ -28,10 +30,6 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-
-    init {
-        fetchProfile()
-    }
 
     fun fetchProfile() {
         val uid = firebaseAuth.currentUser?.uid
@@ -57,11 +55,12 @@ class HomeViewModel @Inject constructor(
                     Log.d(TAG, "fetchProfile: Success - ${result.data.user.name}")
                     _uiState.update {
                         it.copy(
-                            isLoading = false,
                             user = result.data.user,
                             errorMessage = null
                         )
                     }
+                    // Fetch statistics after profile is successful
+//                    fetchStatistics()
                 }
                 is BackendResult.Error -> {
                     Log.e(TAG, "fetchProfile: Error - ${result.message}")
@@ -76,8 +75,36 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun fetchStatistics() {
+        viewModelScope.launch {
+            Log.d(TAG, "fetchStatistics: Fetching private coupon statistics")
+            when (val result = couponRepository.getPrivateCouponStatistics()) {
+                is com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult.Success -> {
+                    Log.d(TAG, "fetchStatistics: Success - ${result.statistics.activeCouponsCount} coupons")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statistics = result.statistics,
+                            errorMessage = null
+                        )
+                    }
+                }
+                is com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult.Error -> {
+                    Log.e(TAG, "fetchStatistics: Error - ${result.message}")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun retry() {
         fetchProfile()
+        fetchStatistics()
     }
 
     fun logout() {

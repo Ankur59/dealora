@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.models.Coupon
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
@@ -267,6 +268,38 @@ class CouponRepository @Inject constructor(
             PrivateCouponResult.Error(e.message ?: "Network error occurred")
         }
     }
+
+    /**
+     * Get private coupon statistics
+     */
+    suspend fun getPrivateCouponStatistics(): PrivateCouponStatisticsResult {
+        return try {
+            Log.d(TAG, "Fetching private coupon statistics")
+            val response = couponApiService.getPrivateCouponStatistics()
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Log.d(TAG, "Private coupon statistics fetched successfully")
+                    PrivateCouponStatisticsResult.Success(
+                        message = body.message,
+                        statistics = body.data
+                    )
+                } else {
+                    val errorMsg = body?.message ?: "Failed to fetch statistics"
+                    Log.e(TAG, "Fetch statistics failed: $errorMsg")
+                    PrivateCouponStatisticsResult.Error(errorMsg)
+                }
+            } else {
+                val errorMsg = "HTTP ${response.code()}: ${response.message()}"
+                Log.e(TAG, "Fetch statistics HTTP error: $errorMsg")
+                PrivateCouponStatisticsResult.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fetch statistics exception", e)
+            PrivateCouponStatisticsResult.Error(e.message ?: "Network error occurred")
+        }
+    }
 }
 
 /**
@@ -295,5 +328,19 @@ sealed class PrivateCouponResult {
     data class Error(
         val message: String
     ) : PrivateCouponResult()
+}
+
+/**
+ * Sealed class representing private coupon statistics API call results
+ */
+sealed class PrivateCouponStatisticsResult {
+    data class Success(
+        val message: String,
+        val statistics: CouponStatistics
+    ) : PrivateCouponStatisticsResult()
+
+    data class Error(
+        val message: String
+    ) : PrivateCouponStatisticsResult()
 }
 

@@ -68,6 +68,17 @@ fun CouponsList(
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
+
+    // Get category parameter from navigation
+    val categoryParam = navController.currentBackStackEntry?.arguments?.getString("category")
+
+    // Apply category filter on launch if provided
+    LaunchedEffect(categoryParam) {
+        if (categoryParam != null) {
+            viewModel.onCategoryChanged(categoryParam)
+        }
+    }
+
     LaunchedEffect(isPublicMode) {
         if (isPublicMode) {
             viewModel.loadCoupons()

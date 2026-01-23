@@ -13,7 +13,10 @@ sealed class Route(val path: String) {
     data object RedeemedCoupons: Route("redeemedcoupons")
     data object AddCoupon:Route("addcoupon")
     data object Splash:Route("splash")
-    data object ExploreCoupons:Route("explorecoupons")
+    data object ExploreCoupons:Route("explorecoupons?category={category}") {
+        fun createRoute(category: String? = null) =
+            if (category != null) "explorecoupons?category=$category" else "explorecoupons"
+    }
     data object ContactSupport:Route("contactsupport")
     data object FAQ:Route("faq")
     data object AppPrivacy:Route("appprivacy")

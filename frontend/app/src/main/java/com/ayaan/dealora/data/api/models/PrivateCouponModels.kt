@@ -3,6 +3,14 @@ package com.ayaan.dealora.data.api.models
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
+@JsonClass(generateAdapter = true)
+data class CouponStatistics(
+    @Json(name = "activeCouponsCount")
+    val activeCouponsCount: Int,
+    @Json(name = "totalSavings")
+    val totalSavings: Int
+)
+
 /**
  * Request model for syncing private coupons
  */
