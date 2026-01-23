@@ -198,8 +198,8 @@ exports.getStatistics = async (req, res) => {
         // Get active coupons count (redeemable = true)
         const activeCouponsCount = await PrivateCoupon.countDocuments({ redeemable: true });
 
-        // Get all coupons to calculate savings from titles
-        const allCoupons = await PrivateCoupon.find({}, { couponTitle: 1 }).lean();
+        // Get only redeemed coupons to calculate savings from titles
+        const redeemedCoupons = await PrivateCoupon.find({ redeemed: true }, { couponTitle: 1 }).lean();
 
         // Extract amounts from coupon titles and sum them up
         let totalSavings = 0;
@@ -212,7 +212,7 @@ exports.getStatistics = async (req, res) => {
             /get\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,   // get Rs 200, get 200
         ];
 
-        allCoupons.forEach(coupon => {
+        redeemedCoupons.forEach(coupon => {
             if (!coupon.couponTitle) return;
 
             const title = coupon.couponTitle.toLowerCase();
