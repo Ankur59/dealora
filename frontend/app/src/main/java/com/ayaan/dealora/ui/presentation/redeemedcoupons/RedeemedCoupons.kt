@@ -20,8 +20,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -52,12 +58,10 @@ import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomShe
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraGray
-import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
 fun RedeemedCoupons(
-    navController: NavController,
-    viewModel: RedeemedCouponsViewModel = hiltViewModel()
+    navController: NavController, viewModel: RedeemedCouponsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -72,8 +76,7 @@ fun RedeemedCoupons(
     var showCategoryDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = Color.White,
-        topBar = {
+        containerColor = Color.White, topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -87,14 +90,11 @@ fun RedeemedCoupons(
                     modifier = Modifier
                         .size(40.dp)
                         .border(
-                            width = 1.5.dp,
-                            color = DealoraGray,
-                            shape = CircleShape
+                            width = 1.5.dp, color = DealoraGray, shape = CircleShape
                         )
                         .clickable {
                             navController.popBackStack()
-                        },
-                    contentAlignment = Alignment.Center
+                        }, contentAlignment = Alignment.Center
                 ) {
                     Image(
                         painter = painterResource(R.drawable.arrow_left),
@@ -114,8 +114,7 @@ fun RedeemedCoupons(
 
                 Spacer(modifier = Modifier.size(24.dp))
             }
-        }
-    ) { innerPadding ->
+        }) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
@@ -124,13 +123,56 @@ fun RedeemedCoupons(
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Search Bar
+            TextField(
+                value = searchQuery,
+                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                placeholder = {
+                    Text(
+                        text = "Search coupons...", color = Color.Gray
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = Color.Gray
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear search",
+                                tint = Color.Gray
+                            )
+                        }
+                    }
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF5F5F5),
+                    unfocusedContainerColor = Color(0xFFF5F5F5),
+                    disabledContainerColor = Color(0xFFF5F5F5),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Filter section
             Box(modifier = Modifier) {
                 CouponsFilterSection(
                     onSortClick = { showSortDialog = true },
                     onCategoryClick = { showCategoryDialog = true },
-                    onFiltersClick = { showFiltersDialog = true }
-                )
+                    onFiltersClick = { showFiltersDialog = true })
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -139,8 +181,7 @@ fun RedeemedCoupons(
             when (uiState) {
                 is RedeemedCouponsUiState.Loading -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -159,8 +200,7 @@ fun RedeemedCoupons(
 
                 is RedeemedCouponsUiState.Error -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -168,8 +208,7 @@ fun RedeemedCoupons(
                             modifier = Modifier.padding(24.dp)
                         ) {
                             Text(
-                                text = "😕",
-                                style = MaterialTheme.typography.displayMedium
+                                text = "😕", style = MaterialTheme.typography.displayMedium
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
@@ -189,8 +228,7 @@ fun RedeemedCoupons(
                 is RedeemedCouponsUiState.Success -> {
                     if (filteredCoupons.isEmpty()) {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -198,8 +236,7 @@ fun RedeemedCoupons(
                                 modifier = Modifier.padding(24.dp)
                             ) {
                                 Text(
-                                    text = "🎟️",
-                                    style = MaterialTheme.typography.displayMedium
+                                    text = "🎟️", style = MaterialTheme.typography.displayMedium
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
@@ -224,13 +261,11 @@ fun RedeemedCoupons(
                         ) {
                             items(
                                 count = filteredCoupons.size,
-                                key = { index -> filteredCoupons[index].id }
-                            ) { index ->
+                                key = { index -> filteredCoupons[index].id }) { index ->
                                 val coupon = filteredCoupons[index]
 
                                 CouponCard(
-                                    brandName = coupon.brandName.uppercase()
-                                        .replace(" ", "\n"),
+                                    brandName = coupon.brandName.uppercase().replace(" ", "\n"),
                                     couponTitle = coupon.couponTitle,
                                     description = coupon.description ?: "",
                                     category = coupon.category,
@@ -256,63 +291,69 @@ fun RedeemedCoupons(
                                                 putExtra(
                                                     "EXTRA_COUPON_CODE",
                                                     coupon.couponCode?.takeIf { it.isNotEmpty() }
-                                                        ?: "NO CODE"
-                                                )
+                                                        ?: "NO CODE")
                                                 putExtra(
                                                     "EXTRA_COUPON_TITLE",
                                                     coupon.couponTitle?.takeIf { it.isNotEmpty() }
-                                                        ?: "Special Offer"
-                                                )
+                                                        ?: "Special Offer")
                                                 putExtra(
                                                     "EXTRA_DESCRIPTION",
                                                     coupon.description?.takeIf { it.isNotEmpty() }
-                                                        ?: "Check app for details"
-                                                )
+                                                        ?: "Check app for details")
                                                 putExtra(
                                                     "EXTRA_BRAND_NAME",
                                                     coupon.brandName?.takeIf { it.isNotEmpty() }
-                                                        ?: "Dealora"
-                                                )
+                                                        ?: "Dealora")
                                                 putExtra(
                                                     "EXTRA_CATEGORY",
                                                     coupon.category?.takeIf { it.isNotEmpty() }
-                                                        ?: "General"
-                                                )
+                                                        ?: "General")
                                                 coupon.daysUntilExpiry?.let {
                                                     putExtra("EXTRA_EXPIRY_DATE", "$it days")
-                                                } ?: putExtra("EXTRA_EXPIRY_DATE", "Check app for expiry")
+                                                } ?: putExtra(
+                                                    "EXTRA_EXPIRY_DATE",
+                                                    "Check app for expiry"
+                                                )
                                                 putExtra(
                                                     "EXTRA_MINIMUM_ORDER",
                                                     coupon.minimumOrderValue?.takeIf { it.isNotEmpty() }
-                                                        ?: "No minimum"
-                                                )
+                                                        ?: "No minimum")
                                                 putExtra(
                                                     "EXTRA_COUPON_LINK",
-                                                    coupon.couponLink?.takeIf { it.isNotEmpty() } ?: ""
+                                                    coupon.couponLink?.takeIf { it.isNotEmpty() }
+                                                        ?: "")
+                                                putExtra(
+                                                    "EXTRA_SOURCE_PACKAGE",
+                                                    context.packageName
                                                 )
-                                                putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
                                                 setPackage("com.ayaan.couponviewer")
                                                 addCategory(Intent.CATEGORY_DEFAULT)
                                             }
 
                                             context.startActivity(intent)
                                         } catch (e: Exception) {
-                                            Log.e("RedeemedCoupons", "Failed to open CouponViewer: ${e.message}")
+                                            Log.e(
+                                                "RedeemedCoupons",
+                                                "Failed to open CouponViewer: ${e.message}"
+                                            )
                                             try {
-                                                val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                    setPackage("com.android.vending")
-                                                }
+                                                val playStoreIntent =
+                                                    Intent(Intent.ACTION_VIEW).apply {
+                                                        data =
+                                                            Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                        setPackage("com.android.vending")
+                                                    }
                                                 context.startActivity(playStoreIntent)
                                             } catch (e2: Exception) {
-                                                val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                }
+                                                val browserIntent =
+                                                    Intent(Intent.ACTION_VIEW).apply {
+                                                        data =
+                                                            Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                    }
                                                 context.startActivity(browserIntent)
                                             }
                                         }
-                                    }
-                                )
+                                    })
                             }
                         }
                     }
@@ -327,8 +368,7 @@ fun RedeemedCoupons(
                 onDismiss = { showSortDialog = false },
                 onSortSelected = { sortOption ->
                     viewModel.onSortOptionChanged(sortOption)
-                }
-            )
+                })
         }
 
         // Filters Bottom Sheet
@@ -338,8 +378,7 @@ fun RedeemedCoupons(
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { filters ->
                     viewModel.onFiltersChanged(filters)
-                }
-            )
+                })
         }
 
         // Category Bottom Sheet
@@ -349,8 +388,7 @@ fun RedeemedCoupons(
                 onDismiss = { showCategoryDialog = false },
                 onCategorySelected = { category ->
                     viewModel.onCategoryChanged(category)
-                }
-            )
+                })
         }
     }
 }

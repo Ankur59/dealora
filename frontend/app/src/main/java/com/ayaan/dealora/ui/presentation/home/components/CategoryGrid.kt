@@ -2,6 +2,7 @@ package com.ayaan.dealora.ui.presentation.home.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,38 +25,47 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.ayaan.dealora.R
+import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @Composable
-fun CategoryGrid() {
+fun CategoryGrid(navController: NavController) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            CategoryItem("Food", R.drawable.category_food)
-            CategoryItem("Fashion", R.drawable.category_fashion)
-            CategoryItem("Grocery", R.drawable.category_grocery)
-            CategoryItem("Wallet Rewards", R.drawable.category_wallet)
+            CategoryItem("Food", R.drawable.category_food, navController)
+            CategoryItem("Fashion", R.drawable.category_fashion, navController)
+            CategoryItem("Grocery", R.drawable.category_grocery, navController)
+            CategoryItem("Wallet Rewards", R.drawable.category_wallet, navController)
         }
         Row(
             modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            CategoryItem("Beauty", R.drawable.category_beauty)
-            CategoryItem("Travel", R.drawable.category_travel)
-            CategoryItem("Entertainment", R.drawable.category_entertainment)
-            CategoryItemSeeAll()
+            CategoryItem("Beauty", R.drawable.category_beauty, navController)
+            CategoryItem("Travel", R.drawable.category_travel, navController)
+            CategoryItem("Entertainment", R.drawable.category_entertainment, navController)
+            CategoryItemSeeAll(navController)
         }
     }
 }
 
 @Composable
 fun CategoryItem(
-    name: String, imageRes: Int
+    name: String,
+    imageRes: Int,
+    navController: NavController
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(80.dp)
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(80.dp)
+            .clickable {
+                navController.navigate(Route.ExploreCoupons.createRoute(category = name))
+            }
     ) {
         Image(
             painter = painterResource(id = imageRes),
@@ -76,9 +86,14 @@ fun CategoryItem(
 }
 
 @Composable
-fun CategoryItemSeeAll() {
+fun CategoryItemSeeAll(navController: NavController) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(80.dp)
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(80.dp)
+            .clickable {
+                navController.navigate(Route.ExploreCoupons.createRoute())
+            }
     ) {
         Box(
             modifier = Modifier

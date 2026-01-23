@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.models.Coupon
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
@@ -146,12 +147,32 @@ class CouponRepository @Inject constructor(
     }
 
     /**
-     * Sync private coupons based on selected brands
+     * Sync private coupons with filter support
      */
-    suspend fun syncPrivateCoupons(brands: List<String>): PrivateCouponResult {
+    suspend fun syncPrivateCoupons(
+        brands: List<String>,
+        category: String? = null,
+        search: String? = null,
+        discountType: String? = null,
+        price: String? = null,
+        validity: String? = null,
+        sortBy: String? = null,
+        page: Int? = null,
+        limit: Int? = null
+    ): PrivateCouponResult {
         return try {
-            Log.d(TAG, "Syncing private coupons for brands: ${brands.joinToString()}")
-            val request = SyncPrivateCouponsRequest(brands)
+            Log.d(TAG, "Syncing private coupons for brands: $brands, search: $search, category: $category, sortBy: $sortBy")
+            val request = SyncPrivateCouponsRequest(
+                brands = brands,
+                category = category,
+                search = search,
+                discountType = discountType,
+                price = price,
+                validity = validity,
+                sortBy = sortBy,
+                page = page,
+                limit = limit
+            )
             val response = couponApiService.syncPrivateCoupons(request)
 
             if (response.isSuccessful) {
@@ -185,7 +206,17 @@ class CouponRepository @Inject constructor(
     suspend fun getPrivateCouponById(couponId: String, brands: List<String>): PrivateCoupon? {
         return try {
             Log.d(TAG, "Fetching private coupon with id: $couponId")
-            val result = syncPrivateCoupons(brands)
+            val result = syncPrivateCoupons(
+                brands = brands,
+                category = null,
+                search = null,
+                discountType = null,
+                price = null,
+                validity = null,
+                sortBy = null,
+                page = null,
+                limit = null
+            )
 
             when (result) {
                 is PrivateCouponResult.Success -> {
@@ -237,6 +268,39 @@ class CouponRepository @Inject constructor(
             PrivateCouponResult.Error(e.message ?: "Network error occurred")
         }
     }
+
+    /**
+     * Get private coupon statistics with brand filtering
+     */
+    suspend fun getPrivateCouponStatistics(brands: List<String> = emptyList()): PrivateCouponStatisticsResult {
+        return try {
+            Log.d(TAG, "Fetching private coupon statistics for brands: $brands")
+            val request = com.ayaan.dealora.data.api.models.CouponStatisticsRequest(brands)
+            val response = couponApiService.getPrivateCouponStatistics(request)
+ 
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Log.d(TAG, "Private coupon statistics fetched successfully")
+                    PrivateCouponStatisticsResult.Success(
+                        message = body.message,
+                        statistics = body.data
+                    )
+                } else {
+                    val errorMsg = body?.message ?: "Failed to fetch statistics"
+                    Log.e(TAG, "Fetch statistics failed: $errorMsg")
+                    PrivateCouponStatisticsResult.Error(errorMsg)
+                }
+            } else {
+                val errorMsg = "HTTP ${response.code()}: ${response.message()}"
+                Log.e(TAG, "Fetch statistics HTTP error: $errorMsg")
+                PrivateCouponStatisticsResult.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fetch statistics exception", e)
+            PrivateCouponStatisticsResult.Error(e.message ?: "Network error occurred")
+        }
+    }
 }
 
 /**
@@ -265,5 +329,19 @@ sealed class PrivateCouponResult {
     data class Error(
         val message: String
     ) : PrivateCouponResult()
+}
+
+/**
+ * Sealed class representing private coupon statistics API call results
+ */
+sealed class PrivateCouponStatisticsResult {
+    data class Success(
+        val message: String,
+        val statistics: CouponStatistics
+    ) : PrivateCouponStatisticsResult()
+
+    data class Error(
+        val message: String
+    ) : PrivateCouponStatisticsResult()
 }
 

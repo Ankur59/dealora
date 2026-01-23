@@ -18,7 +18,10 @@ import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.*
 
 @Composable
-fun CouponsCard() {
+fun StatisticsCard(
+    activeCouponsCount: Int = 0,
+    totalSavings: Int = 0
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -61,9 +64,13 @@ fun CouponsCard() {
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CouponDigit("0")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
+                    val countStr = activeCouponsCount.toString().padStart(2, '0')
+                    countStr.forEachIndexed { index, char ->
+                        CouponDigit(char.toString())
+                        if (index < countStr.length - 1) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                    }
                 }
             }
 
@@ -113,11 +120,13 @@ fun CouponsCard() {
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    CouponDigit("0")
+                    val savingsStr = totalSavings.toString().padStart(3, '0')
+                    savingsStr.forEachIndexed { index, char ->
+                        CouponDigit(char.toString())
+                        if (index < savingsStr.length - 1) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                    }
                 }
             }
         }

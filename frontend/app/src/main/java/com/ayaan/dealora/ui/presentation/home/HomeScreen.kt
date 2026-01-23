@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -25,9 +26,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
-import com.ayaan.dealora.ui.presentation.home.components.CouponsCard
+import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
-import com.ayaan.dealora.ui.presentation.common.components.SearchBar
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
@@ -39,7 +39,10 @@ fun HomeScreen(
     navController: NavController, viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
+    LaunchedEffect(Unit){
+        viewModel.fetchProfile()
+        viewModel.fetchStatistics()
+    }
     Scaffold(
         topBar = {
             AppTopBar(navController)
@@ -145,12 +148,19 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            SearchBar()
-
-            Spacer(modifier = Modifier.height(20.dp))
+//            SearchBar(
+////                onClick = {
+////                    navController.navigate(Route.Dashboard.createRoute())
+////                }
+//            )
+//
+//            Spacer(modifier = Modifier.height(20.dp))
 
             // Coupons Card
-//            CouponsCard()
+            StatisticsCard(
+                activeCouponsCount = uiState.statistics?.activeCouponsCount ?: 0,
+                totalSavings = uiState.statistics?.totalSavings ?: 0
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -179,7 +189,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Category Grid
-            CategoryGrid()
+            CategoryGrid(navController)
             Spacer(modifier = Modifier.height(24.dp))
             Row(
                 modifier = Modifier
@@ -201,7 +211,7 @@ fun HomeScreen(
                     color = DealoraPrimary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier.clickable(onClick = {
-                        navController.navigate(Route.ExploreCoupons.path)
+                        navController.navigate(Route.ExploreCoupons.createRoute())
                     })
                 )
             }

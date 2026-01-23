@@ -3,13 +3,51 @@ package com.ayaan.dealora.data.api.models
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
+@JsonClass(generateAdapter = true)
+data class CouponStatistics(
+    @Json(name = "activeCouponsCount")
+    val activeCouponsCount: Int,
+    @Json(name = "totalSavings")
+    val totalSavings: Int
+)
+
+@JsonClass(generateAdapter = true)
+data class CouponStatisticsRequest(
+    @Json(name = "brands")
+    val brands: List<String>
+)
+
 /**
  * Request model for syncing private coupons
  */
 @JsonClass(generateAdapter = true)
 data class SyncPrivateCouponsRequest(
     @Json(name = "brands")
-    val brands: List<String>
+    val brands: List<String>,
+
+    @Json(name = "category")
+    val category: String? = null,
+
+    @Json(name = "search")
+    val search: String? = null,
+
+    @Json(name = "discountType")
+    val discountType: String? = null,
+
+    @Json(name = "price")
+    val price: String? = null,
+
+    @Json(name = "validity")
+    val validity: String? = null,
+
+    @Json(name = "sortBy")
+    val sortBy: String? = null,
+
+    @Json(name = "page")
+    val page: Int? = null,
+
+    @Json(name = "limit")
+    val limit: Int? = null
 )
 
 /**
@@ -19,6 +57,15 @@ data class SyncPrivateCouponsRequest(
 data class PrivateCouponResponseData(
     @Json(name = "count")
     val count: Int,
+
+    @Json(name = "total")
+    val total: Int? = null,
+
+    @Json(name = "page")
+    val page: Int? = null,
+
+    @Json(name = "pages")
+    val pages: Int? = null,
 
     @Json(name = "coupons")
     val coupons: List<PrivateCoupon>

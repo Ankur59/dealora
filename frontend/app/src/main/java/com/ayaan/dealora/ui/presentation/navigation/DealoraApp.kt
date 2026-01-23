@@ -144,7 +144,16 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         composable(Route.Splash.path) {
             SplashScreen(navController)
         }
-        composable(Route.ExploreCoupons.path) {
+        composable(
+            route = Route.ExploreCoupons.path,
+            arguments = listOf(
+                navArgument("category") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) {
             CouponsList(navController)
         }
         composable(Route.Profile.path) {
@@ -204,7 +213,7 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
             arguments = listOf(
                 navArgument("tab") {
                     type = NavType.StringType
-                    defaultValue = "saved"
+                    defaultValue = "active"
                 }
             )
         ) {

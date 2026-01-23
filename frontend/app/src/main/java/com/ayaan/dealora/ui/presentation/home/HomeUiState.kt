@@ -1,5 +1,6 @@
 package com.ayaan.dealora.ui.presentation.home
 
+import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.User
 
 /**
@@ -8,6 +9,7 @@ import com.ayaan.dealora.data.api.models.User
 data class HomeUiState(
     val isLoading: Boolean = false,
     val user: User? = null,
+    val statistics: CouponStatistics? = null,
     val errorMessage: String? = null
 )
 

@@ -59,7 +59,7 @@ class ProfileRepository @Inject constructor(
     /**
      * Update user profile on backend
      */
-    suspend fun updateProfile(uid: String, updateData: Map<String, String>): BackendResult {
+    suspend fun updateProfile(uid: String, updateData: Map<String, Any>): BackendResult {
         return try {
             Log.d(TAG, "updateProfile: Updating profile for uid: $uid with data: $updateData")
 

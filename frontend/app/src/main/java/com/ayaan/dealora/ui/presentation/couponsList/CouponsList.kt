@@ -68,6 +68,17 @@ fun CouponsList(
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
 
     var showCategoryDialog by remember { mutableStateOf(false) }
+
+    // Get category parameter from navigation
+    val categoryParam = navController.currentBackStackEntry?.arguments?.getString("category")
+
+    // Apply category filter on launch if provided
+    LaunchedEffect(categoryParam) {
+        if (categoryParam != null) {
+            viewModel.onCategoryChanged(categoryParam)
+        }
+    }
+
     LaunchedEffect(isPublicMode) {
         if (isPublicMode) {
             viewModel.loadCoupons()
@@ -405,12 +416,13 @@ fun CouponsList(
                                                 brandName = coupon.brandName?.uppercase()
                                                     ?.replace(" ", "\n") ?: "DEALORA",
                                                 couponTitle = coupon.couponTitle ?: "Special Offer",
-                                                description = "", // Not available in list API
-                                                category = null, // Not available in list API
-                                                expiryDays = null, // Not available in list API
+                                                description = coupon.description ?: "",
+                                                category = coupon.category,
+                                                expiryDays = coupon.daysUntilExpiry,
                                                 couponCode = "", // Not available in list API
                                                 couponId = coupon.id,
                                                 isRedeemed = false,
+                                                showActionButtons = false,
                                                 isSaved = savedCouponIds.contains(coupon.id),
                                                 onSave = { couponId ->
                                                     // For public coupons, save with minimal data since we don't have full details

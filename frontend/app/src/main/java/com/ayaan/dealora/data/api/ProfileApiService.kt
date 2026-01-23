@@ -19,7 +19,7 @@ interface ProfileApiService {
     @PUT("api/auth/profile")
     suspend fun updateProfile(
         @Query("uid") uid: String,
-        @Body updateData: Map<String, String>
+        @Body updateData: Map<String, @JvmSuppressWildcards Any>
     ): Response<ApiResponse<AuthResponseData>>
 }
 

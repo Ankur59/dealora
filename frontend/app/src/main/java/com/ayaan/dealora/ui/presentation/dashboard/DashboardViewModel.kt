@@ -11,6 +11,8 @@ import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +34,7 @@ class DashboardViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "DashboardViewModel"
+        private const val SEARCH_DEBOUNCE_MILLIS = 500L
     }
 
     private val _uiState = MutableStateFlow<DashboardUiState>(DashboardUiState.Success)
@@ -56,6 +59,11 @@ class DashboardViewModel @Inject constructor(
     private val _currentFilters = MutableStateFlow(com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions())
     val currentFilters: StateFlow<com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions> = _currentFilters.asStateFlow()
 
+    private val _statusFilter = MutableStateFlow("active") // "active", "redeemed", "expired", "saved"
+    val statusFilter: StateFlow<String> = _statusFilter.asStateFlow()
+
+    private var searchJob: Job? = null
+
     init {
         // Load all private coupons and saved IDs
         viewModelScope.launch {
@@ -63,8 +71,8 @@ class DashboardViewModel @Inject constructor(
             savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
                 _savedCouponIds.value = savedCoupons.map { it.couponId }.toSet()
                 Log.d(TAG, "Updated saved coupon IDs: ${_savedCouponIds.value}")
-                // Filter coupons whenever saved IDs change
-                filterCoupons()
+                // Filter coupons by status whenever saved IDs change
+                filterCouponsByStatus()
             }
         }
 
@@ -96,13 +104,44 @@ class DashboardViewModel @Inject constructor(
                     return@launch
                 }
 
-                when (val result = couponRepository.syncPrivateCoupons(brands)) {
+                // Convert UI sort option to API value
+                val sortByApi = when (_currentSortOption.value) {
+                    SortOption.NEWEST_FIRST -> "newest_first"
+                    SortOption.EXPIRING_SOON -> "expiring_soon"
+                    SortOption.A_TO_Z -> "a_to_z"
+                    SortOption.Z_TO_A -> "z_to_a"
+                    else -> null
+                }
+
+                // Get category filter - convert "See All" to null
+                val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
+
+                // Get filters from current filters
+                val filters = _currentFilters.value
+                val discountTypeApi = convertDiscountTypeToApi(filters.discountType)
+                val priceApi = filters.getPriceApiValue()
+                val validityApi = filters.getValidityApiValue()
+
+                // Get search query (empty string converts to null)
+                val searchApi = _searchQuery.value.takeIf { it.isNotBlank() }
+
+                when (val result = couponRepository.syncPrivateCoupons(
+                    brands = brands,
+                    category = categoryApi,
+                    search = searchApi,
+                    discountType = discountTypeApi,
+                    price = priceApi,
+                    validity = validityApi,
+                    sortBy = sortByApi,
+                    page = null, // Get all for now
+                    limit = null
+                )) {
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
                         _allPrivateCoupons.value = result.coupons
                         _uiState.value = DashboardUiState.Success
-                        // Filter to show only saved ones
-                        filterCoupons()
+                        // Apply client-side status filter (active/redeemed/expired/saved)
+                        filterCouponsByStatus()
                     }
                     is PrivateCouponResult.Error -> {
                         Log.e(TAG, "Error loading private coupons: ${result.message}")
@@ -116,62 +155,89 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun filterCoupons() {
+    private fun convertDiscountTypeToApi(uiValue: String?): String? {
+        return when (uiValue) {
+            "Percentage Off (% Off)" -> "percentage_off"
+            "Flat Discount (₹ Off)" -> "flat_discount"
+            "Cashback" -> "cashback"
+            "Buy 1 Get 1" -> "buy1get1"
+            "Free Delivery" -> "free_delivery"
+            "Wallet/UPI" -> "wallet_upi"
+            "Prepaid Only" -> "prepaid_only"
+            else -> null
+        }
+    }
+
+    private fun filterCouponsByStatus() {
         val allCoupons = _allPrivateCoupons.value
         val saved = _savedCouponIds.value
-        val query = _searchQuery.value.lowercase()
-        val sortOption = _currentSortOption.value
-        val categoryFilter = _currentCategory.value
-        val filters = _currentFilters.value
+        val statusFilterValue = _statusFilter.value
 
-        var filtered = allCoupons.filter { coupon ->
-            // Must be saved
-            saved.contains(coupon.id) && 
-            // Search query match
-            (query.isEmpty() || (
-                coupon.brandName.lowercase().contains(query) ||
-                coupon.couponTitle.lowercase().contains(query) ||
-                (coupon.description?.lowercase()?.contains(query) ?: false)
-            )) &&
-            // Category filter
-            (categoryFilter == null || categoryFilter == "See All" || coupon.category == categoryFilter) &&
-            // Brand filter
-            (filters.brand == null || coupon.brandName.equals(filters.brand, ignoreCase = true))
+        Log.d(TAG, "=== FILTER DEBUG START ===")
+        Log.d(TAG, "Total coupons: ${allCoupons.size}")
+        Log.d(TAG, "Status filter: $statusFilterValue")
+        Log.d(TAG, "Saved coupon IDs: ${saved.size}")
+
+        // Log all coupons with their expiry info
+        allCoupons.forEachIndexed { index, coupon ->
+            Log.d(TAG, "Coupon $index: ${coupon.couponTitle}, daysUntilExpiry: ${coupon.daysUntilExpiry}, redeemed: ${coupon.redeemed}, saved: ${saved.contains(coupon.id)}")
         }
 
-        // Apply sort
-        filtered = when (sortOption) {
-            SortOption.NEWEST_FIRST -> filtered.sortedByDescending { it.createdAt }
-            SortOption.OLDEST_FIRST -> filtered.sortedBy { it.createdAt }
-            SortOption.EXPIRING_SOON -> filtered.sortedBy { it.daysUntilExpiry ?: Int.MAX_VALUE }
-            SortOption.HIGHEST_DISCOUNT -> filtered // Private coupons don't have discount value, keep as-is
-            SortOption.A_TO_Z -> filtered.sortedBy { it.brandName }
-            SortOption.Z_TO_A -> filtered.sortedByDescending { it.brandName }
-            SortOption.NONE -> filtered
+        val filtered = allCoupons.filter { coupon ->
+            when (statusFilterValue) {
+                "saved" -> saved.contains(coupon.id)
+                "redeemed" -> coupon.redeemed == true
+                "expired" -> {
+                    val isExpired = ((coupon.daysUntilExpiry?.minus(1)) ?: 0) < 0
+                    Log.d(TAG, "Checking expired for ${coupon.couponTitle}: daysUntilExpiry=${coupon.daysUntilExpiry}, isExpired=$isExpired")
+                    isExpired
+                }
+                "active" -> {
+                    // Active: neither expired nor redeemed
+                    (coupon.daysUntilExpiry ?: 0) >= 0 && coupon.redeemed != true
+                }
+                else -> saved.contains(coupon.id) // default to saved
+            }
         }
 
         _filteredCoupons.value = filtered
-        Log.d(TAG, "Filtered coupons: ${filtered.size} out of ${allCoupons.size}, sort: $sortOption, category: $categoryFilter")
+        Log.d(TAG, "Filtered coupons by status: ${filtered.size} out of ${allCoupons.size}, status: $statusFilterValue")
+        Log.d(TAG, "=== FILTER DEBUG END ===")
     }
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
-        filterCoupons()
+
+        // Cancel previous search job
+        searchJob?.cancel()
+
+        // Start new debounced search
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DEBOUNCE_MILLIS)
+            Log.d(TAG, "Search query debounced: $query")
+            loadPrivateCoupons()
+        }
     }
 
     fun onSortOptionChanged(sortOption: SortOption) {
         _currentSortOption.value = sortOption
-        filterCoupons()
+        loadPrivateCoupons()
     }
 
     fun onCategoryChanged(category: String?) {
         _currentCategory.value = category
-        filterCoupons()
+        loadPrivateCoupons()
     }
 
     fun onFiltersChanged(filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions) {
         _currentFilters.value = filters
-        filterCoupons()
+        loadPrivateCoupons()
+    }
+
+    fun onStatusFilterChanged(status: String) {
+        _statusFilter.value = status
+        // Status filter is client-side only, no need to reload from API
+        filterCouponsByStatus()
     }
 
     fun removeSavedCoupon(couponId: String) {
@@ -185,6 +251,53 @@ class DashboardViewModel @Inject constructor(
                 Log.d(TAG, "Coupon removed successfully: $couponId")
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing coupon: $couponId", e)
+            }
+        }
+    }
+
+    fun redeemCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        Log.d(TAG, "========== REDEEM COUPON (DASHBOARD) FLOW STARTED ==========")
+        Log.d(TAG, "Coupon ID: $couponId")
+
+        viewModelScope.launch {
+            try {
+                val currentUser = firebaseAuth.currentUser
+                if (currentUser == null) {
+                    Log.e(TAG, "User not authenticated")
+                    onError("Please login to redeem coupon")
+                    return@launch
+                }
+
+                val uid = currentUser.uid
+                Log.d(TAG, "✓ User authenticated - UID: $uid")
+                Log.d(TAG, "→ Calling repository.redeemPrivateCoupon(couponId=$couponId, uid=$uid)")
+
+                when (val result = couponRepository.redeemPrivateCoupon(couponId, uid)) {
+                    is PrivateCouponResult.Success -> {
+                        Log.d(TAG, "✓ SUCCESS: Coupon redeemed successfully")
+                        Log.d(TAG, "Response message: ${result.message}")
+                        if (result.coupons.isNotEmpty()) {
+                            val redeemedCoupon = result.coupons[0]
+                            Log.d(TAG, "Redeemed coupon details:")
+                            Log.d(TAG, "  - ID: ${redeemedCoupon.id}")
+                            Log.d(TAG, "  - Brand: ${redeemedCoupon.brandName}")
+                            Log.d(TAG, "  - Title: ${redeemedCoupon.couponTitle}")
+                            Log.d(TAG, "  - Redeemable: ${redeemedCoupon.redeemable}")
+                            Log.d(TAG, "  - Redeemed: ${redeemedCoupon.redeemed}")
+                        }
+                        onSuccess()
+                        // Reload private coupons to show updated state
+                        loadPrivateCoupons()
+                    }
+                    is PrivateCouponResult.Error -> {
+                        Log.e(TAG, "✗ ERROR: ${result.message}")
+                        onError(result.message)
+                    }
+                }
+                Log.d(TAG, "========== REDEEM COUPON (DASHBOARD) FLOW COMPLETED ==========")
+            } catch (e: Exception) {
+                Log.e(TAG, "✗ EXCEPTION in redeem flow: ${e.message}", e)
+                onError("Unable to redeem coupon. Please try again.")
             }
         }
     }
