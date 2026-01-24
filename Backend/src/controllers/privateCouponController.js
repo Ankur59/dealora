@@ -209,13 +209,11 @@ exports.getStatistics = async (req, res) => {
             logger.info('Fetching statistics for all brands');
         }
 
-        // Get active coupons count (redeemable = true) for the filtered brands
+        // Get active coupons (redeemable = true) to calculate count and potential savings
+        // Calculate savings based on active coupons instead of redeemed ones as per request
         const activeCouponsQuery = { ...query, redeemable: true };
-        const activeCouponsCount = await PrivateCoupon.countDocuments(activeCouponsQuery);
-
-        // Get only redeemed coupons to calculate savings from titles for the filtered brands
-        const redeemedCouponsQuery = { ...query, redeemed: true };
-        const redeemedCoupons = await PrivateCoupon.find(redeemedCouponsQuery, { couponTitle: 1 }).lean();
+        const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1 }).lean();
+        const activeCouponsCount = activeCoupons.length;
 
         // Extract amounts from coupon titles and sum them up
         let totalSavings = 0;
@@ -228,7 +226,7 @@ exports.getStatistics = async (req, res) => {
             /get\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,   // get Rs 200, get 200
         ];
 
-        redeemedCoupons.forEach(coupon => {
+        activeCoupons.forEach(coupon => {
             if (!coupon.couponTitle) return;
 
             const title = coupon.couponTitle.toLowerCase();
