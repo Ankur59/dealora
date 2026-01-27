@@ -210,51 +210,35 @@ exports.getStatistics = async (req, res) => {
         }
 
         // Get active coupons (redeemable = true) to calculate count and potential savings
-        // Calculate savings based on active coupons instead of redeemed ones as per request
         const activeCouponsQuery = { ...query, redeemable: true };
-        const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1 }).lean();
+        const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1, description: 1 }).lean();
         const activeCouponsCount = activeCoupons.length;
 
-        // Extract amounts from coupon titles and sum them up
+        // Calculate total savings: 20% of all amounts with ₹ symbol in title or description
         let totalSavings = 0;
-        const amountPatterns = [
-            /(?:rs\.?\s*|₹\s*)(\d+)/gi,           // Rs 200, Rs. 200, ₹ 200, rs200
-            /(\d+)\s*(?:rs|rupees)/gi,            // 200 rs, 200 rupees
-            /flat\s*(\d+)/gi,                     // flat 200
-            /save\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,  // save Rs 200, save 200
-            /upto\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,  // upto Rs 200, upto 200
-            /get\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,   // get Rs 200, get 200
-        ];
+        const rupeePattern = /₹\s*(\d+)/g; 
 
         activeCoupons.forEach(coupon => {
-            if (!coupon.couponTitle) return;
-
-            const title = coupon.couponTitle.toLowerCase();
-            let foundAmount = false;
-
-            for (const pattern of amountPatterns) {
-                const matches = [...title.matchAll(pattern)];
-                if (matches.length > 0) {
-                    // Take the first match found
-                    const amount = parseInt(matches[0][1], 10);
+            // Check title for ₹ amounts
+            if (coupon.couponTitle) {
+                const titleMatches = [...coupon.couponTitle.matchAll(rupeePattern)];
+                titleMatches.forEach(match => {
+                    const amount = parseInt(match[1], 10);
                     if (!isNaN(amount)) {
-                        totalSavings += amount;
-                        foundAmount = true;
-                        break; // Only count once per coupon
+                        totalSavings += Math.round(amount * 0.20); // Add 20% of the amount
                     }
-                }
+                });
             }
 
-            // If no pattern matched, try to find any standalone number (last resort)
-            if (!foundAmount) {
-                const standaloneNumber = title.match(/\b(\d{2,4})\b/); // 2-4 digit numbers
-                if (standaloneNumber) {
-                    const amount = parseInt(standaloneNumber[1], 10);
-                    // Only add if it looks like a reasonable discount (between 10 and 10000)
-                    if (!isNaN(amount) && amount >= 10 && amount <= 10000) {
-                        totalSavings += amount;
+            // Check description for ₹ amounts
+            if (coupon.description) {
+                const descMatches = [...coupon.description.matchAll(rupeePattern)];
+                descMatches.forEach(match => {
+                    const amount = parseInt(match[1], 10);
+                    if (!isNaN(amount)) {
+                        totalSavings += Math.round(amount * 0.20); // Add 20% of the amount
                     }
-                }
+                });
             }
         });
 
