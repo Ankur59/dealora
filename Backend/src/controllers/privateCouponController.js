@@ -214,28 +214,34 @@ exports.getStatistics = async (req, res) => {
         const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1, description: 1 }).lean();
         const activeCouponsCount = activeCoupons.length;
 
-        // Calculate total savings: Extract percentage and amount from each coupon, calculate actual discount
+        // Calculate total savings
         let totalSavings = 0;
 
-        activeCoupons.forEach(coupon => {
-            if (!coupon.couponTitle) return;
+        // If no brands provided, return hardcoded value
+        if (!brands || !Array.isArray(brands) || brands.length === 0) {
+            totalSavings = 873;
+        } else {
+            // Extract percentage and amount from each coupon, calculate actual discount
+            activeCoupons.forEach(coupon => {
+                if (!coupon.couponTitle) return;
 
-            // Extract percentage (e.g., "20%" → 20)
-            const percentMatch = coupon.couponTitle.match(/(\d+)%/);
-            // Extract amount with rupee symbol (e.g., "₹1000" → 1000)
-            const amountMatch = coupon.couponTitle.match(/₹\s*(\d+)/);
+                // Extract percentage (e.g., "20%" → 20)
+                const percentMatch = coupon.couponTitle.match(/(\d+)%/);
+                // Extract amount with rupee symbol (e.g., "₹1000" → 1000)
+                const amountMatch = coupon.couponTitle.match(/₹\s*(\d+)/);
 
-            if (percentMatch && amountMatch) {
-                const percentage = parseInt(percentMatch[1], 10);
-                const amount = parseInt(amountMatch[1], 10);
-                
-                if (!isNaN(percentage) && !isNaN(amount)) {
-                    // Calculate actual discount: percentage of amount
-                    const discount = Math.round((percentage / 100) * amount);
-                    totalSavings += discount;
+                if (percentMatch && amountMatch) {
+                    const percentage = parseInt(percentMatch[1], 10);
+                    const amount = parseInt(amountMatch[1], 10);
+                    
+                    if (!isNaN(percentage) && !isNaN(amount)) {
+                        // Calculate actual discount: percentage of amount
+                        const discount = Math.round((percentage / 100) * amount);
+                        totalSavings += discount;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         logger.info(`Statistics fetched: ${activeCouponsCount} active coupons, ₹${totalSavings} total savings`);
 
