@@ -154,16 +154,16 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Clear all synced apps from Room database
-                syncedAppRepository.deleteAllSyncedApps()
+//                syncedAppRepository.deleteAllSyncedApps()
                 Log.d(TAG, "logout: Database cleared successfully")
 
                 // Sign out from Firebase
-//                firebaseAuth.signOut()
+                firebaseAuth.signOut()
                 Log.d(TAG, "logout: User signed out successfully")
             } catch (e: Exception) {
                 Log.e(TAG, "logout: Error clearing database", e)
                 // Still sign out even if database clear fails
-//                firebaseAuth.signOut()
+                firebaseAuth.signOut()
                 Log.d(TAG, "logout: User signed out successfully (despite database error)")
             }
         }
