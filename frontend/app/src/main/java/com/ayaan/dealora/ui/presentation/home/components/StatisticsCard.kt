@@ -100,7 +100,7 @@ fun StatisticsCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Your Coupons Saving",
+                        text = "Amount you can save",
                         fontSize = 12.sp,
                         color = DealoraWhite,
                         fontWeight = FontWeight.W500
