@@ -1,5 +1,6 @@
 package com.ayaan.dealora.ui.presentation.common.components
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -51,7 +52,8 @@ import com.ayaan.dealora.ui.theme.DealoraPrimary
  * Helper function to get brand logo resource with fallback to default logo
  */
 private fun getBrandLogoResource(brandName: String): Int {
-    return when (brandName.replace("\n", "").trim().lowercase()) {
+    return when (brandName) {
+
         "zomato" -> R.drawable.zomato_logo
         "swiggy" -> R.drawable.swiggy_logo
         "blinkit" -> R.drawable.blinkit_logo
@@ -59,7 +61,7 @@ private fun getBrandLogoResource(brandName: String): Int {
         "flipkart" -> R.drawable.flipkart
         "nykaa" -> R.drawable.nykaa_logo
         "cred" -> R.drawable.cred_logo
-        "phonepe", "Phone Pay" -> R.drawable.phonepe_logo
+        "phonepay" -> R.drawable.phonepe_logo
         "myntra" -> R.drawable.myntra
         "dealora" -> R.drawable.logo
         else -> R.drawable.logo
@@ -91,10 +93,9 @@ fun CouponCard(
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
     var isSavedLocal by remember(isSaved) { mutableStateOf(isSaved) }
-
     // Get brand logo with fallback to default logo
     val painter: Int = remember(brandName) {
-        getBrandLogoResource(brandName)
+        getBrandLogoResource(brandName.replace("\n", "").trim().lowercase())
     }
 
     Card(
