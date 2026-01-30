@@ -89,29 +89,30 @@ exports.syncCoupons = async (req, res) => {
 
         // Validity Filter
         if (validity) {
-            const todayEnd = new Date();
-            todayEnd.setHours(23, 59, 59, 999);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
-            const sevenDaysFromNow = new Date();
-            sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-            sevenDaysFromNow.setHours(23, 59, 59, 999);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-            const thirtyDaysFromNow = new Date();
-            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-            thirtyDaysFromNow.setHours(23, 59, 59, 999);
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    sevenDaysFromNow.setHours(23, 59, 59, 999);
 
-            if (validity === 'valid_today') {
-                query.expiryDate = { $gte: now, $lte: todayEnd };
-            } else if (validity === 'valid_this_week') {
-                // daysUntilExpiry <= 7
-                query.expiryDate = { $gte: now, $lte: sevenDaysFromNow };
-            } else if (validity === 'valid_this_month') {
-                // daysUntilExpiry > 7 AND <= 30
-                query.expiryDate = { $gt: sevenDaysFromNow, $lte: thirtyDaysFromNow };
-            } else if (validity === 'expired') {
-                query.expiryDate = { $lt: now };
-            }
-        }
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    thirtyDaysFromNow.setHours(23, 59, 59, 999);
+
+    if (validity === 'valid_today') {
+        query.expiryDate = { $gte: todayStart, $lte: todayEnd };
+    } else if (validity === 'valid_this_week') {
+        query.expiryDate = { $gt: todayEnd, $lte: sevenDaysFromNow };
+    } else if (validity === 'valid_this_month') {
+        query.expiryDate = { $gt: sevenDaysFromNow, $lte: thirtyDaysFromNow };
+    } else if (validity === 'expired') {
+        query.expiryDate = { $lt: todayStart };
+    }
+}
 
         // Sorting
         let sortOptions = {};
