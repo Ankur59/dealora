@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.couponsList.coupondetails
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.ayaan.dealora.R
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.BottomActionButtons
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.Chip
@@ -53,7 +56,21 @@ import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.Ta
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.TermsAndConditionsContent
 import com.ayaan.dealora.ui.presentation.profile.components.TopBar
 import com.ayaan.dealora.ui.theme.AppColors
-
+private fun getBrandLogoResource(brandName: String): Int {
+    return when (brandName) {
+        "zomato" -> R.drawable.zomato_logo
+        "swiggy" -> R.drawable.swiggy_logo
+        "blinkit" -> R.drawable.blinkit_logo
+        "amazon" -> R.drawable.azon_logo
+        "flipkart" -> R.drawable.flipkart
+        "nykaa" -> R.drawable.nykaa_logo
+        "cred" -> R.drawable.cred_logo
+        "phonepay" -> R.drawable.phonepe_logo
+        "myntra" -> R.drawable.myntra
+        "dealora" -> R.drawable.logo
+        else -> R.drawable.logo
+    }
+}
 @Composable
 fun CouponDetailsScreen(
     navController: NavController, viewModel: CouponDetailsViewModel = hiltViewModel()
@@ -491,6 +508,9 @@ fun CouponDetailsContent(
 fun BrandHeader(
     brandName: String, categoryLabel: String?, daysUntilExpiry: Int?, initial: String
 ) {
+    val painter: Int = remember(brandName) {
+        getBrandLogoResource(brandName.replace("\n", "").trim().lowercase())
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -503,9 +523,14 @@ fun BrandHeader(
                 .background(Color(0xFF00BFA5)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = initial, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White
+            Image(
+                painter= painterResource(painter),
+                contentDescription = "BrnadLogo",
+                modifier = Modifier.fillMaxSize().clip(CircleShape)
             )
+//            Text(
+//                text = initial, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White
+//            )
         }
 
         Column {
