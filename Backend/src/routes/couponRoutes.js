@@ -12,11 +12,11 @@ router.get('/test/:id', couponController.getCouponByIdTest);
 router.use(authenticate);
 
 // Discovery Routes (Should be before /:id)
-router.get('/categories', couponController.getCategories);
-router.get('/sort-options', couponController.getSortOptions);
-router.get('/filter-options', couponController.getFilterOptions);
-router.get('/expiring-soon', couponController.getExpiringSoon);
-router.get('/brand/:brandName', couponController.getCouponsByBrand);
+// router.get('/categories', couponController.getCategories);
+// router.get('/sort-options', couponController.getSortOptions);
+// router.get('/filter-options', couponController.getFilterOptions);
+// router.get('/expiring-soon', couponController.getExpiringSoon);
+// router.get('/brand/:brandName', couponController.getCouponsByBrand);
 
 // Basic CRUD
 router.post('/', validateCoupon, couponController.createCoupon);

@@ -154,11 +154,7 @@ exports.syncCoupons = async (req, res) => {
 exports.redeemPrivateCoupon = async (req, res) => {
     try {
         const { id } = req.params;
-        const uid = req.uid || req.body.uid; // Get UID from auth or body
-
-        if (!uid) {
-            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'User ID (uid) is required');
-        }
+        const uid = req.uid || req.body.uid; // Get UID from auth or body (optional)
 
         const coupon = await PrivateCoupon.findById(id);
 
@@ -173,12 +169,12 @@ exports.redeemPrivateCoupon = async (req, res) => {
         // Update coupon status
         coupon.redeemable = false;
         coupon.redeemed = true;
-        coupon.redeemedBy = uid;
+        coupon.redeemedBy = uid || null; // Optional: store uid if available
         coupon.redeemedAt = new Date();
 
         await coupon.save();
 
-        logger.info(`Private coupon ${id} redeemed by user ${uid}`);
+        logger.info(`Private coupon ${id} redeemed${uid ? ` by user ${uid}` : ''}`);
 
         return successResponse(res, STATUS_CODES.OK, 'Coupon redeemed successfully', {
             coupon
