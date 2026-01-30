@@ -8,7 +8,6 @@ const STATUS_CODES = {
     NOT_FOUND: 404,
     CONFLICT: 409,
     UNPROCESSABLE_ENTITY: 422,
-    TOO_MANY_REQUESTS: 429,
     INTERNAL_SERVER_ERROR: 500,
     SERVICE_UNAVAILABLE: 503,
 };
@@ -40,18 +39,12 @@ const ERROR_MESSAGES = {
     SERVICE_UNAVAILABLE: 'Service temporarily unavailable',
     NOT_FOUND: 'Resource not found',
     ROUTE_NOT_FOUND: 'Route not found',
-    TOO_MANY_REQUESTS: 'Too many requests, please try again later',
 };
 
 const USER_CONSTANTS = {
     NAME_MIN_LENGTH: 2,
     NAME_MAX_LENGTH: 100,
     PASSWORD_MIN_LENGTH: 8,
-};
-
-const RATE_LIMIT = {
-    WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-    MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
 };
 
 const DB_CONFIG = {
@@ -65,6 +58,5 @@ module.exports = {
     SUCCESS_MESSAGES,
     ERROR_MESSAGES,
     USER_CONSTANTS,
-    RATE_LIMIT,
     DB_CONFIG,
 };
