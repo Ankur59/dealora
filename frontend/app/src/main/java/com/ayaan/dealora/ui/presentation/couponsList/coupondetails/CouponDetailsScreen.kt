@@ -57,6 +57,7 @@ import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.Te
 import com.ayaan.dealora.ui.presentation.profile.components.TopBar
 import com.ayaan.dealora.ui.theme.AppColors
 private fun getBrandLogoResource(brandName: String): Int {
+    Log.d("CouponCard", "Brand Name: $brandName")
     return when (brandName) {
         "zomato" -> R.drawable.zomato_logo
         "swiggy" -> R.drawable.swiggy_logo
@@ -65,7 +66,7 @@ private fun getBrandLogoResource(brandName: String): Int {
         "flipkart" -> R.drawable.flipkart
         "nykaa" -> R.drawable.nykaa_logo
         "cred" -> R.drawable.cred_logo
-        "phonepay" -> R.drawable.phonepe_logo
+        "phone pay" -> R.drawable.phonepe_logo
         "myntra" -> R.drawable.myntra
         "dealora" -> R.drawable.logo
         else -> R.drawable.logo

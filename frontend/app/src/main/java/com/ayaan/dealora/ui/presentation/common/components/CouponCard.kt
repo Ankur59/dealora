@@ -53,7 +53,6 @@ import com.ayaan.dealora.ui.theme.DealoraPrimary
  */
 private fun getBrandLogoResource(brandName: String): Int {
     return when (brandName) {
-
         "zomato" -> R.drawable.zomato_logo
         "swiggy" -> R.drawable.swiggy_logo
         "blinkit" -> R.drawable.blinkit_logo
