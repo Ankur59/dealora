@@ -53,6 +53,9 @@ class RedeemedCouponsViewModel @Inject constructor(
     private val _currentFilters = MutableStateFlow(com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions())
     val currentFilters: StateFlow<com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions> = _currentFilters.asStateFlow()
 
+    private val _syncedBrands = MutableStateFlow<List<String>>(emptyList())
+    val syncedBrands: StateFlow<List<String>> = _syncedBrands.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
@@ -70,19 +73,34 @@ class RedeemedCouponsViewModel @Inject constructor(
                 Log.d(TAG, "Found ${syncedApps.size} synced apps in database")
 
                 // Extract app names and capitalize first letter to match API format
-                val brands = syncedApps.map { syncedApp ->
+                val allSyncedBrands = syncedApps.map { syncedApp ->
                     syncedApp.appName.replaceFirstChar { it.uppercase() }
                 }
 
-                Log.d(TAG, "Syncing brands: ${brands.joinToString()}")
+                // Store synced brands in StateFlow for use in FiltersBottomSheet
+                _syncedBrands.value = allSyncedBrands
 
-                if (brands.isEmpty()) {
+                Log.d(TAG, "All synced brands: ${allSyncedBrands.joinToString()}")
+
+                if (allSyncedBrands.isEmpty()) {
                     Log.d(TAG, "No synced apps found")
                     _uiState.value = RedeemedCouponsUiState.Success
                     _allPrivateCoupons.value = emptyList()
                     _filteredCoupons.value = emptyList()
                     return@launch
                 }
+
+                // Determine which brands to send to API
+                val filters = _currentFilters.value
+                val brandsToSync = if (filters.brand != null && filters.brand in allSyncedBrands) {
+                    // If a brand is selected in filters, send only that brand
+                    listOf(filters.brand)
+                } else {
+                    // If no brand selected or invalid brand, send all synced brands
+                    allSyncedBrands
+                }
+
+                Log.d(TAG, "Brands to sync (after filter): ${brandsToSync.joinToString()}")
 
                 // Convert UI sort option to API value
                 val sortByApi = when (_currentSortOption.value) {
@@ -97,7 +115,6 @@ class RedeemedCouponsViewModel @Inject constructor(
                 val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
 
                 // Get filters from current filters
-                val filters = _currentFilters.value
                 val discountTypeApi = convertDiscountTypeToApi(filters.discountType)
                 val priceApi = filters.getPriceApiValue()
                 val validityApi = filters.getValidityApiValue()
@@ -105,10 +122,10 @@ class RedeemedCouponsViewModel @Inject constructor(
                 // Get search query (empty string converts to null)
                 val searchApi = _searchQuery.value.takeIf { it.isNotBlank() }
 
-                Log.d(TAG, "Filter params - search: $searchApi, sort: $sortByApi, category: $categoryApi")
+                Log.d(TAG, "Filter params - search: $searchApi, sort: $sortByApi, category: $categoryApi, brand: ${filters.brand}")
 
                 when (val result = couponRepository.syncPrivateCoupons(
-                    brands = brands,
+                    brands = brandsToSync,
                     category = categoryApi,
                     search = searchApi,
                     discountType = discountTypeApi,

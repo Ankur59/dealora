@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.home.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -44,13 +45,14 @@ fun StatisticsCard(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
+                // TEXT ROW — stays fixed
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
                         painter = painterResource(R.drawable.save_60),
                         contentDescription = null,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(30.dp)
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -66,13 +68,13 @@ fun StatisticsCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
+                // BOXES — move independently
                 val couponStr = activeCouponsCount
                     .toString()
                     .padStart(2, '0')
 
                 Row(
+                    modifier = Modifier.padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     couponStr.forEachIndexed { index, char ->
@@ -83,6 +85,7 @@ fun StatisticsCard(
                     }
                 }
             }
+
 
             // ================= DIVIDER =================
             Box(
@@ -131,7 +134,8 @@ fun StatisticsCard(
                     .padStart(3, '0')
 
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
 
                     // ₹ aligned perfectly
@@ -147,7 +151,7 @@ fun StatisticsCard(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+//                    Spacer(modifier = Modifier.width(6.dp))
 
                     savingsStr.forEachIndexed { index, char ->
                         CouponDigit(char.toString())

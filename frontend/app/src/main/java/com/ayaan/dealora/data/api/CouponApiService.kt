@@ -10,7 +10,6 @@ import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.PrivateCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
-import com.google.firebase.auth.FirebaseAuth
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
