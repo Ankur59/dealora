@@ -97,6 +97,7 @@ enum class FilterCategory {
 @Composable
 fun FiltersBottomSheet(
     currentFilters: FilterOptions = FilterOptions(),
+    syncedBrands: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onApplyFilters: (FilterOptions) -> Unit
 ) {
@@ -189,12 +190,12 @@ fun FiltersBottomSheet(
                         onClick = { selectedFilterCategory = FilterCategory.BRAND },
                         modifier = Modifier.padding(start = 24.dp, top = 8.dp)
                     )
-                    FilterCategoryButton(
-                        text = "Category",
-                        isSelected = selectedFilterCategory == FilterCategory.CATEGORY,
-                        onClick = { selectedFilterCategory = FilterCategory.CATEGORY },
-                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
-                    )
+//                    FilterCategoryButton(
+//                        text = "Category",
+//                        isSelected = selectedFilterCategory == FilterCategory.CATEGORY,
+//                        onClick = { selectedFilterCategory = FilterCategory.CATEGORY },
+//                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+//                    )
                 }
 
                 // Right content area
@@ -265,18 +266,7 @@ fun FiltersBottomSheet(
                             }
                             FilterCategory.BRAND -> {
                                 FilterOptionList(
-                                    options = listOf(
-                                        "Zomato",
-                                        "Swiggy",
-                                        "Myntra",
-                                        "Amazon",
-                                        "Nykaa",
-                                        "Ajio",
-                                        "Flipkart",
-                                        "Uber",
-                                        "Croma",
-                                        "Mamaearth"
-                                    ),
+                                    options = syncedBrands.ifEmpty { listOf("No synced apps") },
                                     selectedOption = selectedBrand,
                                     onOptionSelected = { selectedBrand = it }
                                 )

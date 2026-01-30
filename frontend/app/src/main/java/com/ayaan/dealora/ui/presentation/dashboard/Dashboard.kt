@@ -79,6 +79,7 @@ fun Dashboard(
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentFilters by viewModel.currentFilters.collectAsState()
     val currentStatusFilter by viewModel.statusFilter.collectAsState()
+    val syncedBrands by viewModel.syncedBrands.collectAsState()
 
     // Get tab parameter from navigation
     val tabParam = navController.currentBackStackEntry?.arguments?.getString("tab") ?: "active"
@@ -494,6 +495,7 @@ fun Dashboard(
         if (showFiltersDialog) {
             FiltersBottomSheet(
                 currentFilters = currentFilters,
+                syncedBrands = syncedBrands,
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { filters ->
                     viewModel.onFiltersChanged(filters)

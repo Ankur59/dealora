@@ -70,6 +70,7 @@ fun RedeemedCoupons(
     val currentSortOption by viewModel.currentSortOption.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentFilters by viewModel.currentFilters.collectAsState()
+    val syncedBrands by viewModel.syncedBrands.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
@@ -375,6 +376,7 @@ fun RedeemedCoupons(
         if (showFiltersDialog) {
             FiltersBottomSheet(
                 currentFilters = currentFilters,
+                syncedBrands = syncedBrands,
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { filters ->
                     viewModel.onFiltersChanged(filters)
