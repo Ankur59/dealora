@@ -1,4 +1,5 @@
 package com.ayaan.dealora.ui.presentation.home.components
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,23 +35,26 @@ fun StatisticsCard(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Active Coupons Section
+
+            // ================= ACTIVE COUPONS =================
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
                         painter = painterResource(R.drawable.save_60),
                         contentDescription = null,
                         modifier = Modifier.size(36.dp)
                     )
+
                     Spacer(modifier = Modifier.width(8.dp))
+
                     Text(
                         text = "Your Active Coupons",
                         fontSize = 12.sp,
@@ -58,51 +62,57 @@ fun StatisticsCard(
                         fontWeight = FontWeight.W500,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 10.sp
+                        lineHeight = 14.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val couponStr = activeCouponsCount
+                    .toString()
+                    .padStart(2, '0')
 
                 Row(
-                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val countStr = activeCouponsCount.toString().padStart(2, '0')
-                    countStr.forEachIndexed { index, char ->
+                    couponStr.forEachIndexed { index, char ->
                         CouponDigit(char.toString())
-                        if (index < countStr.length - 1) {
-                            Spacer(modifier = Modifier.width(4.dp))
+                        if (index < couponStr.length - 1) {
+                            Spacer(modifier = Modifier.width(6.dp))
                         }
                     }
                 }
             }
 
-            // Vertical Divider
+            // ================= DIVIDER =================
             Box(
                 modifier = Modifier
                     .width(2.dp)
                     .height(80.dp)
                     .background(
-                        Color.White.copy(alpha = 0.3f), RoundedCornerShape(1.dp)
+                        Color.White.copy(alpha = 0.3f),
+                        RoundedCornerShape(1.dp)
                     )
             )
 
-            // Savings Section
+            // ================= SAVINGS =================
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Savings",
+                        contentDescription = null,
                         tint = Color(0xFFFFD700),
                         modifier = Modifier.size(20.dp)
                     )
+
                     Spacer(modifier = Modifier.width(8.dp))
+
                     Text(
                         text = "Amount you can save",
                         fontSize = 12.sp,
@@ -110,28 +120,39 @@ fun StatisticsCard(
                         fontWeight = FontWeight.W500,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 10.sp
+                        lineHeight = 14.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val savingsStr = totalSavings
+                    .toString()
+                    .padStart(3, '0')
 
                 Row(
-                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "₹",
-                        fontSize = 20.sp,
-                        color = DealoraWhite,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    val savingsStr = totalSavings.toString().padStart(3, '0')
+
+                    // ₹ aligned perfectly
+                    Box(
+                        modifier = Modifier.size(40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "₹",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DealoraWhite
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     savingsStr.forEachIndexed { index, char ->
                         CouponDigit(char.toString())
                         if (index < savingsStr.length - 1) {
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                         }
                     }
                 }

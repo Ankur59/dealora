@@ -124,7 +124,7 @@ fun HomeScreen(
                 }
                 else -> {
                     // Show user name from API
-                    val userName = (", "+uiState.user?.name )
+                    val userName = if(uiState.user?.name!=null)(", "+uiState.user?.name ) else ("")
                     val welcomeText = buildAnnotatedString {
                         append("Hey")
                         withStyle(style = SpanStyle(color = DealoraPrimary, fontWeight = FontWeight.Bold)) {

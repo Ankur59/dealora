@@ -93,7 +93,7 @@ fun CouponsListTopBar(
 
         actions = {
             Column(
-                modifier = Modifier.padding(end = 12.dp),
+                modifier = Modifier.padding(end = 12.dp,top=40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {

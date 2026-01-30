@@ -19,12 +19,22 @@ fun CouponDigit(digit: String) {
     Box(
         modifier = Modifier
             .size(40.dp)
-            .background(DealoraWhite.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-            .border(1.dp, DealoraWhite.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+            .background(
+                DealoraWhite.copy(alpha = 0.2f),
+                RoundedCornerShape(8.dp)
+            )
+            .border(
+                1.dp,
+                DealoraWhite.copy(alpha = 0.3f),
+                RoundedCornerShape(8.dp)
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = digit, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DealoraWhite
+            text = digit,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            color = DealoraWhite
         )
     }
 }
