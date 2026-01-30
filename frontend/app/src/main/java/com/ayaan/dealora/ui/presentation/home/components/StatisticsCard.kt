@@ -140,11 +140,11 @@ fun StatisticsCard(
 
                     // ₹ aligned perfectly
                     Box(
-                        modifier = Modifier.size(40.dp),
+//                        modifier = Modifier.size(40.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "₹",
+                            text = "  ₹ ",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = DealoraWhite
