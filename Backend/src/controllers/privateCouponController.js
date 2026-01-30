@@ -235,22 +235,19 @@ exports.getStatistics = async (req, res) => {
             for (const pattern of amountPatterns) {
                 const matches = [...title.matchAll(pattern)];
                 if (matches.length > 0) {
-                    // Take the first match found
                     const amount = parseInt(matches[0][1], 10);
                     if (!isNaN(amount)) {
                         totalSavings += amount;
                         foundAmount = true;
-                        break; // Only count once per coupon
+                        break;
                     }
                 }
             }
 
-            // If no pattern matched, try to find any standalone number (last resort)
             if (!foundAmount) {
                 const standaloneNumber = title.match(/\b(\d{2,4})\b/); // 2-4 digit numbers
                 if (standaloneNumber) {
                     const amount = parseInt(standaloneNumber[1], 10);
-                    // Only add if it looks like a reasonable discount (between 10 and 10000)
                     if (!isNaN(amount) && amount >= 10 && amount <= 10000) {
                         totalSavings += amount;
                     }

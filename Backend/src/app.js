@@ -3,11 +3,10 @@ const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
 const compression = require('compression');
-const rateLimit = require('express-rate-limit');
 const mongoose = require('mongoose');
 const { globalErrorHandler } = require('./middlewares/errorHandler');
 const { errorResponse } = require('./utils/responseHandler');
-const { STATUS_CODES, ERROR_MESSAGES, RATE_LIMIT } = require('./config/constants');
+const { STATUS_CODES, ERROR_MESSAGES } = require('./config/constants');
 const logger = require('./utils/logger');
 const requestId = require('./middlewares/requestId');
 const sanitize = require('./middlewares/sanitize');
@@ -80,20 +79,6 @@ if (process.env.NODE_ENV === 'development') {
 } else {
     app.use(morgan('combined', { stream: logger.stream }));
 }
-
-const limiter = rateLimit({
-    windowMs: RATE_LIMIT.WINDOW_MS,
-    max: RATE_LIMIT.MAX_REQUESTS,
-    message: ERROR_MESSAGES.TOO_MANY_REQUESTS,
-    standardHeaders: true,
-    legacyHeaders: false,
-    handler: (req, res) => {
-        logger.warn(`Rate limit exceeded from IP: ${req.ip}`);
-        errorResponse(res, STATUS_CODES.TOO_MANY_REQUESTS, ERROR_MESSAGES.TOO_MANY_REQUESTS);
-    },
-});
-
-app.use(limiter);
 
 app.get('/health', (req, res) => {
     const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
