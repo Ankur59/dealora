@@ -3,7 +3,6 @@ package com.ayaan.dealora.ui.presentation.home.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -14,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,59 +28,65 @@ fun StatisticsCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp),
+            .wrapContentHeight(), // Changed from fixed height to wrap content
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = DealoraPrimary)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .padding(16.dp), // Consistent outer padding
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly // Ensures equal spacing
         ) {
 
             // ================= ACTIVE COUPONS =================
             Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp), // Consistent horizontal padding
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp) // Consistent vertical spacing
             ) {
 
-                // TEXT ROW — stays fixed
+                // TEXT ROW — Icon + Label
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Image(
                         painter = painterResource(R.drawable.save_60),
                         contentDescription = null,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(24.dp) // Fixed icon size
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing
 
                     Text(
-                        text = "Your Active Coupons",
-                        fontSize = 12.sp,
+                        text = "Your Active\nCoupons",
+                        fontSize = 11.sp, // Slightly reduced for better fit
                         color = DealoraWhite,
                         fontWeight = FontWeight.W500,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 14.sp
+                        lineHeight = 13.sp,
+                        textAlign = TextAlign.Center
                     )
                 }
 
-                // BOXES — move independently
+                // DIGIT BOXES — Fixed size boxes
                 val couponStr = activeCouponsCount
                     .toString()
                     .padStart(2, '0')
 
                 Row(
-                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     couponStr.forEachIndexed { index, char ->
                         CouponDigit(char.toString())
                         if (index < couponStr.length - 1) {
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing between boxes
                         }
                     }
                 }
@@ -90,8 +96,8 @@ fun StatisticsCard(
             // ================= DIVIDER =================
             Box(
                 modifier = Modifier
-                    .width(2.dp)
-                    .height(80.dp)
+                    .width(1.5.dp) // Slightly thinner divider
+                    .height(100.dp) // Fixed divider height
                     .background(
                         Color.White.copy(alpha = 0.3f),
                         RoundedCornerShape(1.dp)
@@ -100,35 +106,40 @@ fun StatisticsCard(
 
             // ================= SAVINGS =================
             Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp), // Consistent horizontal padding
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp) // Consistent vertical spacing
             ) {
 
+                // TEXT ROW — Icon + Label
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = null,
                         tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp) // Fixed icon size
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing
 
                     Text(
-                        text = "Amount you can save",
-                        fontSize = 12.sp,
+                        text = "Amount you\ncan save",
+                        fontSize = 11.sp, // Slightly reduced for better fit
                         color = DealoraWhite,
                         fontWeight = FontWeight.W500,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 14.sp
+                        lineHeight = 13.sp,
+                        textAlign = TextAlign.Center
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
+                // SAVINGS AMOUNT — ₹ symbol + digit boxes
                 val savingsStr = totalSavings
                     .toString()
                     .padStart(3, '0')
@@ -138,25 +149,21 @@ fun StatisticsCard(
                     horizontalArrangement = Arrangement.Center
                 ) {
 
-                    // ₹ aligned perfectly
-                    Box(
-//                        modifier = Modifier.size(40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "  ₹ ",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DealoraWhite
-                        )
-                    }
+                    // ₹ Symbol — Fixed size
+                    Text(
+                        text = "₹",
+                        fontSize = 22.sp, // Fixed font size
+                        fontWeight = FontWeight.Bold,
+                        color = DealoraWhite
+                    )
 
-//                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp)) // Fixed spacing
 
+                    // Digit boxes
                     savingsStr.forEachIndexed { index, char ->
                         CouponDigit(char.toString())
                         if (index < savingsStr.length - 1) {
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing between boxes
                         }
                     }
                 }
