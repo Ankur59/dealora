@@ -226,7 +226,7 @@ class CouponsListViewModel @Inject constructor(
     }
 
     private fun loadCouponsInternal(
-        status: String = "",
+        status: String = "active",
         brand: String? = null,
         category: String? = null,
         discountType: String? = null,

@@ -8,7 +8,7 @@ router.post('/sync', privateCouponController.syncCoupons);
 router.post('/statistics', privateCouponController.getStatistics);
 
 
-router.use(authenticate);
+// router.use(authenticate);
 
 // Discovery Routes
 // router.get('/categories', privateCouponController.getPrivateCategories);

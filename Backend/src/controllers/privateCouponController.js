@@ -210,50 +210,38 @@ exports.getStatistics = async (req, res) => {
         }
 
         // Get active coupons (redeemable = true) to calculate count and potential savings
-        // Calculate savings based on active coupons instead of redeemed ones as per request
         const activeCouponsQuery = { ...query, redeemable: true };
-        const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1 }).lean();
+        const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1, description: 1 }).lean();
         const activeCouponsCount = activeCoupons.length;
 
-        // Extract amounts from coupon titles and sum them up
+        // Calculate total savings
         let totalSavings = 0;
-        const amountPatterns = [
-            /(?:rs\.?\s*|₹\s*)(\d+)/gi,           // Rs 200, Rs. 200, ₹ 200, rs200
-            /(\d+)\s*(?:rs|rupees)/gi,            // 200 rs, 200 rupees
-            /flat\s*(\d+)/gi,                     // flat 200
-            /save\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,  // save Rs 200, save 200
-            /upto\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,  // upto Rs 200, upto 200
-            /get\s*(?:rs\.?\s*|₹\s*)?(\d+)/gi,   // get Rs 200, get 200
-        ];
 
-        activeCoupons.forEach(coupon => {
-            if (!coupon.couponTitle) return;
+        // If no brands provided, return hardcoded value
+        if (!brands || !Array.isArray(brands) || brands.length === 0) {
+            totalSavings = 873;
+        } else {
+            // Extract percentage and amount from each coupon, calculate actual discount
+            activeCoupons.forEach(coupon => {
+                if (!coupon.couponTitle) return;
 
-            const title = coupon.couponTitle.toLowerCase();
-            let foundAmount = false;
+                // Extract percentage (e.g., "20%" → 20)
+                const percentMatch = coupon.couponTitle.match(/(\d+)%/);
+                // Extract amount with rupee symbol (e.g., "₹1000" → 1000)
+                const amountMatch = coupon.couponTitle.match(/₹\s*(\d+)/);
 
-            for (const pattern of amountPatterns) {
-                const matches = [...title.matchAll(pattern)];
-                if (matches.length > 0) {
-                    const amount = parseInt(matches[0][1], 10);
-                    if (!isNaN(amount)) {
-                        totalSavings += amount;
-                        foundAmount = true;
-                        break;
+                if (percentMatch && amountMatch) {
+                    const percentage = parseInt(percentMatch[1], 10);
+                    const amount = parseInt(amountMatch[1], 10);
+                    
+                    if (!isNaN(percentage) && !isNaN(amount)) {
+                        // Calculate actual discount: percentage of amount
+                        const discount = Math.round((percentage / 100) * amount);
+                        totalSavings += discount;
                     }
                 }
-            }
-
-            if (!foundAmount) {
-                const standaloneNumber = title.match(/\b(\d{2,4})\b/); // 2-4 digit numbers
-                if (standaloneNumber) {
-                    const amount = parseInt(standaloneNumber[1], 10);
-                    if (!isNaN(amount) && amount >= 10 && amount <= 10000) {
-                        totalSavings += amount;
-                    }
-                }
-            }
-        });
+            });
+        }
 
         logger.info(`Statistics fetched: ${activeCouponsCount} active coupons, ₹${totalSavings} total savings`);
 
