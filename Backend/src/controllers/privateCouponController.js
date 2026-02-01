@@ -89,28 +89,30 @@ exports.syncCoupons = async (req, res) => {
 
         // Validity Filter
         if (validity) {
-            const todayEnd = new Date();
-            todayEnd.setHours(23, 59, 59, 999);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
-            const weekEnd = new Date();
-            weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
-            weekEnd.setHours(23, 59, 59, 999);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-            const monthEnd = new Date();
-            monthEnd.setMonth(monthEnd.getMonth() + 1);
-            monthEnd.setDate(0);
-            monthEnd.setHours(23, 59, 59, 999);
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    sevenDaysFromNow.setHours(23, 59, 59, 999);
 
-            if (validity === 'valid_today') {
-                query.expiryDate = { $gte: now, $lte: todayEnd };
-            } else if (validity === 'valid_this_week') {
-                query.expiryDate = { $gte: now, $lte: weekEnd };
-            } else if (validity === 'valid_this_month') {
-                query.expiryDate = { $gte: now, $lte: monthEnd };
-            } else if (validity === 'expired') {
-                query.expiryDate = { $lt: now };
-            }
-        }
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    thirtyDaysFromNow.setHours(23, 59, 59, 999);
+
+    if (validity === 'valid_today') {
+        query.expiryDate = { $gte: todayStart, $lte: todayEnd };
+    } else if (validity === 'valid_this_week') {
+        query.expiryDate = { $gt: todayEnd, $lte: sevenDaysFromNow };
+    } else if (validity === 'valid_this_month') {
+        query.expiryDate = { $gt: sevenDaysFromNow, $lte: thirtyDaysFromNow };
+    } else if (validity === 'expired') {
+        query.expiryDate = { $lt: todayStart };
+    }
+}
 
         // Sorting
         let sortOptions = {};
@@ -134,12 +136,33 @@ exports.syncCoupons = async (req, res) => {
             .skip(skip)
             .lean();
 
+        // Calculate daysUntilExpiry dynamically based on current date
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0); // Reset time to start of day for accurate day calculation
+        
+        const couponsWithDynamicExpiry = coupons.map(coupon => {
+            if (coupon.expiryDate) {
+                const expiryDate = new Date(coupon.expiryDate);
+                expiryDate.setHours(0, 0, 0, 0);
+                
+                // Calculate difference in days
+                const timeDiff = expiryDate.getTime() - currentDate.getTime();
+                const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+                
+                return {
+                    ...coupon,
+                    daysUntilExpiry: daysDiff
+                };
+            }
+            return coupon;
+        });
+
         return successResponse(res, STATUS_CODES.OK, 'Private coupons synced successfully', {
-            count: coupons.length,
+            count: couponsWithDynamicExpiry.length,
             total,
             page: parseInt(page),
             pages: Math.ceil(total / parseInt(limit)),
-            coupons
+            coupons: couponsWithDynamicExpiry
         });
     } catch (error) {
         logger.error(`Error syncing private coupons: ${error.message}`);
@@ -154,11 +177,7 @@ exports.syncCoupons = async (req, res) => {
 exports.redeemPrivateCoupon = async (req, res) => {
     try {
         const { id } = req.params;
-        const uid = req.uid || req.body.uid; // Get UID from auth or body
-
-        if (!uid) {
-            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'User ID (uid) is required');
-        }
+        const uid = req.uid || req.body.uid; // Get UID from auth or body (optional)
 
         const coupon = await PrivateCoupon.findById(id);
 
@@ -173,12 +192,12 @@ exports.redeemPrivateCoupon = async (req, res) => {
         // Update coupon status
         coupon.redeemable = false;
         coupon.redeemed = true;
-        coupon.redeemedBy = uid;
+        coupon.redeemedBy = uid || null; // Optional: store uid if available
         coupon.redeemedAt = new Date();
 
         await coupon.save();
 
-        logger.info(`Private coupon ${id} redeemed by user ${uid}`);
+        logger.info(`Private coupon ${id} redeemed${uid ? ` by user ${uid}` : ''}`);
 
         return successResponse(res, STATUS_CODES.OK, 'Coupon redeemed successfully', {
             coupon
