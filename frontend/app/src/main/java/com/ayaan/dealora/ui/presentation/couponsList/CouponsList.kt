@@ -61,6 +61,7 @@ fun CouponsList(
     val currentFilters by viewModel.currentFilters.collectAsState()
     val isPublicMode by viewModel.isPublicMode.collectAsState()
     val syncedBrands by viewModel.syncedBrands.collectAsState()
+    val isLoadingPrivateCoupons by viewModel.isLoadingPrivateCoupons.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
 
@@ -140,7 +141,10 @@ fun CouponsList(
 
                         is LoadState.NotLoading -> {
                             if (!isPublicMode) {
-                                if (privateCoupons.isEmpty()) {
+                                // Show loading indicator when fetching private coupons
+                                if (isLoadingPrivateCoupons) {
+                                    LoadingContent()
+                                } else if (privateCoupons.isEmpty()) {
                                     PrivateEmptyState()
                                 } else {
                                     LazyColumn(

@@ -71,6 +71,9 @@ class CouponsListViewModel @Inject constructor(
     private val _privateCoupons = MutableStateFlow<List<PrivateCoupon>>(emptyList())
     val privateCoupons: StateFlow<List<PrivateCoupon>> = _privateCoupons.asStateFlow()
 
+    private val _isLoadingPrivateCoupons = MutableStateFlow(false)
+    val isLoadingPrivateCoupons: StateFlow<Boolean> = _isLoadingPrivateCoupons.asStateFlow()
+
     private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
     val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
 
@@ -335,6 +338,7 @@ class CouponsListViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Loading private coupons with filters")
+                _isLoadingPrivateCoupons.value = true
 
                 // Fetch synced apps from database
                 val syncedApps = syncedAppRepository.getAllSyncedApps().first()
@@ -354,6 +358,7 @@ class CouponsListViewModel @Inject constructor(
                 if (allSyncedBrands.isEmpty()) {
                     Log.d(TAG, "No synced apps found, skipping private coupons sync")
                     _privateCoupons.value = emptyList()
+                    _isLoadingPrivateCoupons.value = false
                     return@launch
                 }
 
@@ -415,6 +420,8 @@ class CouponsListViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Exception loading private coupons", e)
                 _privateCoupons.value = emptyList()
+            } finally {
+                _isLoadingPrivateCoupons.value = false
             }
         }
     }

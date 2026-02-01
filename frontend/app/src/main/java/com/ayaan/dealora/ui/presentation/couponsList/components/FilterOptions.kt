@@ -184,12 +184,14 @@ fun FiltersBottomSheet(
                         onClick = { selectedFilterCategory = FilterCategory.VALIDITY },
                         modifier = Modifier.padding(start = 24.dp, top = 8.dp)
                     )
-                    FilterCategoryButton(
-                        text = "Brand",
-                        isSelected = selectedFilterCategory == FilterCategory.BRAND,
-                        onClick = { selectedFilterCategory = FilterCategory.BRAND },
-                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
-                    )
+                    if(syncedBrands.isNotEmpty()) {
+                        FilterCategoryButton(
+                            text = "Brand",
+                            isSelected = selectedFilterCategory == FilterCategory.BRAND,
+                            onClick = { selectedFilterCategory = FilterCategory.BRAND },
+                            modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                        )
+                    }
 //                    FilterCategoryButton(
 //                        text = "Category",
 //                        isSelected = selectedFilterCategory == FilterCategory.CATEGORY,
@@ -233,7 +235,7 @@ fun FiltersBottomSheet(
                                         "Free Delivery",
                                         "Wallet/UPI Offers",
                                         "Prepaid Only Offers",
-                                        "Saved Coupons"
+//                                        "Saved Coupons"
                                     ),
                                     selectedOption = selectedDiscountType,
                                     onOptionSelected = { selectedDiscountType = it }
@@ -264,13 +266,17 @@ fun FiltersBottomSheet(
                                     onOptionSelected = { selectedValidity = it }
                                 )
                             }
+
                             FilterCategory.BRAND -> {
-                                FilterOptionList(
-                                    options = syncedBrands.ifEmpty { listOf("No synced apps") },
-                                    selectedOption = selectedBrand,
-                                    onOptionSelected = { selectedBrand = it }
-                                )
+                                if(syncedBrands.isNotEmpty()){
+                                    FilterOptionList(
+                                        options = syncedBrands.ifEmpty { listOf("No synced apps") },
+                                        selectedOption = selectedBrand,
+                                        onOptionSelected = { selectedBrand = it }
+                                    )
+                                }
                             }
+
                             FilterCategory.CATEGORY -> {
                                 FilterOptionList(
                                     options = listOf(
