@@ -69,7 +69,7 @@ class GenericAdapter {
     async normalize(rawData) {
         try {
             // First, use Gemini AI to intelligently extract and segregate coupon data
-            logger.info(`🔍 Using Gemini AI to extract and segregate coupon data for: ${rawData.couponTitle || rawData.couponName || 'Unknown'}`);
+            logger.info(`Using Gemini AI to extract and segregate coupon data for: ${rawData.couponTitle || rawData.couponName || 'Unknown'}`);
             const extractedData = await geminiExtractionService.extractCouponData(rawData);
 
             // Apply basic normalization on top of Gemini's extracted data
@@ -109,7 +109,7 @@ class GenericAdapter {
                 minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
             };
 
-            logger.info(`✅ Successfully normalized coupon: ${normalized.couponName} (Code: ${normalized.couponCode || 'N/A'}, Link: ${normalized.couponVisitingLink ? 'Yes' : 'No'})`);
+            logger.info(`Successfully normalized coupon: ${normalized.couponName} (Code: ${normalized.couponCode || 'N/A'}, Link: ${normalized.couponVisitingLink ? 'Yes' : 'No'})`);
             return normalized;
 
         } catch (error) {

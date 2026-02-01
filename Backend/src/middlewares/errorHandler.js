@@ -72,7 +72,7 @@ const sendErrorProd = (err, res) => {
     if (err.isOperational) {
         errorResponse(res, err.statusCode, err.message);
     } else {
-        logger.error('💥 NON-OPERATIONAL ERROR:', err);
+        logger.error('NON-OPERATIONAL ERROR:', err);
         errorResponse(
             res,
             STATUS_CODES.INTERNAL_SERVER_ERROR,

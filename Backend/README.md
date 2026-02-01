@@ -48,114 +48,114 @@ Dealora Backend is a comprehensive REST API service designed to power the Dealor
 The Dealora backend follows a layered architecture pattern with clear separation of concerns:
 
 ```
-┌─────────────────────────────────────────┐
-│      Mobile & Web Clients               │
-└────────────────┬────────────────────────┘
-                 │
-        ┌────────▼──────────┐
-        │  Express.js       │
-        │  Server (5000)    │
-        └────────┬──────────┘
-                 │
-    ┌────────────┼────────────┐
-    │   Middleware Stack      │
-    │ - Helmet (Security)     │
-    │ - CORS Validation       │
-    │ - Request ID            │
-    │ - Sanitization          │
-    │ - Morgan Logging        │
-    └────────────┼────────────┘
-                 │
-    ┌────────────┼────────────────────────┐
-    │                                     │
-┌───▼────┐   ┌──────────┐   ┌─────────┐  │
-│ Auth   │   │ Coupon   │   │Private  │  │
-│ Routes │   │ Routes   │   │Coupon   │  │
-└─┬──────┘   └─┬────────┘   │Routes   │  │
-  │            │             └─┬───────┘  │
-  │            │               │          │
-  └────────────┼───────────────┘          │
-               │                          │
-    ┌──────────▼──────────┐               │
-    │ Controllers Layer   │               │
-    │ (Business Logic)    │               │
-    └──────────┬──────────┘               │
-               │                          │
-    ┌──────────▼──────────┐               │
-    │ Models Layer        │               │
-    │ (Data Validation)   │               │
-    └──────────┬──────────┘               │
-               │                          │
-    ┌──────────▼──────────────────────┐   │
-    │  MongoDB Database Layer         │   │
-    │  - Users Collection             │   │
-    │  - Coupons Collection           │   │
-    │  - PrivateCoupons Collection    │   │
-    └────────────────────────────────┘   │
-                                          │
-    ┌──────────────────────────────────┐  │
-    │  External Services               │  │
-    │  - Firebase Auth                 │  │
-    │  - Google Generative AI          │  │
-    │  - Web Scrapers (Cheerio)        │  │
-    │  - Image Generation Service      │  │
-    └──────────────────────────────────┘  │
-                                           │
-    ┌──────────────────────────────────┐  │
-    │ Scheduled Jobs (Cron)            │  │
-    │ - Daily Scraping (2 AM)          │  │
-    │ - Daily Cleanup (4 AM)           │  │
-    └──────────────────────────────────┘  │
-                                           │
-                                           │
-└───────────────────────────────────────────┘
++-----------------------------------------+
+|      Mobile & Web Clients               |
++----------------+------------------------+
+                 |
+        +--------v----------+
+        |  Express.js       |
+        |  Server (5000)    |
+        +--------+----------+
+                 |
+    +------------+------------+
+    |   Middleware Stack      |
+    | - Helmet (Security)     |
+    | - CORS Validation       |
+    | - Request ID            |
+    | - Sanitization          |
+    | - Morgan Logging        |
+    +------------+------------+
+                 |
+    +------------+------------------------+
+    |                                     |
++---v----+   +----------+   +---------+  |
+| Auth   |   | Coupon   |   |Private  |  |
+| Routes |   | Routes   |   |Coupon   |  |
++-+------+   +-+--------+   |Routes   |  |
+  |            |             +-+-------+  |
+  |            |               |          |
+  +------------+---------------+          |
+               |                          |
+    +----------v----------+               |
+    | Controllers Layer   |               |
+    | (Business Logic)    |               |
+    +----------+----------+               |
+               |                          |
+    +----------v----------+               |
+    | Models Layer        |               |
+    | (Data Validation)   |               |
+    +----------+----------+               |
+               |                          |
+    +----------v----------------------+   |
+    |  MongoDB Database Layer         |   |
+    |  - Users Collection             |   |
+    |  - Coupons Collection           |   |
+    |  - PrivateCoupons Collection    |   |
+    +--------------------------------+   |
+                                          |
+    +----------------------------------+  |
+    |  External Services               |  |
+    |  - Firebase Auth                 |  |
+    |  - Google Generative AI          |  |
+    |  - Web Scrapers (Cheerio)        |  |
+    |  - Image Generation Service      |  |
+    +----------------------------------+  |
+                                           |
+    +----------------------------------+  |
+    | Scheduled Jobs (Cron)            |  |
+    | - Daily Scraping (2 AM)          |  |
+    | - Daily Cleanup (4 AM)           |  |
+    +----------------------------------+  |
+                                           |
+                                           |
++-------------------------------------------+
 ```
 
 ### Request/Response Processing Flow
 
 ```
 1. CLIENT REQUEST
-   └─ HTTP Request with Headers (including Authorization Bearer Token)
+   +- HTTP Request with Headers (including Authorization Bearer Token)
 
 2. SECURITY & PREPROCESSING
-   ├─ Helmet: Adds security HTTP headers
-   ├─ CORS: Validates request origin
-   ├─ Request ID: Assigns unique trace ID
-   ├─ Body Parser: Parses JSON/URL-encoded body
-   └─ Sanitization: Prevents XSS/injection attacks
+   +- Helmet: Adds security HTTP headers
+   +- CORS: Validates request origin
+   +- Request ID: Assigns unique trace ID
+   +- Body Parser: Parses JSON/URL-encoded body
+   +- Sanitization: Prevents XSS/injection attacks
 
 3. ROUTING & AUTHENTICATION
-   ├─ Express Router: Matches request to endpoint
-   ├─ Authentication Middleware: Verifies Firebase token
-   │  └─ Extracts user UID and attaches to req.uid
-   └─ Request Logging: Morgan logs HTTP request details
+   +- Express Router: Matches request to endpoint
+   +- Authentication Middleware: Verifies Firebase token
+   |  +- Extracts user UID and attaches to req.uid
+   +- Request Logging: Morgan logs HTTP request details
 
 4. VALIDATION
-   ├─ Express Validator: Validates request body/params
-   └─ Custom Validators: Domain-specific validation logic
+   +- Express Validator: Validates request body/params
+   +- Custom Validators: Domain-specific validation logic
 
 5. CONTROLLER EXECUTION
-   ├─ Business Logic Processing
-   ├─ Database Operations (Mongoose queries)
-   ├─ External Service Calls (AI, Image Generation)
-   ├─ Data Transformation
-   └─ Error Handling with try-catch
+   +- Business Logic Processing
+   +- Database Operations (Mongoose queries)
+   +- External Service Calls (AI, Image Generation)
+   +- Data Transformation
+   +- Error Handling with try-catch
 
 6. RESPONSE FORMATTING
-   ├─ Standard Response Structure
-   ├─ Data Serialization
-   └─ Status Code Assignment
+   +- Standard Response Structure
+   +- Data Serialization
+   +- Status Code Assignment
 
 7. MIDDLEWARE CHAIN COMPLETION
-   └─ Response Compression (if applicable)
+   +- Response Compression (if applicable)
 
 8. CLIENT RESPONSE
-   └─ JSON response with appropriate HTTP status code
+   +- JSON response with appropriate HTTP status code
 
 9. GLOBAL ERROR HANDLER (if any unhandled error)
-   ├─ Catches uncaught exceptions
-   ├─ Logs error details
-   └─ Returns standardized error response
+   +- Catches uncaught exceptions
+   +- Logs error details
+   +- Returns standardized error response
 ```
 
 ### Data Flow for Core Operations
@@ -187,20 +187,20 @@ The Dealora backend follows a layered architecture pattern with clear separation
 #### Automated Scraping Pipeline
 ```
 Daily at 2:00 AM:
-├─ Initialize all 8 scrapers in parallel
-├─ Per scraper:
-│  ├─ Fetch HTML with axios + retry
-│  ├─ Parse with Cheerio (jQuery)
-│  ├─ Extract coupon fields via selectors
-│  ├─ Optional Gemini AI extraction
-│  ├─ Validate against schema
-│  └─ Batch insert to MongoDB
-├─ Log success/failure per source
-│
++- Initialize all 8 scrapers in parallel
++- Per scraper:
+|  +- Fetch HTML with axios + retry
+|  +- Parse with Cheerio (jQuery)
+|  +- Extract coupon fields via selectors
+|  +- Optional Gemini AI extraction
+|  +- Validate against schema
+|  +- Batch insert to MongoDB
++- Log success/failure per source
+|
 Daily at 4:00 AM:
-├─ Find all coupons with expireBy < today
-├─ Delete only system_scraper coupons
-└─ Preserve user-created coupons
++- Find all coupons with expireBy < today
++- Delete only system_scraper coupons
++- Preserve user-created coupons
 ```
 
 ---
@@ -266,22 +266,22 @@ The application uses a carefully ordered middleware stack:
 Firebase Authentication Flow:
 
 1. Client-side:
-   └─ User signs in via Firebase SDK
-      └─ Obtains Firebase ID Token (1 hour expiry)
+   +- User signs in via Firebase SDK
+      +- Obtains Firebase ID Token (1 hour expiry)
 
 2. Client sends API request:
-   └─ Authorization: Bearer <idToken>
+   +- Authorization: Bearer <idToken>
 
 3. Server-side verification:
-   ├─ Extract token from Authorization header
-   ├─ Verify signature with Firebase public keys
-   ├─ Decode JWT payload
-   ├─ Extract UID and custom claims
-   ├─ Check token expiration
-   └─ Attach uid to req.uid for controller use
+   +- Extract token from Authorization header
+   +- Verify signature with Firebase public keys
+   +- Decode JWT payload
+   +- Extract UID and custom claims
+   +- Check token expiration
+   +- Attach uid to req.uid for controller use
 
 4. Controller can access:
-   └─ req.uid: Firebase unique identifier
+   +- req.uid: Firebase unique identifier
 ```
 
 ### Database Schema & Relationships
@@ -356,78 +356,78 @@ Firebase Authentication Flow:
 
 ```
 Backend/
-├── src/
-│   ├── app.js                          # Express configuration and middleware setup
-│   │
-│   ├── config/
-│   │   ├── constants.js                # Status codes, error messages, enums
-│   │   ├── database.js                 # MongoDB connection with retry logic
-│   │   ├── env.js                      # Environment variable validation
-│   │   └── firebase.js                 # Firebase Admin SDK initialization
-│   │
-│   ├── controllers/
-│   │   ├── authController.js           # Authentication: signup, login, profile
-│   │   ├── couponController.js         # Coupon CRUD and discovery
-│   │   └── privateCouponController.js  # Private coupon operations
-│   │
-│   ├── cron/
-│   │   └── jobs.js                     # Scheduled jobs configuration
-│   │
-│   ├── middlewares/
-│   │   ├── authenticate.js             # Firebase token verification
-│   │   ├── errorHandler.js             # Global error handling
-│   │   ├── requestId.js                # Request ID generation
-│   │   ├── sanitize.js                 # Input sanitization
-│   │   └── validation.js               # Express validator schemas
-│   │
-│   ├── models/
-│   │   ├── Coupon.js                   # Coupon schema and methods
-│   │   ├── PrivateCoupon.js            # Private coupon schema
-│   │   └── User.js                     # User schema and methods
-│   │
-│   ├── routes/
-│   │   ├── authRoutes.js               # /api/auth endpoint definitions
-│   │   ├── couponRoutes.js             # /api/coupons endpoint definitions
-│   │   └── privateCouponRoutes.js      # /api/private-coupons endpoint definitions
-│   │
-│   ├── scraper/
-│   │   ├── engine.js                   # Core scraper orchestration
-│   │   ├── index.js                    # Scraper initialization
-│   │   └── sources/
-│   │       ├── GenericAdapter.js       # Base adapter class
-│   │       ├── GrabOnAdapter.js        # GrabOn.co.in scraper
-│   │       ├── CouponDuniyaAdapter.js  # CouponDuniya scraper
-│   │       ├── DesidimeAdapter.js      # Desidime scraper
-│   │       ├── CashkaroAdapter.js      # Cashkaro scraper
-│   │       ├── DealivoreAdapter.js     # Dealivore scraper
-│   │       ├── CouponDekhoAdapter.js   # CouponDekho scraper
-│   │       ├── PaisaWapasAdapter.js    # PaisaWapas scraper
-│   │       └── DealsMagnetAdapter.js   # DealsMagnet scraper
-│   │
-│   ├── services/
-│   │   ├── couponImageService.js       # Coupon image generation
-│   │   └── geminiExtractionService.js  # AI-powered data extraction
-│   │
-│   ├── templates/
-│   │   └── coupon.ejs                  # Coupon image EJS template
-│   │
-│   └── utils/
-│       ├── couponHelpers.js            # Coupon utilities
-│       ├── logger.js                   # Winston logger configuration
-│       ├── responseHandler.js          # Response formatting
-│       └── validators.js               # Custom validation functions
-│
-├── logs/                               # Application logs directory
-├── server.js                           # Application entry point
-├── package.json                        # Dependencies and scripts
-├── .env.example                        # Environment template
-├── manualScrape.js                     # Manual scraping script
-├── normalizecoupons.js                 # Data normalization utility
-├── seedPrivateCoupons.js               # Database seeding script
-├── test-gemini.js                      # AI service testing
-├── test.privatecoupons.json            # Test data file
-├── verifySeeding.js                    # Seeding verification
-└── README.md                           # This documentation
++-- src/
+|   +-- app.js                          # Express configuration and middleware setup
+|   |
+|   +-- config/
+|   |   +-- constants.js                # Status codes, error messages, enums
+|   |   +-- database.js                 # MongoDB connection with retry logic
+|   |   +-- env.js                      # Environment variable validation
+|   |   +-- firebase.js                 # Firebase Admin SDK initialization
+|   |
+|   +-- controllers/
+|   |   +-- authController.js           # Authentication: signup, login, profile
+|   |   +-- couponController.js         # Coupon CRUD and discovery
+|   |   +-- privateCouponController.js  # Private coupon operations
+|   |
+|   +-- cron/
+|   |   +-- jobs.js                     # Scheduled jobs configuration
+|   |
+|   +-- middlewares/
+|   |   +-- authenticate.js             # Firebase token verification
+|   |   +-- errorHandler.js             # Global error handling
+|   |   +-- requestId.js                # Request ID generation
+|   |   +-- sanitize.js                 # Input sanitization
+|   |   +-- validation.js               # Express validator schemas
+|   |
+|   +-- models/
+|   |   +-- Coupon.js                   # Coupon schema and methods
+|   |   +-- PrivateCoupon.js            # Private coupon schema
+|   |   +-- User.js                     # User schema and methods
+|   |
+|   +-- routes/
+|   |   +-- authRoutes.js               # /api/auth endpoint definitions
+|   |   +-- couponRoutes.js             # /api/coupons endpoint definitions
+|   |   +-- privateCouponRoutes.js      # /api/private-coupons endpoint definitions
+|   |
+|   +-- scraper/
+|   |   +-- engine.js                   # Core scraper orchestration
+|   |   +-- index.js                    # Scraper initialization
+|   |   +-- sources/
+|   |       +-- GenericAdapter.js       # Base adapter class
+|   |       +-- GrabOnAdapter.js        # GrabOn.co.in scraper
+|   |       +-- CouponDuniyaAdapter.js  # CouponDuniya scraper
+|   |       +-- DesidimeAdapter.js      # Desidime scraper
+|   |       +-- CashkaroAdapter.js      # Cashkaro scraper
+|   |       +-- DealivoreAdapter.js     # Dealivore scraper
+|   |       +-- CouponDekhoAdapter.js   # CouponDekho scraper
+|   |       +-- PaisaWapasAdapter.js    # PaisaWapas scraper
+|   |       +-- DealsMagnetAdapter.js   # DealsMagnet scraper
+|   |
+|   +-- services/
+|   |   +-- couponImageService.js       # Coupon image generation
+|   |   +-- geminiExtractionService.js  # AI-powered data extraction
+|   |
+|   +-- templates/
+|   |   +-- coupon.ejs                  # Coupon image EJS template
+|   |
+|   +-- utils/
+|       +-- couponHelpers.js            # Coupon utilities
+|       +-- logger.js                   # Winston logger configuration
+|       +-- responseHandler.js          # Response formatting
+|       +-- validators.js               # Custom validation functions
+|
++-- logs/                               # Application logs directory
++-- server.js                           # Application entry point
++-- package.json                        # Dependencies and scripts
++-- .env.example                        # Environment template
++-- manualScrape.js                     # Manual scraping script
++-- normalizecoupons.js                 # Data normalization utility
++-- seedPrivateCoupons.js               # Database seeding script
++-- test-gemini.js                      # AI service testing
++-- test.privatecoupons.json            # Test data file
++-- verifySeeding.js                    # Seeding verification
++-- README.md                           # This documentation
 ```
 
 ---
@@ -663,7 +663,7 @@ Collections auto-create on first application run.
 1. Go to https://console.firebase.google.com
 2. Create or select project
 3. Enable "Email/Password" authentication
-4. Project Settings → Service Accounts
+4. Project Settings -> Service Accounts
 5. Click "Generate New Private Key"
 6. Encode to base64:
 
@@ -1136,10 +1136,10 @@ CMD ["npm", "start"]
 
 ```
 main (production)
-└── develop (integration)
-    ├── feature/description
-    ├── bugfix/description
-    └── hotfix/description
++-- develop (integration)
+    +-- feature/description
+    +-- bugfix/description
+    +-- hotfix/description
 ```
 
 ### Commit Message Format

@@ -12,7 +12,6 @@ class GeminiExtractionService {
         }
 
         // List of Gemini models to try (in order of preference)
-        // List of Gemini models to try (in order of preference)
         this.modelNames = [
             'gemini-2.0-flash-exp',
             'models/gemini-2.0-flash-exp',
@@ -31,7 +30,7 @@ class GeminiExtractionService {
             this.model = null;
             this.workingModelName = null;
             this.enabled = true;
-            logger.info('✅ Gemini Extraction Service initialized. Will auto-detect working model on first use.');
+            logger.info('Gemini Extraction Service initialized. Will auto-detect working model on first use.');
         } catch (error) {
             logger.error('Failed to initialize Gemini:', error.message);
             this.enabled = false;
@@ -54,7 +53,7 @@ class GeminiExtractionService {
                     .filter(m => m.supportedGenerationMethods.includes('generateContent'))
                     .map(m => m.name.replace('models/', ''));
 
-                logger.info(`🔍 Programmatically discovered ${contentModels.length} compatible Gemini models.`);
+                logger.info(`Programmatically discovered ${contentModels.length} compatible Gemini models.`);
                 return contentModels;
             }
             return [];
@@ -73,7 +72,7 @@ class GeminiExtractionService {
         }
 
         const apiKey = process.env.GEMINI_API_KEY;
-        logger.info(`🔍 Initiating Gemini model discovery. Key presence: ${!!apiKey}, Prefix: ${apiKey ? apiKey.substring(0, 5) : 'N/A'}`);
+        logger.info(`Initiating Gemini model discovery. Key presence: ${!!apiKey}, Prefix: ${apiKey ? apiKey.substring(0, 5) : 'N/A'}`);
 
         // 1. Try dynamic discovery first (programmatic fetch)
         const discoveredNames = await this.discoverModels();
@@ -85,7 +84,7 @@ class GeminiExtractionService {
             ...discoveredNames.filter(name => !this.modelNames.includes(name))
         ];
 
-        logger.info(`🔍 Trying ${candidates.length} candidate models (prioritizing preferred ones)...`);
+        logger.info(`Trying ${candidates.length} candidate models (prioritizing preferred ones)...`);
 
         for (const modelName of candidates) {
             try {
@@ -97,22 +96,22 @@ class GeminiExtractionService {
                 // If we get here, the model works!
                 this.model = testModel;
                 this.workingModelName = modelName;
-                logger.info(`✅ Found working Gemini model: ${modelName}`);
+                logger.info(`Found working Gemini model: ${modelName}`);
                 return this.model;
             } catch (error) {
                 const errorMsg = error.message || String(error);
 
                 // Specific handling for quota issues (429)
                 if (errorMsg.includes('429') || errorMsg.includes('Quota')) {
-                    logger.error(`🚨 Gemini Quota Exceeded for ${modelName}: Please check your API plan/limits.`);
+                    logger.error(`Gemini Quota Exceeded for ${modelName}: Please check your API plan/limits.`);
                 } else {
-                    logger.debug(`⚠️ Model ${modelName} failed detection: ${errorMsg.split('\n')[0]}`);
+                    logger.debug(`Model ${modelName} failed detection: ${errorMsg.split('\n')[0]}`);
                 }
                 continue;
             }
         }
 
-        logger.error(`❌ All available Gemini models failed. This is likely due to invalid API key or exhausted quota.`);
+        logger.error(`All available Gemini models failed. This is likely due to invalid API key or exhausted quota.`);
         this.enabled = false;
         return null;
     }
@@ -148,7 +147,7 @@ class GeminiExtractionService {
             // Parse and clean the extracted data
             const extractedData = this.parseGeminiResponse(text, rawData);
 
-            logger.info(`✅ Gemini (${this.workingModelName}) extracted data for: ${extractedData.couponName || rawData.couponTitle || 'Unknown'}`);
+            logger.info(`Gemini (${this.workingModelName}) extracted data for: ${extractedData.couponName || rawData.couponTitle || 'Unknown'}`);
             return extractedData;
 
         } catch (error) {
@@ -172,7 +171,7 @@ class GeminiExtractionService {
                         const retryResponse = await retryResult.response;
                         const retryText = retryResponse.text();
                         const extractedData = this.parseGeminiResponse(retryText, rawData);
-                        logger.info(`✅ Gemini (${this.workingModelName}) extracted data after switching model`);
+                        logger.info(`Gemini (${this.workingModelName}) extracted data after switching model`);
                         return extractedData;
                     } catch (retryError) {
                         logger.error(`Gemini extraction failed even after trying new model: ${retryError.message?.split('\n')[0] || retryError}`);
