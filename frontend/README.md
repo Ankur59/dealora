@@ -1,7 +1,4 @@
-# Dealora - Android 
-
-<div align="center">
-![Dealora Logo](app/src/main/res/drawable/logo.png)
+# Dealora - Android
 
 **A comprehensive Android application for discovering, managing, and tracking promotional coupons across multiple platforms**
 
