@@ -17,15 +17,15 @@ class ScraperEngine {
             try {
                 logger.info(`Scraping source: ${adapter.sourceName}`);
                 const coupons = await adapter.scrape();
-                
+
                 if (!coupons || coupons.length === 0) {
-                    logger.warn(`⚠️ No coupons found for ${adapter.sourceName}. This might mean:`);
+                    logger.warn(`No coupons found for ${adapter.sourceName}. This might mean:`);
                     logger.warn(`   - Website structure changed (selectors don't match)`);
                     logger.warn(`   - Website is blocking scrapers`);
                     logger.warn(`   - Pages are returning 404 or empty responses`);
                     logger.warn(`   - Website requires JavaScript (dynamic content)`);
                 } else {
-                    logger.info(`✅ ${adapter.sourceName} found ${coupons.length} coupons to process`);
+                    logger.info(`${adapter.sourceName} found ${coupons.length} coupons to process`);
                 }
 
                 for (const rawData of coupons) {
@@ -39,10 +39,10 @@ class ScraperEngine {
                         // Extract relevant info for better error logging
                         const couponInfo = rawData.couponTitle || rawData.couponName || 'Unknown Coupon';
                         const brandInfo = rawData.brandName || 'Unknown Brand';
-                        
+
                         logger.error(`Error processing coupon from ${adapter.sourceName}: ${couponInfo} (${brandInfo})`);
                         logger.error(`Error details: ${err.message}`);
-                        
+
                         // Only log raw data in debug mode to avoid cluttering logs
                         if (process.env.LOG_LEVEL === 'debug') {
                             logger.debug(`Raw data was:`, JSON.stringify(rawData, null, 2).substring(0, 500));
@@ -50,7 +50,7 @@ class ScraperEngine {
                     }
                 }
             } catch (error) {
-                logger.error(`❌ Failed to scrape ${adapter.sourceName}:`, error.message);
+                logger.error(`Failed to scrape ${adapter.sourceName}:`, error.message);
                 logger.error(`Stack trace:`, error.stack);
                 // Continue with next adapter even if one fails completely
             }
@@ -59,10 +59,10 @@ class ScraperEngine {
         }
 
         logger.info(`Scraping completed. Added: ${totalAdded}, Updated: ${totalUpdated}`);
-        
+
         // Clean up expired coupons after scraping
         await this.removeExpiredCoupons();
-        
+
         return { totalAdded, totalUpdated };
     }
 
@@ -74,18 +74,18 @@ class ScraperEngine {
             const now = new Date();
             // Set to start of today to catch all coupons that expired today
             now.setHours(0, 0, 0, 0);
-            
+
             const result = await Coupon.deleteMany({
                 expireBy: { $lt: now },
                 userId: 'system_scraper' // Only remove scraper-created coupons
             });
-            
+
             if (result.deletedCount > 0) {
-                logger.info(`🗑️  Removed ${result.deletedCount} expired coupon(s) from database`);
+                logger.info(`Removed ${result.deletedCount} expired coupon(s) from database`);
             } else {
-                logger.info(`✅ No expired coupons found to remove`);
+                logger.info(`No expired coupons found to remove`);
             }
-            
+
             return result.deletedCount;
         } catch (error) {
             logger.error(`Error removing expired coupons:`, error.message);

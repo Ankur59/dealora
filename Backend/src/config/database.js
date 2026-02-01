@@ -14,7 +14,7 @@ const connectDB = async () => {
         }
 
         const options = {
-         
+
             serverSelectionTimeoutMS: 30000,
             socketTimeoutMS: 45000,
             connectTimeoutMS: 30000,
@@ -44,7 +44,7 @@ const connectDB = async () => {
 
         const conn = await mongoose.connect(mongoUri, options);
 
-        logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
+        logger.info(`MongoDB Connected: ${conn.connection.host}`);
         retryCount = 0;
         isReconnecting = false;
         return conn.connection;
@@ -65,7 +65,7 @@ const connectDB = async () => {
 };
 
 mongoose.connection.on('connected', () => {
-    logger.info('✅ Mongoose connected to MongoDB');
+    logger.info('Mongoose connected to MongoDB');
     isReconnecting = false;
 });
 
@@ -74,19 +74,19 @@ mongoose.connection.on('error', (err) => {
 });
 
 mongoose.connection.on('disconnected', () => {
-    logger.warn('⚠️ Mongoose disconnected from MongoDB');
+    logger.warn('Mongoose disconnected from MongoDB');
 
     if (!isReconnecting && mongoose.connection.readyState === 0) {
         isReconnecting = true;
         retryCount = 0; // Reset retry count for reconnection attempts
 
-        logger.info('🔄 Attempting to reconnect to MongoDB in 5 seconds...');
+        logger.info('Attempting to reconnect to MongoDB in 5 seconds...');
         setTimeout(async () => {
             if (mongoose.connection.readyState === 0) {
                 try {
                     await connectDB();
                 } catch (err) {
-                    logger.error('❌ Reconnection failed:', err.message);
+                    logger.error('Reconnection failed:', err.message);
                     isReconnecting = false;
                 }
             } else {
@@ -97,7 +97,7 @@ mongoose.connection.on('disconnected', () => {
 });
 
 mongoose.connection.on('reconnected', () => {
-    logger.info('✅ Mongoose reconnected to MongoDB');
+    logger.info('Mongoose reconnected to MongoDB');
     isReconnecting = false;
 });
 
