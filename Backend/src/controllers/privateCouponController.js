@@ -89,30 +89,30 @@ exports.syncCoupons = async (req, res) => {
 
         // Validity Filter
         if (validity) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
 
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
 
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    sevenDaysFromNow.setHours(23, 59, 59, 999);
+            const sevenDaysFromNow = new Date();
+            sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+            sevenDaysFromNow.setHours(23, 59, 59, 999);
 
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    thirtyDaysFromNow.setHours(23, 59, 59, 999);
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            thirtyDaysFromNow.setHours(23, 59, 59, 999);
 
-    if (validity === 'valid_today') {
-        query.expiryDate = { $gte: todayStart, $lte: todayEnd };
-    } else if (validity === 'valid_this_week') {
-        query.expiryDate = { $gt: todayEnd, $lte: sevenDaysFromNow };
-    } else if (validity === 'valid_this_month') {
-        query.expiryDate = { $gt: sevenDaysFromNow, $lte: thirtyDaysFromNow };
-    } else if (validity === 'expired') {
-        query.expiryDate = { $lt: todayStart };
-    }
-}
+            if (validity === 'valid_today') {
+                query.expiryDate = { $gte: todayStart, $lte: todayEnd };
+            } else if (validity === 'valid_this_week') {
+                query.expiryDate = { $gt: todayEnd, $lte: sevenDaysFromNow };
+            } else if (validity === 'valid_this_month') {
+                query.expiryDate = { $gt: sevenDaysFromNow, $lte: thirtyDaysFromNow };
+            } else if (validity === 'expired') {
+                query.expiryDate = { $lt: todayStart };
+            }
+        }
 
         // Sorting
         let sortOptions = {};
@@ -139,16 +139,16 @@ exports.syncCoupons = async (req, res) => {
         // Calculate daysUntilExpiry dynamically based on current date
         const currentDate = new Date();
         currentDate.setHours(0, 0, 0, 0); // Reset time to start of day for accurate day calculation
-        
+
         const couponsWithDynamicExpiry = coupons.map(coupon => {
             if (coupon.expiryDate) {
                 const expiryDate = new Date(coupon.expiryDate);
                 expiryDate.setHours(0, 0, 0, 0);
-                
+
                 // Calculate difference in days
                 const timeDiff = expiryDate.getTime() - currentDate.getTime();
                 const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
-                
+
                 return {
                     ...coupon,
                     daysUntilExpiry: daysDiff
@@ -252,7 +252,7 @@ exports.getStatistics = async (req, res) => {
                 if (percentMatch && amountMatch) {
                     const percentage = parseInt(percentMatch[1], 10);
                     const amount = parseInt(amountMatch[1], 10);
-                    
+
                     if (!isNaN(percentage) && !isNaN(amount)) {
                         // Calculate actual discount: percentage of amount
                         const discount = Math.round((percentage / 100) * amount);
@@ -260,6 +260,11 @@ exports.getStatistics = async (req, res) => {
                     }
                 }
             });
+        }
+
+        // Cap total savings at 999 if it exceeds
+        if (totalSavings > 999) {
+            totalSavings = 999;
         }
 
         logger.info(`Statistics fetched: ${activeCouponsCount} active coupons, ₹${totalSavings} total savings`);
