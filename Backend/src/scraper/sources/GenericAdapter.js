@@ -106,6 +106,7 @@ class GenericAdapter {
                 useCouponVia: extractedData.useCouponVia || (finalCouponCode ? 'Coupon Code' : (extractedData.couponVisitingLink ? 'Coupon Visiting Link' : 'None')),
                 status: 'active',
                 couponDetails: extractedData.couponDetails || rawData.terms || null,
+                terms: rawData.terms || extractedData.couponDetails || null, // Add terms field
                 minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
             };
 
@@ -140,6 +141,7 @@ class GenericAdapter {
                 useCouponVia: rawData.couponCode ? 'Coupon Code' : 'Coupon Visiting Link',
                 status: 'active',
                 couponDetails: rawData.terms || null,
+                terms: rawData.terms || null, // Add terms field in fallback too
             };
         }
     }
