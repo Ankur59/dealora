@@ -25,10 +25,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -568,6 +570,7 @@ fun OtpDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(24.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
                 Text(
                     text = "Terms & Conditions",
@@ -579,30 +582,73 @@ fun OtpDialog(
 
                 Text(
                     text = """
-                        1. Acceptance of Terms
-                        By using Dealora's app syncing service, you agree to comply with these terms and conditions. If you do not agree, please do not use our service.
-
-                        2. Service Description
-                        Dealora provides a service to sync your shopping apps and manage your coupons efficiently. We access your app data solely for the purpose of providing coupon and deal information relevant to your synced apps.
-
-                        3. User Responsibilities
-                        You are responsible for maintaining the confidentiality of your account information. You agree to use the service only for lawful purposes and in ways that do not infringe upon the rights of others.
-
-                        4. Data Privacy
-                        Your privacy is important to us. We collect and process your data in accordance with our Privacy Policy. By syncing apps through Dealora, you consent to our data collection practices.
-
-                        5. Limitation of Liability
-                        Dealora is provided on an "as-is" basis. We shall not be liable for any damages arising from your use of or inability to use the service.
-
-                        6. Changes to Terms
-                        We reserve the right to modify these terms at any time. Changes will be effective immediately upon posting to the app.
-
-                        7. Termination
-                        We may terminate or suspend your access to our service at any time, without notice, for conduct that we believe violates these terms.
-
-                        8. Contact Us
-                        If you have questions about these terms, please contact our support team at support@dealora.com.
-                    """.trimIndent(),
+                                DEALORA
+                        
+                                TERMS AND CONDITIONS
+                        
+                                Effective Date: [Insert Date]
+                        
+                                These Terms and Conditions ("Terms") govern your access to and use of the Dealora mobile application, website, and related services (collectively, the "Service"). By installing, accessing, or using the Service, you agree to be bound by these Terms.
+                        
+                                If you do not agree to these Terms, please do not use the Service.
+                        
+                                1. About Dealora
+                        
+                                Dealora is a coupon visibility and validation platform that helps users view, manage, and validate coupons and reward offers issued by third-party merchants, brands, banks, wallets, or platforms (each, a "Merchant") in a single, unified dashboard.
+                        
+                                Dealora provides the following services:
+                                • Retrieves and displays coupon data from connected Merchants through authorized integrations.
+                                • Validates coupon authenticity and verifies genuine coupons.
+                                • Parses promotional emails to identify and extract coupon information (with user consent).
+                                • Organizes coupons in a unified dashboard for easy access.
+                                • Provides reminders and notifications about coupon expiry and availability.
+                                • Enforces redemption workflows by redirecting users to Merchant platforms.
+                                Important: While Dealora validates coupon authenticity and enforces redemption workflows, Dealora does not issue coupons, create offers, determine final eligibility, process payments, or complete redemptions. All coupons, rewards, and transactions remain subject to the Merchant systems, rules, and final terms. Merchants remain the sole system of record for coupon issuance, redemption, and dispute resolution.
+                        
+                                2. Definitions
+                        
+                                For the purpose of these Terms, the following definitions shall apply:
+                                • "User" means any individual who installs, accesses, or uses the Service.
+                                • "Merchant" means a third-party platform, brand, bank, wallet, or service provider that issues coupons or rewards and integrates with Dealora under a separate agreement.
+                                • "Coupon Data" means non-financial information related to coupons or rewards, including coupon titles, codes (if applicable), eligibility conditions, validity dates, campaign identifiers, brand name, redemption status, and validation results.
+                                • "Personal Data" means information that directly identifies you, such as your name, phone number, or email address.
+                                • "Redemption Metadata" means non-personal, non-financial information related to a coupon redemption event, such as timestamp, coupon identifier, and status, as provided by a Merchant.
+                                • "Service" means all features, functionalities, and services provided through the Dealora platform, including the mobile application, website, and related tools.
+                        
+                                3. User Eligibility and Account
+                                By creating an account or using the Service, you represent and warrant that:
+                                • You are at least 18 years of age or the age of legal majority in your jurisdiction.
+                                • You have the legal capacity to enter into a binding agreement.
+                                • You agree to provide accurate and current information when creating an account and to keep your contact information up to date.
+                                • You are responsible for maintaining the confidentiality of your account credentials and for all activities conducted through your account.
+                                • You will immediately notify us of any unauthorized use of your account.
+                        
+                                4. User Consent and Merchant Connections
+                                Dealora operates on an explicit, opt-in basis. By connecting a Merchant source, you authorize Dealora to:
+                                • Retrieve and display Coupon Data related to your account with that Merchant.
+                                • Validate the authenticity of coupons associated with your account.
+                                • Modify display preferences and organization of coupon data within the Dealora platform.
+                                You may disconnect any Merchant source at any time through the app. Upon disconnection, Dealora will stop retrieving new Coupon Data from that Merchant. Previously collected data will be handled in accordance with our Privacy Policy and data retention terms.
+                        
+                                5. Email Integration and Parsing
+                                To enhance your experience and provide comprehensive coupon visibility, Dealora offers optional email integration. This feature is entirely optional and requires your explicit consent.
+                                If you choose to enable email integration, you authorize Dealora to:
+                                • Access your email account solely for the purpose of identifying and extracting coupon-related information from promotional emails.
+                                • Use automated parsing technology to identify relevant coupons, discount codes, and promotional offers from marketing emails.
+                                • Extract coupon codes, expiry dates, terms, and related metadata from identified promotional content.
+                                Important Privacy Safeguards:
+                                • We only access promotional and marketing emails; we do not read, store, or process personal or sensitive emails.
+                                • All email processing is conducted in compliance with applicable privacy laws and email provider policies (including Gmail API terms).
+                                • Email access is limited to coupon identification only; no financial, payment, or transaction data is accessed.
+                                • You can revoke email access permissions at any time through your account settings.
+                                You can use the full Dealora Service without enabling email integration. This feature is provided for convenience only.
+                        
+                                6. Data Collection and Privacy
+                                Dealora collects and processes data in accordance with its Privacy Policy and applicable laws, including the Digital Personal Data Protection Act, 2023 (India) and other relevant regulations.
+                        
+                                (Full policy continues as per the app Privacy & Terms. Contact support for the full legal text.)
+                            """
+                        .trimIndent(),
                     fontSize = 12.sp,
                     color = Color.Black,
                     lineHeight = 18.sp,
