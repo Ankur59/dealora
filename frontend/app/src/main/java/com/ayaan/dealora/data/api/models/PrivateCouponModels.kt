@@ -131,5 +131,8 @@ data class PrivateCoupon(
     val createdAt: String? = null,
 
     @Json(name = "updatedAt")
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+
+    @Json(name = "couponType")
+    val couponType: String = "private"
 )

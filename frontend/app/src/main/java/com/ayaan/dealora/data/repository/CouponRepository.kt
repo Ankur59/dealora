@@ -86,11 +86,18 @@ class CouponRepository @Inject constructor(
     suspend fun getCouponsByCategory(
         uid: String,
         category: String,
-        limit: Int = 10
+        limit: Int = 10,
+        search: String? = null
     ): CouponListResponseData? {
         return try {
-            Log.d(TAG, "Getting coupons for category: $category, limit: $limit")
-            val response = couponApiService.getCoupons(uid = uid, page = 1, limit = limit, category = category)
+            Log.d(TAG, "Getting coupons for category: $category, limit: $limit, search: $search")
+            val response = couponApiService.getCoupons(
+                uid = uid, 
+                page = 1, 
+                limit = limit, 
+                category = category,
+                search = search
+            )
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.success == true) {

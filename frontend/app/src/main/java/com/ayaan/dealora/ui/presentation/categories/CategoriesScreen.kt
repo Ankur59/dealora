@@ -44,16 +44,13 @@ fun CategoriesScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
     Scaffold(
         topBar = {
             CouponsListTopBar(
                 searchQuery = searchQuery,
-                onSearchQueryChanged = {
-                    searchQuery = it
-                    viewModel.onSearchQueryChanged(it)
-                },
+                onSearchQueryChanged = { viewModel.onSearchQueryChanged(it) },
                 onBackClick = { navController.popBackStack() },
                 isPublicMode = uiState.isPublicMode,
                 onPublicModeChanged = { viewModel.onPublicModeChanged(it) },
@@ -100,7 +97,7 @@ fun CategoriesScreen(
                                 expiryDays = coupon.daysUntilExpiry,
                                 couponId = coupon.id,
                                 isSaved = isSaved,
-                                showActionButtons = true,
+                                showActionButtons = false, // Hide redeem/discover for public coupons
                                 onDetailsClick = {
                                     navController.navigate(
                                         Route.CouponDetails.createRoute(

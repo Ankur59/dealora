@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.repository.SavedCouponRepository
@@ -44,8 +46,15 @@ class CategoriesViewModel @Inject constructor(
     private val moshi: Moshi
 ) : ViewModel() {
 
+    companion object {
+        private const val SEARCH_DEBOUNCE_MS = 500L
+    }
+
     private val _uiState = MutableStateFlow(CategoriesUiState())
     val uiState: StateFlow<CategoriesUiState> = _uiState.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val categories = listOf(
         "Food", "Fashion", "Grocery", "Wallet Rewards", "Beauty", "Travel", "Entertainment"
@@ -53,6 +62,8 @@ class CategoriesViewModel @Inject constructor(
 
     // Store original private coupons to ensure full data is saved
     private val privateCouponsMap = mutableMapOf<String, PrivateCoupon>()
+    
+    private var searchJob: Job? = null
 
     init {
         fetchAllCategories()
@@ -76,6 +87,7 @@ class CategoriesViewModel @Inject constructor(
     fun fetchAllCategories() {
         val uid = firebaseAuth.currentUser?.uid ?: return
         val isPublicMode = _uiState.value.isPublicMode
+        val query = _searchQuery.value
         
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         
@@ -87,7 +99,12 @@ class CategoriesViewModel @Inject constructor(
                 if (isPublicMode) {
                     for (category in categories) {
                         try {
-                            val data = couponRepository.getCouponsByCategory(uid = uid, category = category, limit = 10)
+                            val data = couponRepository.getCouponsByCategory(
+                                uid = uid, 
+                                category = category, 
+                                limit = 10,
+                                search = query.ifEmpty { null }
+                            )
                             if (data != null && data.total > 0) {
                                 groups.add(
                                     CategoryGroup(
@@ -238,6 +255,45 @@ class CategoriesViewModel @Inject constructor(
     }
 
     fun onSearchQueryChanged(query: String) {
-        Log.d("CategoriesViewModel", "Search query: $query")
+        _searchQuery.value = query
+        
+        // Cancel previous search job
+        searchJob?.cancel()
+        
+        // If in public mode, trigger API search immediately with debouncing
+        // If in private mode, filter locally with debouncing
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DEBOUNCE_MS)
+            Log.d("CategoriesViewModel", "Search query debounced: $query")
+            
+            if (_uiState.value.isPublicMode) {
+                // Public mode: fetch from API with search query
+                fetchAllCategories()
+            } else {
+                // Private mode: filter locally
+                filterPrivateCouponsLocally(query)
+            }
+        }
+    }
+    
+    private fun filterPrivateCouponsLocally(query: String) {
+        if (query.isEmpty()) {
+            // If query is empty, reload all categories
+            fetchAllCategories()
+            return
+        }
+        
+        val currentGroups = _uiState.value.categoryGroups
+        val filteredGroups = currentGroups.map { group ->
+            val filteredCoupons = group.coupons.filter { coupon ->
+                coupon.brandName?.contains(query, ignoreCase = true) == true ||
+                coupon.couponTitle?.contains(query, ignoreCase = true) == true ||
+                coupon.description?.contains(query, ignoreCase = true) == true ||
+                coupon.category?.contains(query, ignoreCase = true) == true
+            }
+            group.copy(coupons = filteredCoupons, totalCount = filteredCoupons.size)
+        }.filter { it.coupons.isNotEmpty() }
+        
+        _uiState.update { it.copy(categoryGroups = filteredGroups) }
     }
 }

@@ -234,7 +234,8 @@ class DashboardViewModel @Inject constructor(
                                     category = listItem.category,
                                     daysUntilExpiry = listItem.daysUntilExpiry,
                                     redeemable = false, // Public usually not redeemable in-app
-                                    redeemed = false
+                                    redeemed = false,
+                                    couponType = "public"
                                 )
                             }
                         }
