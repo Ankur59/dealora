@@ -11,6 +11,7 @@ sealed class Route(val path: String) {
         fun createRoute(tab: String = "active") = "dashboard?tab=$tab"
     }
     data object RedeemedCoupons: Route("redeemedcoupons")
+    data object Categories: Route("categories")
     data object AddCoupon:Route("addcoupon")
     data object Splash:Route("splash")
     data object ExploreCoupons:Route("explorecoupons?category={category}") {

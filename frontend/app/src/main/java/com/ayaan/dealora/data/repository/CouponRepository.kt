@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.models.Coupon
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.CouponListResponseData
 import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.PrivateCoupon
@@ -77,6 +78,33 @@ class CouponRepository @Inject constructor(
                 )
             }
         ).flow
+    }
+
+    /**
+     * Get coupons for a specific category with count
+     */
+    suspend fun getCouponsByCategory(
+        uid: String,
+        category: String,
+        limit: Int = 10
+    ): CouponListResponseData? {
+        return try {
+            Log.d(TAG, "Getting coupons for category: $category, limit: $limit")
+            val response = couponApiService.getCoupons(uid = uid, page = 1, limit = limit, category = category)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true) {
+                    body.data
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting coupons by category", e)
+            null
+        }
     }
 
     /**

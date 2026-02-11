@@ -34,6 +34,7 @@ import com.ayaan.dealora.ui.presentation.profile.faq.FAQScreen
 import com.ayaan.dealora.ui.presentation.notifications.NotificationsScreen
 import com.ayaan.dealora.ui.presentation.profile.notificationprefs.NotificationPreferencesScreen
 import com.ayaan.dealora.ui.presentation.splash.SplashScreen
+import com.ayaan.dealora.ui.presentation.categories.CategoriesScreen
 import com.ayaan.dealora.ui.presentation.syncapps.screens.SelectAppsScreen
 import com.ayaan.dealora.ui.presentation.syncapps.screens.SyncApp
 import com.ayaan.dealora.ui.presentation.syncapps.screens.SyncAppsStart
@@ -155,6 +156,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
             )
         ) {
             CouponsList(navController)
+        }
+        composable(Route.Categories.path) {
+            CategoriesScreen(navController)
         }
         composable(Route.Profile.path) {
             ProfileScreen(navController)
