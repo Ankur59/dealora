@@ -72,6 +72,8 @@ fun CategoriesScreen(
                         }
                         
                         items(group.coupons) { coupon ->
+                            val isSaved = uiState.savedCouponIds.contains(coupon.id)
+                            
                             CouponCard(
                                 brandName = coupon.brandName?.uppercase()?.replace(" ", "\n") ?: "DEALORA",
                                 couponTitle = coupon.couponTitle ?: "Special Offer",
@@ -79,14 +81,17 @@ fun CategoriesScreen(
                                 category = coupon.category,
                                 expiryDays = coupon.daysUntilExpiry,
                                 couponId = coupon.id,
-                                showActionButtons = false,
+                                isSaved = isSaved,
+                                showActionButtons = true,
                                 onDetailsClick = {
                                     navController.navigate(
                                         Route.CouponDetails.createRoute(
-                                            couponId = coupon.id, isPrivate = false
+                                            couponId = coupon.id, isPrivate = !uiState.isPublicMode
                                         )
                                     )
-                                }
+                                },
+                                onSave = { viewModel.saveCoupon(coupon.id, coupon) },
+                                onRemoveSave = { viewModel.removeSavedCoupon(coupon.id) }
                             )
                         }
                         

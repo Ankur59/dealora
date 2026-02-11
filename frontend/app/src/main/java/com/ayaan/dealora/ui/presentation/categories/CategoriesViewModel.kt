@@ -15,25 +15,33 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.squareup.moshi.Moshi
+import com.ayaan.dealora.data.repository.SavedCouponRepository
+import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.api.models.CouponListItem
+import kotlinx.coroutines.flow.collectLatest
 
 data class CategoryGroup(
     val name: String,
     val totalCount: Int,
-    val coupons: List<com.ayaan.dealora.data.api.models.CouponListItem>
+    val coupons: List<CouponListItem>
 )
 
 data class CategoriesUiState(
     val isLoading: Boolean = false,
     val categoryGroups: List<CategoryGroup> = emptyList(),
     val errorMessage: String? = null,
-    val isPublicMode: Boolean = false
+    val isPublicMode: Boolean = false,
+    val savedCouponIds: Set<String> = emptySet()
 )
 
 @HiltViewModel
 class CategoriesViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
-    private val firebaseAuth: FirebaseAuth
+    private val savedCouponRepository: SavedCouponRepository,
+    private val firebaseAuth: FirebaseAuth,
+    private val moshi: Moshi
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CategoriesUiState())
@@ -43,8 +51,21 @@ class CategoriesViewModel @Inject constructor(
         "Food", "Fashion", "Grocery", "Wallet Rewards", "Beauty", "Travel", "Entertainment"
     )
 
+    // Store original private coupons to ensure full data is saved
+    private val privateCouponsMap = mutableMapOf<String, PrivateCoupon>()
+
     init {
         fetchAllCategories()
+        observeSavedCoupons()
+    }
+
+    private fun observeSavedCoupons() {
+        viewModelScope.launch {
+            savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
+                val ids = savedCoupons.map { it.couponId }.toSet()
+                _uiState.update { it.copy(savedCouponIds = ids) }
+            }
+        }
     }
 
     fun onPublicModeChanged(isPublic: Boolean) {
@@ -61,7 +82,8 @@ class CategoriesViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val groups = mutableListOf<CategoryGroup>()
-                
+                if (!isPublicMode) privateCouponsMap.clear()
+
                 if (isPublicMode) {
                     for (category in categories) {
                         try {
@@ -95,7 +117,10 @@ class CategoriesViewModel @Inject constructor(
                                 
                                 if (result is PrivateCouponResult.Success && result.coupons.isNotEmpty()) {
                                     val mappedCoupons = result.coupons.map { privateCoupon ->
-                                        com.ayaan.dealora.data.api.models.CouponListItem(
+                                        // Store original for saving later
+                                        privateCouponsMap[privateCoupon.id] = privateCoupon
+                                        
+                                        CouponListItem(
                                             id = privateCoupon.id,
                                             brandName = privateCoupon.brandName,
                                             couponTitle = privateCoupon.couponTitle,
@@ -131,6 +156,49 @@ class CategoriesViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("CategoriesViewModel", "Error fetching categories", e)
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message) }
+            }
+        }
+    }
+
+    fun saveCoupon(couponId: String, coupon: CouponListItem) {
+        viewModelScope.launch {
+            try {
+                if (_uiState.value.isPublicMode) {
+                    Log.d("CategoriesViewModel", "Saving public coupon: $couponId")
+                    val adapter = moshi.adapter(CouponListItem::class.java)
+                    val couponJson = adapter.toJson(coupon)
+                    savedCouponRepository.saveCoupon(
+                        couponId = couponId,
+                        couponJson = couponJson,
+                        couponType = "public"
+                    )
+                } else {
+                    val privateCoupon = privateCouponsMap[couponId]
+                    if (privateCoupon != null) {
+                        Log.d("CategoriesViewModel", "Saving private coupon: $couponId")
+                        val adapter = moshi.adapter(PrivateCoupon::class.java)
+                        val couponJson = adapter.toJson(privateCoupon)
+                        savedCouponRepository.saveCoupon(
+                            couponId = couponId,
+                            couponJson = couponJson,
+                            couponType = "private"
+                        )
+                    } else {
+                        Log.w("CategoriesViewModel", "Private coupon not found for saving: $couponId")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("CategoriesViewModel", "Error saving coupon: $couponId", e)
+            }
+        }
+    }
+
+    fun removeSavedCoupon(couponId: String) {
+        viewModelScope.launch {
+            try {
+                savedCouponRepository.removeSavedCoupon(couponId)
+            } catch (e: Exception) {
+                Log.e("CategoriesViewModel", "Error removing coupon: $couponId", e)
             }
         }
     }
