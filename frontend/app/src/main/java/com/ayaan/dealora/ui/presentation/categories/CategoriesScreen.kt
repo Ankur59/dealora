@@ -38,7 +38,9 @@ fun CategoriesScreen(
                     viewModel.onSearchQueryChanged(it)
                 },
                 onBackClick = { navController.popBackStack() },
-                showModeSwitch = false
+                isPublicMode = uiState.isPublicMode,
+                onPublicModeChanged = { viewModel.onPublicModeChanged(it) },
+                showModeSwitch = true
             )
         },
         containerColor = Color.White
