@@ -66,7 +66,7 @@ class CategoriesViewModel @Inject constructor(
                     for (category in categories) {
                         try {
                             val data = couponRepository.getCouponsByCategory(uid = uid, category = category, limit = 10)
-                            if (data != null) {
+                            if (data != null && data.total > 0) {
                                 groups.add(
                                     CategoryGroup(
                                         name = category,
@@ -93,7 +93,7 @@ class CategoriesViewModel @Inject constructor(
                                     limit = 10
                                 )
                                 
-                                if (result is PrivateCouponResult.Success) {
+                                if (result is PrivateCouponResult.Success && result.coupons.isNotEmpty()) {
                                     val mappedCoupons = result.coupons.map { privateCoupon ->
                                         com.ayaan.dealora.data.api.models.CouponListItem(
                                             id = privateCoupon.id,
