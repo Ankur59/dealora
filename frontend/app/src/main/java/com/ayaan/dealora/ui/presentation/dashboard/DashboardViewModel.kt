@@ -253,7 +253,7 @@ class DashboardViewModel @Inject constructor(
             "redeemed" -> allCouponsFromApi.filter { it.redeemed == true }
             "expired" -> {
                 allCouponsFromApi.filter { coupon ->
-                    val isExpired = ((coupon.daysUntilExpiry?.minus(1)) ?: 0) < 0
+                    val isExpired = (coupon.daysUntilExpiry ?: 0) < 0
                     Log.d(TAG, "Checking expired for ${coupon.couponTitle}: daysUntilExpiry=${coupon.daysUntilExpiry}, isExpired=$isExpired")
                     isExpired
                 }

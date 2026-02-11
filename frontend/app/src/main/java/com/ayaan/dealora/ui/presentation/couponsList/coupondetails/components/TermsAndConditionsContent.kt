@@ -26,7 +26,7 @@ fun TermsAndConditionsContent(coupon: CouponDetail) {
         Spacer(modifier = Modifier.height(12.dp))
 
         if (coupon.terms.toString().isNotBlank()&&coupon.terms!=null) {
-            BulletPoint(coupon.terms.toString())
+            BulletPoint(coupon.terms.toString() , type = "terms")
         } else {
             BulletPoint("Valid for a limited time only.")
             BulletPoint("One-time use per user.")

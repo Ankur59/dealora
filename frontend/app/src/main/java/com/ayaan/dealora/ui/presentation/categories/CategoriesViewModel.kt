@@ -203,6 +203,40 @@ class CategoriesViewModel @Inject constructor(
         }
     }
 
+    fun redeemCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        Log.d("CategoriesViewModel", "Redeem coupon flow started for: $couponId")
+        
+        viewModelScope.launch {
+            try {
+                val currentUser = firebaseAuth.currentUser
+                if (currentUser == null) {
+                    Log.e("CategoriesViewModel", "User not authenticated")
+                    onError("Please login to redeem coupon")
+                    return@launch
+                }
+
+                val uid = currentUser.uid
+                Log.d("CategoriesViewModel", "User authenticated - UID: $uid")
+
+                when (val result = couponRepository.redeemPrivateCoupon(couponId, uid)) {
+                    is PrivateCouponResult.Success -> {
+                        Log.d("CategoriesViewModel", "Coupon redeemed successfully")
+                        onSuccess()
+                        // Reload categories to show updated state
+                        fetchAllCategories()
+                    }
+                    is PrivateCouponResult.Error -> {
+                        Log.e("CategoriesViewModel", "Error: ${result.message}")
+                        onError(result.message)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("CategoriesViewModel", "Exception in redeem flow: ${e.message}", e)
+                onError("Unable to redeem coupon. Please try again.")
+            }
+        }
+    }
+
     fun onSearchQueryChanged(query: String) {
         Log.d("CategoriesViewModel", "Search query: $query")
     }
