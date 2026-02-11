@@ -439,20 +439,40 @@ class CouponsListViewModel @Inject constructor(
         }
     }
 
-    fun saveCoupon(couponId: String, couponJson: String) {
+    fun saveCoupon(couponId: String, couponJson: String, isPrivate: Boolean = true) {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Saving coupon: $couponId")
+                Log.d(TAG, "Saving coupon: $couponId, isPrivate: $isPrivate")
                 savedCouponRepository.saveCoupon(
                     couponId = couponId,
                     couponJson = couponJson,
-                    couponType = "private"
+                    couponType = if (isPrivate) "private" else "public"
                 )
                 // Update local state
                 _savedCouponIds.value = _savedCouponIds.value + couponId
                 Log.d(TAG, "Coupon saved successfully: $couponId")
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving coupon: $couponId", e)
+            }
+        }
+    }
+
+    fun saveCouponFromListItem(couponId: String, coupon: CouponListItem) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Saving coupon list item: $couponId")
+                val adapter = moshi.adapter(CouponListItem::class.java)
+                val couponJson = adapter.toJson(coupon)
+                savedCouponRepository.saveCoupon(
+                    couponId = couponId,
+                    couponJson = couponJson,
+                    couponType = "public"
+                )
+                // Update local state
+                _savedCouponIds.value = _savedCouponIds.value + couponId
+                Log.d(TAG, "Coupon list item saved successfully: $couponId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving coupon list item: $couponId", e)
             }
         }
     }

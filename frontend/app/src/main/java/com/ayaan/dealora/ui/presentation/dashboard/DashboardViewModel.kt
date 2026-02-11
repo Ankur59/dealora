@@ -3,13 +3,16 @@ package com.ayaan.dealora.ui.presentation.dashboard
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.local.entity.SavedCouponEntity
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
+import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,7 +32,8 @@ class DashboardViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
-    private val firebaseAuth: FirebaseAuth
+    private val firebaseAuth: FirebaseAuth,
+    private val moshi: Moshi
 ) : ViewModel() {
 
     companion object {
@@ -49,6 +53,8 @@ class DashboardViewModel @Inject constructor(
 
     private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
     val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
+
+    private val _savedCoupons = MutableStateFlow<List<SavedCouponEntity>>(emptyList())
 
     private val _currentSortOption = MutableStateFlow(SortOption.NONE)
     val currentSortOption: StateFlow<SortOption> = _currentSortOption.asStateFlow()
@@ -71,9 +77,11 @@ class DashboardViewModel @Inject constructor(
         // Load all private coupons and saved IDs
         viewModelScope.launch {
             // Load saved coupon IDs
+            // Load saved coupons and IDs
             savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
+                _savedCoupons.value = savedCoupons
                 _savedCouponIds.value = savedCoupons.map { it.couponId }.toSet()
-                Log.d(TAG, "Updated saved coupon IDs: ${_savedCouponIds.value}")
+                Log.d(TAG, "Updated saved coupons: ${savedCoupons.size}")
                 // Filter coupons by status whenever saved IDs change
                 filterCouponsByStatus()
             }
@@ -188,39 +196,79 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun filterCouponsByStatus() {
-        val allCoupons = _allPrivateCoupons.value
-        val saved = _savedCouponIds.value
+        val allCouponsFromApi = _allPrivateCoupons.value
+        val savedIds = _savedCouponIds.value
+        val savedEntities = _savedCoupons.value
         val statusFilterValue = _statusFilter.value
 
         Log.d(TAG, "=== FILTER DEBUG START ===")
-        Log.d(TAG, "Total coupons: ${allCoupons.size}")
+        Log.d(TAG, "Total coupons from API: ${allCouponsFromApi.size}")
         Log.d(TAG, "Status filter: $statusFilterValue")
-        Log.d(TAG, "Saved coupon IDs: ${saved.size}")
+        Log.d(TAG, "Saved coupon entities: ${savedEntities.size}")
 
-        // Log all coupons with their expiry info
-        allCoupons.forEachIndexed { index, coupon ->
-            Log.d(TAG, "Coupon $index: ${coupon.couponTitle}, daysUntilExpiry: ${coupon.daysUntilExpiry}, redeemed: ${coupon.redeemed}, saved: ${saved.contains(coupon.id)}")
-        }
+        val filtered = when (statusFilterValue) {
+            "saved" -> {
+                // Combine API coupons with those stored in DB
+                val combined = mutableListOf<PrivateCoupon>()
+                val addedIds = mutableSetOf<String>()
 
-        val filtered = allCoupons.filter { coupon ->
-            when (statusFilterValue) {
-                "saved" -> saved.contains(coupon.id)
-                "redeemed" -> coupon.redeemed == true
-                "expired" -> {
+                // 1. Add API coupons if they are in saved IDs
+                allCouponsFromApi.filter { savedIds.contains(it.id) }.forEach {
+                    combined.add(it)
+                    addedIds.add(it.id)
+                }
+
+                // 2. Add coupons from DB that weren't in the API response
+                savedEntities.filter { !addedIds.contains(it.couponId) }.forEach { savedCoupon ->
+                    val coupon = try {
+                        if (savedCoupon.couponType == "private") {
+                            moshi.adapter(PrivateCoupon::class.java).fromJson(savedCoupon.couponJson)
+                        } else {
+                            // Map public CouponListItem to PrivateCoupon
+                            moshi.adapter(CouponListItem::class.java).fromJson(savedCoupon.couponJson)?.let { listItem ->
+                                PrivateCoupon(
+                                    id = listItem.id,
+                                    brandName = listItem.brandName ?: "Dealora",
+                                    couponTitle = listItem.couponTitle ?: "Special Offer",
+                                    description = listItem.description,
+                                    category = listItem.category,
+                                    daysUntilExpiry = listItem.daysUntilExpiry,
+                                    redeemable = false, // Public usually not redeemable in-app
+                                    redeemed = false
+                                )
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing saved coupon JSON: ${savedCoupon.couponId}", e)
+                        null
+                    }
+
+                    coupon?.let {
+                        combined.add(it)
+                        addedIds.add(it.id)
+                    }
+                }
+                combined
+            }
+            "redeemed" -> allCouponsFromApi.filter { it.redeemed == true }
+            "expired" -> {
+                allCouponsFromApi.filter { coupon ->
                     val isExpired = ((coupon.daysUntilExpiry?.minus(1)) ?: 0) < 0
                     Log.d(TAG, "Checking expired for ${coupon.couponTitle}: daysUntilExpiry=${coupon.daysUntilExpiry}, isExpired=$isExpired")
                     isExpired
                 }
-                "active" -> {
-                    // Active: neither expired nor redeemed
+            }
+            "active" -> {
+                // Active: neither expired nor redeemed
+                allCouponsFromApi.filter { coupon ->
                     (coupon.daysUntilExpiry ?: 0) >= 0 && coupon.redeemed != true
                 }
-                else -> saved.contains(coupon.id) // default to saved
             }
+            else -> allCouponsFromApi.filter { savedIds.contains(it.id) }
         }
 
         _filteredCoupons.value = filtered
-        Log.d(TAG, "Filtered coupons by status: ${filtered.size} out of ${allCoupons.size}, status: $statusFilterValue")
+        Log.d(TAG, "Filtered coupons: ${filtered.size}, status: $statusFilterValue")
         Log.d(TAG, "=== FILTER DEBUG END ===")
     }
 
@@ -257,6 +305,26 @@ class DashboardViewModel @Inject constructor(
         _statusFilter.value = status
         // Status filter is client-side only, no need to reload from API
         filterCouponsByStatus()
+    }
+
+    fun saveCoupon(coupon: PrivateCoupon) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Saving coupon: ${coupon.id}")
+                val adapter = moshi.adapter(PrivateCoupon::class.java)
+                val couponJson = adapter.toJson(coupon)
+                savedCouponRepository.saveCoupon(
+                    couponId = coupon.id,
+                    couponJson = couponJson,
+                    couponType = "private" // Save as private since we have the full PrivateCoupon model now
+                )
+                // Update local state
+                _savedCouponIds.value = _savedCouponIds.value + coupon.id
+                Log.d(TAG, "Coupon saved successfully: ${coupon.id}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving coupon: ${coupon.id}", e)
+            }
+        }
     }
 
     fun removeSavedCoupon(couponId: String) {

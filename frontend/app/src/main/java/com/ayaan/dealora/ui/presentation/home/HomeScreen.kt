@@ -159,7 +159,10 @@ fun HomeScreen(
             // Coupons Card
             StatisticsCard(
                 activeCouponsCount = uiState.statistics?.activeCouponsCount ?: 0,
-                totalSavings = uiState.statistics?.totalSavings ?: 0
+                totalSavings = uiState.statistics?.totalSavings ?: 0,
+                onClick = {
+                    navController.navigate(Route.Dashboard.createRoute())
+                }
             )
 
             Spacer(modifier = Modifier.height(20.dp))

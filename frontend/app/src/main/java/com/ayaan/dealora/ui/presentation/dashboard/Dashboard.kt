@@ -356,7 +356,9 @@ fun Dashboard(
                                         // Remove from saved but keep showing in list with unsaved state
                                         viewModel.removeSavedCoupon(couponId)
                                     },
-                                    onSave = {},
+                                    onSave = { _ ->
+                                        viewModel.saveCoupon(coupon)
+                                    },
                                     onRedeem = { couponId ->
                                         Log.d("Dashboard", "Redeem clicked for coupon: $couponId")
                                         viewModel.redeemCoupon(
