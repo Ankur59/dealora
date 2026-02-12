@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dealora Feature Tester</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { text-align: center; color: var(--primary); margin-bottom: 30px; }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .full-width { grid-column: span 2; }
+        
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #4338ca; }
+        button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+
+        .preview {
+            max-width: 100%;
+            max-height: 200px;
+            display: none;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            border: 2px dashed #ddd;
+        }
+        pre {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            max-height: 300px;
+            font-size: 14px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .success { background-color: #d1fae5; color: #065f46; }
+        .error { background-color: #fee2e2; color: #991b1b; }
+
+        .image-drop-zone {
+            border: 2px dashed #cbd5e1;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+        .image-drop-zone:hover { background-color: #f8fafc; border-color: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <h1>Dealora AI Feature Tester</h1>
+    
+    <div id="status-check" style="text-align: center; margin-bottom: 20px;">
+        Checking API Status...
+    </div>
+
+    <div class="container">
+        <!-- OCR Parsing Section -->
+        <div class="card">
+            <h2>📸 OCR Screenshot Parsing</h2>
+            <div class="image-drop-zone" onclick="document.getElementById('ocrInput').click()">
+                <p>Click to Upload Screenshot</p>
+                <input type="file" id="ocrInput" accept="image/*" hidden onchange="previewImage(this)">
+            </div>
+            <img id="imagePreview" class="preview">
+            
+            <button onclick="processOCR()" id="ocrBtn">Extract Coupon from Image</button>
+            <div id="ocrResult"></div>
+        </div>
+
+        <!-- NEW Gmail Sync Section -->
+        <div class="card">
+            <h2>📧 Gmail Coupon Sync</h2>
+            
+            <p style="font-size:14px; color:#555; margin-bottom:15px;">
+                Connect your Gmail account to automatically scan specifically for promotional emails and extract coupons.
+            </p>
+
+            <div style="background:#f0f9ff; padding:15px; border-radius:6px; margin-bottom:15px; border:1px solid #bae6fd;">
+                <strong>Step 1:</strong> 
+                <a href="https://developers.google.com/oauthplayground/" target="_blank" style="color:#0284c7; font-weight:bold;">Get Access Token</a>
+                <br>
+                <span style="font-size:12px;">(Select 'Gmail API v1' &rarr; 'https://mail.google.com/')</span>
+            </div>
+
+            <label style="font-weight:bold;">Paste Access Token</label>
+            <input type="password" id="accessToken" placeholder="ya29.a0..." style="margin-top:5px;">
+            
+            <button onclick="syncGmail()" id="syncBtn" style="background-color:#db4437; margin-top:10px;">
+                <span style="margin-right:8px;">G</span> Connect Gmail & Scan
+            </button>
+            
+            <div id="emailResult" style="margin-top:20px;"></div>
+        </div>
+
+        <!-- History Display -->
+        <div class="card full-width">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2>📜 Extraction History</h2>
+                <div>
+                    <button style="width: auto; margin:0 5px;" onclick="loadHistory('ocr')">Load OCR History</button>
+                    <button style="width: auto; margin:0 5px;" onclick="loadHistory('email')">Load Email History</button>
+                </div>
+            </div>
+            <div id="historyResult">
+                <p style="color: #6b7280; text-align: center;">Select a history type to view saved coupons.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api/features';
+
+        // Check Backend Status
+        fetch(`${API_BASE}/status`)
+            .then(res => res.json())
+            .then(data => {
+                const el = document.getElementById('status-check');
+                if (data.status === 'online') {
+                    el.innerHTML = `<span class="status-badge success">Backend Online</span> Mode: ${data.service}`;
+                } else {
+                    el.innerHTML = `<span class="status-badge error">AI Service Offline</span>`;
+                }
+            })
+            .catch(err => {
+                document.getElementById('status-check').innerHTML = `<span class="status-badge error">Backend Unreachable</span>`;
+            });
+
+        // 1. Image Preview
+        let base64Image = null;
+        function previewImage(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('imagePreview').src = e.target.result;
+                    document.getElementById('imagePreview').style.display = 'block';
+                    base64Image = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // 2. Process OCR
+        async function processOCR() {
+            if (!base64Image) return alert('Please upload an image first');
+            
+            const btn = document.getElementById('ocrBtn');
+            const output = document.getElementById('ocrResult');
+            
+            setLoading(btn, true);
+            output.innerHTML = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/ocr`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image, userId: 'demo_user' })
+                });
+                const data = await res.json();
+                renderJSON(output, data);
+            } catch (error) {
+                output.innerHTML = `<div class="status-badge error">Error: ${error.message}</div>`;
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        // 3. Sync Gmail (New Logic)
+        async function syncGmail() {
+            const token = document.getElementById('accessToken').value;
+            if (!token) return alert('Please enter an Access Token');
+
+            const btn = document.getElementById('syncBtn');
+            const output = document.getElementById('emailResult');
+            
+            setLoading(btn, true);
+            output.innerHTML = '<div style="color:#666">Scanning recent emails for coupons... This may take a few seconds.</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/gmail-sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token, userId: 'demo_user_sync' })
+                });
+                const data = await res.json();
+                
+                if(data.success) {
+                   output.innerHTML = `
+                        <div class="status-badge success" style="margin-bottom:10px;">Success</div>
+                        <p>${data.message}</p>
+                   `;
+                   if(data.coupons && data.coupons.length > 0) {
+                        renderJSON(output, data.coupons);
+                   }
+                } else {
+                    output.innerHTML = `<div class="status-badge error">Failed: ${data.message}</div>`;
+                    if(data.error) output.innerHTML += `<pre style="color:red; margin-top:5px;">${data.error}</pre>`;
+                }
+
+            } catch (error) {
+                output.innerHTML = `<div class="status-badge error">Error: ${error.message}</div>`;
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        // 4. Load History
+        async function loadHistory(type) {
+            const output = document.getElementById('historyResult');
+            output.innerHTML = 'Loading...';
+            
+            try {
+                const res = await fetch(`${API_BASE}/${type}`);
+                const data = await res.json();
+                
+                if(data.success && data.data.length > 0) {
+                    renderJSON(output, data.data);
+                } else {
+                    output.innerHTML = `<p style="text-align:center">No coupons found for ${type}</p>`;
+                }
+            } catch (error) {
+                output.innerHTML = `<div class="status-badge error">Error fetching history</div>`;
+            }
+        }
+
+        function setLoading(btn, isLoading) {
+            if (isLoading) {
+                btn.dataset.originalText = btn.innerText;
+                btn.innerText = 'Processing...';
+                btn.disabled = true;
+            } else {
+                btn.innerText = btn.dataset.originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function renderJSON(container, data) {
+            container.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+    </script>
+</body>
+</html>

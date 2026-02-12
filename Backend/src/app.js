@@ -13,6 +13,7 @@ const sanitize = require('./middlewares/sanitize');
 const authRoutes = require('./routes/authRoutes');
 const couponRoutes = require('./routes/couponRoutes');
 const privateCouponRoutes = require('./routes/privateCouponRoutes');
+const featureRoutes = require('./routes/featureRoutes');
 
 
 const app = express();
@@ -24,7 +25,23 @@ app.use(helmet({
 }));
 
 const corsOptions = {
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+        
+        // In development, allow all origins
+        if (process.env.NODE_ENV === 'development') {
+            return callback(null, true);
+        }
+        
+        // In production, check against allowed origins
+        const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
+        if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     optionsSuccessStatus: 200,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -100,6 +117,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/private-coupons', privateCouponRoutes);
+app.use('/api/features', featureRoutes);
 
 
 app.get('/', (req, res) => {
