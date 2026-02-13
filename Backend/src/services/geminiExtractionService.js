@@ -223,14 +223,15 @@ class GeminiExtractionService {
     }
 
     /**
-     * Extract and segregate coupon data using Gemini AI
+     * Extract and clean only 3 fields using Gemini AI: couponCode, couponDetails, terms
+     * All other fields remain untouched from the scraper
      * @param {Object} rawData - Raw scraped coupon data
-     * @returns {Promise<Object>} - Properly extracted and segregated coupon data
+     * @returns {Promise<Object>} - Data with 3 fields cleaned and standardized
      */
     async extractCouponData(rawData) {
         if (!this.enabled) {
-            logger.warn('Gemini extraction disabled. Using basic normalization.');
-            return rawData;
+            logger.warn('Gemini extraction disabled. Using local fallback cleaner.');
+            return this.fallbackFieldCleaner(rawData);
         }
 
         // Find working model if not already found
@@ -238,23 +239,23 @@ class GeminiExtractionService {
         if (!model) {
             model = await this.findWorkingModel();
             if (!model) {
-                logger.warn('No working Gemini model found. Using fallback extraction.');
-                return rawData;
+                logger.warn('No working Gemini model found. Using local fallback cleaner.');
+                return this.fallbackFieldCleaner(rawData);
             }
         }
 
-        const prompt = this.buildExtractionPrompt(rawData);
+        const prompt = this.buildFocusedCleaningPrompt(rawData);
 
         try {
             const result = await model.generateContent(prompt);
             const response = await result.response;
             const text = response.text();
 
-            // Parse and clean the extracted data
-            const extractedData = this.parseGeminiResponse(text, rawData);
+            // Parse the cleaned 3 fields and merge with original data
+            const cleanedData = this.parseCleanedFieldsResponse(text, rawData);
 
-            logger.info(`Gemini (${this.workingModelName}) extracted data for: ${extractedData.couponName || rawData.couponTitle || 'Unknown'}`);
-            return extractedData;
+            logger.info(`Gemini (${this.workingModelName}) cleaned 3 fields for: ${rawData.couponTitle || rawData.couponName || 'Unknown'}`);
+            return cleanedData;
 
         } catch (error) {
             const errorMsg = error.message || String(error);
@@ -262,8 +263,9 @@ class GeminiExtractionService {
             if (errorMsg.includes('API key')) {
                 logger.error('Gemini API key error. Please check your GEMINI_API_KEY environment variable.');
                 this.enabled = false;
-            } else if (errorMsg.includes('quota') || errorMsg.includes('rate limit')) {
-                logger.warn('Gemini API rate limit/quota exceeded. Using fallback extraction.');
+            } else if (errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('rate limit')) {
+                logger.warn('Gemini API rate limit/quota exceeded. Using local fallback cleaner.');
+                return this.fallbackFieldCleaner(rawData);
             } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
                 // Model became unavailable, try to find a new one
                 logger.warn(`Model ${this.workingModelName || 'current'} became unavailable. Trying to find a new working model...`);
@@ -276,72 +278,159 @@ class GeminiExtractionService {
                         const retryResult = await newModel.generateContent(prompt);
                         const retryResponse = await retryResult.response;
                         const retryText = retryResponse.text();
-                        const extractedData = this.parseGeminiResponse(retryText, rawData);
-                        logger.info(`Gemini (${this.workingModelName}) extracted data after switching model`);
-                        return extractedData;
+                        const cleanedData = this.parseCleanedFieldsResponse(retryText, rawData);
+                        logger.info(`Gemini (${this.workingModelName}) cleaned 3 fields after switching model`);
+                        return cleanedData;
                     } catch (retryError) {
-                        logger.error(`Gemini extraction failed even after trying new model: ${retryError.message?.split('\n')[0] || retryError}`);
+                        logger.error(`Gemini field cleaning failed even after trying new model: ${retryError.message?.split('\n')[0] || retryError}`);
                     }
                 }
             } else {
-                logger.error(`Gemini extraction failed: ${errorMsg.split('\n')[0]}`);
+                logger.error(`Gemini field cleaning failed: ${errorMsg.split('\n')[0]}`);
             }
 
-            // Return raw data if Gemini fails - scraping can continue without AI extraction
-            return rawData;
+            // Use local fallback cleaner if Gemini fails completely
+            logger.warn('Using local fallback cleaner due to Gemini failure.');
+            return this.fallbackFieldCleaner(rawData);
         }
     }
 
-    buildExtractionPrompt(rawData) {
-        const dataString = JSON.stringify(rawData, null, 2);
+    /**
+     * Build focused cleaning prompt - only for 3 fields
+     */
+    buildFocusedCleaningPrompt(rawData) {
+        const brandName = rawData.brandName || rawData.brand || 'Brand';
+        const couponCode = rawData.couponCode || rawData.code || 'N/A';
+        const couponDetails = rawData.couponDetails || rawData.description || rawData.details || 'N/A';
+        const terms = rawData.terms || rawData.conditions || 'N/A';
 
-        return `You are an expert at extracting and segregating coupon/deal information from scraped web data. Your goal is to transform messy web data into premium, professional-looking coupons.
+        return `You are a coupon data normalization engine.
 
-IMPORTANT: Each field must contain ONLY its designated content. The text should be catchy, professional, and benefit-oriented.
+Your task is to clean and standardize ONLY these 3 fields:
+1. couponCode
+2. couponDetails
+3. terms
 
-Raw scraped data:
-${dataString}
+The scraped data may contain:
+- Website navigation text
+- Festival headings
+- Unrelated promotional text
+- Repeated offers
+- Emoji content
+- Garbage values
+- UI labels like "View All Offers", "Blog", etc.
 
-Extract and return ONLY a valid JSON object with these EXACT fields (use null if value is not available):
+You must clean and normalize the data.
+Do NOT copy raw text.
+Do NOT include unrelated content.
+Return structured JSON only.
 
+INPUT DATA:
+
+Brand Name: ${brandName}
+
+Raw Coupon Code:
+${couponCode}
+
+Raw Coupon Details:
+${couponDetails}
+
+Raw Terms:
+${terms}
+
+INSTRUCTIONS:
+
+1. COUPON CODE RULES:
+   - FIRST, extract any alphanumeric code from the raw text (4-20 characters).
+   - THEN, validate it.
+   - Must be alphanumeric only (A-Z, 0-9).
+   - Length between 4–20 characters.
+   - No spaces.
+   - REJECT if the entire raw value is one of these phrases:
+     "CODE ACTIVATED"
+     "DEAL ACTIVATED"
+     "CLICK TO COPY"
+     "UNLOCK"
+     "GRAB DEAL"
+     "GET DEAL"
+     "REVEAL CODE"
+     "SHOW CODE"
+     "NO CODE NEEDED"
+     "ACTIVATED"
+   - But if the raw value CONTAINS a real code + garbage text (e.g., "PARTY15 - CLICK TO COPY"), extract the code part.
+   - If no valid alphanumeric code found → return null.
+   - If it is a deal (no code required) → return null.
+
+2. COUPON DETAILS RULES:
+   - Write a CLEAN, PROFESSIONAL description.
+   - 2–3 lines MAXIMUM.
+   - ABSOLUTELY NO EMOJIS (💞 🎉 ❤️ etc).
+   - ABSOLUTELY NO navigation text ("Blog", "View All", "Follow Us", etc).
+   - ABSOLUTELY NO repeated headings or titles.
+   - Remove festival headings ("Valentine's Day", "Diwali Offers", etc).
+   - Should clearly and professionally explain:
+        • What discount is offered
+        • On what product/service
+        • Any minimum order (if available)
+   - Use ONLY plain text, proper grammar, professional tone.
+
+3. TERMS RULES:
+   - Convert into clean bullet points.
+   - Maximum 5 bullet points.
+   - Short, clear, and professional.
+   - ABSOLUTELY NO emojis.
+   - ABSOLUTELY NO navigation text ("Blog", "Subscribe", "Follow Us").
+   - ABSOLUTELY NO generic phrases ("Terms apply", "Special Offer").
+   - Do NOT repeat information from coupon details.
+   - Focus on: validity conditions, user eligibility, usage restrictions.
+   - If no real terms exist in the raw data, generate 3-5 logical, relevant conditions based on the offer type.
+   - Examples of good terms:
+        • Valid on party orders only.
+        • Minimum order value of ₹348 required.
+        • Offer valid for a limited time.
+        • Cannot be combined with other promotions.
+        • Applicable on selected menu items.
+
+4. Keep format consistent across all coupons.
+
+EXAMPLE:
+
+Input (Messy):
+Brand: Box8
+Code: PARTY15 - CLICK TO COPY
+Details: Valentine's💞 Day! Get flat 15% off. Min ₹348. Blog Subscribe
+Terms: 🎉 Offer! View All Terms apply
+
+Expected Output:
 {
-  "couponName": "A catchy, benefit-oriented name. Focus on the main offer (e.g., '50% Off' or '₹200 Cashback'). DO NOT use the example phrases from this prompt.",
-  "couponTitle": "A professional marketing title including the brand context (e.g., 'Freshmenu Weekend Special' or 'Limited Time Myntra Offer').",
-  "description": "CRAFT a conversationally imaginative summary. TALK like a real person sharing a great find with a friend. BUT: Stay 100% grounded in the facts provided in the raw data. Do NOT invent items (like 'Indian food' for a grocery store unless mentioned). Focus on the REAL value proposition.",
-  "couponCode": "ONLY extract if there is a REAL alphanumeric code (e.g., 'SAVE20'). Use null if none. Do NOT use terms or title text here.",
-  "couponVisitingLink": "The direct merchant/deal URL. Full URL starting with http:// or https://.",
-  "expireBy": "Expiry date in YYYY-MM-DD format or null.",
-  "brandName": "Clean brand name (e.g., 'Zomato', 'Amazon'). Max 2 words.",
-  "discountType": "ONE of: percentage, flat, cashback, freebie, buy1get1, free_delivery, wallet_upi, prepaid_only, unknown",
-  "discountValue": "Numeric or percentage value (e.g., '50', '₹100', '20%').",
-  "minimumOrder": "Minimum order value as number or null (e.g., 500).",
-  "categoryLabel": "ONE of: Food, Fashion, Grocery, Wallet Rewards, Beauty, Travel, Entertainment, Other",
-  "couponDetails": "Step-by-step instructions on how to redeem. Max 2000 chars.",
-  "terms": "Detailed Terms & Conditions and eligibility criteria. Max 2000 chars.",
-  "useCouponVia": "ONE of: 'Coupon Code', 'Coupon Visiting Link', 'Both', 'None'"
+  "validatedCouponCode": "PARTY15",
+  "cleanCouponDetails": "Get flat 15% discount on party orders at Box8. Offer applicable on orders above ₹348 for a limited period.",
+  "standardizedTerms": [
+    "Valid on party orders only.",
+    "Minimum order value of ₹348 required.",
+    "Offer valid for a limited time.",
+    "Cannot be combined with other promotions.",
+    "Applicable on selected menu items."
+  ]
 }
 
-CRITICAL QUALITY RULES:
-1. TONE: Description MUST be imaginative and conversational. Talk like a friend sharing a great find! BUT do not hallucinate details not in the text.
-2. ACCURACY: If the merchant is BigBasket or Blinkit, it is 'Grocery', NOT 'Food'. If it's Zomato or Swiggy, it's 'Food'.
-3. CATEGORY MAP: 
-   - 'Food': Restaurants, delivery (Zomato, Swiggy, Dominos, KFC).
-   - 'Fashion': Clothing, shoes, accessories (Myntra, Ajio, Amazon Fashion, Nykaa Fashion).
-   - 'Grocery': Supermarkets, fruits, milk, daily essentials (BigBasket, Blinkit, Amazon Fresh, Zepto).
-   - 'Wallet Rewards': ONLY for platform-wide payment rewards (GPay, PhonePe, Cred) that aren't specific to a food/fashion/grocery merchant.
-   - 'Beauty': Cosmetics, makeup (Nykaa, Mamaearth).
-   - 'Travel': Flights, hotels, cabs (MakeMyTrip, Indigo, Uber).
-   - 'Entertainment': Movies, gaming, OTT (BookMyShow, Netflix).
-   - 'Other': Everything else.
-4. EXAMPLES: Do NOT include the words 'Example', 'Punch', or 'Context' in your JSON values.
+OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
 
-Return ONLY the JSON object. No markdown, no commentary.`;
+{
+  "validatedCouponCode": null,
+  "cleanCouponDetails": "",
+  "standardizedTerms": [
+    "",
+    "",
+    ""
+  ]
+}`;
     }
 
     /**
-     * Parse Gemini's JSON response and clean the data
+     * Parse Gemini's response for the 3 cleaned fields and merge with original data
      */
-    parseGeminiResponse(text, fallbackData) {
+    parseCleanedFieldsResponse(text, originalData) {
         try {
             // Clean the response text
             let jsonString = text.trim();
@@ -358,70 +447,307 @@ Return ONLY the JSON object. No markdown, no commentary.`;
             }
 
             // Parse the JSON
-            const parsed = JSON.parse(jsonString);
+            const cleaned = JSON.parse(jsonString);
 
-            // Clean and validate each field
-            // Clean couponCode first
-            const cleanedCode = this.cleanCouponCode(parsed.couponCode || fallbackData.couponCode);
-            // Clean couponVisitingLink first
-            const cleanedLink = this.cleanUrl(parsed.couponVisitingLink || fallbackData.couponVisitingLink || fallbackData.couponLink);
-            // Get title for description comparison
-            const title = parsed.couponName || fallbackData.couponName || fallbackData.couponTitle;
+            // Validate and apply the cleaned couponCode
+            let validatedCode = cleaned.validatedCouponCode;
+            if (validatedCode && typeof validatedCode === 'string') {
+                validatedCode = validatedCode.trim().toUpperCase();
+                // Final validation - must be 4-20 alphanumeric chars
+                if (!/^[A-Z0-9]{4,20}$/.test(validatedCode)) {
+                    validatedCode = null;
+                }
+            } else {
+                validatedCode = null;
+            }
 
+            // Validate cleaned coupon details
+            let cleanedDetails = cleaned.cleanCouponDetails;
+            if (!cleanedDetails || typeof cleanedDetails !== 'string' || cleanedDetails.trim().length < 10) {
+                cleanedDetails = originalData.couponDetails || null;
+            } else {
+                cleanedDetails = cleanedDetails.trim().substring(0, 2000);
+            }
+
+            // Validate standardized terms
+            let standardizedTerms = cleaned.standardizedTerms;
+            if (Array.isArray(standardizedTerms) && standardizedTerms.length > 0) {
+                // Convert array to bullet points string
+                const validTerms = standardizedTerms
+                    .filter(t => t && typeof t === 'string' && t.trim().length > 0)
+                    .map(t => `• ${t.trim()}`)
+                    .slice(0, 5); // Max 5 terms
+                
+                standardizedTerms = validTerms.length > 0 ? validTerms.join('\n') : null;
+            } else {
+                standardizedTerms = originalData.terms || null;
+            }
+
+            // Merge cleaned fields with original data
             const result = {
-                ...fallbackData,
-                ...parsed,
-
-                // Clean couponName - remove codes, URLs, dates
-                couponName: this.cleanCouponName(title),
-
-                // Clean couponCode - only alphanumeric (must be a real code, not title/description)
-                couponCode: cleanedCode,
-
-                // Clean couponVisitingLink - only valid URLs
-                couponVisitingLink: cleanedLink,
-
-                // Clean description - make sure it's different from title, read from entire coupon data
-                description: this.cleanDescription(
-                    parsed.description || fallbackData.description,
-                    title
-                ),
-
-                // Parse expiry date
-                expireBy: this.parseDate(parsed.expireBy || fallbackData.expireBy),
-
-                // Clean couponDetails - redemption instructions
-                couponDetails: this.cleanCouponDetails(parsed.couponDetails || fallbackData.couponDetails),
-
-                // Clean terms - T&C and eligibility
-                terms: this.cleanTerms(parsed.terms || fallbackData.terms),
-
-                // Clean brandName
-                brandName: this.cleanBrandName(parsed.brandName || fallbackData.brandName),
-
-                // Validate discountType
-                discountType: this.validateDiscountType(parsed.discountType || fallbackData.discountType),
-
-                // Clean discountValue
-                discountValue: parsed.discountValue || fallbackData.discountValue || null,
-
-                // Validate categoryLabel
-                categoryLabel: this.validateCategory(parsed.categoryLabel || fallbackData.categoryLabel || fallbackData.category),
-
-                // Set minimumOrder
-                minimumOrder: parsed.minimumOrder || fallbackData.minimumOrder || null,
-
-                // Set useCouponVia based on cleaned code and link
-                useCouponVia: this.determineUseCouponVia(cleanedCode, cleanedLink),
+                ...originalData,
+                couponCode: validatedCode,
+                couponDetails: cleanedDetails,
+                terms: standardizedTerms,
             };
 
+            // Recalculate useCouponVia based on cleaned couponCode and existing link
+            const hasCode = validatedCode && validatedCode.length >= 4;
+            const hasLink = originalData.couponVisitingLink || originalData.couponLink;
+            
+            if (hasCode && hasLink) {
+                result.useCouponVia = 'Both';
+            } else if (hasCode && !hasLink) {
+                result.useCouponVia = 'Coupon Code';
+            } else if (!hasCode && hasLink) {
+                result.useCouponVia = 'Coupon Visiting Link';
+            } else {
+                result.useCouponVia = 'None';
+            }
+
+            logger.info(`Successfully cleaned 3 fields. Code: ${validatedCode || 'null'}, Details length: ${cleanedDetails?.length || 0}, Terms: ${standardizedTerms ? 'Yes' : 'No'}`);
             return result;
 
         } catch (error) {
-            logger.error('Failed to parse Gemini response:', error.message);
+            logger.error('Failed to parse Gemini cleaned fields response:', error.message);
             logger.debug('Gemini response text:', text.substring(0, 500));
-            return fallbackData;
+            // Return original data if parsing fails
+            return originalData;
         }
+    }
+
+    /**
+     * Local fallback cleaner when Gemini is unavailable
+     * Does basic cleaning of the 3 fields without AI
+     */
+    fallbackFieldCleaner(rawData) {
+        logger.info('Applying local fallback cleaning for 3 fields...');
+
+        // 1. Clean couponCode
+        let cleanedCode = this.localCleanCouponCode(rawData.couponCode || rawData.code);
+
+        // 2. Clean couponDetails
+        let cleanedDetails = this.localCleanCouponDetails(rawData.couponDetails || rawData.description || rawData.details);
+
+        // 3. Clean terms
+        let cleanedTerms = this.localCleanTerms(rawData.terms || rawData.conditions);
+
+        // Merge with original data
+        const result = {
+            ...rawData,
+            couponCode: cleanedCode,
+            couponDetails: cleanedDetails,
+            terms: cleanedTerms,
+        };
+
+        // Recalculate useCouponVia
+        const hasCode = cleanedCode && cleanedCode.length >= 4;
+        const hasLink = rawData.couponVisitingLink || rawData.couponLink;
+        
+        if (hasCode && hasLink) {
+            result.useCouponVia = 'Both';
+        } else if (hasCode && !hasLink) {
+            result.useCouponVia = 'Coupon Code';
+        } else if (!hasCode && hasLink) {
+            result.useCouponVia = 'Coupon Visiting Link';
+        } else {
+            result.useCouponVia = 'None';
+        }
+
+        logger.info(`Local cleaning applied. Code: ${cleanedCode || 'null'}, Details: ${cleanedDetails ? cleanedDetails.substring(0, 50) + '...' : 'null'}, Terms: ${cleanedTerms ? 'Yes' : 'null'}`);
+        return result;
+    }
+
+    /**
+     * Local coupon code cleaner (no AI)
+     */
+    localCleanCouponCode(code) {
+        if (!code || typeof code !== 'string') return null;
+
+        let cleaned = code.trim().toUpperCase();
+
+        // List of garbage phrases to reject completely
+        const garbagePhrasesExact = [
+            'CODE ACTIVATED',
+            'DEAL ACTIVATED',
+            'CLICK TO COPY',
+            'UNLOCK',
+            'UNLOCKED',
+            'GRAB DEAL',
+            'GET DEAL',
+            'REVEAL CODE',
+            'SHOW CODE',
+            'NO CODE NEEDED',
+            'ACTIVATED',
+            'GET CODE',
+            'COPY CODE',
+            'N/A',
+            'NA',
+            'NOT APPLICABLE',
+        ];
+
+        // Check if the entire value is a garbage phrase
+        if (garbagePhrasesExact.includes(cleaned)) {
+            return null;
+        }
+
+        // List of words that typically appear in garbage codes
+        const garbageWords = [
+            'UNLOCKED',
+            'ACTIVATED',
+            'CLICK',
+            'COPY',
+            'REVEAL',
+            'SHOW',
+            'UNLOCK',
+            'GRAB',
+            'GET',
+        ];
+
+        // Try to extract a real code by:
+        // 1. Split by common separators (space, dash, pipe, etc.)
+        // 2. Find the first alphanumeric token that's 4-20 chars and doesn't contain garbage words
+        const tokens = cleaned.split(/[\s\-_|:,;.]+/).filter(t => t.length > 0);
+        
+        for (const token of tokens) {
+            // Must be alphanumeric only
+            if (!/^[A-Z0-9]+$/.test(token)) continue;
+            
+            // Must be 4-20 chars
+            if (token.length < 4 || token.length > 20) continue;
+            
+            // Must not be a garbage word
+            if (garbagePhrasesExact.includes(token)) continue;
+            
+            // Must not contain common garbage words
+            const hasGarbage = garbageWords.some(word => token.includes(word));
+            if (hasGarbage) continue;
+            
+            // This looks like a valid code
+            return token;
+        }
+
+        // No valid code found
+        return null;
+    }
+
+    /**
+     * Local coupon details cleaner (no AI)
+     */
+    localCleanCouponDetails(details) {
+        if (!details || typeof details !== 'string') return null;
+
+        let cleaned = details.trim();
+
+        // Remove emojis
+        cleaned = cleaned.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
+
+        // Remove common navigation/UI text patterns
+        const uiPatterns = [
+            /View All [A-Za-z\s]+ Offers/gi,
+            /Speciality Pages/gi,
+            /AI Tools/gi,
+            /Surge \d+/gi,
+            /Blog/gi,
+            /Mobile Apps/gi,
+            /Product Deals/gi,
+            /Charities/gi,
+            /Gift Cards/gi,
+            /More…/gi,
+            /More\.\.\./gi,
+            /City Offers/gi,
+            /Brand Offers/gi,
+            /Bank Offers/gi,
+            /Festival Offers/gi,
+            /Subscribe/gi,
+            /Contact Us/gi,
+            /Follow Us/gi,
+            /Show Details/gi,
+            /Hide Details/gi,
+            /Click Here/gi,
+            /Get Deal/gi,
+            /Grab Now/gi,
+            /Shop Now/gi,
+        ];
+
+        uiPatterns.forEach(pattern => {
+            cleaned = cleaned.replace(pattern, '');
+        });
+
+        // Remove URLs
+        cleaned = cleaned.replace(/https?:\/\/[^\s]+/gi, '');
+
+        // Remove excessive whitespace and newlines
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+        // Limit length
+        cleaned = cleaned.substring(0, 500);
+
+        // Must have at least 10 chars to be valid
+        if (cleaned.length < 10) return null;
+
+        return cleaned;
+    }
+
+    /**
+     * Local terms cleaner (no AI)
+     */
+    localCleanTerms(terms) {
+        if (!terms || typeof terms !== 'string') return null;
+
+        let cleaned = terms.trim();
+
+        // Remove emojis
+        cleaned = cleaned.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
+
+        // Remove common navigation/UI text patterns (same as details)
+        const uiPatterns = [
+            /View All [A-Za-z\s]+ Offers/gi,
+            /Speciality Pages/gi,
+            /AI Tools/gi,
+            /Surge \d+/gi,
+            /Blog/gi,
+            /Mobile Apps/gi,
+            /Product Deals/gi,
+            /Charities/gi,
+            /Gift Cards/gi,
+            /More…/gi,
+            /More\.\.\./gi,
+            /City Offers/gi,
+            /Brand Offers/gi,
+            /Bank Offers/gi,
+            /Festival Offers/gi,
+            /Subscribe/gi,
+            /Contact Us/gi,
+            /Follow Us/gi,
+            /Show Details/gi,
+            /Hide Details/gi,
+        ];
+
+        uiPatterns.forEach(pattern => {
+            cleaned = cleaned.replace(pattern, '');
+        });
+
+        // Remove URLs
+        cleaned = cleaned.replace(/https?:\/\/[^\s]+/gi, '');
+
+        // Remove generic phrases
+        cleaned = cleaned.replace(/Special Offer!?/gi, '');
+        cleaned = cleaned.replace(/Limited Time Offer!?/gi, '');
+
+        // Split into sentences/lines and clean each
+        const lines = cleaned.split(/[\n\r]+/).map(line => line.trim()).filter(line => line.length > 3);
+
+        // Remove duplicates and keep only meaningful lines
+        const uniqueLines = [...new Set(lines)].slice(0, 5);
+
+        // Convert to bullet points if we have valid lines
+        if (uniqueLines.length > 0) {
+            const bulletPoints = uniqueLines.map(line => `• ${line}`).join('\n');
+            return bulletPoints;
+        }
+
+        return null;
     }
 
     /**
