@@ -300,6 +300,7 @@ class GeminiExtractionService {
      */
     buildFocusedCleaningPrompt(rawData) {
         const brandName = rawData.brandName || rawData.brand || 'Brand';
+        const couponTitle = rawData.couponTitle || rawData.couponName || 'Offer';
         const couponCode = rawData.couponCode || rawData.code || 'N/A';
         const couponDetails = rawData.couponDetails || rawData.description || rawData.details || 'N/A';
         const terms = rawData.terms || rawData.conditions || 'N/A';
@@ -310,6 +311,10 @@ Your task is to clean and standardize ONLY these 3 fields:
 1. couponCode
 2. couponDetails
 3. terms
+
+CRITICAL: couponDetails and terms MUST ALWAYS be generated, even if raw data is poor.
+CRITICAL: couponDetails MUST NOT be the same as coupon title.
+CRITICAL: terms MUST ALWAYS have at least 3 bullet points
 
 The scraped data may contain:
 - Website navigation text
@@ -328,6 +333,7 @@ Return structured JSON only.
 INPUT DATA:
 
 Brand Name: ${brandName}
+Coupon Title: ${couponTitle}
 
 Raw Coupon Code:
 ${couponCode}
@@ -362,34 +368,44 @@ INSTRUCTIONS:
    - If it is a deal (no code required) → return null.
 
 2. COUPON DETAILS RULES:
-   - Write a CLEAN, PROFESSIONAL description.
-   - 2–3 lines MAXIMUM.
+   - MANDATORY: This field MUST be filled for EVERY coupon.
+   - Write a CLEAN, PROFESSIONAL, DETAILED description.
+   - 2–4 sentences explaining the offer.
+   - MUST be DIFFERENT from the coupon title (expand on it, don't repeat it).
+   - If raw data is poor, use the brand name and coupon title to generate meaningful content.
    - ABSOLUTELY NO EMOJIS (💞 🎉 ❤️ etc).
    - ABSOLUTELY NO navigation text ("Blog", "View All", "Follow Us", etc).
-   - ABSOLUTELY NO repeated headings or titles.
    - Remove festival headings ("Valentine's Day", "Diwali Offers", etc).
-   - Should clearly and professionally explain:
+   - Should clearly explain:
         • What discount is offered
-        • On what product/service
-        • Any minimum order (if available)
+        • On what product/service  
+        • How to use it
+        • Any minimum order or conditions
    - Use ONLY plain text, proper grammar, professional tone.
+   - Example: If title is "Flat 50% OFF", details should be "Get flat 50% discount on your order at [Brand]. This exclusive offer is valid for a limited time. Shop now and save on your favorite products."
 
 3. TERMS RULES:
-   - Convert into clean bullet points.
-   - Maximum 5 bullet points.
+   - MANDATORY: This field MUST be filled for EVERY coupon with 3-5 bullet points.
+   - EVEN if raw terms data is missing or poor, GENERATE logical terms.
+   - Convert into clean bullet points (3-5 points).
    - Short, clear, and professional.
    - ABSOLUTELY NO emojis.
    - ABSOLUTELY NO navigation text ("Blog", "Subscribe", "Follow Us").
    - ABSOLUTELY NO generic phrases ("Terms apply", "Special Offer").
    - Do NOT repeat information from coupon details.
-   - Focus on: validity conditions, user eligibility, usage restrictions.
-   - If no real terms exist in the raw data, generate 3-5 logical, relevant conditions based on the offer type.
-   - Examples of good terms:
-        • Valid on party orders only.
-        • Minimum order value of ₹348 required.
-        • Offer valid for a limited time.
-        • Cannot be combined with other promotions.
-        • Applicable on selected menu items.
+   - Focus on: validity conditions, user eligibility, usage restrictions, expiry info.
+   - If raw terms are missing/poor, generate realistic terms based on:
+        • The brand name
+        • The offer type (discount/cashback/free delivery)
+        • Common e-commerce conditions
+   - Examples of good generated terms:
+        • Valid on all products/categories
+        • Minimum order value may apply
+        • Offer valid for a limited time
+        • Cannot be combined with other promotions
+        • Check brand website for complete details
+        • One use per customer/account
+        • Valid on first order / new users (if applicable)
 
 4. Keep format consistent across all coupons.
 
@@ -461,15 +477,18 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
                 validatedCode = null;
             }
 
-            // Validate cleaned coupon details
+            // Validate cleaned coupon details - MUST NOT be null
             let cleanedDetails = cleaned.cleanCouponDetails;
-            if (!cleanedDetails || typeof cleanedDetails !== 'string' || cleanedDetails.trim().length < 10) {
-                cleanedDetails = originalData.couponDetails || null;
+            if (!cleanedDetails || typeof cleanedDetails !== 'string' || cleanedDetails.trim().length < 20) {
+                // Generate details if Gemini didn't provide good ones
+                const brandName = originalData.brandName || originalData.brand || 'Brand';
+                const couponTitle = originalData.couponTitle || originalData.couponName || 'Exclusive Offer';
+                cleanedDetails = this.generateCouponDetailsFromTitle(brandName, couponTitle);
             } else {
                 cleanedDetails = cleanedDetails.trim().substring(0, 2000);
             }
 
-            // Validate standardized terms
+            // Validate standardized terms - MUST NOT be null
             let standardizedTerms = cleaned.standardizedTerms;
             if (Array.isArray(standardizedTerms) && standardizedTerms.length > 0) {
                 // Convert array to bullet points string
@@ -479,8 +498,13 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
                     .slice(0, 5); // Max 5 terms
                 
                 standardizedTerms = validTerms.length > 0 ? validTerms.join('\n') : null;
-            } else {
-                standardizedTerms = originalData.terms || null;
+            }
+            
+            // If terms are still null or invalid, generate generic ones
+            if (!standardizedTerms || standardizedTerms.trim().length < 10) {
+                const brandName = originalData.brandName || originalData.brand || 'Brand';
+                const couponTitle = originalData.couponTitle || originalData.couponName || 'Exclusive Offer';
+                standardizedTerms = this.generateGenericTerms(brandName, couponTitle);
             }
 
             // Merge cleaned fields with original data
@@ -523,14 +547,25 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
     fallbackFieldCleaner(rawData) {
         logger.info('Applying local fallback cleaning for 3 fields...');
 
+        const brandName = rawData.brandName || rawData.brand || 'Brand';
+        const couponTitle = rawData.couponTitle || rawData.couponName || 'Exclusive Offer';
+
         // 1. Clean couponCode
         let cleanedCode = this.localCleanCouponCode(rawData.couponCode || rawData.code);
 
-        // 2. Clean couponDetails
-        let cleanedDetails = this.localCleanCouponDetails(rawData.couponDetails || rawData.description || rawData.details);
+        // 2. Clean couponDetails (pass brand and title for generation if needed)
+        let cleanedDetails = this.localCleanCouponDetails(
+            rawData.couponDetails || rawData.description || rawData.details,
+            brandName,
+            couponTitle
+        );
 
-        // 3. Clean terms
-        let cleanedTerms = this.localCleanTerms(rawData.terms || rawData.conditions);
+        // 3. Clean terms (pass brand and title for generation if needed)
+        let cleanedTerms = this.localCleanTerms(
+            rawData.terms || rawData.conditions,
+            brandName,
+            couponTitle
+        );
 
         // Merge with original data
         const result = {
@@ -633,9 +668,13 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
 
     /**
      * Local coupon details cleaner (no AI)
+     * ALWAYS returns content, never null
      */
-    localCleanCouponDetails(details) {
-        if (!details || typeof details !== 'string') return null;
+    localCleanCouponDetails(details, brandName, couponTitle) {
+        if (!details || typeof details !== 'string' || details.trim().length === 0) {
+            // Generate details from title and brand when raw data is missing
+            return this.generateCouponDetailsFromTitle(brandName, couponTitle);
+        }
 
         let cleaned = details.trim();
 
@@ -683,17 +722,23 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
         // Limit length
         cleaned = cleaned.substring(0, 500);
 
-        // Must have at least 10 chars to be valid
-        if (cleaned.length < 10) return null;
+        // If cleaned is too short or same as title, generate better content
+        if (cleaned.length < 20 || (couponTitle && cleaned.toLowerCase().includes(couponTitle.toLowerCase().substring(0, 30)))) {
+            return this.generateCouponDetailsFromTitle(brandName, couponTitle);
+        }
 
         return cleaned;
     }
 
     /**
      * Local terms cleaner (no AI)
+     * ALWAYS returns content, never null
      */
-    localCleanTerms(terms) {
-        if (!terms || typeof terms !== 'string') return null;
+    localCleanTerms(terms, brandName, couponTitle) {
+        if (!terms || typeof terms !== 'string' || terms.trim().length === 0) {
+            // Generate generic terms when raw data is missing
+            return this.generateGenericTerms(brandName, couponTitle);
+        }
 
         let cleaned = terms.trim();
 
@@ -742,12 +787,60 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
         const uniqueLines = [...new Set(lines)].slice(0, 5);
 
         // Convert to bullet points if we have valid lines
-        if (uniqueLines.length > 0) {
+        if (uniqueLines.length >= 2) {
             const bulletPoints = uniqueLines.map(line => `• ${line}`).join('\n');
             return bulletPoints;
         }
 
-        return null;
+        // If cleaned terms are too poor, generate generic ones
+        return this.generateGenericTerms(brandName, couponTitle);
+    }
+
+    /**
+     * Helper: Generate coupon details from title when raw data is missing
+     * Makes sure details are descriptive and different from title
+     */
+    generateCouponDetailsFromTitle(brandName, couponTitle) {
+        if (!couponTitle || !brandName) {
+            return 'Exclusive offer available for a limited time. Shop now and save on your purchase. Check the website for complete offer details and terms.';
+        }
+        
+        // Extract discount info if present
+        const hasPercent = couponTitle.toLowerCase().includes('%') || couponTitle.toLowerCase().includes('percent');
+        const hasFlat = couponTitle.toLowerCase().includes('flat') || couponTitle.toLowerCase().includes('₹') || couponTitle.toLowerCase().includes('rs');
+        const hasCashback = couponTitle.toLowerCase().includes('cashback');
+        const hasFree = couponTitle.toLowerCase().includes('free');
+        
+        let generated = '';
+        
+        if (hasCashback) {
+            generated = `Enjoy exciting cashback rewards on your purchases at ${brandName}. This limited-time offer allows you to save more while shopping for your favorite products. Apply at checkout to redeem this exclusive deal.`;
+        } else if (hasFree) {
+            generated = `Get amazing free benefits with this special offer from ${brandName}. This exclusive promotion is available for a limited period. Don't miss out on this opportunity to save on your orders.`;
+        } else if (hasPercent) {
+            generated = `Save big with this exclusive percentage discount at ${brandName}. Valid for a limited time only. Shop now and enjoy great savings on a wide range of products available on the platform.`;
+        } else if (hasFlat) {
+            generated = `Get instant discount on your purchase at ${brandName}. This special offer provides direct savings on your order. Apply this deal at checkout to enjoy reduced pricing on eligible items.`;
+        } else {
+            generated = `Exclusive promotional offer available at ${brandName} for a limited time. Take advantage of this special deal to save on your purchase. Visit the website and apply this offer before it expires.`;
+        }
+        
+        return generated;
+    }
+
+    /**
+     * Helper: Generate generic terms based on brand and offer
+     */
+    generateGenericTerms(brandName, couponTitle) {
+        const genericTerms = [
+            'Offer valid for a limited time only',
+            `Valid on purchases at ${brandName || 'the brand'}`,
+            'Cannot be combined with other offers or promotions',
+            'Check brand website for complete details',
+            'One use per customer may apply'
+        ];
+        
+        return genericTerms.map(term => `• ${term}`).join('\n');
     }
 
     /**
