@@ -130,6 +130,9 @@ class CouponDuniyaAdapter extends GenericAdapter {
                                this.baseUrl + page.path;
 
                     if (title && title.length > 3 && !title.includes('deals from') && !title.includes('email')) {
+                        // Get the actual brand website URL instead of source website
+                        const brandUrl = this.getBrandUrl(page.brand) || (link.startsWith('http') ? link : this.baseUrl + link);
+                        
                         allCoupons.push({
                             brandName: page.brand,
                             couponTitle: title,
@@ -138,7 +141,7 @@ class CouponDuniyaAdapter extends GenericAdapter {
                             discountType: this.inferDiscountType(title + ' ' + discount),
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
-                            couponLink: link.startsWith('http') ? link : this.baseUrl + link,
+                            couponLink: brandUrl,
                             terms: combinedPageTerms // Use page-level terms for all coupons from this brand
                         });
                         brandCoupons++;
