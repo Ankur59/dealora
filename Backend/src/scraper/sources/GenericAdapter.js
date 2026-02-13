@@ -63,12 +63,13 @@ class GenericAdapter {
     }
 
     /**
-     * Map raw data to standardized coupon object using Gemini AI for intelligent extraction
-     * Gemini will properly segregate fields (couponName, couponCode, couponDetails, etc.)
+     * Map raw data to standardized coupon object using Gemini AI (or fallback cleaner)
+     * Gemini/fallback will clean 3 critical fields: couponCode, couponDetails, terms
+     * All other fields come from the scraper's raw data
      */
     async normalize(rawData) {
         try {
-            // First, use Gemini AI to intelligently extract and segregate coupon data
+            // Use Gemini AI (or local fallback) to clean the 3 critical fields
             logger.info(`Using Gemini AI to extract and segregate coupon data for: ${rawData.couponTitle || rawData.couponName || 'Unknown'}`);
             const extractedData = await geminiExtractionService.extractCouponData(rawData);
 
@@ -82,11 +83,11 @@ class GenericAdapter {
                 description = `${description} - Limited time offer from ${brand}`;
             }
 
-            // Determine coupon code - prefer Gemini extraction, fallback to normalized raw data
-            let finalCouponCode = extractedData.couponCode || null;
-            if (!finalCouponCode && rawData.couponCode) {
-                finalCouponCode = this.normalizeCode(rawData.couponCode);
-            }
+            // Use Gemini/fallback cleaned data for the 3 critical fields
+            // These are already cleaned by either Gemini AI or local fallback cleaner
+            const finalCouponCode = extractedData.couponCode || null;
+            const finalCouponDetails = extractedData.couponDetails || null;
+            const finalTerms = extractedData.terms || null;
 
             // Build final normalized object
             const normalized = {
@@ -100,13 +101,13 @@ class GenericAdapter {
                 discountValue: extractedData.discountValue || rawData.discountValue || null,
                 expireBy: extractedData.expireBy ? new Date(extractedData.expireBy) : (rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry()),
                 categoryLabel: extractedData.categoryLabel || this.normalizeCategory(extractedData.category || rawData.category),
-                couponVisitingLink: extractedData.couponVisitingLink || rawData.couponLink || this.baseUrl,
+                couponVisitingLink: rawData.couponLink || extractedData.couponVisitingLink || this.getBrandUrl(brand) || 'https://www.example.com',
                 sourceWebsite: this.sourceName,
                 addedMethod: 'scraper',
-                useCouponVia: extractedData.useCouponVia || (finalCouponCode ? 'Coupon Code' : (extractedData.couponVisitingLink ? 'Coupon Visiting Link' : 'None')),
+                useCouponVia: extractedData.useCouponVia, // Use Gemini/fallback calculated value
                 status: 'active',
-                couponDetails: extractedData.couponDetails || rawData.terms || null,
-                terms: rawData.terms || extractedData.couponDetails || null, // Add terms field
+                couponDetails: finalCouponDetails,
+                terms: finalTerms,
                 minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
             };
 
@@ -135,7 +136,7 @@ class GenericAdapter {
                 discountValue: rawData.discountValue,
                 expireBy: rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry(),
                 categoryLabel: this.normalizeCategory(rawData.category),
-                couponVisitingLink: rawData.couponLink || this.baseUrl,
+                couponVisitingLink: rawData.couponLink || this.getBrandUrl(brand) || 'https://www.example.com',
                 sourceWebsite: this.sourceName,
                 addedMethod: 'scraper',
                 useCouponVia: rawData.couponCode ? 'Coupon Code' : 'Coupon Visiting Link',
@@ -224,6 +225,8 @@ class GenericAdapter {
             // Wallet & Payment Apps
             'Paytm': 'https://www.paytm.com',
             'PhonePe': 'https://www.phonepe.com',
+            'Cred': 'https://www.cred.club',
+            'CRED': 'https://www.cred.club',
             'Freecharge': 'https://www.freecharge.in',
             'MobiKwik': 'https://www.mobikwik.com',
             'TWID': 'https://www.twid.app',
@@ -294,7 +297,8 @@ class GenericAdapter {
             return brandUrls[brandKey];
         }
         
-        // Fallback: return null to use source website
+        // If no match found, log warning and return null (don't fallback to source URL)
+        logger.warn(`getBrandUrl: No URL mapping found for brand "${brandName}". Please add it to GenericAdapter.getBrandUrl()`);
         return null;
     }
 
