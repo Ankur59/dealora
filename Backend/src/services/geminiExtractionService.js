@@ -25,6 +25,9 @@ class GeminiExtractionService {
             'models/gemini-pro-latest',
         ];
 
+        // Track rate-limited models to avoid retrying them immediately
+        this.rateLimitedModels = new Map(); // modelName -> timestamp
+
         try {
             this.genAI = new GoogleGenerativeAI(apiKey);
             this.model = null;
@@ -64,6 +67,21 @@ class GeminiExtractionService {
     }
 
     /**
+     * Discover only vision-capable models (excludes text-only models like Gemma)
+     */
+    async discoverVisionModels() {
+        const allModels = await this.discoverModels();
+        
+        const visionModels = allModels.filter(modelName => {
+            const lowerName = modelName.toLowerCase();
+            return lowerName.includes('gemini') && !lowerName.includes('gemma');
+        });
+
+        logger.info(`Discovered ${visionModels.length} vision-capable models out of ${allModels.length} total.`);
+        return visionModels;
+    }
+
+    /**
      * Find a working model by trying each one
      */
     async findWorkingModel() {
@@ -84,9 +102,22 @@ class GeminiExtractionService {
             ...discoveredNames.filter(name => !this.modelNames.includes(name))
         ];
 
-        logger.info(`Trying ${candidates.length} candidate models (prioritizing preferred ones)...`);
+        // Filter out recently rate-limited models (skip for 60s)
+        const now = Date.now();
+        const availableCandidates = candidates.filter(name => {
+            const limitedTime = this.rateLimitedModels.get(name);
+            if (!limitedTime) return true;
+            if (now - limitedTime < 60000) { // 60 seconds cooldown
+                return false;
+            }
+            // Remove from rate limit list after cooldown
+            this.rateLimitedModels.delete(name);
+            return true;
+        });
 
-        for (const modelName of candidates) {
+        logger.info(`Trying ${availableCandidates.length} candidate models (${candidates.length - availableCandidates.length} rate-limited, prioritizing preferred ones)...`);
+
+        for (const modelName of availableCandidates) {
             try {
                 const testModel = this.genAI.getGenerativeModel({ model: modelName });
                 // Test with a simple prompt
@@ -102,8 +133,9 @@ class GeminiExtractionService {
                 const errorMsg = error.message || String(error);
 
                 // Specific handling for quota issues (429)
-                if (errorMsg.includes('429') || errorMsg.includes('Quota')) {
-                    logger.error(`Gemini Quota Exceeded for ${modelName}: Please check your API plan/limits.`);
+                if (errorMsg.includes('429') || errorMsg.includes('Quota') || errorMsg.includes('quota')) {
+                    logger.warn(`Model ${modelName} rate limited. Marking for cooldown.`);
+                    this.rateLimitedModels.set(modelName, Date.now());
                 } else {
                     logger.debug(`Model ${modelName} failed detection: ${errorMsg.split('\n')[0]}`);
                 }
@@ -113,6 +145,80 @@ class GeminiExtractionService {
 
         logger.error(`All available Gemini models failed. This is likely due to invalid API key or exhausted quota.`);
         this.enabled = false;
+        return null;
+    }
+
+    /**
+     * Get next available model when current one is rate-limited
+     * @param {string} failedModelName - The model that just failed
+     * @param {boolean} visionOnly - If true, only find vision-capable models
+     */
+    async getNextAvailableModel(failedModelName, visionOnly = false) {
+        // Mark the failed model as rate-limited
+        if (failedModelName) {
+            this.rateLimitedModels.set(failedModelName, Date.now());
+            logger.info(`Marked ${failedModelName} as rate-limited. Trying alternative models...`);
+        }
+
+        // Reset cached model to force finding a new one
+        this.model = null;
+        this.workingModelName = null;
+
+        // Try to find another working model
+        return visionOnly ? await this.findWorkingVisionModel() : await this.findWorkingModel();
+    }
+
+    /**
+     * Find a working vision-capable model (for OCR/image tasks)
+     */
+    async findWorkingVisionModel() {
+        if (!this.enabled) return null;
+
+        const apiKey = process.env.GEMINI_API_KEY;
+        logger.info(`Finding vision-capable Gemini model. Key presence: ${!!apiKey}`);
+
+        const discoveredVisionModels = await this.discoverVisionModels();
+
+        const visionCandidates = [
+            ...this.modelNames,
+            ...discoveredVisionModels.filter(name => !this.modelNames.includes(name))
+        ];
+
+        const now = Date.now();
+        const availableCandidates = visionCandidates.filter(name => {
+            const limitedTime = this.rateLimitedModels.get(name);
+            if (!limitedTime) return true;
+            if (now - limitedTime < 60000) return false;
+            this.rateLimitedModels.delete(name);
+            return true;
+        });
+
+        logger.info(`Trying ${availableCandidates.length} vision-capable models...`);
+
+        for (const modelName of availableCandidates) {
+            try {
+                const testModel = this.genAI.getGenerativeModel({ model: modelName });
+                const testResult = await testModel.generateContent('OK');
+                await testResult.response;
+
+                this.model = testModel;
+                this.workingModelName = modelName;
+                logger.info(`Found working vision model: ${modelName}`);
+                return this.model;
+            } catch (error) {
+                const errorMsg = error.message || String(error);
+
+                if (errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('Quota')) {
+                    logger.warn(`Vision model ${modelName} rate limited.`);
+                    this.rateLimitedModels.set(modelName, Date.now());
+                } else {
+                    logger.debug(`Vision model ${modelName} failed: ${errorMsg.split('\n')[0]}`);
+                }
+                continue;
+            }
+        }
+
+        logger.error(`No working vision-capable models available.`);
         return null;
     }
 

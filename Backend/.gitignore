@@ -46,3 +46,4 @@ build/
 *.seed
 *.pid.lock
 .cache
+.gemini-model-cache.json
