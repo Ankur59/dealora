@@ -82,12 +82,32 @@ class CouponDuniyaAdapter extends GenericAdapter {
                 const $ = cheerio.load(html);
                 let brandCoupons = 0;
 
+                // Extract terms from the entire page (not per-coupon)
+                // CouponDuniya shows all T&C in .more-desc-text sections and span elements
+                const pageTermsElements = $('.desc-txt.more-desc span, .more-desc-text span, .more-desc-text, .desc-txt.more-desc li');
+                const pageTerms = [];
+                pageTermsElements.each((idx, termEl) => {
+                    const termText = $(termEl).text().trim();
+                    // Filter out short items, navigation, and junk text
+                    if (termText.length > 20 && 
+                        !termText.match(/^(Home|About|Contact|Categories|Login|Sign up|COPY CODE|Visit|registered users|Hide Details|Show Details)/i) &&
+                        !termText.includes('Something went wrong') &&
+                        !termText.includes('verified today') &&
+                        !termText.includes('email')) {
+                        // Avoid duplicates
+                        if (!pageTerms.includes(termText)) {
+                            pageTerms.push(termText);
+                        }
+                    }
+                });
+                const combinedPageTerms = pageTerms.length > 0 ? pageTerms.join('\n').substring(0, 2000) : null;
+
                 // Common selectors for coupon websites
-                $('.coupon-item, .coupon-box, .deal-item, .offer-item, [class*="coupon"], [class*="deal"]').each((i, el) => {
+                $('div[data-offer-key], .coupon-item, .coupon-box, .deal-item, .offer-item, [class*="coupon"], [class*="deal"]').each((i, el) => {
                     const $el = $(el);
                     
                     // Try multiple selectors for title
-                    const title = $el.find('.coupon-title, .deal-title, .offer-title, h3, h4, .title, [class*="title"]').first().text().trim() ||
+                    const title = $el.find('.coupon-title, .deal-title, .offer-title, h3, h4, h2, .title, [class*="title"]').first().text().trim() ||
                                  $el.find('a').first().text().trim() ||
                                  $el.text().split('\n')[0].trim();
 
@@ -109,7 +129,10 @@ class CouponDuniyaAdapter extends GenericAdapter {
                                $el.attr('href') ||
                                this.baseUrl + page.path;
 
-                    if (title && title.length > 3) {
+                    if (title && title.length > 3 && !title.includes('deals from') && !title.includes('email')) {
+                        // Get the actual brand website URL instead of source website
+                        const brandUrl = this.getBrandUrl(page.brand) || (link.startsWith('http') ? link : this.baseUrl + link);
+                        
                         allCoupons.push({
                             brandName: page.brand,
                             couponTitle: title,
@@ -118,7 +141,8 @@ class CouponDuniyaAdapter extends GenericAdapter {
                             discountType: this.inferDiscountType(title + ' ' + discount),
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
-                            couponLink: link.startsWith('http') ? link : this.baseUrl + link,
+                            couponLink: brandUrl,
+                            terms: combinedPageTerms // Use page-level terms for all coupons from this brand
                         });
                         brandCoupons++;
                     }

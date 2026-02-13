@@ -1,10 +1,13 @@
 const cheerio = require('cheerio');
 const GenericAdapter = require('./GenericAdapter');
 const logger = require('../../utils/logger');
+const browserManager = require('../browserManager');
 
 class DealivoreAdapter extends GenericAdapter {
     constructor() {
         super('Dealivore', 'https://www.dealivore.in');
+        this.enableDeepScraping = true; // Enable deep scraping for codes
+        this.maxDetailPagesPerBrand = 5; // Limit detail page visits per brand
     }
 
     /**
@@ -67,6 +70,16 @@ class DealivoreAdapter extends GenericAdapter {
 
         let allCoupons = [];
 
+        // Initialize browser if deep scraping is enabled
+        if (this.enableDeepScraping) {
+            try {
+                await browserManager.initialize();
+            } catch (error) {
+                logger.error(`DealivoreAdapter: Failed to initialize browser, falling back to basic scraping - ${error.message}`);
+                this.enableDeepScraping = false;
+            }
+        }
+
         for (const page of pages) {
             try {
                 logger.info(`DealivoreAdapter: Scraping ${page.brand} from ${page.path}`);
@@ -81,6 +94,7 @@ class DealivoreAdapter extends GenericAdapter {
                 
                 const $ = cheerio.load(html);
                 let brandCoupons = 0;
+                const couponDataList = [];
 
                 // Dealivore specific selectors
                 $('.deal-item, .coupon-item, .offer-item, [class*="deal"], [class*="coupon"]').each((i, el) => {
@@ -107,12 +121,21 @@ class DealivoreAdapter extends GenericAdapter {
                                $el.find('p').text().trim();
 
                     // Try multiple selectors for link
-                    const link = $el.find('a.deal-link, a.coupon-link, a').attr('href') || 
+                    const link = $el.find('a.deal-link, a.coupon-link, a').first().attr('href') || 
                                $el.attr('href') ||
-                               this.baseUrl + page.path;
+                               page.path;
+
+                    // Extract detail page URL (if link goes to /coupon-codes/XXX)
+                    let detailUrl = null;
+                    if (link && link.includes('/coupon-codes/')) {
+                        detailUrl = link.startsWith('http') ? link : this.baseUrl + link;
+                    }
 
                     if (title && title.length > 3) {
-                        allCoupons.push({
+                        // Get the actual brand website URL instead of source website
+                        const brandUrl = this.getBrandUrl(page.brand) || (link.startsWith('http') ? link : this.baseUrl + link);
+                        
+                        couponDataList.push({
                             brandName: page.brand,
                             couponTitle: title,
                             description: desc || title,
@@ -120,10 +143,90 @@ class DealivoreAdapter extends GenericAdapter {
                             discountType: this.inferDiscountType(title + ' ' + discount),
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
-                            couponLink: link.startsWith('http') ? link : this.baseUrl + link,
+                            couponLink: brandUrl,
+                            detailUrl: detailUrl
                         });
                         brandCoupons++;
                     }
+                });
+
+                logger.info(`DealivoreAdapter: Found ${couponDataList.length} coupons for ${page.brand}`);
+
+                // Deep scraping: Visit detail pages to get codes
+                if (this.enableDeepScraping && couponDataList.length > 0) {
+                    const detailsToFetch = couponDataList
+                        .filter(c => c.detailUrl && !c.couponCode)
+                        .slice(0, this.maxDetailPagesPerBrand);
+
+                    if (detailsToFetch.length > 0) {
+                        logger.info(`DealivoreAdapter: Deep scraping ${detailsToFetch.length} detail pages for ${page.brand}`);
+
+                        for (const [i, coupon] of detailsToFetch.entries()) {
+                            try {
+                                const browserPage = await browserManager.browser.newPage();
+                                await browserPage.goto(coupon.detailUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+
+                                // Wait for code element
+                                await browserPage.waitForSelector('p.code, .coupondetails', { timeout: 5000 });
+
+                                // Extract the code AND terms
+                                const extractedData = await browserPage.evaluate(() => {
+                                    // Extract code
+                                    let code = null;
+                                    const codeEl = document.querySelector('p.code');
+                                    if (codeEl) {
+                                        let text = codeEl.textContent.trim();
+                                        // Remove SVG CSS junk and clean
+                                        text = text.replace(/svg \{[^}]+\}/g, '').replace(/Copy|SMS/gi, '').trim();
+                                        code = text.length > 2 && text.length < 30 ? text : null;
+                                    }
+
+                                    // Extract terms from <li> elements
+                                    let terms = null;
+                                    const termsList = [];
+                                    const liElements = document.querySelectorAll('li');
+                                    liElements.forEach(li => {
+                                        const text = li.textContent.trim();
+                                        // Filter valid terms (longer than 20 chars, not navigation)
+                                        if (text.length > 20 && 
+                                            !text.match(/Home|About|Contact|Categories|Stores|Blogs|Login|Sign/i)) {
+                                            termsList.push(text);
+                                        }
+                                    });
+                                    
+                                    if (termsList.length > 0) {
+                                        terms = termsList.join('\n').substring(0, 2000);
+                                    }
+
+                                    return { code, terms };
+                                });
+
+                                await browserPage.close();
+
+                                if (extractedData.code) {
+                                    coupon.couponCode = extractedData.code;
+                                    logger.info(`DealivoreAdapter: [${i + 1}/${detailsToFetch.length}] Extracted CODE for ${page.brand}: ${extractedData.code}`);
+                                }
+                                
+                                if (extractedData.terms) {
+                                    coupon.terms = extractedData.terms;
+                                    logger.info(`DealivoreAdapter: [${i + 1}/${detailsToFetch.length}] Extracted TERMS for ${page.brand} (${extractedData.terms.length} chars)`);
+                                }
+
+                                // Rate limiting
+                                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                            } catch (error) {
+                                logger.error(`DealivoreAdapter: Error fetching details from ${coupon.detailUrl} - ${error.message}`);
+                            }
+                        }
+                    }
+                }
+
+                // Remove detailUrl field and add to results
+                couponDataList.forEach(coupon => {
+                    delete coupon.detailUrl;
+                    allCoupons.push(coupon);
                 });
 
                 logger.info(`DealivoreAdapter: Scraped ${brandCoupons} coupons for ${page.brand}`);
@@ -133,6 +236,11 @@ class DealivoreAdapter extends GenericAdapter {
                 logger.error(`DealivoreAdapter Error for ${page.brand}: ${errorMsg}`);
                 // Continue with next brand even if one fails
             }
+        }
+
+        // Close browser when done
+        if (this.enableDeepScraping) {
+            await browserManager.close();
         }
 
         return allCoupons;
