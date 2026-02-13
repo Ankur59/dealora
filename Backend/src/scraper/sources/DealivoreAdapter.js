@@ -132,6 +132,9 @@ class DealivoreAdapter extends GenericAdapter {
                     }
 
                     if (title && title.length > 3) {
+                        // Get the actual brand website URL instead of source website
+                        const brandUrl = this.getBrandUrl(page.brand) || (link.startsWith('http') ? link : this.baseUrl + link);
+                        
                         couponDataList.push({
                             brandName: page.brand,
                             couponTitle: title,
@@ -140,7 +143,7 @@ class DealivoreAdapter extends GenericAdapter {
                             discountType: this.inferDiscountType(title + ' ' + discount),
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
-                            couponLink: link.startsWith('http') ? link : this.baseUrl + link,
+                            couponLink: brandUrl,
                             detailUrl: detailUrl
                         });
                         brandCoupons++;
