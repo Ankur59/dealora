@@ -77,6 +77,9 @@ class DealsMagnetAdapter extends GenericAdapter {
                     const validTill = $(el).find('[class*="valid"], [class*="expiry"], [class*="till"]').text().trim();
 
                     if (title && title.length > 5) {
+                        // Get the actual brand website URL instead of source website
+                        const brandUrl = this.getBrandUrl(page.brand) || this.baseUrl + page.path;
+                        
                         allCoupons.push({
                             brandName: page.brand,
                             couponTitle: title,
@@ -85,7 +88,7 @@ class DealsMagnetAdapter extends GenericAdapter {
                             discountType: this.inferDiscountType(title + discount),
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
-                            couponLink: this.baseUrl + page.path,
+                            couponLink: brandUrl,
                         });
                         brandCoupons++;
                     }
