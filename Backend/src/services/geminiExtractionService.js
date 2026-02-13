@@ -797,6 +797,71 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
     }
 
     /**
+     * Helper: Extract specific information from coupon title
+     */
+    extractCouponInfo(couponTitle) {
+        const info = {
+            discountPercent: null,
+            discountAmount: null,
+            minOrder: null,
+            maxDiscount: null,
+            category: null,
+            userType: null,
+            discountType: null
+        };
+        
+        if (!couponTitle) return info;
+        
+        const title = couponTitle.toLowerCase();
+        
+        // Extract percentage discount (e.g., "50% off", "upto 60%")
+        const percentMatch = title.match(/(\d+)\s*%/);
+        if (percentMatch) {
+            info.discountPercent = percentMatch[1];
+            info.discountType = 'percentage';
+        }
+        
+        // Extract flat discount amount (e.g., "₹100 off", "rs 200 off")
+        const flatMatch = title.match(/[₹rs.\s]+(\d+)/);
+        if (flatMatch && !info.discountPercent) {
+            info.discountAmount = flatMatch[1];
+            info.discountType = 'flat';
+        }
+        
+        // Extract minimum order value (e.g., "min ₹500", "above 300")
+        const minOrderMatch = title.match(/(?:min(?:imum)?|above|orders?\s+(?:of|above))\s*[₹rs.\s]*(\d+)/i);
+        if (minOrderMatch) {
+            info.minOrder = minOrderMatch[1];
+        }
+        
+        // Extract maximum discount (e.g., "upto ₹100", "max 200")
+        const maxDiscountMatch = title.match(/(?:upto|max(?:imum)?|up\s+to)\s*[₹rs.\s]*(\d+)/i);
+        if (maxDiscountMatch) {
+            info.maxDiscount = maxDiscountMatch[1];
+        }
+        
+        // Detect category/product type
+        if (title.includes('food') || title.includes('meal') || title.includes('order')) info.category = 'food orders';
+        else if (title.includes('bus') || title.includes('ticket')) info.category = 'bus tickets';
+        else if (title.includes('flight') || title.includes('hotel')) info.category = 'travel bookings';
+        else if (title.includes('recharge') || title.includes('bill')) info.category = 'recharges and bill payments';
+        else if (title.includes('grocery') || title.includes('groceries')) info.category = 'grocery orders';
+        else if (title.includes('fashion') || title.includes('clothing')) info.category = 'fashion products';
+        else if (title.includes('electronics') || title.includes('mobile')) info.category = 'electronics';
+        
+        // Detect user type
+        if (title.includes('new user') || title.includes('first order') || title.includes('first-time')) info.userType = 'new users';
+        else if (title.includes('all user') || title.includes('existing')) info.userType = 'all users';
+        
+        // Detect other discount types
+        if (title.includes('cashback')) info.discountType = 'cashback';
+        else if (title.includes('free') && title.includes('delivery')) info.discountType = 'free delivery';
+        else if (title.includes('free')) info.discountType = 'free item';
+        
+        return info;
+    }
+
+    /**
      * Helper: Generate coupon details from title when raw data is missing
      * Makes sure details are descriptive and different from title
      */
@@ -805,42 +870,101 @@ OUTPUT FORMAT (Return ONLY this JSON, no markdown, no commentary):
             return 'Exclusive offer available for a limited time. Shop now and save on your purchase. Check the website for complete offer details and terms.';
         }
         
-        // Extract discount info if present
-        const hasPercent = couponTitle.toLowerCase().includes('%') || couponTitle.toLowerCase().includes('percent');
-        const hasFlat = couponTitle.toLowerCase().includes('flat') || couponTitle.toLowerCase().includes('₹') || couponTitle.toLowerCase().includes('rs');
-        const hasCashback = couponTitle.toLowerCase().includes('cashback');
-        const hasFree = couponTitle.toLowerCase().includes('free');
+        // Extract specific information from the title
+        const info = this.extractCouponInfo(couponTitle);
         
         let generated = '';
+        const categoryText = info.category || 'your purchase';
+        const userText = info.userType ? ` for ${info.userType}` : '';
         
-        if (hasCashback) {
-            generated = `Enjoy exciting cashback rewards on your purchases at ${brandName}. This limited-time offer allows you to save more while shopping for your favorite products. Apply at checkout to redeem this exclusive deal.`;
-        } else if (hasFree) {
-            generated = `Get amazing free benefits with this special offer from ${brandName}. This exclusive promotion is available for a limited period. Don't miss out on this opportunity to save on your orders.`;
-        } else if (hasPercent) {
-            generated = `Save big with this exclusive percentage discount at ${brandName}. Valid for a limited time only. Shop now and enjoy great savings on a wide range of products available on the platform.`;
-        } else if (hasFlat) {
-            generated = `Get instant discount on your purchase at ${brandName}. This special offer provides direct savings on your order. Apply this deal at checkout to enjoy reduced pricing on eligible items.`;
+        // Build unique description based on extracted details
+        if (info.discountType === 'cashback' && info.discountAmount) {
+            generated = `Get ₹${info.discountAmount} cashback on ${categoryText} at ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Valid on orders above ₹${info.minOrder}. `;
+            generated += 'This exclusive cashback offer allows you to save more on your next purchase. Apply the code at checkout to redeem.';
+        } else if (info.discountType === 'cashback') {
+            generated = `Enjoy exciting cashback rewards on ${categoryText} at ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Minimum order value of ₹${info.minOrder} required. `;
+            generated += 'Save more while shopping and get cashback directly to your account.';
+        } else if (info.discountType === 'free delivery') {
+            generated = `Get free delivery on your orders at ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Valid on orders above ₹${info.minOrder}. `;
+            generated += 'Save on delivery charges and enjoy hassle-free shopping experience.';
+        } else if (info.discountType === 'free item') {
+            generated = `Get amazing freebies with this special offer from ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Applicable on orders above ₹${info.minOrder}. `;
+            generated += 'This exclusive promotion is available for a limited period. Shop now to claim your free gift.';
+        } else if (info.discountPercent && info.maxDiscount) {
+            generated = `Get flat ${info.discountPercent}% discount (maximum savings up to ₹${info.maxDiscount}) on ${categoryText} at ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Minimum order value of ₹${info.minOrder} applies. `;
+            generated += 'This limited-time offer helps you save big on your favorite products.';
+        } else if (info.discountPercent) {
+            generated = `Save ${info.discountPercent}% on ${categoryText} at ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Valid on orders above ₹${info.minOrder}. `;
+            generated += 'Shop now and enjoy substantial savings on a wide selection of products.';
+        } else if (info.discountAmount) {
+            generated = `Get instant ₹${info.discountAmount} discount on ${categoryText} at ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Applicable on orders above ₹${info.minOrder}. `;
+            generated += 'Apply this deal at checkout to enjoy reduced pricing on eligible items.';
         } else {
-            generated = `Exclusive promotional offer available at ${brandName} for a limited time. Take advantage of this special deal to save on your purchase. Visit the website and apply this offer before it expires.`;
+            generated = `Exclusive promotional offer on ${categoryText} at ${brandName}${userText}. `;
+            if (info.minOrder) generated += `Minimum order value of ₹${info.minOrder} may apply. `;
+            generated += 'Take advantage of this special deal to save on your purchase. Visit the website and apply before it expires.';
         }
         
         return generated;
     }
 
     /**
-     * Helper: Generate generic terms based on brand and offer
+     * Helper: Generate specific terms based on brand and offer details
      */
     generateGenericTerms(brandName, couponTitle) {
-        const genericTerms = [
-            'Offer valid for a limited time only',
-            `Valid on purchases at ${brandName || 'the brand'}`,
-            'Cannot be combined with other offers or promotions',
-            'Check brand website for complete details',
-            'One use per customer may apply'
-        ];
+        const info = this.extractCouponInfo(couponTitle);
+        const terms = [];
         
-        return genericTerms.map(term => `• ${term}`).join('\n');
+        // Add user eligibility term
+        if (info.userType === 'new users') {
+            terms.push('Valid for new users only on their first order');
+        } else if (info.userType === 'all users') {
+            terms.push('Valid for all users including existing customers');
+        } else {
+            terms.push('Offer valid for a limited time period');
+        }
+        
+        // Add minimum order term if applicable
+        if (info.minOrder) {
+            terms.push(`Minimum order value of ₹${info.minOrder} required`);
+        }
+        
+        // Add max discount term if applicable
+        if (info.maxDiscount) {
+            terms.push(`Maximum discount capped at ₹${info.maxDiscount} per order`);
+        }
+        
+        // Add category-specific term
+        if (info.category) {
+            terms.push(`Valid on ${info.category} only`);
+        } else {
+            terms.push(`Valid on select products and categories at ${brandName || 'the brand'}`);
+        }
+        
+        // Add general terms
+        terms.push('Cannot be combined with other offers or promotions');
+        
+        // Add payment/usage term
+        if (couponTitle && couponTitle.toLowerCase().includes('cod')) {
+            terms.push('Not valid on Cash on Delivery (COD) orders');
+        } else {
+            terms.push('Check brand website or app for complete terms and conditions');
+        }
+        
+        // Ensure we have 3-5 terms
+        const finalTerms = terms.slice(0, 5);
+        if (finalTerms.length < 3) {
+            finalTerms.push('One use per customer per account');
+        }
+        
+        return finalTerms.map(term => `• ${term}`).join('\n');
     }
 
     /**
