@@ -238,7 +238,7 @@ exports.getStatistics = async (req, res) => {
 
         // If no brands provided, return hardcoded value
         if (!brands || !Array.isArray(brands) || brands.length === 0) {
-            totalSavings = 873;
+            totalSavings = 0;
         } else {
             // Extract percentage and amount from each coupon, calculate actual discount
             activeCoupons.forEach(coupon => {

@@ -97,6 +97,9 @@ class GrabOnAdapter extends GenericAdapter {
                     const verified = $(el).find('.verified').text().trim();
                     const usesToday = $(el).find('.usr .bold-me').text().trim();
 
+                    // Get the actual brand website URL instead of source website
+                    const brandUrl = this.getBrandUrl(page.brand) || this.baseUrl + page.path;
+
                     couponDataList.push({
                         brandName: page.brand,
                         couponTitle: title,
@@ -105,7 +108,7 @@ class GrabOnAdapter extends GenericAdapter {
                         discountType: this.inferDiscountType(title + discount),
                         discountValue: discount || title,
                         category: page.category,
-                        couponLink: this.baseUrl + page.path,
+                        couponLink: brandUrl,
                         terms: null, // Will be populated by deep scraping
                         dataCid: dataCid,
                         likelyHasCode: dataType === 'cc_c' // cc_c = coupon code, dl = deal

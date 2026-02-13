@@ -71,6 +71,9 @@ class PaisaWapasAdapter extends GenericAdapter {
                     const desc = $(el).find('p, .description, [class*="desc"]').text().trim();
 
                     if (title) {
+                        // Get the actual brand website URL instead of source website
+                        const brandUrl = this.getBrandUrl(page.brand) || this.baseUrl + page.path;
+                        
                         allCoupons.push({
                             brandName: page.brand,
                             couponTitle: title,
@@ -79,7 +82,7 @@ class PaisaWapasAdapter extends GenericAdapter {
                             discountType: this.inferDiscountType(title + discount),
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
-                            couponLink: this.baseUrl + page.path,
+                            couponLink: brandUrl,
                         });
                         brandCoupons++;
                     }
