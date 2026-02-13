@@ -1,5 +1,6 @@
 package com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components
 
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -20,11 +21,11 @@ fun OfferTitle(title: String, description: String?) {
             fontWeight = FontWeight.SemiBold,
             color = AppColors.PrimaryText
         )
-        description?.let {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = it, fontSize = 14.sp, color = AppColors.SecondaryText, lineHeight = 20.sp
-            )
-        }
+//        description?.let {
+//            Spacer(modifier = Modifier.height(8.dp))
+//            Text(
+//                text = it, fontSize = 14.sp, color = AppColors.SecondaryText, lineHeight = 20.sp
+//            )
+//        }
     }
 }

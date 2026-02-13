@@ -1,6 +1,5 @@
 package com.ayaan.dealora.ui.presentation.home
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -24,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
@@ -43,6 +40,7 @@ fun HomeScreen(
     LaunchedEffect(Unit){
         viewModel.fetchProfile()
         viewModel.fetchStatistics()
+        viewModel.fetchExploreCoupons()
     }
     Scaffold(
         topBar = {
@@ -222,7 +220,11 @@ fun HomeScreen(
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            ExploringCoupons(navController)
+            ExploringCoupons(
+                navController = navController,
+                coupons = uiState.exploreCoupons,
+                isLoading = uiState.isLoadingCoupons
+            )
             Spacer(modifier = Modifier.height(120.dp))
         }
     }

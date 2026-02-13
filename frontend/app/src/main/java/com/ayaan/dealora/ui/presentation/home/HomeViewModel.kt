@@ -7,6 +7,7 @@ import com.ayaan.dealora.data.api.BackendResult
 import com.ayaan.dealora.data.auth.AuthRepository
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.ProfileRepository
+import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,8 +64,9 @@ class HomeViewModel @Inject constructor(
                             errorMessage = null
                         )
                     }
-                    // Fetch statistics after profile is successful
+                    // Fetch statistics and explore coupons after profile is successful
                     fetchStatistics()
+                    fetchExploreCoupons()
                 }
                 is BackendResult.Error -> {
                     Log.e(TAG, "fetchProfile: Error - ${result.message}")
@@ -112,9 +114,82 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun fetchExploreCoupons() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "fetchExploreCoupons: Fetching explore coupons with filters")
+                _uiState.update { it.copy(isLoadingCoupons = true) }
+
+                // Fetch synced apps from database
+                val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+                Log.d(TAG, "Found ${syncedApps.size} synced apps in database")
+
+                // Extract app names and capitalize first letter to match API format
+                val allSyncedBrands = syncedApps.map { syncedApp ->
+                    syncedApp.appName.replaceFirstChar { it.uppercase() }
+                }
+
+                Log.d(TAG, "All synced brands: ${allSyncedBrands.joinToString()}")
+
+                // If no synced apps, don't make API call
+                if (allSyncedBrands.isEmpty()) {
+                    Log.d(TAG, "No synced apps found, skipping explore coupons fetch")
+                    _uiState.update { 
+                        it.copy(
+                            exploreCoupons = emptyList(),
+                            isLoadingCoupons = false
+                        )
+                    }
+                    return@launch
+                }
+
+                // Call sync endpoint with specified filters
+                when (val result = couponRepository.syncPrivateCoupons(
+                    brands = allSyncedBrands,
+                    category = null,
+                    search = null,
+                    discountType = null,
+                    price = "above_1500",
+                    validity = "valid_this_week",
+                    sortBy = null,
+                    page = null,
+                    limit = 5 // Limit to 5 coupons for home screen
+                )) {
+                    is PrivateCouponResult.Success -> {
+                        Log.d(TAG, "Explore coupons loaded: ${result.coupons.size} coupons")
+                        _uiState.update { 
+                            it.copy(
+                                exploreCoupons = result.coupons,
+                                isLoadingCoupons = false
+                            )
+                        }
+                    }
+                    is PrivateCouponResult.Error -> {
+                        Log.e(TAG, "Error loading explore coupons: ${result.message}")
+                        _uiState.update { 
+                            it.copy(
+                                exploreCoupons = emptyList(),
+                                isLoadingCoupons = false
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception loading explore coupons", e)
+                _uiState.update { 
+                    it.copy(
+                        exploreCoupons = emptyList(),
+                        isLoadingCoupons = false
+                    )
+                }
+            }
+        }
+    }
+
     fun retry() {
         fetchProfile()
         fetchStatistics()
+        fetchExploreCoupons()
     }
 
     fun logout() {
