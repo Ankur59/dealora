@@ -42,7 +42,8 @@ fun CouponsListTopBar(
     onSearchQueryChanged: (String) -> Unit = {},
     onBackClick: () -> Unit = {},
     isPublicMode: Boolean = false,
-    onPublicModeChanged: (Boolean) -> Unit = {}
+    onPublicModeChanged: (Boolean) -> Unit = {},
+    showModeSwitch: Boolean = true
 ) {
 
     TopAppBar(
@@ -79,7 +80,7 @@ fun CouponsListTopBar(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // 🔍 Search bar (takes remaining space)
+                // Search bar (takes remaining space)
                 Box(
                     modifier = Modifier.weight(1f)
                 ) {
@@ -92,30 +93,32 @@ fun CouponsListTopBar(
         },
 
         actions = {
-            Column(
-                modifier = Modifier.padding(end = 12.dp,top=10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+            if (showModeSwitch) {
+                Column(
+                    modifier = Modifier.padding(end = 12.dp, top = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
 
-                Switch(
-                    checked = isPublicMode,
-                    onCheckedChange = onPublicModeChanged,
-                    modifier = Modifier.height(24.dp),
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = DealoraPrimary,
-                        checkedBorderColor=DealoraPrimary,
-                        checkedTrackColor = Color.White,
-                        uncheckedTrackColor = Color.White
+                    Switch(
+                        checked = isPublicMode,
+                        onCheckedChange = onPublicModeChanged,
+                        modifier = Modifier.height(24.dp),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = DealoraPrimary,
+                            checkedBorderColor = DealoraPrimary,
+                            checkedTrackColor = Color.White,
+                            uncheckedTrackColor = Color.White
+                        )
                     )
-                )
 
-                Text(
-                    text = if (!isPublicMode) "Private" else "Public",
-                    color = Color.Black,
-                    fontSize = 12.sp,
-                    modifier = Modifier.offset(y = (-6).dp)
-                )
+                    Text(
+                        text = if (!isPublicMode) "Private" else "Public",
+                        color = Color.Black,
+                        fontSize = 12.sp,
+                        modifier = Modifier.offset(y = (-6).dp)
+                    )
+                }
             }
         }
     )

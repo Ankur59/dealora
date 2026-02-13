@@ -330,7 +330,8 @@ fun CouponDetailsContent(
             // Tab Row
             item {
                 TabRow(
-                    selectedTab = selectedTab, tabs = tabs, onTabSelected = { selectedTab = it })
+                    selectedTab = selectedTab, tabs = tabs, onTabSelected = { selectedTab = it }
+                )
             }
 
             item {

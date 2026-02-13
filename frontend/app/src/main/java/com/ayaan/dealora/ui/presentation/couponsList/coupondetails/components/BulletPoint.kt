@@ -10,13 +10,15 @@ import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.AppColors
 
 @Composable
-fun BulletPoint(text: String) {
+fun BulletPoint(text: String,type:String="") {
     Row(
         modifier = Modifier.padding(vertical = 4.dp)
     ) {
-        Text(
-            text = "• ", fontSize = 14.sp, color = AppColors.PrimaryText
-        )
+        if(!type.equals("terms",ignoreCase = true)) {
+            Text(
+                text = "• ", fontSize = 14.sp, color = AppColors.PrimaryText
+            )
+        }
         Text(
             text = text, fontSize = 14.sp, color = AppColors.SecondaryText, lineHeight = 20.sp
         )

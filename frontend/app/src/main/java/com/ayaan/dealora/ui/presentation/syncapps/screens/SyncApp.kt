@@ -74,7 +74,7 @@ fun SelectAppsScreen(
         SyncApp("nykaa", "Nykaa", R.drawable.nykaa_logo),
         SyncApp("cred", "CRED", R.drawable.cred_logo),
         SyncApp("swiggy", "Swiggy", R.drawable.swiggy_logo),
-        SyncApp("dealora", "Dealora", R.drawable.logo),
+//        SyncApp("dealora", "Dealora", R.drawable.logo),
     )
 
     // Filter out apps that are already synced

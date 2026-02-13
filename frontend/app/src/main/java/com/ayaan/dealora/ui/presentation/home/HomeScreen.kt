@@ -1,6 +1,5 @@
 package com.ayaan.dealora.ui.presentation.home
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -24,10 +22,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
+import com.ayaan.dealora.ui.presentation.home.components.SyncBannerCard
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
@@ -39,9 +37,12 @@ fun HomeScreen(
     navController: NavController, viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val savedCouponIds by viewModel.savedCouponIds.collectAsState()
+    
     LaunchedEffect(Unit){
         viewModel.fetchProfile()
         viewModel.fetchStatistics()
+        viewModel.fetchExploreCoupons()
     }
     Scaffold(
         topBar = {
@@ -159,22 +160,27 @@ fun HomeScreen(
             // Coupons Card
             StatisticsCard(
                 activeCouponsCount = uiState.statistics?.activeCouponsCount ?: 0,
-                totalSavings = uiState.statistics?.totalSavings ?: 0
+                totalSavings = uiState.statistics?.totalSavings ?: 0,
+                onClick = {
+                    navController.navigate(Route.Dashboard.createRoute())
+                }
             )
 
             Spacer(modifier = Modifier.height(20.dp))
-
-            // Sync Apps Card
-            Image(
-                painter = painterResource(id = R.drawable.sync_banner),
-                contentDescription = "Sync Apps",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clickable {
-                        navController.navigate(Route.SyncAppsStart.path)
-                    }
+            SyncBannerCard(
+                onSyncClick = { navController.navigate(Route.SyncAppsStart.path) }
             )
+            // Sync Apps Card
+//            Image(
+//                painter = painterResource(id = R.drawable.sync_banner),
+//                contentDescription = "Sync Apps",
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(180.dp)
+//                    .clickable {
+//                        navController.navigate(Route.SyncAppsStart.path)
+//                    }
+//            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -216,7 +222,13 @@ fun HomeScreen(
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            ExploringCoupons(navController)
+            ExploringCoupons(
+                navController = navController,
+                coupons = uiState.exploreCoupons,
+                isLoading = uiState.isLoadingCoupons,
+                savedCouponIds = savedCouponIds,
+                viewModel = viewModel
+            )
             Spacer(modifier = Modifier.height(120.dp))
         }
     }

@@ -72,6 +72,8 @@ fun RedeemedCoupons(
     val currentFilters by viewModel.currentFilters.collectAsState()
     val syncedBrands by viewModel.syncedBrands.collectAsState()
 
+    val savedCouponIds by viewModel.savedCouponIds.collectAsState()
+
     var showSortDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
     var showCategoryDialog by remember { mutableStateOf(false) }
@@ -274,8 +276,10 @@ fun RedeemedCoupons(
                                     couponCode = coupon.couponCode ?: "",
                                     couponId = coupon.id,
                                     isRedeemed = true, // Always true since we're only showing redeemed ones
-                                    isSaved = false,
+                                    isSaved = savedCouponIds.contains(coupon.id),
                                     showGreenRedeemedButton = true, // Show green button in redeemed screen
+                                    onSave = { viewModel.saveCoupon(coupon) },
+                                    onRemoveSave = { viewModel.removeSavedCoupon(coupon.id) },
                                     onDetailsClick = {
                                         navController.navigate(
                                             Route.CouponDetails.createRoute(

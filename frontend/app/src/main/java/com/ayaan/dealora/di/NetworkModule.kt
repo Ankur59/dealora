@@ -41,6 +41,7 @@ object NetworkModule {
     }
 
     @Provides
+
     @Singleton
     fun provideOkHttpClient(
         loggingInterceptor: HttpLoggingInterceptor

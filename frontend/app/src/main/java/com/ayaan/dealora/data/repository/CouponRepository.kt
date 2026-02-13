@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.models.Coupon
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.CouponListResponseData
 import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.PrivateCoupon
@@ -77,6 +78,40 @@ class CouponRepository @Inject constructor(
                 )
             }
         ).flow
+    }
+
+    /**
+     * Get coupons for a specific category with count
+     */
+    suspend fun getCouponsByCategory(
+        uid: String,
+        category: String,
+        limit: Int = 10,
+        search: String? = null
+    ): CouponListResponseData? {
+        return try {
+            Log.d(TAG, "Getting coupons for category: $category, limit: $limit, search: $search")
+            val response = couponApiService.getCoupons(
+                uid = uid, 
+                page = 1, 
+                limit = limit, 
+                category = category,
+                search = search
+            )
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true) {
+                    body.data
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting coupons by category", e)
+            null
+        }
     }
 
     /**
@@ -272,7 +307,7 @@ class CouponRepository @Inject constructor(
     /**
      * Get private coupon statistics with brand filtering
      */
-    suspend fun getPrivateCouponStatistics(brands: List<String> = emptyList()): PrivateCouponStatisticsResult {
+    suspend fun getPrivateCouponStatistics(brands: List<String> = listOf("")): PrivateCouponStatisticsResult {
         return try {
             Log.d(TAG, "Fetching private coupon statistics for brands: $brands")
             val request = com.ayaan.dealora.data.api.models.CouponStatisticsRequest(brands)

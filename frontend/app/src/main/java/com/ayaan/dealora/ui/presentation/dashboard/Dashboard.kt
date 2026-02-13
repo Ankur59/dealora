@@ -352,11 +352,14 @@ fun Dashboard(
                                     couponId = coupon.id,
                                     isRedeemed = coupon.redeemed ?: false,
                                     isSaved = savedCouponIds.contains(coupon.id),
+                                    showActionButtons = coupon.couponType == "private" && (coupon.redeemable ?: true), // Hide for public coupons
                                     onRemoveSave = { couponId ->
                                         // Remove from saved but keep showing in list with unsaved state
                                         viewModel.removeSavedCoupon(couponId)
                                     },
-                                    onSave = {},
+                                    onSave = { _ ->
+                                        viewModel.saveCoupon(coupon)
+                                    },
                                     onRedeem = { couponId ->
                                         Log.d("Dashboard", "Redeem clicked for coupon: $couponId")
                                         viewModel.redeemCoupon(

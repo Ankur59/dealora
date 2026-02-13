@@ -430,8 +430,8 @@ fun CouponsList(
                                                 showActionButtons = false,
                                                 isSaved = savedCouponIds.contains(coupon.id),
                                                 onSave = { couponId ->
-                                                    // For public coupons, save with minimal data since we don't have full details
-                                                    viewModel.saveCoupon(couponId, "{}")
+                                                    // For public coupons, save with basic info from list item
+                                                    viewModel.saveCouponFromListItem(couponId, coupon)
                                                 },
                                                 onRemoveSave = { couponId ->
                                                     viewModel.removeSavedCoupon(couponId)

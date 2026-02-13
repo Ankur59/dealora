@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.squareup.moshi.Moshi
+import com.ayaan.dealora.data.repository.SavedCouponRepository
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * ViewModel for RedeemedCoupons screen showing only redeemed coupons
@@ -26,8 +29,13 @@ import javax.inject.Inject
 class RedeemedCouponsViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
-    private val firebaseAuth: FirebaseAuth
+    private val savedCouponRepository: SavedCouponRepository,
+    private val firebaseAuth: FirebaseAuth,
+    private val moshi: Moshi
 ) : ViewModel() {
+
+    private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
+    val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
 
     companion object {
         private const val TAG = "RedeemedCouponsViewModel"
@@ -60,9 +68,19 @@ class RedeemedCouponsViewModel @Inject constructor(
 
     init {
         loadPrivateCoupons()
+        observeSavedCoupons()
     }
 
-    private fun loadPrivateCoupons() {
+    private fun observeSavedCoupons() {
+        viewModelScope.launch {
+            savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
+                val ids = savedCoupons.map { it.couponId }.toSet()
+                _savedCouponIds.value = ids
+            }
+        }
+    }
+
+    fun loadPrivateCoupons() {
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Loading private coupons for redeemed screen")
@@ -195,6 +213,33 @@ class RedeemedCouponsViewModel @Inject constructor(
     fun onFiltersChanged(filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions) {
         _currentFilters.value = filters
         loadPrivateCoupons()
+    }
+
+    fun saveCoupon(coupon: PrivateCoupon) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Saving coupon: ${coupon.id}")
+                val adapter = moshi.adapter(PrivateCoupon::class.java)
+                val couponJson = adapter.toJson(coupon)
+                savedCouponRepository.saveCoupon(
+                    couponId = coupon.id,
+                    couponJson = couponJson,
+                    couponType = "private"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving coupon: ${coupon.id}", e)
+            }
+        }
+    }
+
+    fun removeSavedCoupon(couponId: String) {
+        viewModelScope.launch {
+            try {
+                savedCouponRepository.removeSavedCoupon(couponId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing coupon: $couponId", e)
+            }
+        }
     }
 
     fun retry() {
