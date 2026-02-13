@@ -307,7 +307,7 @@ class CouponRepository @Inject constructor(
     /**
      * Get private coupon statistics with brand filtering
      */
-    suspend fun getPrivateCouponStatistics(brands: List<String> = emptyList()): PrivateCouponStatisticsResult {
+    suspend fun getPrivateCouponStatistics(brands: List<String> = listOf("")): PrivateCouponStatisticsResult {
         return try {
             Log.d(TAG, "Fetching private coupon statistics for brands: $brands")
             val request = com.ayaan.dealora.data.api.models.CouponStatisticsRequest(brands)

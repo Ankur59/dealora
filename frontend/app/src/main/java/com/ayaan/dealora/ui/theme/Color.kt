@@ -32,3 +32,10 @@ object AppColors {
     val SecondaryText = Color(0xFF666666)
     val IconTint = Color(0xFF333333)
 }
+private val BannerBg        = Color(0xFF0D0D1A)   // near-black
+private val BannerPurple    = Color(0xFF6C63FF)   // primary purple
+private val BannerPurpleLight = Color(0xFF9D97FF) // lighter purple highlight
+private val IconBg          = Color(0xFF1E1E2E)   // dark pill bg for app icons
+private val ButtonBg        = Color(0xFF6C63FF)
+private val TextWhite       = Color(0xFFFFFFFF)
+private val TextSubtle      = Color(0xFFB0AECC)

@@ -28,6 +28,7 @@ import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
+import com.ayaan.dealora.ui.presentation.home.components.SyncBannerCard
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
@@ -166,18 +167,20 @@ fun HomeScreen(
             )
 
             Spacer(modifier = Modifier.height(20.dp))
-
-            // Sync Apps Card
-            Image(
-                painter = painterResource(id = R.drawable.sync_banner),
-                contentDescription = "Sync Apps",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clickable {
-                        navController.navigate(Route.SyncAppsStart.path)
-                    }
+            SyncBannerCard(
+                onSyncClick = { navController.navigate(Route.SyncAppsStart.path) }
             )
+            // Sync Apps Card
+//            Image(
+//                painter = painterResource(id = R.drawable.sync_banner),
+//                contentDescription = "Sync Apps",
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(180.dp)
+//                    .clickable {
+//                        navController.navigate(Route.SyncAppsStart.path)
+//                    }
+//            )
 
             Spacer(modifier = Modifier.height(24.dp))
 

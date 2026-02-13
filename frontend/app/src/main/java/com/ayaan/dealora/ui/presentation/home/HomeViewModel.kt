@@ -85,8 +85,7 @@ class HomeViewModel @Inject constructor(
             
             // Fetch synced brands from Room DB
             val syncedApps = syncedAppRepository.getAllSyncedApps().first()
-            val brands = syncedApps.map { it.appName.replaceFirstChar { char -> char.uppercase() } }
-            
+            val brands = if (syncedApps.isEmpty()) listOf("") else syncedApps.map { it.appName.replaceFirstChar { char -> char.uppercase() } }
             Log.d(TAG, "fetchStatistics: Synced brands: $brands")
 
             when (val result = couponRepository.getPrivateCouponStatistics(brands)) {
