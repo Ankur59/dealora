@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.auth.AuthRepository
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.ProfileRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
+import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,9 +17,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import com.squareup.moshi.Moshi
+import com.ayaan.dealora.data.api.models.PrivateCoupon
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -26,7 +29,9 @@ class HomeViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
-    private val firebaseAuth: FirebaseAuth
+    private val savedCouponRepository: SavedCouponRepository,
+    private val firebaseAuth: FirebaseAuth,
+    private val moshi: Moshi
 ) : ViewModel() {
 
     companion object {
@@ -35,6 +40,22 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
+    val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
+
+    init {
+        observeSavedCoupons()
+    }
+
+    private fun observeSavedCoupons() {
+        viewModelScope.launch {
+            savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
+                val ids = savedCoupons.map { it.couponId }.toSet()
+                _savedCouponIds.value = ids
+            }
+        }
+    }
 
     fun fetchProfile() {
         val uid = firebaseAuth.currentUser?.uid
@@ -190,6 +211,73 @@ class HomeViewModel @Inject constructor(
         fetchProfile()
         fetchStatistics()
         fetchExploreCoupons()
+    }
+
+    fun saveCoupon(coupon: PrivateCoupon) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Saving coupon: ${coupon.id}")
+                val adapter = moshi.adapter(PrivateCoupon::class.java)
+                val couponJson = adapter.toJson(coupon)
+                savedCouponRepository.saveCoupon(
+                    couponId = coupon.id,
+                    couponJson = couponJson,
+                    couponType = "private"
+                )
+                Log.d(TAG, "Coupon saved successfully: ${coupon.id}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving coupon: ${coupon.id}", e)
+            }
+        }
+    }
+
+    fun removeSavedCoupon(couponId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Removing saved coupon: $couponId")
+                savedCouponRepository.removeSavedCoupon(couponId)
+                Log.d(TAG, "Coupon removed successfully: $couponId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing coupon: $couponId", e)
+            }
+        }
+    }
+
+    fun redeemCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        Log.d(TAG, "========== REDEEM COUPON (HOME) FLOW STARTED ==========")
+        Log.d(TAG, "Coupon ID: $couponId")
+
+        viewModelScope.launch {
+            try {
+                val currentUser = firebaseAuth.currentUser
+                if (currentUser == null) {
+                    Log.e(TAG, "User not authenticated")
+                    onError("Please login to redeem coupon")
+                    return@launch
+                }
+
+                val uid = currentUser.uid
+                Log.d(TAG, "✓ User authenticated - UID: $uid")
+                Log.d(TAG, "→ Calling repository.redeemPrivateCoupon(couponId=$couponId, uid=$uid)")
+
+                when (val result = couponRepository.redeemPrivateCoupon(couponId, uid)) {
+                    is PrivateCouponResult.Success -> {
+                        Log.d(TAG, "✓ SUCCESS: Coupon redeemed successfully")
+                        Log.d(TAG, "Response message: ${result.message}")
+                        onSuccess()
+                        // Reload explore coupons to show updated state
+                        fetchExploreCoupons()
+                    }
+                    is PrivateCouponResult.Error -> {
+                        Log.e(TAG, "✗ ERROR: ${result.message}")
+                        onError(result.message)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "✗ EXCEPTION in redeem flow: ${e.message}", e)
+                onError("Unable to redeem coupon. Please try again.")
+            }
+        }
     }
 
     fun logout() {

@@ -37,6 +37,8 @@ fun HomeScreen(
     navController: NavController, viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val savedCouponIds by viewModel.savedCouponIds.collectAsState()
+    
     LaunchedEffect(Unit){
         viewModel.fetchProfile()
         viewModel.fetchStatistics()
@@ -223,7 +225,9 @@ fun HomeScreen(
             ExploringCoupons(
                 navController = navController,
                 coupons = uiState.exploreCoupons,
-                isLoading = uiState.isLoadingCoupons
+                isLoading = uiState.isLoadingCoupons,
+                savedCouponIds = savedCouponIds,
+                viewModel = viewModel
             )
             Spacer(modifier = Modifier.height(120.dp))
         }
