@@ -9,43 +9,59 @@ class PaisaWapasAdapter extends GenericAdapter {
 
     async scrape() {
         const pages = [
-            // Target Apps from the list
-            { brand: 'TWID', path: '/twid-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Pop', path: '/pop-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'NPCL', path: '/npcl-sale-offers', category: 'All' },
-            { brand: 'Dhani', path: '/dhani-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Kiwi', path: '/kiwi-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Payzapp', path: '/payzapp-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Freo', path: '/freo-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Freecharge', path: '/freecharge-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'BharatNxt', path: '/bharatnxt-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Sarvatra tech', path: '/sarvatra-sale-offers', category: 'All' },
-            { brand: 'Payworld', path: '/payworld-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Rio Money', path: '/rio-money-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'Payinstacard', path: '/payinstacard-sale-offers', category: 'Wallet Rewards' },
-            { brand: 'nearwala', path: '/nearwala-sale-offers', category: 'Grocery' },
-            { brand: 'Limeroad', path: '/limeroad-sale-offers', category: 'Grocery' },
-            { brand: 'Shopclues', path: '/shopclues-sale-offers', category: 'Grocery' },
-            { brand: 'Snapdeal', path: '/snapdeal-sale-offers', category: 'Grocery' },
-            { brand: 'Eatsure', path: '/eatsure-sale-offers', category: 'Food' },
-            { brand: 'Box8', path: '/box8-sale-offers', category: 'Food' },
-            { brand: 'Rebel foods', path: '/rebel-foods-sale-offers', category: 'Food' },
-            { brand: 'Fassos', path: '/fassos-sale-offers', category: 'Food' },
-            { brand: 'Zingbus', path: '/zingbus-sale-offers', category: 'Travel' },
-            { brand: 'Satvacart', path: '/satvacart-sale-offers', category: 'Grocery' },
-            { brand: 'Dealshare', path: '/dealshare-sale-offers', category: 'Grocery' },
-            { brand: 'Salon Nayana', path: '/salon-nayana-sale-offers', category: 'Beauty' },
-            { brand: 'HR Wellness', path: '/hr-wellness-sale-offers', category: 'Beauty' },
-            { brand: 'Freshmenu', path: '/freshmenu-sale-offers', category: 'Food' },
-            // Popular brands (keeping for coverage)
+            // ===== ACTIVE BRANDS - Only scraping these essential brands =====
+            // Food Delivery Apps
             { brand: 'Zomato', path: '/zomato-sale-offers', category: 'Food' },
             { brand: 'Swiggy', path: '/swiggy-sale-offers', category: 'Food' },
+            { brand: 'Box8', path: '/box8-sale-offers', category: 'Food' },
+            { brand: 'Eatsure', path: '/eatsure-sale-offers', category: 'Food' },
+            { brand: 'Freshmenu', path: '/freshmenu-sale-offers', category: 'Food' },
+            
+            // E-commerce & Shopping
             { brand: 'Amazon', path: '/amazon-sale-offers', category: 'Grocery' },
             { brand: 'Flipkart', path: '/flipkart-sale-offers', category: 'Grocery' },
-            { brand: 'Myntra', path: '/myntra-sale-offers', category: 'Fashion' },
+            { brand: 'Snapdeal', path: '/snapdeal-sale-offers', category: 'Grocery' },
+            
+            // Wallet & Payment Apps
+            { brand: 'PhonePe', path: '/phonepe-sale-offers', category: 'Wallet Rewards' },
+            { brand: 'Paytm', path: '/paytm-sale-offers', category: 'Wallet Rewards' },
+            { brand: 'Cred', path: '/cred-sale-offers', category: 'Wallet Rewards' },
+            { brand: 'Dhani', path: '/dhani-sale-offers', category: 'Wallet Rewards' },
+            { brand: 'Freo', path: '/freo-sale-offers', category: 'Wallet Rewards' },
+            
+            // Grocery & Daily Needs
+            { brand: 'Blinkit', path: '/blinkit-sale-offers', category: 'Grocery' },
+            { brand: 'BigBasket', path: '/bigbasket-sale-offers', category: 'Grocery' },
+            
+            // Beauty & Fashion
             { brand: 'Nykaa', path: '/nykaa-sale-offers', category: 'Beauty' },
+            { brand: 'Myntra', path: '/myntra-sale-offers', category: 'Fashion' },
+            
+            // Travel
             { brand: 'MakeMyTrip', path: '/makemytrip-sale-offers', category: 'Travel' },
-            { brand: 'Paytm', path: '/paytm-sale-offers', category: 'Wallet Rewards' }
+            
+            // ===== COMMENTED OUT - Not needed currently =====
+            // { brand: 'TWID', path: '/twid-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'Pop', path: '/pop-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'NPCL', path: '/npcl-sale-offers', category: 'All' },
+            // { brand: 'Kiwi', path: '/kiwi-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'Payzapp', path: '/payzapp-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'Freecharge', path: '/freecharge-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'BharatNxt', path: '/bharatnxt-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'Sarvatra tech', path: '/sarvatra-sale-offers', category: 'All' },
+            // { brand: 'Payworld', path: '/payworld-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'Rio Money', path: '/rio-money-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'Payinstacard', path: '/payinstacard-sale-offers', category: 'Wallet Rewards' },
+            // { brand: 'nearwala', path: '/nearwala-sale-offers', category: 'Grocery' },
+            // { brand: 'Limeroad', path: '/limeroad-sale-offers', category: 'Grocery' },
+            // { brand: 'Shopclues', path: '/shopclues-sale-offers', category: 'Grocery' },
+            // { brand: 'Rebel foods', path: '/rebel-foods-sale-offers', category: 'Food' },
+            // { brand: 'Fassos', path: '/fassos-sale-offers', category: 'Food' },
+            // { brand: 'Zingbus', path: '/zingbus-sale-offers', category: 'Travel' },
+            // { brand: 'Satvacart', path: '/satvacart-sale-offers', category: 'Grocery' },
+            // { brand: 'Dealshare', path: '/dealshare-sale-offers', category: 'Grocery' },
+            // { brand: 'Salon Nayana', path: '/salon-nayana-sale-offers', category: 'Beauty' },
+            // { brand: 'HR Wellness', path: '/hr-wellness-sale-offers', category: 'Beauty' },
         ];
 
         let allCoupons = [];
@@ -72,7 +88,7 @@ class PaisaWapasAdapter extends GenericAdapter {
 
                     if (title) {
                         // Get the actual brand website URL instead of source website
-                        const brandUrl = this.getBrandUrl(page.brand) || this.baseUrl + page.path;
+                        const brandUrl = this.getBrandUrl(page.brand) || 'https://www.example.com'; // Fallback if brand not found
                         
                         allCoupons.push({
                             brandName: page.brand,

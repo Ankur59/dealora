@@ -9,43 +9,59 @@ class CouponDekhoAdapter extends GenericAdapter {
 
     async scrape() {
         const pages = [
-            // Target Apps from the list
-            { brand: 'TWID', path: '/store/twid-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Pop', path: '/store/pop-coupons/', category: 'Wallet Rewards' },
-            { brand: 'NPCL', path: '/store/npcl-coupons/', category: 'All' },
-            { brand: 'Dhani', path: '/store/dhani-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Kiwi', path: '/store/kiwi-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Payzapp', path: '/store/payzapp-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Freo', path: '/store/freo-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Freecharge', path: '/store/freecharge-coupons/', category: 'Wallet Rewards' },
-            { brand: 'BharatNxt', path: '/store/bharatnxt-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Sarvatra tech', path: '/store/sarvatra-coupons/', category: 'All' },
-            { brand: 'Payworld', path: '/store/payworld-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Rio Money', path: '/store/rio-money-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Payinstacard', path: '/store/payinstacard-coupons/', category: 'Wallet Rewards' },
-            { brand: 'nearwala', path: '/store/nearwala-coupons/', category: 'Grocery' },
-            { brand: 'Limeroad', path: '/store/limeroad-coupons/', category: 'Grocery' },
-            { brand: 'Shopclues', path: '/store/shopclues-coupons/', category: 'Grocery' },
-            { brand: 'Snapdeal', path: '/store/snapdeal-coupons/', category: 'Grocery' },
-            { brand: 'Eatsure', path: '/store/eatsure-coupons/', category: 'Food' },
-            { brand: 'Box8', path: '/store/box8-coupons/', category: 'Food' },
-            { brand: 'Rebel foods', path: '/store/rebel-foods-coupons/', category: 'Food' },
-            { brand: 'Fassos', path: '/store/fassos-coupons/', category: 'Food' },
-            { brand: 'Zingbus', path: '/store/zingbus-coupons/', category: 'Travel' },
-            { brand: 'Satvacart', path: '/store/satvacart-coupons/', category: 'Grocery' },
-            { brand: 'Dealshare', path: '/store/dealshare-coupons/', category: 'Grocery' },
-            { brand: 'Salon Nayana', path: '/store/salon-nayana-coupons/', category: 'Beauty' },
-            { brand: 'HR Wellness', path: '/store/hr-wellness-coupons/', category: 'Beauty' },
-            { brand: 'Freshmenu', path: '/store/freshmenu-coupons/', category: 'Food' },
-            // Popular brands (keeping for coverage)
+            // ===== ACTIVE BRANDS - Only scraping these essential brands =====
+            // Food Delivery Apps
             { brand: 'Zomato', path: '/store/zomato/', category: 'Food' },
             { brand: 'Swiggy', path: '/store/swiggy/', category: 'Food' },
+            { brand: 'Box8', path: '/store/box8-coupons/', category: 'Food' },
+            { brand: 'Eatsure', path: '/store/eatsure-coupons/', category: 'Food' },
+            { brand: 'Freshmenu', path: '/store/freshmenu-coupons/', category: 'Food' },
+            
+            // E-commerce & Shopping
             { brand: 'Amazon', path: '/store/amazon-coupons/', category: 'Grocery' },
             { brand: 'Flipkart', path: '/store/flipkart-coupons/', category: 'Grocery' },
-            { brand: 'Myntra', path: '/store/myntra-coupons/', category: 'Fashion' },
+            { brand: 'Snapdeal', path: '/store/snapdeal-coupons/', category: 'Grocery' },
+            
+            // Wallet & Payment Apps
+            { brand: 'PhonePe', path: '/store/phonepe-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Paytm', path: '/store/paytm-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Cred', path: '/store/cred-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Dhani', path: '/store/dhani-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Freo', path: '/store/freo-coupons/', category: 'Wallet Rewards' },
+            
+            // Grocery & Daily Needs
+            { brand: 'Blinkit', path: '/store/blinkit-coupons/', category: 'Grocery' },
+            { brand: 'BigBasket', path: '/store/bigbasket-coupons/', category: 'Grocery' },
+            
+            // Beauty & Fashion
             { brand: 'Nykaa', path: '/store/nykaa-coupons/', category: 'Beauty' },
+            { brand: 'Myntra', path: '/store/myntra-coupons/', category: 'Fashion' },
+            
+            // Travel
             { brand: 'MakeMyTrip', path: '/store/makemytrip-coupons/', category: 'Travel' },
-            { brand: 'Paytm', path: '/store/paytm-coupons/', category: 'Wallet Rewards' }
+            
+            // ===== COMMENTED OUT - Not needed currently =====
+            // { brand: 'TWID', path: '/store/twid-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Pop', path: '/store/pop-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'NPCL', path: '/store/npcl-coupons/', category: 'All' },
+            // { brand: 'Kiwi', path: '/store/kiwi-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Payzapp', path: '/store/payzapp-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Freecharge', path: '/store/freecharge-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'BharatNxt', path: '/store/bharatnxt-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Sarvatra tech', path: '/store/sarvatra-coupons/', category: 'All' },
+            // { brand: 'Payworld', path: '/store/payworld-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Rio Money', path: '/store/rio-money-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Payinstacard', path: '/store/payinstacard-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'nearwala', path: '/store/nearwala-coupons/', category: 'Grocery' },
+            // { brand: 'Limeroad', path: '/store/limeroad-coupons/', category: 'Grocery' },
+            // { brand: 'Shopclues', path: '/store/shopclues-coupons/', category: 'Grocery' },
+            // { brand: 'Rebel foods', path: '/store/rebel-foods-coupons/', category: 'Food' },
+            // { brand: 'Fassos', path: '/store/fassos-coupons/', category: 'Food' },
+            // { brand: 'Zingbus', path: '/store/zingbus-coupons/', category: 'Travel' },
+            // { brand: 'Satvacart', path: '/store/satvacart-coupons/', category: 'Grocery' },
+            // { brand: 'Dealshare', path: '/store/dealshare-coupons/', category: 'Grocery' },
+            // { brand: 'Salon Nayana', path: '/store/salon-nayana-coupons/', category: 'Beauty' },
+            // { brand: 'HR Wellness', path: '/store/hr-wellness-coupons/', category: 'Beauty' },
         ];
 
         let allCoupons = [];
@@ -72,7 +88,7 @@ class CouponDekhoAdapter extends GenericAdapter {
 
                     if (title) {
                         // Get the actual brand website URL instead of source website
-                        const brandUrl = this.getBrandUrl(page.brand) || this.baseUrl + page.path;
+                        const brandUrl = this.getBrandUrl(page.brand) || 'https://www.example.com'; // Fallback if brand not found
                         
                         allCoupons.push({
                             brandName: page.brand,
