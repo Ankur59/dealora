@@ -26,27 +26,56 @@ class ScraperEngine {
                     logger.warn(`   - Website requires JavaScript (dynamic content)`);
                 } else {
                     logger.info(`${adapter.sourceName} found ${coupons.length} coupons to process`);
-                }
-
-                for (const rawData of coupons) {
-                    try {
-                        // normalize() is now async due to Gemini integration
-                        const normalizedData = await adapter.normalize(rawData);
-                        const result = await this.saveOrUpdate(normalizedData);
-                        if (result.isNew) totalAdded++;
-                        else totalUpdated++;
-                    } catch (err) {
-                        // Extract relevant info for better error logging
-                        const couponInfo = rawData.couponTitle || rawData.couponName || 'Unknown Coupon';
-                        const brandInfo = rawData.brandName || 'Unknown Brand';
-
-                        logger.error(`Error processing coupon from ${adapter.sourceName}: ${couponInfo} (${brandInfo})`);
-                        logger.error(`Error details: ${err.message}`);
-
-                        // Only log raw data in debug mode to avoid cluttering logs
-                        if (process.env.LOG_LEVEL === 'debug') {
-                            logger.debug(`Raw data was:`, JSON.stringify(rawData, null, 2).substring(0, 500));
+                    
+                    // Group coupons by brand for batch processing
+                    const couponsByBrand = {};
+                    coupons.forEach(coupon => {
+                        const brand = coupon.brandName || 'Unknown';
+                        if (!couponsByBrand[brand]) {
+                            couponsByBrand[brand] = [];
                         }
+                        couponsByBrand[brand].push(coupon);
+                    });
+                    
+                    logger.info(`${adapter.sourceName}: Processing ${Object.keys(couponsByBrand).length} brands`);
+                    
+                    // Process each brand's coupons and save to DB immediately
+                    for (const [brandName, brandCoupons] of Object.entries(couponsByBrand)) {
+                        logger.info(`📦 Processing ${brandCoupons.length} coupons for ${brandName}...`);
+                        
+                        let brandAdded = 0;
+                        let brandUpdated = 0;
+                        
+                        for (const rawData of brandCoupons) {
+                            try {
+                                // normalize() is now async due to Gemini integration
+                                const normalizedData = await adapter.normalize(rawData);
+                                const result = await this.saveOrUpdate(normalizedData);
+                                if (result.isNew) {
+                                    totalAdded++;
+                                    brandAdded++;
+                                } else {
+                                    totalUpdated++;
+                                    brandUpdated++;
+                                }
+                            } catch (err) {
+                                // Extract relevant info for better error logging
+                                const couponInfo = rawData.couponTitle || rawData.couponName || 'Unknown Coupon';
+
+                                logger.error(`Error processing coupon from ${adapter.sourceName}: ${couponInfo} (${brandName})`);
+                                logger.error(`Error details: ${err.message}`);
+
+                                // Only log raw data in debug mode to avoid cluttering logs
+                                if (process.env.LOG_LEVEL === 'debug') {
+                                    logger.debug(`Raw data was:`, JSON.stringify(rawData, null, 2).substring(0, 500));
+                                }
+                            }
+                        }
+                        
+                        logger.info(`✅ ${brandName}: Saved ${brandAdded} new, updated ${brandUpdated} coupons to DB`);
+                        
+                        // Small delay between brands to avoid overwhelming the system
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 }
             } catch (error) {
@@ -108,6 +137,55 @@ class ScraperEngine {
 
         // We use userId = 'system_scraper' for all scraped coupons to identify them
         data.userId = 'system_scraper';
+
+        // Check for duplicate terms and couponDetails across same brand
+        // to ensure uniqueness
+        if (data.terms || data.couponDetails) {
+            const duplicateQuery = {
+                brandName: data.brandName,
+                userId: 'system_scraper',
+                $or: []
+            };
+
+            // Check if terms are duplicated
+            if (data.terms) {
+                duplicateQuery.$or.push({ terms: data.terms });
+            }
+
+            // Check if couponDetails are duplicated
+            if (data.couponDetails) {
+                duplicateQuery.$or.push({ couponDetails: data.couponDetails });
+            }
+
+            if (duplicateQuery.$or.length > 0) {
+                const duplicates = await Coupon.find(duplicateQuery).select('couponTitle terms couponDetails');
+                
+                if (duplicates.length > 0) {
+                    // Found coupons with same terms/details
+                    // Check if it's a different coupon (not the one we're updating)
+                    const isDifferentCoupon = duplicates.some(dup => 
+                        dup.couponTitle !== data.couponTitle
+                    );
+
+                    if (isDifferentCoupon) {
+                        logger.warn(`Duplicate terms/details detected for ${data.brandName}. Regenerating unique content...`);
+                        
+                        // Add unique suffix to make terms/details different
+                        const timestamp = new Date().getTime().toString().slice(-6);
+                        
+                        if (data.terms && duplicates.some(d => d.terms === data.terms)) {
+                            data.terms = data.terms + '\n• Updated on ' + new Date().toLocaleDateString();
+                        }
+                        
+                        if (data.couponDetails && duplicates.some(d => d.couponDetails === data.couponDetails)) {
+                            data.couponDetails = data.couponDetails + ' This offer is updated regularly for the best experience.';
+                        }
+                        
+                        logger.info(`Generated unique terms/details for: ${data.couponTitle}`);
+                    }
+                }
+            }
+        }
 
         const existing = await Coupon.findOne(query);
 
