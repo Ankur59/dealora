@@ -65,6 +65,18 @@ const privateCouponSchema = new mongoose.Schema(
         couponLink: {
             type: String,
             trim: true,
+        },
+        couponDetails: {
+            type: String,
+            trim: true,
+            maxlength: [2000, 'Coupon details cannot exceed 2000 characters'],
+            default: null,
+        },
+        terms: {
+            type: String,
+            trim: true,
+            maxlength: [2000, 'Terms cannot exceed 2000 characters'],
+            default: null,
         }
     },
     {
