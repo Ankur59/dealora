@@ -14,11 +14,11 @@ fun BulletPoint(text: String,type:String="") {
     Row(
         modifier = Modifier.padding(vertical = 4.dp)
     ) {
-        if(!type.equals("terms",ignoreCase = true)) {
-            Text(
-                text = "• ", fontSize = 14.sp, color = AppColors.PrimaryText
-            )
-        }
+//        if(!type.equals("terms",ignoreCase = true)||!type.equals("details",ignoreCase = true)) {
+//            Text(
+//                text = "• ", fontSize = 14.sp, color = AppColors.PrimaryText
+//            )
+//        }
         Text(
             text = text, fontSize = 14.sp, color = AppColors.SecondaryText, lineHeight = 20.sp
         )

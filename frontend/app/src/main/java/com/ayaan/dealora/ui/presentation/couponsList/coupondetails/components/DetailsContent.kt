@@ -23,34 +23,33 @@ fun DetailsContent(coupon: CouponDetail) {
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        coupon.display?.formattedExpiry?.let {
-            BulletPoint("Expires on $it")
-        }
-
-        coupon.discountValue?.let { value ->
-            // Handle both String and numeric values
-            val valueStr = value.toString()
-            val discountText = when (coupon.discountType?.toString()?.lowercase()) {
-                "flat" -> "Flat ₹$valueStr off"
-                "percentage" -> "$valueStr% off"
-                else -> valueStr
-            }
-
-            val minimumText = coupon.minimumOrder?.let { min ->
-                " on minimum order of ₹${min}"
-            } ?: ""
-
-            BulletPoint(discountText + minimumText)
-        }
+//        coupon.display?.formattedExpiry?.let {
+//            BulletPoint("Expires on $it")
+//        }
+//        coupon.discountValue?.let { value ->
+//            // Handle both String and numeric values
+//            val valueStr = value.toString()
+//            val discountText = when (coupon.discountType?.toString()?.lowercase()) {
+//                "flat" -> "Flat ₹$valueStr off"
+//                "percentage" -> "$valueStr% off"
+//                else -> valueStr
+//            }
+//
+//            val minimumText = coupon.minimumOrder?.let { min ->
+//                " on minimum order of ₹${min}"
+//            } ?: ""
+//
+//            BulletPoint(discountText + minimumText)
+//        }
 
         coupon.couponDetails?.let {
-            BulletPoint(it.toString())
+            BulletPoint(it.toString(),type="details")
         }
 
         when (coupon.useCouponVia?.toString()?.lowercase()) {
-            "both" -> BulletPoint("Valid on App and Website")
-            "app" -> BulletPoint("Valid only on App")
-            "website" -> BulletPoint("Valid only on Website")
+            "both" -> BulletPoint("Valid on App and Website",type="details")
+            "app" -> BulletPoint("Valid only on App",type="details")
+            "website" -> BulletPoint("Valid only on Website",type="details")
         }
     }
 }
