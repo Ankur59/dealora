@@ -126,7 +126,8 @@ fun ExploringCoupons(
                                 navController.navigate(
                                     Route.CouponDetails.createRoute(
                                         couponId = coupon.id,
-                                        isPrivate = true
+                                        isPrivate = true,
+                                        couponCode = coupon.couponCode ?: "WELCOME100"
                                     )
                                 )
                             },
