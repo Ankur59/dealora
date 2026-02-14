@@ -12,17 +12,15 @@ class GeminiExtractionService {
         }
 
         // List of Gemini models to try (in order of preference)
+        // Updated to use models available as of 2025
         this.modelNames = [
-            'gemini-2.0-flash-exp',
-            'models/gemini-2.0-flash-exp',
-            'gemini-1.5-flash-latest',
-            'models/gemini-1.5-flash-latest',
-            'gemini-1.5-flash',
-            'models/gemini-1.5-flash',
-            'gemini-1.5-pro',
-            'models/gemini-1.5-pro',
+            'gemini-2.5-flash',
+            'gemini-2.5-pro',
+            'gemini-2.0-flash',
+            'gemini-flash-latest',
             'gemini-pro-latest',
-            'models/gemini-pro-latest',
+            'gemini-exp-1206',
+            'gemini-2.0-flash-001',
         ];
 
         // Track rate-limited models to avoid retrying them immediately
@@ -315,6 +313,8 @@ Your task is to clean and standardize ONLY these 3 fields:
 CRITICAL: couponDetails and terms MUST ALWAYS be generated, even if raw data is poor.
 CRITICAL: couponDetails MUST NOT be the same as coupon title.
 CRITICAL: terms MUST ALWAYS have at least 3 bullet points
+CRITICAL: Generate UNIQUE content for each coupon - never reuse the same generic text
+CRITICAL: Make terms and details SPECIFIC to this exact offer, not generic templates
 
 The scraped data may contain:
 - Website navigation text
@@ -328,6 +328,7 @@ The scraped data may contain:
 You must clean and normalize the data.
 Do NOT copy raw text.
 Do NOT include unrelated content.
+Do NOT use generic templates that could apply to any coupon.
 Return structured JSON only.
 
 INPUT DATA:
@@ -369,45 +370,57 @@ INSTRUCTIONS:
 
 2. COUPON DETAILS RULES:
    - MANDATORY: This field MUST be filled for EVERY coupon.
-   - Write a CLEAN, PROFESSIONAL, DETAILED description.
+   - Write a CLEAN, PROFESSIONAL, DETAILED, and UNIQUE description.
    - 2–4 sentences explaining the offer.
    - MUST be DIFFERENT from the coupon title (expand on it, don't repeat it).
-   - If raw data is poor, use the brand name and coupon title to generate meaningful content.
+   - MUST be UNIQUE and SPECIFIC to this exact offer - include specific details like:
+        • Exact discount percentage or amount
+        • Specific product categories or services
+        • Specific conditions or requirements
+        • Time-sensitive details if mentioned
+   - If raw data is poor, use the brand name and coupon title to generate meaningful SPECIFIC content.
    - ABSOLUTELY NO EMOJIS (💞 🎉 ❤️ etc).
    - ABSOLUTELY NO navigation text ("Blog", "View All", "Follow Us", etc).
    - Remove festival headings ("Valentine's Day", "Diwali Offers", etc).
    - Should clearly explain:
-        • What discount is offered
-        • On what product/service  
+        • What discount is offered (be specific)
+        • On what product/service (be specific)
         • How to use it
-        • Any minimum order or conditions
+        • Any minimum order or conditions (be specific)
    - Use ONLY plain text, proper grammar, professional tone.
-   - Example: If title is "Flat 50% OFF", details should be "Get flat 50% discount on your order at [Brand]. This exclusive offer is valid for a limited time. Shop now and save on your favorite products."
+   - Example: If title is "Flat 50% OFF on Fashion", details should be "Get flat 50% discount on all fashion items including clothing, footwear, and accessories at [Brand]. This exclusive offer applies to items across men's, women's, and kids' categories. Minimum purchase of ₹999 required to avail this discount."
 
 3. TERMS RULES:
-   - MANDATORY: This field MUST be filled for EVERY coupon with 3-5 bullet points.
-   - EVEN if raw terms data is missing or poor, GENERATE logical terms.
+   - MANDATORY: This field MUST be filled for EVERY coupon with 3-5 UNIQUE bullet points.
+   - EVEN if raw terms data is missing or poor, GENERATE logical SPECIFIC terms.
    - Convert into clean bullet points (3-5 points).
    - Short, clear, and professional.
    - ABSOLUTELY NO emojis.
    - ABSOLUTELY NO navigation text ("Blog", "Subscribe", "Follow Us").
-   - ABSOLUTELY NO generic phrases ("Terms apply", "Special Offer").
+   - ABSOLUTELY NO generic phrases that could apply to any coupon.
    - Do NOT repeat information from coupon details.
-   - Focus on: validity conditions, user eligibility, usage restrictions, expiry info.
-   - If raw terms are missing/poor, generate realistic terms based on:
+   - Make terms SPECIFIC to this exact offer:
+        • Include specific validity dates if mentioned
+        • Include specific user eligibility (new/all/app users)
+        • Include specific usage restrictions
+        • Include specific product/category limitations
+        • Include specific minimum order values
+        • Include specific maximum discount caps
+   - If raw terms are missing/poor, generate realistic SPECIFIC terms based on:
         • The brand name
         • The offer type (discount/cashback/free delivery)
         • Common e-commerce conditions
-   - Examples of good generated terms:
-        • Valid on all products/categories
-        • Minimum order value may apply
-        • Offer valid for a limited time
-        • Cannot be combined with other promotions
-        • Check brand website for complete details
-        • One use per customer/account
-        • Valid on first order / new users (if applicable)
+   - Examples of good SPECIFIC generated terms:
+        • Valid on orders of ₹999 and above
+        • Applicable only on first order for new users
+        • Maximum discount capped at ₹500 per order
+        • Valid on fashion category products only
+        • Cannot be clubbed with bank offers
+        • Offer valid till [specific date if known, else "limited period"]
+        • One time use per user account
+        • Not applicable on Cash on Delivery orders
 
-4. Keep format consistent across all coupons.
+4. Keep format consistent across all coupons BUT content must be unique.
 
 EXAMPLE:
 
@@ -420,13 +433,13 @@ Terms: 🎉 Offer! View All Terms apply
 Expected Output:
 {
   "validatedCouponCode": "PARTY15",
-  "cleanCouponDetails": "Get flat 15% discount on party orders at Box8. Offer applicable on orders above ₹348 for a limited period.",
+  "cleanCouponDetails": "Get flat 15% discount on party orders at Box8. This offer is valid on all party meal combos and platters. Minimum order value of ₹348 required. Perfect for celebrations and gatherings with friends and family.",
   "standardizedTerms": [
-    "Valid on party orders only.",
-    "Minimum order value of ₹348 required.",
-    "Offer valid for a limited time.",
-    "Cannot be combined with other promotions.",
-    "Applicable on selected menu items."
+    "Valid on party orders and meal combos only",
+    "Minimum order value of ₹348 required",
+    "Applicable only on prepaid orders",
+    "Offer valid for a limited time period",
+    "Cannot be combined with other promotions or offers"
   ]
 }
 
