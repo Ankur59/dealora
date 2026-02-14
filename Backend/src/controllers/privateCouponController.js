@@ -29,7 +29,6 @@ exports.syncCoupons = async (req, res) => {
         logger.info(`Syncing private coupons for brands: ${brands.join(', ')}`);
 
         const query = {};
-        const now = new Date();
 
         // Brand Filter (Required)
         query.brandName = {
@@ -89,28 +88,50 @@ exports.syncCoupons = async (req, res) => {
 
         // Validity Filter
         if (validity) {
+            const now = new Date();
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
-
             const todayEnd = new Date();
             todayEnd.setHours(23, 59, 59, 999);
 
-            const sevenDaysFromNow = new Date();
-            sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-            sevenDaysFromNow.setHours(23, 59, 59, 999);
+            const weekEnd = new Date();
+            weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay())); // End of current week
+            weekEnd.setHours(23, 59, 59, 999);
 
-            const thirtyDaysFromNow = new Date();
-            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-            thirtyDaysFromNow.setHours(23, 59, 59, 999);
+            const monthEnd = new Date();
+            monthEnd.setMonth(monthEnd.getMonth() + 1);
+            monthEnd.setDate(0); // Last day of current month
+            monthEnd.setHours(23, 59, 59, 999);
 
-            if (validity === 'valid_today') {
-                query.expiryDate = { $gte: todayStart, $lte: todayEnd };
-            } else if (validity === 'valid_this_week') {
-                query.expiryDate = { $gt: todayEnd, $lte: sevenDaysFromNow };
-            } else if (validity === 'valid_this_month') {
-                query.expiryDate = { $gt: sevenDaysFromNow, $lte: thirtyDaysFromNow };
-            } else if (validity === 'expired') {
-                query.expiryDate = { $lt: todayStart };
+            if (validity === 'valid_today' || validity === 'Valid Today') {
+                // Coupons that are currently valid (not expired)
+                query.expiryDate = { $gte: now };
+            } else if (validity === 'valid_this_week' || validity === 'Valid This Week') {
+                // Coupons that are currently valid (not expired)
+                query.expiryDate = { $gte: now };
+            } else if (validity === 'valid_this_month' || validity === 'Valid This Month') {
+                // Coupons that are currently valid (not expired)
+                query.expiryDate = { $gte: now };
+            } else if (validity === 'expiring_today' || validity === 'Expiring Today') {
+                // Coupons that expire today specifically
+                query.expiryDate = { $gte: now, $lte: todayEnd };
+            } else if (validity === 'expiring_this_week' || validity === 'Expiring This Week') {
+                // Coupons that expire within this week
+                query.expiryDate = { $gte: now, $lte: weekEnd };
+            } else if (validity === 'expiring_this_month' || validity === 'Expiring This Month') {
+                // Coupons that expire within this month
+                query.expiryDate = { $gte: now, $lte: monthEnd };
+            } else if (validity === 'expired' || validity === 'Expired') {
+                query.expiryDate = { $lt: now };
+            } else if (validity === 'today') {
+                // Legacy support
+                query.expiryDate = { $gte: now, $lte: todayEnd };
+            } else if (validity === 'week') {
+                // Legacy support
+                query.expiryDate = { $gte: now, $lte: weekEnd };
+            } else if (validity === 'month') {
+                // Legacy support
+                query.expiryDate = { $gte: now, $lte: monthEnd };
             }
         }
 
