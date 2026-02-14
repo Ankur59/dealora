@@ -371,7 +371,7 @@ private fun FilterCategoryButton(
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = if (isSelected) Color.White else Color(0xFF626262),
-            lineHeight = 61.sp // Match Figma line height
+            lineHeight = 61.sp
         )
     }
 }

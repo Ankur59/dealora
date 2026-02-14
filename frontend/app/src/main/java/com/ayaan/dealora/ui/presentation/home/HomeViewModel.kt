@@ -18,14 +18,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.repository.SyncedAppRepository
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val couponRepository: CouponRepository,
+    private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
     private val firebaseAuth: FirebaseAuth,
     private val moshi: Moshi
@@ -102,10 +105,13 @@ class HomeViewModel @Inject constructor(
     fun fetchStatistics() {
         viewModelScope.launch {
             Log.d(TAG, "fetchStatistics: Fetching private coupon statistics")
-            
-            // Use hardcoded brands: Amazon, Blinkit, Cred, Nykaa
-            val brands = listOf("Amazon", "Blinkit", "Cred", "Nykaa")
-            Log.d(TAG, "fetchStatistics: Using hardcoded brands: ${brands.joinToString()}")
+
+            // Read synced apps from local storage and send their names to the API.
+            val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+            val brands = syncedApps.map { syncedApp ->
+                syncedApp.appName.replaceFirstChar { it.uppercase() }
+            }
+            Log.d(TAG, "fetchStatistics: Using synced brands: ${brands.joinToString()}")
 
             when (val result = couponRepository.getPrivateCouponStatistics(brands)) {
                 is com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult.Success -> {
@@ -271,4 +277,3 @@ class HomeViewModel @Inject constructor(
         authRepository.logout()
     }
 }
-

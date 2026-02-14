@@ -220,6 +220,10 @@ class CategoriesViewModel @Inject constructor(
         }
     }
 
+    fun getPrivateCoupon(couponId: String): PrivateCoupon? {
+        return privateCouponsMap[couponId]
+    }
+
     fun redeemCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         Log.d("CategoriesViewModel", "Redeem coupon flow started for: $couponId")
         
