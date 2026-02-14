@@ -175,12 +175,27 @@ const getUserCoupons = async (req, res, next) => {
             monthEnd.setHours(23, 59, 59, 999);
 
             if (req.query.validity === 'valid_today' || req.query.validity === 'Valid Today') {
-                query.expireBy = { $gte: now, $lte: todayEnd };
+                // Coupons that are currently valid (not expired)
+                query.expireBy = { $gte: now };
                 query.status = 'active';
             } else if (req.query.validity === 'valid_this_week' || req.query.validity === 'Valid This Week') {
-                query.expireBy = { $gte: now, $lte: weekEnd };
+                // Coupons that are currently valid (not expired)
+                query.expireBy = { $gte: now };
                 query.status = 'active';
             } else if (req.query.validity === 'valid_this_month' || req.query.validity === 'Valid This Month') {
+                // Coupons that are currently valid (not expired)
+                query.expireBy = { $gte: now };
+                query.status = 'active';
+            } else if (req.query.validity === 'expiring_today' || req.query.validity === 'Expiring Today') {
+                // Coupons that expire today specifically
+                query.expireBy = { $gte: now, $lte: todayEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'expiring_this_week' || req.query.validity === 'Expiring This Week') {
+                // Coupons that expire within this week
+                query.expireBy = { $gte: now, $lte: weekEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'expiring_this_month' || req.query.validity === 'Expiring This Month') {
+                // Coupons that expire within this month
                 query.expireBy = { $gte: now, $lte: monthEnd };
                 query.status = 'active';
             } else if (req.query.validity === 'expired' || req.query.validity === 'Expired') {
@@ -404,12 +419,27 @@ const getUserCouponsTest = async (req, res, next) => {
             monthEnd.setHours(23, 59, 59, 999);
 
             if (req.query.validity === 'valid_today' || req.query.validity === 'Valid Today') {
-                query.expireBy = { $gte: now, $lte: todayEnd };
+                // Coupons that are currently valid (not expired)
+                query.expireBy = { $gte: now };
                 query.status = 'active';
             } else if (req.query.validity === 'valid_this_week' || req.query.validity === 'Valid This Week') {
-                query.expireBy = { $gte: now, $lte: weekEnd };
+                // Coupons that are currently valid (not expired)
+                query.expireBy = { $gte: now };
                 query.status = 'active';
             } else if (req.query.validity === 'valid_this_month' || req.query.validity === 'Valid This Month') {
+                // Coupons that are currently valid (not expired)
+                query.expireBy = { $gte: now };
+                query.status = 'active';
+            } else if (req.query.validity === 'expiring_today' || req.query.validity === 'Expiring Today') {
+                // Coupons that expire today specifically
+                query.expireBy = { $gte: now, $lte: todayEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'expiring_this_week' || req.query.validity === 'Expiring This Week') {
+                // Coupons that expire within this week
+                query.expireBy = { $gte: now, $lte: weekEnd };
+                query.status = 'active';
+            } else if (req.query.validity === 'expiring_this_month' || req.query.validity === 'Expiring This Month') {
+                // Coupons that expire within this month
                 query.expireBy = { $gte: now, $lte: monthEnd };
                 query.status = 'active';
             } else if (req.query.validity === 'expired' || req.query.validity === 'Expired') {
