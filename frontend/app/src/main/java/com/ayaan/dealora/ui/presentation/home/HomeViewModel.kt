@@ -190,6 +190,15 @@ class HomeViewModel @Inject constructor(
         fetchExploreCoupons()
     }
 
+    fun cacheExploringCoupon(coupon: PrivateCoupon) {
+        try {
+            Log.d(TAG, "Caching exploring coupon: ${coupon.id}")
+            couponRepository.cacheCoupon(coupon)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error caching coupon: ${coupon.id}", e)
+        }
+    }
+
     fun saveCoupon(coupon: PrivateCoupon) {
         viewModelScope.launch {
             try {

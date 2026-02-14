@@ -3,11 +3,9 @@ package com.ayaan.dealora.ui.presentation.home.components
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,17 +24,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.ayaan.dealora.R
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
+import com.ayaan.dealora.ui.presentation.home.HomeViewModel
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraPrimary
-import com.ayaan.dealora.ui.presentation.home.HomeViewModel
 
 @Composable
 fun ExploringCoupons(
@@ -62,30 +58,14 @@ fun ExploringCoupons(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(32.dp),
-                    color = DealoraPrimary
+                    modifier = Modifier.size(32.dp), color = DealoraPrimary
                 )
             }
         }
+
         activeCoupons.isEmpty() -> {
-            // Show empty state with placeholder images
-//            LazyRow(
-//                contentPadding = PaddingValues(horizontal = 0.dp)
-//            ) {
-//                items(5) { index ->
-//                    Image(
-//                        painter = painterResource(R.drawable.coupon_filled),
-//                        contentDescription = "Coupon Banner",
-//                        modifier = Modifier
-//                            .width(300.dp)
-//                            .height(200.dp)
-//                    )
-//                    if (index < 4) {
-//                        Box(modifier = Modifier.width(17.dp))
-//                    }
-//                }
-//            }
         }
+
         else -> {
             // Show actual coupons with proper width
             LazyRow(
@@ -123,6 +103,8 @@ fun ExploringCoupons(
                                 viewModel.removeSavedCoupon(couponId)
                             },
                             onDetailsClick = {
+                                // Cache the coupon before navigation so CouponDetailsViewModel can access it
+                                viewModel.cacheExploringCoupon(coupon)
                                 navController.navigate(
                                     Route.CouponDetails.createRoute(
                                         couponId = coupon.id,
@@ -136,145 +118,136 @@ fun ExploringCoupons(
                                     // Create implicit intent with custom action
                                     val intent = Intent().apply {
                                         action = "com.ayaan.couponviewer.SHOW_COUPON"
-                                        
+
                                         // Add coupon data as extras with defaults for null/empty values
                                         putExtra(
                                             "EXTRA_COUPON_CODE",
-                                            coupon.couponCode?.takeIf { it.isNotEmpty() } ?: "NO CODE"
-                                        )
+                                            coupon.couponCode?.takeIf { it.isNotEmpty() }
+                                                ?: "NO CODE")
                                         putExtra(
                                             "EXTRA_COUPON_TITLE",
-                                            coupon.couponTitle?.takeIf { it.isNotEmpty() } ?: "Special Offer"
-                                        )
+                                            coupon.couponTitle?.takeIf { it.isNotEmpty() }
+                                                ?: "Special Offer")
                                         putExtra(
                                             "EXTRA_DESCRIPTION",
-                                            coupon.description?.takeIf { it.isNotEmpty() } ?: "Check app for details"
-                                        )
+                                            coupon.description?.takeIf { it.isNotEmpty() }
+                                                ?: "Check app for details")
                                         putExtra(
                                             "EXTRA_BRAND_NAME",
-                                            coupon.brandName?.takeIf { it.isNotEmpty() } ?: "Dealora"
-                                        )
+                                            coupon.brandName?.takeIf { it.isNotEmpty() }
+                                                ?: "Dealora")
                                         putExtra(
                                             "EXTRA_CATEGORY",
-                                            coupon.category?.takeIf { it.isNotEmpty() } ?: "General"
-                                        )
+                                            coupon.category?.takeIf { it.isNotEmpty() }
+                                                ?: "General")
                                         coupon.daysUntilExpiry?.let {
                                             putExtra("EXTRA_EXPIRY_DATE", "$it days")
                                         }
                                         putExtra(
                                             "EXTRA_MINIMUM_ORDER",
-                                            coupon.minimumOrderValue?.takeIf { it.isNotEmpty() } ?: "No minimum"
-                                        )
+                                            coupon.minimumOrderValue?.takeIf { it.isNotEmpty() }
+                                                ?: "No minimum")
                                         putExtra(
                                             "EXTRA_COUPON_LINK",
-                                            coupon.couponLink?.takeIf { it.isNotEmpty() } ?: ""
-                                        )
+                                            coupon.couponLink?.takeIf { it.isNotEmpty() } ?: "")
                                         putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
-                                        
+
                                         // Set package to ensure it opens the right app
                                         setPackage("com.ayaan.couponviewer")
-                                        
+
                                         // Add category to help Android find the intent handler
                                         addCategory(Intent.CATEGORY_DEFAULT)
                                     }
-                                    
-                                    Log.d("ExploringCoupons", "Attempting to launch CouponViewer with intent: $intent")
+
+                                    Log.d(
+                                        "ExploringCoupons",
+                                        "Attempting to launch CouponViewer with intent: $intent"
+                                    )
                                     Log.d("ExploringCoupons", "Coupon Title: ${coupon.couponTitle}")
-                                    
+
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
-                                    Log.e("ExploringCoupons", "Failed to open CouponViewer app: ${e.message}", e)
-                                    
+                                    Log.e(
+                                        "ExploringCoupons",
+                                        "Failed to open CouponViewer app: ${e.message}",
+                                        e
+                                    )
+
                                     // Fallback to Play Store
                                     try {
                                         val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                            data =
+                                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
                                             setPackage("com.android.vending")
                                         }
                                         context.startActivity(playStoreIntent)
                                     } catch (e2: Exception) {
                                         // Last resort - open in browser
                                         val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                            data =
+                                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
                                         }
                                         context.startActivity(browserIntent)
                                     }
                                 }
                             },
                             onRedeem = { couponId ->
-                                viewModel.redeemCoupon(
-                                    couponId = couponId,
-                                    onSuccess = {
-                                        showSuccessDialog = true
-                                    },
-                                    onError = { error ->
-                                        errorMessage = error
-                                        showErrorDialog = true
-                                    }
-                                )
-                            }
-                        )
+                                viewModel.redeemCoupon(couponId = couponId, onSuccess = {
+                                    showSuccessDialog = true
+                                }, onError = { error ->
+                                    errorMessage = error
+                                    showErrorDialog = true
+                                })
+                            })
                     }
 
                     // Success Dialog
                     if (showSuccessDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showSuccessDialog = false },
-                            title = {
-                                Text(
-                                    text = "Success!",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
+                        AlertDialog(onDismissRequest = { showSuccessDialog = false }, title = {
+                            Text(
+                                text = "Success!",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                        }, text = {
+                            Text(
+                                text = "Coupon redeemed successfully!", fontSize = 14.sp
+                            )
+                        }, confirmButton = {
+                            Button(
+                                onClick = { showSuccessDialog = false },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF4CAF50)
                                 )
-                            },
-                            text = {
-                                Text(
-                                    text = "Coupon redeemed successfully!",
-                                    fontSize = 14.sp
-                                )
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = { showSuccessDialog = false },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF4CAF50)
-                                    )
-                                ) {
-                                    Text("OK")
-                                }
+                            ) {
+                                Text("OK")
                             }
-                        )
+                        })
                     }
 
                     // Error Dialog
                     if (showErrorDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showErrorDialog = false },
-                            title = {
-                                Text(
-                                    text = "Error",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    color = Color.Red
+                        AlertDialog(onDismissRequest = { showErrorDialog = false }, title = {
+                            Text(
+                                text = "Error",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = Color.Red
+                            )
+                        }, text = {
+                            Text(
+                                text = errorMessage, fontSize = 14.sp
+                            )
+                        }, confirmButton = {
+                            Button(
+                                onClick = { showErrorDialog = false },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.Red
                                 )
-                            },
-                            text = {
-                                Text(
-                                    text = errorMessage,
-                                    fontSize = 14.sp
-                                )
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = { showErrorDialog = false },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.Red
-                                    )
-                                ) {
-                                    Text("OK")
-                                }
+                            ) {
+                                Text("OK")
                             }
-                        )
+                        })
                     }
                 }
             }

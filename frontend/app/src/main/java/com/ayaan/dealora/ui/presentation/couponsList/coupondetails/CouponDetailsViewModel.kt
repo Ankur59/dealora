@@ -63,26 +63,44 @@ class CouponDetailsViewModel @Inject constructor(
                 if (_isPrivate) {
                     Log.d(TAG, "Loading private coupon with id: $couponId")
 
-                    // Fetch synced apps from database
-                    val syncedApps = syncedAppRepository.getAllSyncedApps().first()
-                    val brands = syncedApps.map { syncedApp ->
-                        syncedApp.appName.replaceFirstChar { it.uppercase() }
-                    }
+                    // Step 1: Try to get from cache (ExploringCoupons caches coupons before navigation)
+                    var privateCoupon: PrivateCoupon? = couponRepository.getCachedCoupon(couponId)
 
-                    Log.d(TAG, "Fetching private coupon for brands: ${brands.joinToString()}")
-
-                    if (brands.isEmpty()) {
-                        Log.e(TAG, "No synced apps found")
-                        _uiState.value = CouponDetailsUiState.Error("No synced apps found. Please sync apps first.")
+                    if (privateCoupon != null) {
+                        Log.d(TAG, "✓ Found coupon in cache: $couponId")
+                        val couponDetail = convertPrivateCouponToCouponDetail(privateCoupon)
+                        _uiState.value = CouponDetailsUiState.Success(couponDetail)
                         return@launch
                     }
 
-                    val privateCoupon = couponRepository.getPrivateCouponById(couponId, brands)
+                    Log.d(TAG, "Coupon not in cache, trying API fetch...")
+
+                    // Step 2: Try with hardcoded brands (ExploringCoupons compatibility)
+                    val hardcodedBrands = listOf("Amazon", "Blinkit", "Cred", "Nykaa")
+                    Log.d(TAG, "Attempt 1: Fetching private coupon for hardcoded brands: ${hardcodedBrands.joinToString()}")
+                    privateCoupon = couponRepository.getPrivateCouponById(couponId, hardcodedBrands)
+
+                    // Step 3: If not found, try with synced apps (CouponsList compatibility)
+                    if (privateCoupon == null) {
+                        Log.d(TAG, "Coupon not found with hardcoded brands, trying synced apps...")
+                        val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+                        val syncedBrands = syncedApps.map { syncedApp ->
+                            syncedApp.appName.replaceFirstChar { it.uppercase() }
+                        }
+
+                        Log.d(TAG, "Attempt 2: Fetching private coupon for synced brands: ${syncedBrands.joinToString()}")
+
+                        if (syncedBrands.isNotEmpty()) {
+                            privateCoupon = couponRepository.getPrivateCouponById(couponId, syncedBrands)
+                        }
+                    }
 
                     if (privateCoupon != null) {
                         // Convert PrivateCoupon to CouponDetail
                         val couponDetail = convertPrivateCouponToCouponDetail(privateCoupon)
                         _uiState.value = CouponDetailsUiState.Success(couponDetail)
+                        // Cache it for next time
+                        couponRepository.cacheCoupon(privateCoupon)
                     } else {
                         Log.e(TAG, "Private coupon not found")
                         _uiState.value = CouponDetailsUiState.Error("Coupon not found")
