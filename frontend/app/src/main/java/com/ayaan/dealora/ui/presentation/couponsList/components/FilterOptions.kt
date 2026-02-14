@@ -115,7 +115,7 @@ fun FiltersBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xD9D9D9).copy(alpha = 0.58f),
+        containerColor = Color(0xffD9D9D9).copy(alpha = 0.58f),
         shape = RoundedCornerShape(topStart = 41.dp, topEnd = 41.dp),
         dragHandle = null
     ) {
@@ -184,14 +184,14 @@ fun FiltersBottomSheet(
                         onClick = { selectedFilterCategory = FilterCategory.VALIDITY },
                         modifier = Modifier.padding(start = 24.dp, top = 8.dp)
                     )
-                    if(syncedBrands.isNotEmpty()) {
-                        FilterCategoryButton(
-                            text = "Brand",
-                            isSelected = selectedFilterCategory == FilterCategory.BRAND,
-                            onClick = { selectedFilterCategory = FilterCategory.BRAND },
-                            modifier = Modifier.padding(start = 24.dp, top = 8.dp)
-                        )
-                    }
+//                    if(syncedBrands.isNotEmpty()) {
+//                        FilterCategoryButton(
+//                            text = "Brand",
+//                            isSelected = selectedFilterCategory == FilterCategory.BRAND,
+//                            onClick = { selectedFilterCategory = FilterCategory.BRAND },
+//                            modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+//                        )
+//                    }
 //                    FilterCategoryButton(
 //                        text = "Category",
 //                        isSelected = selectedFilterCategory == FilterCategory.CATEGORY,

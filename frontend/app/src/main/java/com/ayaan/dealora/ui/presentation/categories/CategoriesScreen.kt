@@ -56,7 +56,7 @@ fun CategoriesScreen(
                 onBackClick = { navController.popBackStack() },
                 isPublicMode = uiState.isPublicMode,
                 onPublicModeChanged = { viewModel.onPublicModeChanged(it) },
-                showModeSwitch = true
+                showModeSwitch = false
             )
         }, containerColor = Color.White
     ) { innerPadding ->

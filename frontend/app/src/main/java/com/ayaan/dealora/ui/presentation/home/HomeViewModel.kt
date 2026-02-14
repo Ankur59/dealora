@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 
 @HiltViewModel
@@ -106,15 +107,20 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             Log.d(TAG, "fetchStatistics: Fetching private coupon statistics")
 
-            // Read synced apps from local storage and send their names to the API.
             val syncedApps = syncedAppRepository.getAllSyncedApps().first()
-            val brands = syncedApps.map { syncedApp ->
+
+            var brands = syncedApps.map { syncedApp ->
                 syncedApp.appName.replaceFirstChar { it.uppercase() }
             }
+
+            if (brands.isEmpty()) {
+                brands = listOf("")
+            }
+
             Log.d(TAG, "fetchStatistics: Using synced brands: ${brands.joinToString()}")
 
             when (val result = couponRepository.getPrivateCouponStatistics(brands)) {
-                is com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult.Success -> {
+                is PrivateCouponStatisticsResult.Success -> {
                     Log.d(TAG, "fetchStatistics: Success - ${result.statistics.activeCouponsCount} coupons")
                     _uiState.update {
                         it.copy(
@@ -124,7 +130,8 @@ class HomeViewModel @Inject constructor(
                         )
                     }
                 }
-                is com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult.Error -> {
+
+                is PrivateCouponStatisticsResult.Error -> {
                     Log.e(TAG, "fetchStatistics: Error - ${result.message}")
                     _uiState.update {
                         it.copy(
@@ -136,6 +143,7 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
+
 
     fun fetchExploreCoupons() {
         viewModelScope.launch {

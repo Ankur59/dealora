@@ -379,7 +379,7 @@ fun Dashboard(
                                         navController.navigate(
                                             Route.CouponDetails.createRoute(
                                                 couponId = coupon.id,
-                                                isPrivate = true,
+                                                isPrivate = coupon.couponType != "public",
                                                 couponCode = coupon.couponCode ?: "WELCOME100"
                                             )
                                         )
