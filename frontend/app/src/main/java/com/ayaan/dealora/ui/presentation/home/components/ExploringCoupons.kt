@@ -37,7 +37,6 @@ import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.presentation.home.HomeViewModel
-import androidx.core.net.toUri
 
 @Composable
 fun ExploringCoupons(
@@ -47,6 +46,7 @@ fun ExploringCoupons(
     savedCouponIds: Set<String>,
     viewModel: HomeViewModel
 ) {
+    Log.d("ExploringCoupons", coupons.toString())
     // Filter out redeemed coupons
     val activeCoupons = coupons.filter { coupon ->
         coupon.redeemed != true
@@ -69,22 +69,22 @@ fun ExploringCoupons(
         }
         activeCoupons.isEmpty() -> {
             // Show empty state with placeholder images
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 0.dp)
-            ) {
-                items(5) { index ->
-                    Image(
-                        painter = painterResource(R.drawable.coupon_filled),
-                        contentDescription = "Coupon Banner",
-                        modifier = Modifier
-                            .width(300.dp)
-                            .height(200.dp)
-                    )
-                    if (index < 4) {
-                        Box(modifier = Modifier.width(17.dp))
-                    }
-                }
-            }
+//            LazyRow(
+//                contentPadding = PaddingValues(horizontal = 0.dp)
+//            ) {
+//                items(5) { index ->
+//                    Image(
+//                        painter = painterResource(R.drawable.coupon_filled),
+//                        contentDescription = "Coupon Banner",
+//                        modifier = Modifier
+//                            .width(300.dp)
+//                            .height(200.dp)
+//                    )
+//                    if (index < 4) {
+//                        Box(modifier = Modifier.width(17.dp))
+//                    }
+//                }
+//            }
         }
         else -> {
             // Show actual coupons with proper width
@@ -135,7 +135,7 @@ fun ExploringCoupons(
                                     // Create implicit intent with custom action
                                     val intent = Intent().apply {
                                         action = "com.ayaan.couponviewer.SHOW_COUPON"
-
+                                        
                                         // Add coupon data as extras with defaults for null/empty values
                                         putExtra(
                                             "EXTRA_COUPON_CODE",
@@ -169,34 +169,32 @@ fun ExploringCoupons(
                                             coupon.couponLink?.takeIf { it.isNotEmpty() } ?: ""
                                         )
                                         putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
-
+                                        
                                         // Set package to ensure it opens the right app
                                         setPackage("com.ayaan.couponviewer")
-
+                                        
                                         // Add category to help Android find the intent handler
                                         addCategory(Intent.CATEGORY_DEFAULT)
                                     }
-
+                                    
                                     Log.d("ExploringCoupons", "Attempting to launch CouponViewer with intent: $intent")
                                     Log.d("ExploringCoupons", "Coupon Title: ${coupon.couponTitle}")
-
+                                    
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
                                     Log.e("ExploringCoupons", "Failed to open CouponViewer app: ${e.message}", e)
-
+                                    
                                     // Fallback to Play Store
                                     try {
                                         val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            data =
-                                                "https://play.google.com/store/apps/details?id=com.ayaan.couponviewer".toUri()
+                                            data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
                                             setPackage("com.android.vending")
                                         }
                                         context.startActivity(playStoreIntent)
                                     } catch (e2: Exception) {
                                         // Last resort - open in browser
                                         val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            data =
-                                                "https://play.google.com/store/apps/details?id=com.ayaan.couponviewer".toUri()
+                                            data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
                                         }
                                         context.startActivity(browserIntent)
                                     }

@@ -17,9 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.ayaan.dealora.data.repository.SyncedAppRepository
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
 import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 
@@ -28,7 +26,6 @@ class HomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val couponRepository: CouponRepository,
-    private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
     private val firebaseAuth: FirebaseAuth,
     private val moshi: Moshi
@@ -106,10 +103,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             Log.d(TAG, "fetchStatistics: Fetching private coupon statistics")
             
-            // Fetch synced brands from Room DB
-            val syncedApps = syncedAppRepository.getAllSyncedApps().first()
-            val brands = if (syncedApps.isEmpty()) listOf("") else syncedApps.map { it.appName.replaceFirstChar { char -> char.uppercase() } }
-            Log.d(TAG, "fetchStatistics: Synced brands: $brands")
+            // Use hardcoded brands: Amazon, Blinkit, Cred, Nykaa
+            val brands = listOf("Amazon", "Blinkit", "Cred", "Nykaa")
+            Log.d(TAG, "fetchStatistics: Using hardcoded brands: ${brands.joinToString()}")
 
             when (val result = couponRepository.getPrivateCouponStatistics(brands)) {
                 is com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult.Success -> {
@@ -141,32 +137,13 @@ class HomeViewModel @Inject constructor(
                 Log.d(TAG, "fetchExploreCoupons: Fetching explore coupons with filters")
                 _uiState.update { it.copy(isLoadingCoupons = true) }
 
-                // Fetch synced apps from database
-                val syncedApps = syncedAppRepository.getAllSyncedApps().first()
-                Log.d(TAG, "Found ${syncedApps.size} synced apps in database")
-
-                // Extract app names and capitalize first letter to match API format
-                val allSyncedBrands = syncedApps.map { syncedApp ->
-                    syncedApp.appName.replaceFirstChar { it.uppercase() }
-                }
-
-                Log.d(TAG, "All synced brands: ${allSyncedBrands.joinToString()}")
-
-                // If no synced apps, don't make API call
-                if (allSyncedBrands.isEmpty()) {
-                    Log.d(TAG, "No synced apps found, skipping explore coupons fetch")
-                    _uiState.update { 
-                        it.copy(
-                            exploreCoupons = emptyList(),
-                            isLoadingCoupons = false
-                        )
-                    }
-                    return@launch
-                }
+                // Use hardcoded brands: Amazon, Blinkit, Cred, Nykaa
+                val brands = listOf("Amazon", "Blinkit", "Cred", "Nykaa")
+                Log.d(TAG, "Using hardcoded brands: ${brands.joinToString()}")
 
                 // Call sync endpoint with specified filters
                 when (val result = couponRepository.syncPrivateCoupons(
-                    brands = allSyncedBrands,
+                    brands = brands,
                     category = null,
                     search = null,
                     discountType = null,
