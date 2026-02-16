@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { runScraper } = require('../scraper');
 const Coupon = require('../models/Coupon');
+const { syncSheet } = require('../controllers/exclusiveCouponController');
 const logger = require('../utils/logger');
 
 const initCronJobs = () => {
@@ -30,6 +31,21 @@ const initCronJobs = () => {
             logger.info(`CRON: Cleanup completed. Removed ${result.deletedCount} expired coupon(s) from database.`);
         } catch (error) {
             logger.error('CRON: Cleanup job failed:', error);
+        }
+    });
+
+    // 3. Google Sheet Sync Every 24 Hours at 3:00 AM
+    cron.schedule('0 3 * * *', async () => {
+        logger.info('CRON: Starting Google Sheet sync for exclusive coupons...');
+        try {
+            const result = await syncSheet();
+            if (result.success) {
+                logger.info(`CRON: Sheet sync completed. ${result.stats?.successCount || 0} coupons synced.`);
+            } else {
+                logger.error(`CRON: Sheet sync failed: ${result.message}`);
+            }
+        } catch (error) {
+            logger.error('CRON: Sheet sync job failed:', error);
         }
     });
 
