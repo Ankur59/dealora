@@ -15,6 +15,7 @@ const couponRoutes = require('./routes/couponRoutes');
 const privateCouponRoutes = require('./routes/privateCouponRoutes');
 const featureRoutes = require('./routes/featureRoutes');
 const exclusiveCouponRoutes = require('./routes/exclusiveCouponRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 
 const app = express();
@@ -120,6 +121,7 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/private-coupons', privateCouponRoutes);
 app.use('/api/features', featureRoutes);
 app.use('/api/exclusive-coupons', exclusiveCouponRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 
 app.get('/', (req, res) => {

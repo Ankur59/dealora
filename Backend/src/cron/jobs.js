@@ -3,6 +3,7 @@ const { runScraper } = require('../scraper');
 const Coupon = require('../models/Coupon');
 const PrivateCoupon = require('../models/PrivateCoupon');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const notificationService = require('../services/notificationService');
 const { syncSheet } = require('../controllers/exclusiveCouponController');
 const logger = require('../utils/logger');
@@ -54,7 +55,7 @@ const initCronJobs = () => {
                 return;
             }
 
-            const users = await User.find({ fcmToken: { $ne: null } }, 'fcmToken');
+            const users = await User.find({ fcmToken: { $ne: null } }, '_id fcmToken');
             const tokens = users.map(u => u.fcmToken).filter(Boolean);
 
             if (!tokens.length) {
@@ -70,7 +71,24 @@ const initCronJobs = () => {
                     type: 'expiry_alert'
                 };
 
+                // Send push notification
                 await notificationService.sendMulticastNotification(tokens, title, body, data);
+
+                // Save ONE notification to database with array of userIds
+                const userIds = users.map(user => user._id);
+                await Notification.create({
+                    userId: userIds, // Array of user IDs
+                    title,
+                    body,
+                    type: 'expiry_alert',
+                    data,
+                    couponId: coupon._id,
+                    couponModel: 'PrivateCoupon',
+                    priority: 'high',
+                    isSent: true,
+                    sentAt: new Date(),
+                });
+                logger.info(`CRON: Saved notification for ${userIds.length} users for coupon: ${coupon.couponTitle}`);
             }
 
             logger.info('CRON: Expiry notifications sent.');
@@ -80,7 +98,7 @@ const initCronJobs = () => {
     });
 
     // 4. Google Sheet sync at 3 AM
-    cron.schedule('0 3 * * *', async () => {
+    cron.schedule('16 3 * * *', async () => {
         logger.info('CRON: Starting Google Sheet sync...');
         try {
             const result = await syncSheet();
