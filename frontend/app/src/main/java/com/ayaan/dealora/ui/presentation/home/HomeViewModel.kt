@@ -284,4 +284,18 @@ class HomeViewModel @Inject constructor(
         Log.d(TAG, "logout: Initiating logout")
         authRepository.logout()
     }
+
+    suspend fun areAllAppsSynced(): Boolean {
+        // Total available apps that can be synced
+        val totalAvailableApps = listOf("zomato", "phonepe", "blinkit", "amazon", "nykaa", "cred", "swiggy")
+
+        val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+        val syncedAppIds = syncedApps.map { it.appId.lowercase() }.toSet()
+
+        Log.d(TAG, "Total available apps: ${totalAvailableApps.size}")
+        Log.d(TAG, "Synced apps: ${syncedAppIds.size}")
+        Log.d(TAG, "Synced app IDs: ${syncedAppIds.joinToString()}")
+
+        return syncedAppIds.containsAll(totalAvailableApps)
+    }
 }
