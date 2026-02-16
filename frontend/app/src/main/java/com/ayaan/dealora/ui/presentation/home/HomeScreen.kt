@@ -11,7 +11,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,12 +27,10 @@ import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
 import com.ayaan.dealora.ui.presentation.home.components.ExclusiveBannerCard
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
-import com.ayaan.dealora.ui.presentation.home.components.SyncBannerCard
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
 import com.ayaan.dealora.ui.theme.*
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +41,6 @@ fun HomeScreen(
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
     
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit){
         viewModel.fetchProfile()
@@ -178,7 +174,9 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
             ExclusiveBannerCard(
-                onSyncClick = {}
+                onSyncClick = {
+                    navController.navigate(Route.ExploreCoupons.createRoute(isPublic = true))
+                }
             )
 //            SyncBannerCard(
 //                onSyncClick = {

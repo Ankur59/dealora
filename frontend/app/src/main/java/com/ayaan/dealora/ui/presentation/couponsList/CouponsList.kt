@@ -74,6 +74,16 @@ fun CouponsList(
     // Get category parameter from navigation
     val categoryParam = navController.currentBackStackEntry?.arguments?.getString("category")
 
+    // Get isPublic parameter from navigation
+    val isPublicParam = navController.currentBackStackEntry?.arguments?.getBoolean("isPublic") ?: false
+
+    // Set public mode on launch if parameter is true
+    LaunchedEffect(isPublicParam) {
+        if (isPublicParam) {
+            viewModel.onPublicModeChanged(true)
+        }
+    }
+
     // Apply category filter on launch if provided
     LaunchedEffect(categoryParam) {
         if (categoryParam != null) {

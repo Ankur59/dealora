@@ -14,9 +14,9 @@ sealed class Route(val path: String) {
     data object Categories: Route("categories")
     data object AddCoupon:Route("addcoupon")
     data object Splash:Route("splash")
-    data object ExploreCoupons:Route("explorecoupons?category={category}") {
-        fun createRoute(category: String? = null) =
-            if (category != null) "explorecoupons?category=$category" else "explorecoupons"
+    data object ExploreCoupons:Route("explorecoupons?category={category}&isPublic={isPublic}") {
+        fun createRoute(category: String? = null, isPublic: Boolean = false) =
+            "explorecoupons?category=${category ?: ""}&isPublic=$isPublic"
     }
     data object ContactSupport:Route("contactsupport")
     data object FAQ:Route("faq")
