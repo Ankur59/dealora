@@ -98,7 +98,7 @@ const initCronJobs = () => {
     });
 
     // 4. Google Sheet sync at 3 AM
-    cron.schedule('13 3 * * *', async () => {
+    cron.schedule('16 3 * * *', async () => {
         logger.info('CRON: Starting Google Sheet sync...');
         try {
             const result = await syncSheet();
