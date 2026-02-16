@@ -42,6 +42,37 @@ class CouponRepository @Inject constructor(
         private const val TAG = "CouponRepository"
     }
 
+    // Temporary cache for coupons viewed from ExploringCoupons
+    // This allows CouponDetailsViewModel to access the coupon without re-fetching
+    private val couponCache = mutableMapOf<String, PrivateCoupon>()
+
+    /**
+     * Cache a coupon temporarily (used when navigating to details from ExploringCoupons)
+     */
+    fun cacheCoupon(coupon: PrivateCoupon) {
+        couponCache[coupon.id] = coupon
+        Log.d(TAG, "Coupon cached: ${coupon.id}")
+    }
+
+    /**
+     * Retrieve a cached coupon
+     */
+    fun getCachedCoupon(couponId: String): PrivateCoupon? {
+        return couponCache[couponId].also {
+            if (it != null) {
+                Log.d(TAG, "Retrieved cached coupon: $couponId")
+            }
+        }
+    }
+
+    /**
+     * Clear cached coupon
+     */
+    fun clearCachedCoupon(couponId: String) {
+        couponCache.remove(couponId)
+        Log.d(TAG, "Cleared cached coupon: $couponId")
+    }
+
     /**
      * Get paginated coupons as Flow<PagingData>
      */

@@ -133,6 +133,24 @@ data class PrivateCoupon(
     @Json(name = "updatedAt")
     val updatedAt: String? = null,
 
+    @Json(name = "userId")
+    val userId: String? = null,
+
+    @Json(name = "base64ImageUrl")
+    val base64ImageUrl: String? = null,
+
+    @Json(name = "discountType")
+    val discountType: String? = null,
+
+    @Json(name = "discountValue")
+    val discountValue: Any? = null,
+
+    @Json(name = "couponDetails")
+    val couponDetails: String? = null,
+
+    @Json(name = "terms")
+    val terms: String? = null,
+
     @Json(name = "couponType")
     val couponType: String = "private"
 )

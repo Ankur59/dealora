@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,6 +53,7 @@ fun DesyncAppScreen(
     viewModel: DesyncAppViewModel = hiltViewModel()
 ) {
     var showRemoveDialog by remember { mutableStateOf(false) }
+    var showRemoveAllDialog by remember { mutableStateOf(false) }
     var selectedApp by remember { mutableStateOf<ActiveApp?>(null) }
 
     val syncedApps by viewModel.syncedApps.collectAsState()
@@ -70,7 +70,11 @@ fun DesyncAppScreen(
 
     Scaffold(
         topBar = {
-            DesyncTopBar(navController = navController)
+            DesyncTopBar(
+                navController = navController,
+                hasApps = activeApps.isNotEmpty(),
+                onRemoveAllClick = { showRemoveAllDialog = true }
+            )
         },
         containerColor = AppColors.Background
     ) { paddingValues ->
@@ -162,12 +166,29 @@ fun DesyncAppScreen(
                 }
             )
         }
+
+        // Remove All Apps Dialog
+        if (showRemoveAllDialog) {
+            RemoveAllAppsDialog(
+                onDismiss = {
+                    showRemoveAllDialog = false
+                },
+                onConfirm = {
+                    viewModel.removeAllSyncedApps()
+                    showRemoveAllDialog = false
+                }
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DesyncTopBar(navController: NavController) {
+fun DesyncTopBar(
+    navController: NavController,
+    hasApps: Boolean = false,
+    onRemoveAllClick: () -> Unit = {}
+) {
     TopAppBar(
         title = {
             Text(
@@ -186,15 +207,18 @@ fun DesyncTopBar(navController: NavController) {
                 )
             }
         },
-//        actions = {
-//            IconButton(onClick = { /* Handle search */ }) {
-//                Icon(
-//                    imageVector = Icons.Default.Search,
-//                    contentDescription = "Search",
-//                    tint = AppColors.IconTint
-//                )
-//            }
-//        },
+        actions = {
+            if (hasApps) {
+                TextButton(onClick = onRemoveAllClick) {
+                    Text(
+                        text = "Remove All",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFE53935) // Red color for remove action
+                    )
+                }
+            }
+        },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = AppColors.Background
         )
@@ -360,3 +384,107 @@ fun RemoveSyncedAppDialog(
         }
     }
 }
+
+@Composable
+fun RemoveAllAppsDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = AppColors.CardBackground
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                // Header with close button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Remove All Synced Apps?",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppColors.PrimaryText,
+                            lineHeight = 24.sp
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = AppColors.IconTint
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Description text
+                Text(
+                    text = "This will remove all synced apps and delete all their coupons from your device. This action cannot be undone.",
+                    fontSize = 14.sp,
+                    color = AppColors.SecondaryText,
+                    lineHeight = 20.sp
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Action Buttons Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Cancel Button
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.height(48.dp)
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppColors.PrimaryText
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Remove All Button
+                    Button(
+                        onClick = onConfirm,
+                        modifier = Modifier.height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE53935) // Red color for destructive action
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "Remove All",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

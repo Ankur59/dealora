@@ -145,9 +145,130 @@ fun SyncBannerCard(
         }
     }
 }
+@Composable
+fun ExclusiveBannerCard(
+    onSyncClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    characterDrawable: Int = R.drawable.sync_banner_man
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xffF0F0F0))
+            .border(
+                width = 1.dp,
+                color = Color.Black.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .clickable { onSyncClick() }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            Image(
+                painter = painterResource(id = characterDrawable),
+                contentDescription = "null",
+                contentScale = ContentScale.FillHeight,
+                modifier = Modifier
+                    .weight(0.45f)
+                    .aspectRatio(1f)
+            )
+
+            Column(
+                modifier = Modifier
+                    .weight(0.55f)
+                    .padding(end = 2.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.Start
+            ) {
+
+                // "Sync Your Apps," — italic, plain
+                Text(
+                    text = "Find Exclusive Coupons,",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontStyle = FontStyle.Italic,
+                    color = Color.Black,
+                    lineHeight = 20.sp
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // "Unlock Every Deal" — bold white text on purple pill
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DealoraPrimary)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Never Miss a Deal",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        lineHeight = 20.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Bullet points
+                val bullets = listOf(
+                    "Access handpicked coupons in one place",
+                    "Unlock limited-time deals from top brands",
+                    "Maximize savings on every purchase"
+                )
+                bullets.forEach { bullet ->
+                    Row(
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text(
+                            text = "• ",
+                            fontSize = 7.sp,
+                            color = Color.Black,
+                            lineHeight = 15.sp
+                        )
+                        Text(
+                            text = bullet,
+                            style = TextStyle(
+                                fontSize = 9.sp,
+                                lineHeight = 15.sp,
+                                fontWeight = FontWeight(400),
+                                color = Color(0xFF000000),
+                            )
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+//                Spacer(modifier = Modifier.height(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DealoraPrimary)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Explore Here",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Preview(showBackground = true, backgroundColor = 0xFFF5F5F5)
 @Composable
 fun SyncBannerCardPreview() {
-    SyncBannerCard(onSyncClick = {})
+    ExclusiveBannerCard(onSyncClick = {})
 }

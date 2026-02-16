@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,9 +24,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
+import com.ayaan.dealora.ui.presentation.home.components.ExclusiveBannerCard
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
-import com.ayaan.dealora.ui.presentation.home.components.SyncBannerCard
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
@@ -39,6 +40,8 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
     
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(Unit){
         viewModel.fetchProfile()
         viewModel.fetchStatistics()
@@ -50,6 +53,9 @@ fun HomeScreen(
         },
         contentWindowInsets = WindowInsets(0),
         containerColor = DealoraBackground,
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        },
         floatingActionButton = {
             DealoraBottomBar(
                 navController = navController
@@ -167,9 +173,28 @@ fun HomeScreen(
             )
 
             Spacer(modifier = Modifier.height(20.dp))
-            SyncBannerCard(
-                onSyncClick = { navController.navigate(Route.SyncAppsStart.path) }
+            ExclusiveBannerCard(
+                onSyncClick = {
+                    navController.navigate(Route.ExploreCoupons.createRoute(isPublic = true))
+                }
             )
+//            SyncBannerCard(
+//                onSyncClick = {
+//                    coroutineScope.launch {
+//                        val allAppsSynced = viewModel.areAllAppsSynced()
+//                        if (allAppsSynced) {
+//                            // Show snackbar if all apps are synced
+//                            snackbarHostState.showSnackbar(
+//                                message = "All apps are already synced!",
+//                                duration = SnackbarDuration.Short
+//                            )
+//                        } else {
+//                            // Navigate to sync screen if not all apps are synced
+//                            navController.navigate(Route.SyncAppsStart.path)
+//                        }
+//                    }
+//                }
+//            )
             // Sync Apps Card
 //            Image(
 //                painter = painterResource(id = R.drawable.sync_banner),

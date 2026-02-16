@@ -45,7 +45,7 @@ fun CouponsListTopBar(
     onPublicModeChanged: (Boolean) -> Unit = {},
     showModeSwitch: Boolean = true
 ) {
-
+    val padding=if(!showModeSwitch) 12.dp else 8.dp
     TopAppBar(
         windowInsets = WindowInsets(0.dp),
         colors = TopAppBarDefaults.topAppBarColors(
@@ -55,11 +55,10 @@ fun CouponsListTopBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(end = 8.dp),
+                    .padding(end=padding),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
-                // 🔙 Back button
+                // Back button
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -113,7 +112,7 @@ fun CouponsListTopBar(
                     )
 
                     Text(
-                        text = if (!isPublicMode) "Private" else "Public",
+                        text = if (!isPublicMode) "Private" else "Exclusive",
                         color = Color.Black,
                         fontSize = 12.sp,
                         modifier = Modifier.offset(y = (-6).dp)

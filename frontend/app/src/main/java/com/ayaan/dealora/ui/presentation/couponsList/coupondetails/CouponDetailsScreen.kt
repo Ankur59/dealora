@@ -54,6 +54,7 @@ import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.Ho
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.OfferTitle
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.TabRow
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.TermsAndConditionsContent
+import com.ayaan.dealora.ui.presentation.home.HomeViewModel
 import com.ayaan.dealora.ui.presentation.profile.components.TopBar
 import com.ayaan.dealora.ui.theme.AppColors
 private fun getBrandLogoResource(brandName: String): Int {
@@ -135,6 +136,7 @@ fun LoadingContent(navController: NavController) {
 fun ErrorContent(
     navController: NavController, message: String, onRetry: () -> Unit
 ) {
+    Log.d("CouponDetailsScreen", "ErrorContent called with message: $message")
     Scaffold(
         topBar = {
             TopBar(navController = navController, title = "Details")

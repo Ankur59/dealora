@@ -60,9 +60,10 @@ const userSchema = new mongoose.Schema(
             default: null,
         },
 
-        deviceTokens: {
-            type: [String],
-            default: [],
+        fcmToken: {
+            type: String,
+            default: null,
+            trim: true,
         },
     },
     {
@@ -85,19 +86,6 @@ userSchema.pre('save', function (next) {
 
 userSchema.methods.updateLastLogin = async function () {
     this.lastLogin = new Date();
-    return await this.save();
-};
-
-userSchema.methods.addDeviceToken = async function (token) {
-    if (!this.deviceTokens.includes(token)) {
-        this.deviceTokens.push(token);
-        return await this.save();
-    }
-    return this;
-};
-
-userSchema.methods.removeDeviceToken = async function (token) {
-    this.deviceTokens = this.deviceTokens.filter((t) => t !== token);
     return await this.save();
 };
 

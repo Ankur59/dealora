@@ -150,7 +150,7 @@ fun CouponCard(
                             .padding(horizontal = 12.dp)
                     ) {
                         Text(
-                            text = couponTitle,
+                            text = brandName,
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -328,7 +328,7 @@ fun CouponCard(
                                 enabled = !isExpired
                             ) {
                                 Text(
-                                    text = "Redeem",
+                                    text = "Redeemed",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
