@@ -1,6 +1,9 @@
 const cron = require('node-cron');
 const { runScraper } = require('../scraper');
 const Coupon = require('../models/Coupon');
+const PrivateCoupon = require('../models/PrivateCoupon');
+const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 const logger = require('../utils/logger');
 
 const initCronJobs = () => {
@@ -21,15 +24,61 @@ const initCronJobs = () => {
         try {
             const today = new Date();
             today.setHours(0, 0, 0, 0); // Set to start of today
-            
+
             const result = await Coupon.deleteMany({
                 expireBy: { $lt: today },
                 userId: 'system_scraper' // Only remove scraper-created coupons
             });
-            
+
             logger.info(`CRON: Cleanup completed. Removed ${result.deletedCount} expired coupon(s) from database.`);
         } catch (error) {
             logger.error('CRON: Cleanup job failed:', error);
+        }
+    });
+
+    // 3. Expiry Notification for Private Coupons - Every 12 hours
+    cron.schedule('0 */12 * * *', async () => {
+        logger.info('CRON: Starting expiry notification job for private coupons...');
+        try {
+            const now = new Date();
+            const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+            // Find coupons expiring in the next 24 hours
+            const expiringCoupons = await PrivateCoupon.find({
+                expiryDate: { $gte: now, $lte: tomorrow },
+                redeemed: false
+            });
+
+            if (expiringCoupons.length === 0) {
+                logger.info('CRON: No coupons expiring in the next 24 hours.');
+                return;
+            }
+
+            logger.info(`CRON: Found ${expiringCoupons.length} expiring coupons. Fetching user tokens...`);
+
+            // Fetch all users with a valid fcmToken
+            const users = await User.find({ fcmToken: { $ne: null } }, 'fcmToken');
+            const tokens = users.map(u => u.fcmToken).filter(t => !!t);
+
+            if (tokens.length === 0) {
+                logger.warn('CRON: No user tokens found. Skipping notifications.');
+                return;
+            }
+
+            for (const coupon of expiringCoupons) {
+                const title = `Coupon Expiring Soon: ${coupon.couponTitle}`;
+                const body = `Your ${coupon.brandName} coupon is about to expire. Redeem it soon!`;
+                const data = {
+                    couponId: coupon._id.toString(),
+                    type: 'expiry_alert'
+                };
+
+                await notificationService.sendMulticastNotification(tokens, title, body, data);
+            }
+
+            logger.info('CRON: Expiry notification job completed.');
+        } catch (error) {
+            logger.error('CRON: Expiry notification job failed:', error);
         }
     });
 
