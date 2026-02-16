@@ -47,7 +47,7 @@ const getNotifications = async (req, res, next) => {
                 .sort(sort)
                 .limit(limitNum)
                 .skip(skip)
-                .populate('couponId', 'couponTitle brandName couponCode description')
+                .select('_id title body type isRead createdAt data')
                 .lean(),
             Notification.countDocuments(query),
             userId ? Notification.getUnreadCount(userId) : 0,
@@ -80,7 +80,7 @@ const getNotificationById = async (req, res, next) => {
         const { id } = req.params;
 
         const notification = await Notification.findById(id)
-            .populate('couponId', 'couponTitle brandName couponCode description')
+            .select('_id title body type isRead createdAt data')
             .lean();
 
         if (!notification) {
