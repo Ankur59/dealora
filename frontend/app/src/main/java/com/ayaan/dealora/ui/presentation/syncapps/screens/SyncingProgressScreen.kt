@@ -55,6 +55,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -269,6 +271,9 @@ fun OtpDialog(
     var acceptedTerms by remember { mutableStateOf(false) }
     var showTermsBottomSheet by remember { mutableStateOf(false) }
 
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
     Dialog(onDismissRequest = { /* Cannot dismiss */ }) {
         Card(
             modifier = Modifier
@@ -408,12 +413,19 @@ fun OtpDialog(
 
                     // OTP Input Fields
                     OtpInputField(
-                        otpValue = otpValue, onOtpChange = {
+                        otpValue = otpValue,
+                        onOtpChange = {
                             if (it.length <= 6) {
                                 otpValue = it
                                 isError = false
+                                // Dismiss keyboard when 6 digits are entered
+                                if (it.length == 6) {
+                                    keyboardController?.hide()
+                                    focusManager.clearFocus()
+                                }
                             }
-                        }, isError = isError
+                        },
+                        isError = isError
                     )
 
                     if (isError) {
@@ -682,13 +694,28 @@ fun OtpDialog(
 
 @Composable
 fun OtpInputField(
-        otpValue: String, onOtpChange: (String) -> Unit, isError: Boolean
-    ) {
-        BasicTextField(value = otpValue, onValueChange = { value ->
-            if (value.all { it.isDigit() }) {
+    otpValue: String,
+    onOtpChange: (String) -> Unit,
+    isError: Boolean
+) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    BasicTextField(
+        value = otpValue,
+        onValueChange = { value ->
+            if (value.all { it.isDigit() } && value.length <= 6) {
                 onOtpChange(value)
+
+                // 🔥 CLOSE KEYBOARD ON 6TH DIGIT
+                if (value.length == 6) {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                }
             }
-        }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), decorationBox = {
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        decorationBox = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
@@ -704,13 +731,16 @@ fun OtpInputField(
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .border(
-                                width = 1.dp, color = when {
+                                width = 1.dp,
+                                color = when {
                                     isError -> Color.Red
                                     index == otpValue.length -> DealoraPrimary
                                     index < otpValue.length -> DealoraPrimary.copy(alpha = 0.5f)
                                     else -> Color(0xFFE0E0E0)
-                                }, shape = RoundedCornerShape(8.dp)
-                            ), contentAlignment = Alignment.Center
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (index < otpValue.length) otpValue[index].toString() else "",
@@ -721,7 +751,8 @@ fun OtpInputField(
                     }
                 }
             }
-        })
+        }
+    )
 }
 
 @Composable
