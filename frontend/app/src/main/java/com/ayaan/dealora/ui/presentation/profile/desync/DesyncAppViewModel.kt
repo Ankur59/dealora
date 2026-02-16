@@ -41,4 +41,10 @@ class DesyncAppViewModel @Inject constructor(
             syncedAppRepository.deleteSyncedApp(appId)
         }
     }
+
+    fun removeAllSyncedApps() {
+        viewModelScope.launch {
+            syncedAppRepository.deleteAllSyncedApps()
+        }
+    }
 }
