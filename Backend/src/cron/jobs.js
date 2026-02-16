@@ -19,56 +19,52 @@ const initCronJobs = () => {
         }
     });
 
-    // 2. Daily Cleanup of Expired Coupons at 4:00 AM - Remove expired coupons from DB
+    // 2. Cleanup expired scraper coupons at 4 AM
     cron.schedule('0 4 * * *', async () => {
-        logger.info('CRON: Starting daily expired coupons cleanup (removing from DB)...');
+        logger.info('CRON: Starting daily expired coupons cleanup...');
         try {
             const today = new Date();
-            today.setHours(0, 0, 0, 0); // Set to start of today
+            today.setHours(0, 0, 0, 0);
 
             const result = await Coupon.deleteMany({
                 expireBy: { $lt: today },
-                userId: 'system_scraper' // Only remove scraper-created coupons
+                userId: 'system_scraper'
             });
 
-            logger.info(`CRON: Cleanup completed. Removed ${result.deletedCount} expired coupon(s) from database.`);
+            logger.info(`CRON: Removed ${result.deletedCount} expired coupons.`);
         } catch (error) {
             logger.error('CRON: Cleanup job failed:', error);
         }
     });
 
-    // 3. Expiry Notification for Private Coupons - Every 12 hours
+    // 3. Expiry notifications every 12 hours
     cron.schedule('0 */12 * * *', async () => {
-        logger.info('CRON: Starting expiry notification job for private coupons...');
+        logger.info('CRON: Starting expiry notification job...');
         try {
             const now = new Date();
             const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-            // Find coupons expiring in the next 24 hours
             const expiringCoupons = await PrivateCoupon.find({
                 expiryDate: { $gte: now, $lte: tomorrow },
                 redeemed: false
             });
 
-            if (expiringCoupons.length === 0) {
-                logger.info('CRON: No coupons expiring in the next 24 hours.');
+            if (!expiringCoupons.length) {
+                logger.info('CRON: No expiring coupons.');
                 return;
             }
 
-            logger.info(`CRON: Found ${expiringCoupons.length} expiring coupons. Fetching user tokens...`);
-
-            // Fetch all users with a valid fcmToken
             const users = await User.find({ fcmToken: { $ne: null } }, 'fcmToken');
-            const tokens = users.map(u => u.fcmToken).filter(t => !!t);
+            const tokens = users.map(u => u.fcmToken).filter(Boolean);
 
-            if (tokens.length === 0) {
-                logger.warn('CRON: No user tokens found. Skipping notifications.');
+            if (!tokens.length) {
+                logger.warn('CRON: No tokens found.');
                 return;
             }
 
             for (const coupon of expiringCoupons) {
                 const title = `Coupon Expiring Soon: ${coupon.couponTitle}`;
-                const body = `Your ${coupon.brandName} coupon is about to expire. Redeem it soon!`;
+                const body = `Your ${coupon.brandName} coupon is about to expire.`;
                 const data = {
                     couponId: coupon._id.toString(),
                     type: 'expiry_alert'
@@ -77,16 +73,19 @@ const initCronJobs = () => {
                 await notificationService.sendMulticastNotification(tokens, title, body, data);
             }
 
-            logger.info('CRON: Expiry notification job completed.');
+            logger.info('CRON: Expiry notifications sent.');
         } catch (error) {
             logger.error('CRON: Expiry notification job failed:', error);
-    // 3. Google Sheet Sync Every 24 Hours at 3:00 AM
+        }
+    });
+
+    // 4. Google Sheet sync at 3 AM
     cron.schedule('0 3 * * *', async () => {
-        logger.info('CRON: Starting Google Sheet sync for exclusive coupons...');
+        logger.info('CRON: Starting Google Sheet sync...');
         try {
             const result = await syncSheet();
             if (result.success) {
-                logger.info(`CRON: Sheet sync completed. ${result.stats?.successCount || 0} coupons synced.`);
+                logger.info(`CRON: Sheet sync completed. ${result.stats?.successCount || 0} synced.`);
             } else {
                 logger.error(`CRON: Sheet sync failed: ${result.message}`);
             }
