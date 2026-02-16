@@ -205,8 +205,7 @@ fun SyncingProgressScreen(
                     text = buildAnnotatedString {
                         withStyle(
                             style = SpanStyle(
-                                color = DealoraPrimary,
-                                fontWeight = FontWeight.SemiBold
+                                color = DealoraPrimary, fontWeight = FontWeight.SemiBold
                             )
                         ) {
                             append("Wait")
@@ -234,24 +233,19 @@ fun SyncingProgressScreen(
 
         // OTP Dialog
         if (showOtpDialog && currentAppForOtp != null) {
-            OtpDialog(
-                app = currentAppForOtp!!,
-                viewModel = viewModel,
-                onOtpVerified = {
-                    showOtpDialog = false
-                    syncedApps++
-                    currentAppIndex++
-                    isWaitingForOtp = false
-                    currentAppForOtp = null
-                },
-                onCancel = {
-                    // Skip this app and proceed to next
-                    showOtpDialog = false
-                    currentAppIndex++
-                    isWaitingForOtp = false
-                    currentAppForOtp = null
-                }
-            )
+            OtpDialog(app = currentAppForOtp!!, viewModel = viewModel, onOtpVerified = {
+                showOtpDialog = false
+                syncedApps++
+                currentAppIndex++
+                isWaitingForOtp = false
+                currentAppForOtp = null
+            }, onCancel = {
+                // Skip this app and proceed to next
+                showOtpDialog = false
+                currentAppIndex++
+                isWaitingForOtp = false
+                currentAppForOtp = null
+            })
         }
     }
 }
@@ -332,8 +326,7 @@ fun OtpDialog(
                             .clickable { useDealoraPhone = !useDealoraPhone }
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
                             modifier = Modifier
                                 .size(24.dp)
@@ -345,8 +338,7 @@ fun OtpDialog(
                                     width = 2.dp,
                                     color = if (useDealoraPhone) DealoraPrimary else Color.Gray,
                                     shape = RoundedCornerShape(4.dp)
-                                ),
-                            contentAlignment = Alignment.Center
+                                ), contentAlignment = Alignment.Center
                         ) {
                             if (useDealoraPhone) {
                                 Icon(
@@ -404,8 +396,7 @@ fun OtpDialog(
                                         }
                                         innerTextField()
                                     }
-                                }
-                            )
+                                })
                         }
                     }
 
@@ -413,8 +404,7 @@ fun OtpDialog(
 
                     // OTP Input Fields
                     OtpInputField(
-                        otpValue = otpValue,
-                        onOtpChange = {
+                        otpValue = otpValue, onOtpChange = {
                             if (it.length <= 6) {
                                 otpValue = it
                                 isError = false
@@ -424,8 +414,7 @@ fun OtpDialog(
                                     focusManager.clearFocus()
                                 }
                             }
-                        },
-                        isError = isError
+                        }, isError = isError
                     )
 
                     if (isError) {
@@ -446,8 +435,7 @@ fun OtpDialog(
                             .clickable { acceptedTerms = !acceptedTerms }
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
                             modifier = Modifier
                                 .size(24.dp)
@@ -459,8 +447,7 @@ fun OtpDialog(
                                     width = 2.dp,
                                     color = if (acceptedTerms) DealoraPrimary else Color.Gray,
                                     shape = RoundedCornerShape(4.dp)
-                                ),
-                            contentAlignment = Alignment.Center
+                                ), contentAlignment = Alignment.Center
                         ) {
                             if (acceptedTerms) {
                                 Icon(
@@ -474,21 +461,20 @@ fun OtpDialog(
 
                         Text(
                             text = buildAnnotatedString {
-                                append("By clicking here I accept our ")
-                                withStyle(
-                                    style = SpanStyle(
-                                        color = DealoraPrimary,
-                                        fontWeight = FontWeight.SemiBold,
-                                        textDecoration = TextDecoration.Underline
-                                    )
-                                ) {
-                                    append("Terms & Conditions")
-                                }
-                            },
+                            append("By clicking here I accept our ")
+                            withStyle(
+                                style = SpanStyle(
+                                    color = DealoraPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textDecoration = TextDecoration.Underline
+                                )
+                            ) {
+                                append("Terms & Conditions")
+                            }
+                        },
                             fontSize = 13.sp,
                             color = Color.Black,
-                            modifier = Modifier.clickable { showTermsBottomSheet = true }
-                        )
+                            modifier = Modifier.clickable { showTermsBottomSheet = true })
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -575,8 +561,7 @@ fun OtpDialog(
     // Terms & Conditions Bottom Sheet
     if (showTermsBottomSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showTermsBottomSheet = false },
-            containerColor = Color.White
+            onDismissRequest = { showTermsBottomSheet = false }, containerColor = Color.White
         ) {
             Column(
                 modifier = Modifier
@@ -659,8 +644,7 @@ fun OtpDialog(
                                 Dealora collects and processes data in accordance with its Privacy Policy and applicable laws, including the Digital Personal Data Protection Act, 2023 (India) and other relevant regulations.
                         
                                 (Full policy continues as per the app Privacy & Terms. Contact support for the full legal text.)
-                            """
-                        .trimIndent(),
+                            """.trimIndent(),
                     fontSize = 12.sp,
                     color = Color.Black,
                     lineHeight = 18.sp,
@@ -680,9 +664,7 @@ fun OtpDialog(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "I Understand",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "I Understand", fontSize = 16.sp, fontWeight = FontWeight.SemiBold
                     )
                 }
 
@@ -694,163 +676,151 @@ fun OtpDialog(
 
 @Composable
 fun OtpInputField(
-    otpValue: String,
-    onOtpChange: (String) -> Unit,
-    isError: Boolean
+    otpValue: String, onOtpChange: (String) -> Unit, isError: Boolean
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
 
-    BasicTextField(
-        value = otpValue,
-        onValueChange = { value ->
-            if (value.all { it.isDigit() } && value.length <= 6) {
-                onOtpChange(value)
+    BasicTextField(value = otpValue, onValueChange = { value ->
+        if (value.all { it.isDigit() } && value.length <= 6) {
+            onOtpChange(value)
 
-                // 🔥 CLOSE KEYBOARD ON 6TH DIGIT
-                if (value.length == 6) {
-                    keyboardController?.hide()
-                    focusManager.clearFocus()
-                }
+            // 🔥 CLOSE KEYBOARD ON 6TH DIGIT
+            if (value.length == 6) {
+                keyboardController?.hide()
+                focusManager.clearFocus()
             }
-        },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        decorationBox = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(6) { index ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .background(
-                                color = if (isError) Color(0xFFFFEBEE) else Color(0xFFF5F5F5),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = when {
-                                    isError -> Color.Red
-                                    index == otpValue.length -> DealoraPrimary
-                                    index < otpValue.length -> DealoraPrimary.copy(alpha = 0.5f)
-                                    else -> Color(0xFFE0E0E0)
-                                },
-                                shape = RoundedCornerShape(8.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (index < otpValue.length) otpValue[index].toString() else "",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isError) Color.Red else Color.Black
+        }
+    }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), decorationBox = {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(6) { index ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .background(
+                            color = if (isError) Color(0xFFFFEBEE) else Color(0xFFF5F5F5),
+                            shape = RoundedCornerShape(8.dp)
                         )
-                    }
+                        .border(
+                            width = 1.dp, color = when {
+                                isError -> Color.Red
+                                index == otpValue.length -> DealoraPrimary
+                                index < otpValue.length -> DealoraPrimary.copy(alpha = 0.5f)
+                                else -> Color(0xFFE0E0E0)
+                            }, shape = RoundedCornerShape(8.dp)
+                        ), contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (index < otpValue.length) otpValue[index].toString() else "",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isError) Color.Red else Color.Black
+                    )
                 }
             }
         }
-    )
+    })
 }
 
 @Composable
 fun SyncedAppIcon(
-        app: SyncApp, isSynced: Boolean
+    app: SyncApp, isSynced: Boolean
+) {
+    Box(
+        modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center
     ) {
+        // App Icon Background
         Box(
-            modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center
+            modifier = Modifier
+                .size(56.dp)
+                .background(Color.White, CircleShape)
+                .border(1.dp, Color(0xFFE0E0E0), CircleShape), contentAlignment = Alignment.Center
         ) {
-            // App Icon Background
+            Image(
+                painter = painterResource(id = app.iconRes),
+                contentDescription = app.name,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+
+        // Green Checkmark Overlay
+        if (isSynced) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .background(Color.White, CircleShape)
-                    .border(1.dp, Color(0xFFE0E0E0), CircleShape),
+                    .size(20.dp)
+                    .align(Alignment.TopEnd)
+                    .background(Color(0xFF00C853), CircleShape)
+                    .border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Synced",
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimatedSyncingApp(
+    app: SyncApp, key: Int
+) {
+    // Pulsing animation
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f, targetValue = 1.1f, animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing), repeatMode = RepeatMode.Reverse
+        ), label = "scale"
+    )
+
+    AnimatedVisibility(
+        visible = true, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()
+    ) {
+        Box(
+            modifier = Modifier.size(240.dp), contentAlignment = Alignment.Center
+        ) {
+            // Outer glow circle
+            Box(
+                modifier = Modifier
+                    .size(240.dp)
+                    .scale(scale)
+                    .background(
+                        color = Color(0xFFE8E8FF), shape = CircleShape
+                    )
+            )
+
+            // Middle circle
+            Box(
+                modifier = Modifier
+                    .size(180.dp)
+                    .background(
+                        color = Color(0xFFD0D0FF), shape = CircleShape
+                    )
+            )
+
+            // Inner circle with app icon
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .background(
+                        color = Color.White, shape = CircleShape
+                    )
+                    .border(2.dp, Color(0xFFE0E0E0), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = app.iconRes),
                     contentDescription = app.name,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(80.dp)
                 )
-            }
-
-            // Green Checkmark Overlay
-            if (isSynced) {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .align(Alignment.TopEnd)
-                        .background(Color(0xFF00C853), CircleShape)
-                        .border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Synced",
-                        tint = Color.White,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-            }
-        }
-}
-
-@Composable
-fun AnimatedSyncingApp(
-        app: SyncApp, key: Int
-    ) {
-        // Pulsing animation
-        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-        val scale by infiniteTransition.animateFloat(
-            initialValue = 1f, targetValue = 1.1f, animationSpec = infiniteRepeatable(
-                animation = tween(1000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ), label = "scale"
-        )
-
-        AnimatedVisibility(
-            visible = true, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()
-        ) {
-            Box(
-                modifier = Modifier.size(240.dp), contentAlignment = Alignment.Center
-            ) {
-                // Outer glow circle
-                Box(
-                    modifier = Modifier
-                        .size(240.dp)
-                        .scale(scale)
-                        .background(
-                            color = Color(0xFFE8E8FF), shape = CircleShape
-                        )
-                )
-
-                // Middle circle
-                Box(
-                    modifier = Modifier
-                        .size(180.dp)
-                        .background(
-                            color = Color(0xFFD0D0FF), shape = CircleShape
-                        )
-                )
-
-                // Inner circle with app icon
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .background(
-                            color = Color.White, shape = CircleShape
-                        )
-                        .border(2.dp, Color(0xFFE0E0E0), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = app.iconRes),
-                        contentDescription = app.name,
-                        modifier = Modifier.size(80.dp)
-                    )
-                }
             }
         }
     }
+}
