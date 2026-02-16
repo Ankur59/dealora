@@ -120,11 +120,11 @@ const validateProfileUpdate = [
                 if (value.length > maxSize) {
                     throw new Error('Profile picture size exceeds maximum allowed size of 5MB');
                 }
-                
+
                 // Check if it's a base64 string (data URI format or raw base64)
                 const base64Regex = /^data:image\/(png|jpg|jpeg|gif|webp|bmp);base64,/;
                 const isDataUri = base64Regex.test(value);
-                
+
                 if (!isDataUri && value.length > 10) {
                     const base64OnlyRegex = /^[A-Za-z0-9+/=]+$/;
                     if (!base64OnlyRegex.test(value)) {
@@ -247,10 +247,29 @@ const couponValidationRules = [
     handleValidationErrors,
 ];
 
+const validateFCMToken = [
+    body('uid')
+        .trim()
+        .notEmpty()
+        .withMessage('Firebase UID is required')
+        .isString()
+        .withMessage('UID must be a string'),
+
+    body('fcmToken')
+        .trim()
+        .notEmpty()
+        .withMessage('FCM token is required')
+        .isString()
+        .withMessage('FCM token must be a string'),
+
+    handleValidationErrors,
+];
+
 module.exports = {
     validateSignup,
     validateLogin,
     validateProfileUpdate,
+    validateFCMToken,
     couponValidationRules,
     validateCoupon: couponValidationRules,
 };

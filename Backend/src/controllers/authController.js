@@ -160,7 +160,7 @@ const updateProfile = async (req, res, next) => {
         });
     } catch (error) {
         logger.error('Update profile error:', error);
-        
+
         if (error.code === 11000) {
             const field = Object.keys(error.keyValue)[0];
             let message = ERROR_MESSAGES.USER_ALREADY_EXISTS;
@@ -178,9 +178,38 @@ const updateProfile = async (req, res, next) => {
     }
 };
 
+const updateFCMToken = async (req, res, next) => {
+    try {
+        const { uid, fcmToken } = req.body;
+
+        logger.info(`FCM token update attempt for UID: ${uid}`);
+
+        const user = await User.findByUid(uid);
+
+        if (!user) {
+            logger.warn(`FCM token update failed: User not found - ${uid}`);
+            throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+        }
+
+        user.fcmToken = fcmToken;
+        await user.save();
+
+        logger.info(`FCM token updated for user: ${uid}`);
+
+        return successResponse(res, STATUS_CODES.OK, 'FCM token updated successfully', {
+            uid: user.uid,
+            fcmToken: user.fcmToken
+        });
+    } catch (error) {
+        logger.error('Update FCM token error:', error);
+        next(error);
+    }
+};
+
 module.exports = {
     signup,
     login,
     getProfile,
     updateProfile,
+    updateFCMToken,
 };
