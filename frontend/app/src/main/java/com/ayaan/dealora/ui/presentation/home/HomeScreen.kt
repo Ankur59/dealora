@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
+import com.ayaan.dealora.ui.presentation.home.components.ExclusiveBannerCard
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
 import com.ayaan.dealora.ui.presentation.home.components.SyncBannerCard
@@ -176,23 +177,26 @@ fun HomeScreen(
             )
 
             Spacer(modifier = Modifier.height(20.dp))
-            SyncBannerCard(
-                onSyncClick = {
-                    coroutineScope.launch {
-                        val allAppsSynced = viewModel.areAllAppsSynced()
-                        if (allAppsSynced) {
-                            // Show snackbar if all apps are synced
-                            snackbarHostState.showSnackbar(
-                                message = "All apps are already synced!",
-                                duration = SnackbarDuration.Short
-                            )
-                        } else {
-                            // Navigate to sync screen if not all apps are synced
-                            navController.navigate(Route.SyncAppsStart.path)
-                        }
-                    }
-                }
+            ExclusiveBannerCard(
+                onSyncClick = {}
             )
+//            SyncBannerCard(
+//                onSyncClick = {
+//                    coroutineScope.launch {
+//                        val allAppsSynced = viewModel.areAllAppsSynced()
+//                        if (allAppsSynced) {
+//                            // Show snackbar if all apps are synced
+//                            snackbarHostState.showSnackbar(
+//                                message = "All apps are already synced!",
+//                                duration = SnackbarDuration.Short
+//                            )
+//                        } else {
+//                            // Navigate to sync screen if not all apps are synced
+//                            navController.navigate(Route.SyncAppsStart.path)
+//                        }
+//                    }
+//                }
+//            )
             // Sync Apps Card
 //            Image(
 //                painter = painterResource(id = R.drawable.sync_banner),
