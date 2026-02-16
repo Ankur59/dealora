@@ -328,7 +328,7 @@ fun CouponCard(
                                 enabled = !isExpired
                             ) {
                                 Text(
-                                    text = "Redeem",
+                                    text = "Redeemed",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )

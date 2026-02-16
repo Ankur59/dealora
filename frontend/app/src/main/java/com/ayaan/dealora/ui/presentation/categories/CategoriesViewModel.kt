@@ -133,28 +133,37 @@ class CategoriesViewModel @Inject constructor(
                                 )
                                 
                                 if (result is PrivateCouponResult.Success && result.coupons.isNotEmpty()) {
-                                    val mappedCoupons = result.coupons.map { privateCoupon ->
-                                        // Store original for saving later
-                                        privateCouponsMap[privateCoupon.id] = privateCoupon
-                                        
-                                        CouponListItem(
-                                            id = privateCoupon.id,
-                                            brandName = privateCoupon.brandName,
-                                            couponTitle = privateCoupon.couponTitle,
-                                            description = privateCoupon.description,
-                                            category = privateCoupon.category,
-                                            daysUntilExpiry = privateCoupon.daysUntilExpiry,
-                                            couponImageBase64 = null
+                                    // Filter out redeemed and expired coupons
+                                    val activeCoupons = result.coupons.filter { privateCoupon ->
+                                        val isNotRedeemed = privateCoupon.redeemed != true
+                                        val isNotExpired = (privateCoupon.daysUntilExpiry ?: 0) > 0
+                                        isNotRedeemed && isNotExpired
+                                    }
+
+                                    if (activeCoupons.isNotEmpty()) {
+                                        val mappedCoupons = activeCoupons.map { privateCoupon ->
+                                            // Store original for saving later
+                                            privateCouponsMap[privateCoupon.id] = privateCoupon
+
+                                            CouponListItem(
+                                                id = privateCoupon.id,
+                                                brandName = privateCoupon.brandName,
+                                                couponTitle = privateCoupon.couponTitle,
+                                                description = privateCoupon.description,
+                                                category = privateCoupon.category,
+                                                daysUntilExpiry = privateCoupon.daysUntilExpiry,
+                                                couponImageBase64 = null
+                                            )
+                                        }
+
+                                        groups.add(
+                                            CategoryGroup(
+                                                name = category,
+                                                totalCount = activeCoupons.size,
+                                                coupons = mappedCoupons
+                                            )
                                         )
                                     }
-                                    
-                                    groups.add(
-                                        CategoryGroup(
-                                            name = category,
-                                            totalCount = result.coupons.size,
-                                            coupons = mappedCoupons
-                                        )
-                                    )
                                 }
                             } catch (e: Exception) {
                                 Log.e("CategoriesViewModel", "Error syncing category $category", e)

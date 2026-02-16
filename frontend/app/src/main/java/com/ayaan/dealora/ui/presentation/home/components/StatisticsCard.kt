@@ -53,31 +53,28 @@ fun StatisticsCard(
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly // Ensures equal spacing
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
 
-            // ================= ACTIVE COUPONS =================
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 8.dp)
                     .clickable { onClick() },
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp) // Consistent vertical spacing
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-
-                // TEXT ROW — Icon + Label
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Image(
                         painter = painterResource(R.drawable.save_60),
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp) // Fixed icon size
+                        contentDescription = "saving image",
+                        modifier = Modifier.size(24.dp)
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Text(
                         text = "Your Active\nCoupons",
@@ -103,7 +100,7 @@ fun StatisticsCard(
                     couponStr.forEachIndexed { index, char ->
                         CouponDigitSaving(char.toString())
                         if (index < couponStr.length - 1) {
-                            Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing between boxes
+                            Spacer(modifier = Modifier.width(6.dp))
                         }
                     }
                 }
@@ -145,7 +142,7 @@ fun StatisticsCard(
                     Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing
 
                     Text(
-                        text = "Amount you\ncan save",
+                        text = "Amount you can\nsave upto",
                         fontSize = 11.sp, // Slightly reduced for better fit
                         color = DealoraWhite,
                         fontWeight = FontWeight.W500,

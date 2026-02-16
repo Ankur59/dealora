@@ -409,7 +409,16 @@ class CouponsListViewModel @Inject constructor(
                 )) {
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
-                        _privateCoupons.value = result.coupons
+
+                        // Filter out redeemed and expired coupons
+                        val filteredCoupons = result.coupons.filter { coupon ->
+                            val isNotRedeemed = coupon.redeemed != true
+                            val isNotExpired = (coupon.daysUntilExpiry ?: 0) > 0
+                            isNotRedeemed && isNotExpired
+                        }
+
+                        Log.d(TAG, "Filtered coupons (excluding redeemed/expired): ${filteredCoupons.size} coupons")
+                        _privateCoupons.value = filteredCoupons
                     }
                     is PrivateCouponResult.Error -> {
                         Log.e(TAG, "Error loading private coupons: ${result.message}")
