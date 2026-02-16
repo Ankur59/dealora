@@ -91,8 +91,7 @@ fun SyncingProgressScreen(
     LaunchedEffect(selectedApps, isWaitingForOtp) {
         if (selectedApps.isNotEmpty() && !isWaitingForOtp) {
             if (currentAppIndex < selectedApps.size) {
-                delay(2000) // 2 seconds per app
-                // Show OTP dialog after sync timer
+                delay(2000)
                 currentAppForOtp = selectedApps[currentAppIndex]
                 showOtpDialog = true
                 isWaitingForOtp = true
