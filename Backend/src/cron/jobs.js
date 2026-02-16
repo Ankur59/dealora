@@ -4,6 +4,7 @@ const Coupon = require('../models/Coupon');
 const PrivateCoupon = require('../models/PrivateCoupon');
 const User = require('../models/User');
 const notificationService = require('../services/notificationService');
+const { syncSheet } = require('../controllers/exclusiveCouponController');
 const logger = require('../utils/logger');
 
 const initCronJobs = () => {
@@ -79,6 +80,18 @@ const initCronJobs = () => {
             logger.info('CRON: Expiry notification job completed.');
         } catch (error) {
             logger.error('CRON: Expiry notification job failed:', error);
+    // 3. Google Sheet Sync Every 24 Hours at 3:00 AM
+    cron.schedule('0 3 * * *', async () => {
+        logger.info('CRON: Starting Google Sheet sync for exclusive coupons...');
+        try {
+            const result = await syncSheet();
+            if (result.success) {
+                logger.info(`CRON: Sheet sync completed. ${result.stats?.successCount || 0} coupons synced.`);
+            } else {
+                logger.error(`CRON: Sheet sync failed: ${result.message}`);
+            }
+        } catch (error) {
+            logger.error('CRON: Sheet sync job failed:', error);
         }
     });
 
