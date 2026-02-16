@@ -2,6 +2,8 @@ package com.ayaan.dealora.data.api
 
 import com.ayaan.dealora.data.api.models.ApiResponse
 import com.ayaan.dealora.data.api.models.AuthResponseData
+import com.ayaan.dealora.data.api.models.FcmTokenRequest
+import com.ayaan.dealora.data.api.models.FcmTokenResponse
 import com.ayaan.dealora.data.api.models.LoginRequest
 import com.ayaan.dealora.data.api.models.SignupRequest
 import retrofit2.Response
@@ -18,5 +20,8 @@ interface AuthApiService {
 
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): Response<ApiResponse<AuthResponseData>>
+
+    @POST("api/auth/fcm-token")
+    suspend fun updateFcmToken(@Body request: FcmTokenRequest): Response<ApiResponse<FcmTokenResponse>>
 }
 

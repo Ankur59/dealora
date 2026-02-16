@@ -30,3 +30,27 @@ data class LoginRequest(
     val uid: String
 )
 
+/**
+ * Request model for FCM token update
+ */
+@JsonClass(generateAdapter = true)
+data class FcmTokenRequest(
+    @Json(name = "uid")
+    val uid: String,
+
+    @Json(name = "fcmToken")
+    val fcmToken: String
+)
+
+/**
+ * Response model for FCM token update
+ */
+@JsonClass(generateAdapter = true)
+data class FcmTokenResponse(
+    @Json(name = "uid")
+    val uid: String,
+
+    @Json(name = "fcmToken")
+    val fcmToken: String
+)
+
