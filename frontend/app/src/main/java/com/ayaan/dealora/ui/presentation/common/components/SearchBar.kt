@@ -32,6 +32,7 @@ fun SearchBar(
                 "Search Coupons", color = DealoraTextGray, fontSize = 14.sp
             )
         },
+        singleLine = true,
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,

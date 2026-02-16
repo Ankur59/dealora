@@ -38,12 +38,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -67,8 +67,7 @@ import com.ayaan.dealora.ui.theme.DealoraPrimary
 
 @Composable
 fun Dashboard(
-    navController: NavController,
-    viewModel: DashboardViewModel = hiltViewModel()
+    navController: NavController, viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -97,8 +96,7 @@ fun Dashboard(
     var selectedStatusFilter by remember(currentStatusFilter) { mutableStateOf(currentStatusFilter) }
 
     Scaffold(
-        containerColor = Color.White,
-        topBar = {
+        containerColor = Color.White, topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -112,14 +110,11 @@ fun Dashboard(
                     modifier = Modifier
                         .size(40.dp)
                         .border(
-                            width = 1.5.dp,
-                            color = DealoraGray,
-                            shape = CircleShape
+                            width = 1.5.dp, color = DealoraGray, shape = CircleShape
                         )
                         .clickable {
                             navController.popBackStack()
-                        },
-                    contentAlignment = Alignment.Center
+                        }, contentAlignment = Alignment.Center
                 ) {
                     Image(
                         painter = painterResource(R.drawable.arrow_left),
@@ -139,8 +134,7 @@ fun Dashboard(
 
                 Spacer(modifier = Modifier.size(24.dp))
             }
-        }
-    ) { innerPadding ->
+        }) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
@@ -158,8 +152,7 @@ fun Dashboard(
                     .padding(horizontal = 16.dp),
                 placeholder = {
                     Text(
-                        text = "Search coupons...",
-                        color = Color.Gray
+                        text = "Search coupons...", color = Color.Gray
                     )
                 },
                 leadingIcon = {
@@ -199,8 +192,7 @@ fun Dashboard(
                 CouponsFilterSection(
                     onSortClick = { showSortDialog = true },
                     onCategoryClick = { showCategoryDialog = true },
-                    onFiltersClick = { showFiltersDialog = true }
-                )
+                    onFiltersClick = { showFiltersDialog = true })
             }
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -234,9 +226,7 @@ fun Dashboard(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = label,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                            text = label, fontSize = 13.sp, fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -247,8 +237,7 @@ fun Dashboard(
             when (uiState) {
                 is DashboardUiState.Loading -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -267,8 +256,7 @@ fun Dashboard(
 
                 is DashboardUiState.Error -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -276,8 +264,7 @@ fun Dashboard(
                             modifier = Modifier.padding(24.dp)
                         ) {
                             Text(
-                                text = "😕",
-                                style = MaterialTheme.typography.displayMedium
+                                text = "😕", style = MaterialTheme.typography.displayMedium
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
@@ -297,8 +284,7 @@ fun Dashboard(
                 is DashboardUiState.Success -> {
                     if (filteredCoupons.isEmpty()) {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -306,8 +292,7 @@ fun Dashboard(
                                 modifier = Modifier.padding(24.dp)
                             ) {
                                 Text(
-                                    text = "🎟️",
-                                    style = MaterialTheme.typography.displayMedium
+                                    text = "🎟️", style = MaterialTheme.typography.displayMedium
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
@@ -332,8 +317,7 @@ fun Dashboard(
                         ) {
                             items(
                                 count = filteredCoupons.size,
-                                key = { index -> filteredCoupons[index].id }
-                            ) { index ->
+                                key = { index -> filteredCoupons[index].id }) { index ->
                                 val coupon = filteredCoupons[index]
 
                                 // State for this specific card
@@ -342,8 +326,7 @@ fun Dashboard(
                                 var errorMessage by remember { mutableStateOf("") }
 
                                 CouponCard(
-                                    brandName = coupon.brandName.uppercase()
-                                        .replace(" ", "\n"),
+                                    brandName = coupon.brandName.uppercase().replace(" ", "\n"),
                                     couponTitle = coupon.couponTitle,
                                     description = coupon.description ?: "",
                                     category = coupon.category,
@@ -352,7 +335,8 @@ fun Dashboard(
                                     couponId = coupon.id,
                                     isRedeemed = coupon.redeemed ?: false,
                                     isSaved = savedCouponIds.contains(coupon.id),
-                                    showActionButtons = coupon.couponType == "private" && (coupon.redeemable ?: true), // Hide for public coupons
+                                    showActionButtons = coupon.couponType == "private" && (coupon.redeemable
+                                        ?: true), // Hide for public coupons
                                     onRemoveSave = { couponId ->
                                         // Remove from saved but keep showing in list with unsaved state
                                         viewModel.removeSavedCoupon(couponId)
@@ -362,18 +346,17 @@ fun Dashboard(
                                     },
                                     onRedeem = { couponId ->
                                         Log.d("Dashboard", "Redeem clicked for coupon: $couponId")
-                                        viewModel.redeemCoupon(
-                                            couponId = couponId,
-                                            onSuccess = {
-                                                Log.d("Dashboard", "Coupon redeemed successfully")
-                                                showSuccessDialog = true
-                                            },
-                                            onError = { error ->
-                                                Log.e("Dashboard", "Failed to redeem coupon: $error")
-                                                errorMessage = error
-                                                showErrorDialog = true
-                                            }
-                                        )
+                                        viewModel.redeemCoupon(couponId = couponId, onSuccess = {
+                                            Log.d("Dashboard", "Coupon redeemed successfully")
+                                            showSuccessDialog = true
+                                        }, onError = { error ->
+                                            Log.e(
+                                                "Dashboard",
+                                                "Failed to redeem coupon: $error"
+                                            )
+                                            errorMessage = error
+                                            showErrorDialog = true
+                                        })
                                     },
                                     onDetailsClick = {
                                         navController.navigate(
@@ -391,63 +374,69 @@ fun Dashboard(
                                                 putExtra(
                                                     "EXTRA_COUPON_CODE",
                                                     coupon.couponCode?.takeIf { it.isNotEmpty() }
-                                                        ?: "NO CODE"
-                                                )
+                                                        ?: "NO CODE")
                                                 putExtra(
                                                     "EXTRA_COUPON_TITLE",
                                                     coupon.couponTitle?.takeIf { it.isNotEmpty() }
-                                                        ?: "Special Offer"
-                                                )
+                                                        ?: "Special Offer")
                                                 putExtra(
                                                     "EXTRA_DESCRIPTION",
                                                     coupon.description?.takeIf { it.isNotEmpty() }
-                                                        ?: "Check app for details"
-                                                )
+                                                        ?: "Check app for details")
                                                 putExtra(
                                                     "EXTRA_BRAND_NAME",
                                                     coupon.brandName?.takeIf { it.isNotEmpty() }
-                                                        ?: "Dealora"
-                                                )
+                                                        ?: "Dealora")
                                                 putExtra(
                                                     "EXTRA_CATEGORY",
                                                     coupon.category?.takeIf { it.isNotEmpty() }
-                                                        ?: "General"
-                                                )
+                                                        ?: "General")
                                                 coupon.daysUntilExpiry?.let {
                                                     putExtra("EXTRA_EXPIRY_DATE", "$it days")
-                                                } ?: putExtra("EXTRA_EXPIRY_DATE", "Check app for expiry")
+                                                } ?: putExtra(
+                                                    "EXTRA_EXPIRY_DATE",
+                                                    "Check app for expiry"
+                                                )
                                                 putExtra(
                                                     "EXTRA_MINIMUM_ORDER",
                                                     coupon.minimumOrderValue?.takeIf { it.isNotEmpty() }
-                                                        ?: "No minimum"
-                                                )
+                                                        ?: "No minimum")
                                                 putExtra(
                                                     "EXTRA_COUPON_LINK",
-                                                    coupon.couponLink?.takeIf { it.isNotEmpty() } ?: ""
+                                                    coupon.couponLink?.takeIf { it.isNotEmpty() }
+                                                        ?: "")
+                                                putExtra(
+                                                    "EXTRA_SOURCE_PACKAGE",
+                                                    context.packageName
                                                 )
-                                                putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
                                                 setPackage("com.ayaan.couponviewer")
                                                 addCategory(Intent.CATEGORY_DEFAULT)
                                             }
 
                                             context.startActivity(intent)
                                         } catch (e: Exception) {
-                                            Log.e("Dashboard", "Failed to open CouponViewer: ${e.message}")
+                                            Log.e(
+                                                "Dashboard",
+                                                "Failed to open CouponViewer: ${e.message}"
+                                            )
                                             try {
-                                                val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                    setPackage("com.android.vending")
-                                                }
+                                                val playStoreIntent =
+                                                    Intent(Intent.ACTION_VIEW).apply {
+                                                        data =
+                                                            Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                        setPackage("com.android.vending")
+                                                    }
                                                 context.startActivity(playStoreIntent)
                                             } catch (e2: Exception) {
-                                                val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                }
+                                                val browserIntent =
+                                                    Intent(Intent.ACTION_VIEW).apply {
+                                                        data =
+                                                            Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                    }
                                                 context.startActivity(browserIntent)
                                             }
                                         }
-                                    }
-                                )
+                                    })
 
                                 // Success Dialog
                                 if (showSuccessDialog) {
@@ -459,8 +448,7 @@ fun Dashboard(
                                             TextButton(onClick = { showSuccessDialog = false }) {
                                                 Text("OK")
                                             }
-                                        }
-                                    )
+                                        })
                                 }
 
                                 // Error Dialog
@@ -473,8 +461,7 @@ fun Dashboard(
                                             TextButton(onClick = { showErrorDialog = false }) {
                                                 Text("OK")
                                             }
-                                        }
-                                    )
+                                        })
                                 }
                             }
                         }
@@ -490,8 +477,7 @@ fun Dashboard(
                 onDismiss = { showSortDialog = false },
                 onSortSelected = { sortOption ->
                     viewModel.onSortOptionChanged(sortOption)
-                }
-            )
+                })
         }
 
         // Filters Bottom Sheet
@@ -502,8 +488,7 @@ fun Dashboard(
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { filters ->
                     viewModel.onFiltersChanged(filters)
-                }
-            )
+                })
         }
 
         // Category Bottom Sheet
@@ -513,8 +498,7 @@ fun Dashboard(
                 onDismiss = { showCategoryDialog = false },
                 onCategorySelected = { category ->
                     viewModel.onCategoryChanged(category)
-                }
-            )
+                })
         }
     }
 }
