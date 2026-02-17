@@ -9,60 +9,25 @@ const logger = require('../utils/logger');
 const getNotifications = async (req, res, next) => {
     try {
         const { userId } = req.query;
-        const {
-            type,
-            isRead,
-            limit = 20,
-            page = 1,
-            sortBy = 'createdAt',
-            sortOrder = 'desc',
-        } = req.query;
 
         // Build query
         const query = {};
         
         if (userId) {
-            query.userId = { $in: [userId] }; // Check if userId is in the array
+            query.userId = { $in: [userId] };
         }
 
-        if (type) {
-            query.type = type;
-        }
-
-        if (isRead !== undefined) {
-            query.isRead = isRead === 'true';
-        }
-
-        // Pagination
-        const limitNum = Math.min(parseInt(limit), 100);
-        const skip = (parseInt(page) - 1) * limitNum;
-
-        // Sorting
-        const sort = {};
-        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
-
-        // Execute query
-        const [notifications, total, unreadCount] = await Promise.all([
-            Notification.find(query)
-                .sort(sort)
-                .limit(limitNum)
-                .skip(skip)
-                .select('_id title body type isRead createdAt data')
-                .lean(),
-            Notification.countDocuments(query),
-            userId ? Notification.getUnreadCount(userId) : 0,
-        ]);
+        // Execute query - only get title, body and createdAt
+        const notifications = await Notification.find(query)
+            .sort({ createdAt: -1 })
+            .select('title body createdAt')
+            .lean();
 
         return successResponse(
             res,
             STATUS_CODES.OK,
             'Notifications retrieved successfully',
             {
-                count: notifications.length,
-                total,
-                unreadCount,
-                page: parseInt(page),
-                pages: Math.ceil(total / limitNum),
                 notifications,
             }
         );
