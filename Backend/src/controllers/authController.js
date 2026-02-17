@@ -212,10 +212,42 @@ const updateFCMToken = async (req, res, next) => {
     }
 };
 
+const deleteFCMToken = async (req, res, next) => {
+    try {
+        const { uid } = req.body;
+
+        logger.info(`FCM token delete attempt for UID: ${uid}`);
+
+        if (!uid) {
+            throw new ValidationError('UID is required');
+        }
+
+        const user = await User.findByUid(uid);
+
+        if (!user) {
+            logger.warn(`FCM token delete failed: User not found - ${uid}`);
+            throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+        }
+
+        user.fcmToken = null;
+        await user.save();
+
+        logger.info(`FCM token deleted for user: ${uid}`);
+
+        return successResponse(res, STATUS_CODES.OK, 'FCM token deleted successfully', {
+            uid: user.uid
+        });
+    } catch (error) {
+        logger.error('Delete FCM token error:', error);
+        next(error);
+    }
+};
+
 module.exports = {
     signup,
     login,
     getProfile,
     updateProfile,
     updateFCMToken,
+    deleteFCMToken,
 };
