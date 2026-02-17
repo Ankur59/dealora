@@ -1,5 +1,6 @@
 package com.ayaan.dealora.di
 
+import com.ayaan.dealora.data.api.NotificationApiService
 import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.ProfileApiService
@@ -84,5 +85,11 @@ object NetworkModule {
     fun provideProfileApiService(retrofit: Retrofit): ProfileApiService {
         return retrofit.create(ProfileApiService::class.java)
     }
+    @Provides
+    @Singleton
+    fun provideNotificationApiService(retrofit: Retrofit): NotificationApiService {
+        return retrofit.create(NotificationApiService::class.java)
+    }
 }
+
 
