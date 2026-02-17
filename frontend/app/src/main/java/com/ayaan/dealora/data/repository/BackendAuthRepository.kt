@@ -3,6 +3,7 @@ package com.ayaan.dealora.data.repository
 import android.util.Log
 import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.BackendResult
+import com.ayaan.dealora.data.api.models.DeleteFcmTokenRequest
 import com.ayaan.dealora.data.api.models.FcmTokenRequest
 import com.ayaan.dealora.data.api.models.LoginRequest
 import com.ayaan.dealora.data.api.models.SignupRequest
@@ -131,6 +132,38 @@ class BackendAuthRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "updateFcmToken: Exception occurred", e)
+            false
+        }
+    }
+
+    /**
+     * Delete FCM token for push notifications (typically called during logout)
+     */
+    suspend fun deleteFcmToken(uid: String): Boolean {
+        return try {
+            Log.d(TAG, "deleteFcmToken: Deleting FCM token for uid: $uid")
+
+            val request = DeleteFcmTokenRequest(uid = uid)
+
+            val response = authApiService.deleteFcmToken(request)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.success) {
+                    Log.d(TAG, "deleteFcmToken: Success - ${body.message}")
+                    true
+                } else {
+                    val errorMsg = body?.message ?: "FCM token deletion failed"
+                    Log.e(TAG, "deleteFcmToken: Failed - $errorMsg")
+                    false
+                }
+            } else {
+                val errorMsg = "Server error: ${response.code()} - ${response.message()}"
+                Log.e(TAG, "deleteFcmToken: $errorMsg")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteFcmToken: Exception occurred", e)
             false
         }
     }

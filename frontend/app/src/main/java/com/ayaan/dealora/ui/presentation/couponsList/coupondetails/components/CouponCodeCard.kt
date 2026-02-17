@@ -14,7 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.AppColors
@@ -27,23 +29,46 @@ fun CouponCodeCard(
     onCopyCode: () -> Unit,
     onCopyLink: () -> Unit = {}
 ) {
-    // Convert Any? to String and check if it's not null or blank
     val code = couponCode?.toString()?.takeIf { it.isNotBlank() }
     val link = couponLink?.toString()?.takeIf { it.isNotBlank() }
 
-    // If neither code nor link is available, don't display anything
     if (code == null && link == null) return
 
-    // Determine what to display
-    val isCodeAvailable = code != null
-    val displayText = if (isCodeAvailable) code else link ?: ""
-    val actionText = if (isCodeAvailable) "📋 Copy Code" else "🔗 Copy Link"
-    val onClickAction = if (isCodeAvailable) onCopyCode else onCopyLink
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (code != null) {
+            SingleActionCard(
+                text = code,
+                actionText = "📋 Copy Code",
+                onClick = onCopyCode,
+                isCode = true
+            )
+        }
 
+        if (link != null) {
+            SingleActionCard(
+                text = link,
+                actionText = "🔗 Copy Link",
+                onClick = onCopyLink,
+                isCode = false
+            )
+        }
+    }
+}
+
+@Composable
+private fun SingleActionCard(
+    text: String,
+    actionText: String,
+    onClick: () -> Unit,
+    isCode: Boolean
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClickAction),
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFFE8DCFF)
@@ -56,15 +81,15 @@ fun CouponCodeCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
             Text(
-                text = displayText,
+                text = text,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = AppColors.PrimaryText,
-                letterSpacing = if (isCodeAvailable) 2.sp else 0.sp,
+                letterSpacing = if (isCode) 2.sp else 0.sp,
                 overflow = TextOverflow.MiddleEllipsis,
-                maxLines = 1
+                maxLines = 1,
+                textAlign = TextAlign.Center
             )
 
             Text(
@@ -76,4 +101,5 @@ fun CouponCodeCard(
         }
     }
 }
+
 
