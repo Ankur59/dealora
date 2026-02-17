@@ -8,9 +8,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -54,9 +56,9 @@ import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.Ho
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.OfferTitle
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.TabRow
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.TermsAndConditionsContent
-import com.ayaan.dealora.ui.presentation.home.HomeViewModel
 import com.ayaan.dealora.ui.presentation.profile.components.TopBar
 import com.ayaan.dealora.ui.theme.AppColors
+
 private fun getBrandLogoResource(brandName: String): Int {
     Log.d("CouponCard", "Brand Name: $brandName")
     return when (brandName) {
@@ -73,6 +75,7 @@ private fun getBrandLogoResource(brandName: String): Int {
         else -> R.drawable.logo
     }
 }
+
 @Composable
 fun CouponDetailsScreen(
     navController: NavController, viewModel: CouponDetailsViewModel = hiltViewModel()
@@ -193,71 +196,81 @@ fun CouponDetailsContent(
     var showRedeemSuccess by remember { mutableStateOf(false) }
     var redeemError by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopBar(
-                navController = navController, title = "Details"
-            )
-        },
-        containerColor = AppColors.Background,
-        bottomBar = {
-            // Only show bottom action buttons when in private mode and not an exclusive coupon
-            if (isPrivateMode && coupon.addedMethod != "exclusive") {
+    Scaffold(topBar = {
+        TopBar(
+            navController = navController, title = "Details"
+        )
+    }, containerColor = AppColors.Background, bottomBar = {
+        // Only show bottom action buttons when in private mode and not an exclusive coupon
+        if (isPrivateMode && coupon.addedMethod != "exclusive") {
 
-                BottomActionButtons(
-                    couponLink = coupon.couponVisitingLink?.toString(),
-                    onRedeemed = {
-                        // Show confirmation dialog
-                        showRedeemDialog = true
-                    },
-                    onDiscoverClick = {
-                        try {
-                            val intent = Intent().apply {
-                                action = "com.ayaan.couponviewer.SHOW_COUPON"
+            BottomActionButtons(couponLink = coupon.couponVisitingLink?.toString(), onRedeemed = {
+                // Show confirmation dialog
+                showRedeemDialog = true
+            }, onDiscoverClick = {
+                try {
+                    val intent = Intent().apply {
+                        action = "com.ayaan.couponviewer.SHOW_COUPON"
 
-                                // Add coupon data as extras
-                                putExtra("EXTRA_COUPON_CODE", coupon.couponCode.toString())
-                                putExtra("EXTRA_COUPON_TITLE", coupon.couponTitle?.toString() ?: "Special Offer")
-                                putExtra("EXTRA_DESCRIPTION", coupon.description?.toString())
-                                putExtra("EXTRA_BRAND_NAME", coupon.brandName?.toString() ?: "Brand")
-                                putExtra("EXTRA_CATEGORY", coupon.categoryLabel?.toString())
-                                putExtra("EXTRA_EXPIRY_DATE", coupon.display?.daysUntilExpiry?.toString())
-                                putExtra("EXTRA_MINIMUM_ORDER", coupon.minimumOrder?.toString())
-                                putExtra("EXTRA_DISCOUNT_VALUE", coupon.discountValue?.toString())
-                                putExtra("EXTRA_DISCOUNT_TYPE", coupon.discountType?.toString())
-                                putExtra("EXTRA_TERMS", coupon.terms?.toString())
-                                putExtra("EXTRA_COUPON_LINK", coupon.couponVisitingLink?.toString())
-                                putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
+                        // Add coupon data as extras
+                        putExtra("EXTRA_COUPON_CODE", coupon.couponCode.toString())
+                        putExtra(
+                            "EXTRA_COUPON_TITLE",
+                            coupon.couponTitle?.toString() ?: "Special Offer"
+                        )
+                        putExtra("EXTRA_DESCRIPTION", coupon.description?.toString())
+                        putExtra(
+                            "EXTRA_BRAND_NAME",
+                            coupon.brandName?.toString() ?: "Brand"
+                        )
+                        putExtra("EXTRA_CATEGORY", coupon.categoryLabel?.toString())
+                        putExtra(
+                            "EXTRA_EXPIRY_DATE",
+                            coupon.display?.daysUntilExpiry?.toString()
+                        )
+                        putExtra("EXTRA_MINIMUM_ORDER", coupon.minimumOrder?.toString())
+                        putExtra("EXTRA_DISCOUNT_VALUE", coupon.discountValue?.toString())
+                        putExtra("EXTRA_DISCOUNT_TYPE", coupon.discountType?.toString())
+                        putExtra("EXTRA_TERMS", coupon.terms?.toString())
+                        putExtra("EXTRA_COUPON_LINK", coupon.couponVisitingLink?.toString())
+                        putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
 
-                                setPackage("com.ayaan.couponviewer")
-                                addCategory(Intent.CATEGORY_DEFAULT)
-                            }
-
-                            Log.d("CouponDetailsScreen", "Launching CouponViewer with intent: $intent")
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Log.e("CouponDetailsScreen", "Failed to open CouponViewer app: ${e.message}", e)
-
-                            // Fallback to Play Store
-                            try {
-                                val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                    setPackage("com.android.vending")
-                                }
-                                context.startActivity(playStoreIntent)
-                            } catch (e2: Exception) {
-                                // Last resort - open in browser
-                                val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                }
-                                context.startActivity(browserIntent)
-                            }
-                        }
+                        setPackage("com.ayaan.couponviewer")
+                        addCategory(Intent.CATEGORY_DEFAULT)
                     }
-                )
-            }
+
+                    Log.d(
+                        "CouponDetailsScreen",
+                        "Launching CouponViewer with intent: $intent"
+                    )
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(
+                        "CouponDetailsScreen",
+                        "Failed to open CouponViewer app: ${e.message}",
+                        e
+                    )
+
+                    // Fallback to Play Store
+                    try {
+                        val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                            data =
+                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                            setPackage("com.android.vending")
+                        }
+                        context.startActivity(playStoreIntent)
+                    } catch (e2: Exception) {
+                        // Last resort - open in browser
+                        val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                            data =
+                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                        }
+                        context.startActivity(browserIntent)
+                    }
+                }
+            })
         }
-    ) { paddingValues ->
+    }) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -334,8 +347,7 @@ fun CouponDetailsContent(
             // Tab Row
             item {
                 TabRow(
-                    selectedTab = selectedTab, tabs = tabs, onTabSelected = { selectedTab = it }
-                )
+                    selectedTab = selectedTab, tabs = tabs, onTabSelected = { selectedTab = it })
             }
 
             item {
@@ -393,21 +405,16 @@ fun CouponDetailsContent(
                     onClick = {
                         Log.d("CouponDetailsScreen", "Redeem button clicked")
                         showRedeemDialog = false
-                        viewModel.redeemCoupon(
-                            onSuccess = {
-                                Log.d("CouponDetailsScreen", "Redeem success callback")
-                                showRedeemSuccess = true
-                            },
-                            onError = { error ->
-                                Log.e("CouponDetailsScreen", "Redeem error: $error")
-                                redeemError = error
-                            }
-                        )
-                    },
-                    colors = ButtonDefaults.buttonColors(
+                        viewModel.redeemCoupon(onSuccess = {
+                            Log.d("CouponDetailsScreen", "Redeem success callback")
+                            showRedeemSuccess = true
+                        }, onError = { error ->
+                            Log.e("CouponDetailsScreen", "Redeem error: $error")
+                            redeemError = error
+                        })
+                    }, colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF5B3FD9)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
+                    ), shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = "Yes, Mark Redeemed",
@@ -418,8 +425,7 @@ fun CouponDetailsContent(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showRedeemDialog = false }
-                ) {
+                    onClick = { showRedeemDialog = false }) {
                     Text(
                         text = "Cancel",
                         fontSize = 14.sp,
@@ -427,8 +433,7 @@ fun CouponDetailsContent(
                         color = Color(0xFF666666)
                     )
                 }
-            }
-        )
+            })
     }
 
     // Success Dialog
@@ -454,20 +459,15 @@ fun CouponDetailsContent(
             },
             confirmButton = {
                 Button(
-                    onClick = { showRedeemSuccess = false },
-                    colors = ButtonDefaults.buttonColors(
+                    onClick = { showRedeemSuccess = false }, colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF00C853)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
+                    ), shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "OK",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "OK", fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                 }
-            }
-        )
+            })
     }
 
     // Error Dialog
@@ -486,35 +486,28 @@ fun CouponDetailsContent(
             },
             text = {
                 Text(
-                    text = error,
-                    fontSize = 14.sp,
-                    color = Color(0xFF666666)
+                    text = error, fontSize = 14.sp, color = Color(0xFF666666)
                 )
             },
             confirmButton = {
                 Button(
-                    onClick = { redeemError = null },
-                    colors = ButtonDefaults.buttonColors(
+                    onClick = { redeemError = null }, colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Red
-                    ),
-                    shape = RoundedCornerShape(8.dp)
+                    ), shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "OK",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "OK", fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                 }
-            }
-        )
+            })
     }
 }
 
 @Composable
 fun BrandHeader(
-    brandName: String, 
-    categoryLabel: String?, 
-    daysUntilExpiry: Int?, 
+    brandName: String,
+    categoryLabel: String?,
+    daysUntilExpiry: Int?,
     initial: String,
     isStackable: Boolean = false
 ) {
@@ -534,9 +527,11 @@ fun BrandHeader(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter= painterResource(painter),
+                painter = painterResource(painter),
                 contentDescription = "BrnadLogo",
-                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
             )
 //            Text(
 //                text = initial, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White
@@ -552,11 +547,18 @@ fun BrandHeader(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                var chipCount = 0
+
                 categoryLabel?.let {
                     Chip(text = it, backgroundColor = Color(0xFFE8DCFF))
+                    chipCount++
                 }
+
                 daysUntilExpiry?.let {
                     val expiryText = when {
                         it == 0 -> "Expires today"
@@ -565,11 +567,38 @@ fun BrandHeader(
                         else -> "Expires in $it days"
                     }
                     Chip(text = expiryText, backgroundColor = Color(0xFFE8DCFF))
+                    chipCount++
                 }
+
                 if (isStackable) {
-                    Chip(text = "Stackable", backgroundColor = Color(0xFFE8DCFF))
+                    // 👇 force stackable to next line if already 2 chips present
+                    if (chipCount >= 2) {
+                        Spacer(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    Chip(
+                        text = "Stackable", backgroundColor = Color(0xFFE8DCFF)
+                    )
                 }
             }
+
+//            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+//                categoryLabel?.let {
+//                    Chip(text = it, backgroundColor = Color(0xFFE8DCFF))
+//                }
+//                daysUntilExpiry?.let {
+//                    val expiryText = when {
+//                        it == 0 -> "Expires today"
+//                        it == 1 -> "Expires in 1 day"
+//                        it < 0 -> "Expired"
+//                        else -> "Expires in $it days"
+//                    }
+//                    Chip(text = expiryText, backgroundColor = Color(0xFFE8DCFF))
+//                }
+//                if (isStackable) {
+//                    Chip(text = "Stackable", backgroundColor = Color(0xFFE8DCFF))
+//                }
+//            }
         }
     }
 }

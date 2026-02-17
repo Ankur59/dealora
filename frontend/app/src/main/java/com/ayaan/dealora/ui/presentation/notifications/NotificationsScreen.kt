@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -170,14 +171,14 @@ fun NotificationCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Unread indicator dot
-            if (!isRead) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(color = Color(0xFF5B3FD9), shape = CircleShape)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-            }
+//            if (!isRead) {
+//                Box(
+//                    modifier = Modifier
+//                        .size(8.dp)
+//                        .background(color = Color(0xFF5B3FD9), shape = CircleShape)
+//                )
+//                Spacer(modifier = Modifier.width(12.dp))
+//            }
 
             Column(
                 modifier = Modifier.weight(1f),
@@ -187,7 +188,10 @@ fun NotificationCard(
                     text = notification.title,
                     fontSize = 14.sp,
                     fontWeight = if (isRead) FontWeight.Medium else FontWeight.Bold,
-                    color = Color(0xFF1E1E1E)
+                    color = Color(0xFF1E1E1E),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 16.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -195,7 +199,9 @@ fun NotificationCard(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
                     color = Color(0xFF747272),
-                    lineHeight = 18.sp
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 16.sp
                 )
             }
 

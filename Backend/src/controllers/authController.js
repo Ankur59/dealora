@@ -124,7 +124,7 @@ const getProfile = async (req, res, next) => {
 
 const updateProfile = async (req, res, next) => {
     try {
-        const { uid, name, email, phone, profilePicture } = req.body;
+        const uid = req.query.uid || req.body.uid;
 
         if (!uid) {
             throw new ValidationError('UID is required');
@@ -135,6 +135,8 @@ const updateProfile = async (req, res, next) => {
         if (!user) {
             throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
         }
+
+        const { name, email, phone, profilePicture } = req.body;
 
         logger.info(`Profile update attempt for user: ${user.uid}`);
 
