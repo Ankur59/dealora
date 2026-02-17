@@ -333,7 +333,8 @@ class CouponDetailsViewModel @Inject constructor(
                     exclusiveCoupon.source?.let { "Source: $it" },
                     exclusiveCoupon.stackable?.let { if (it == "yes" || it == "true") "Stackable" else null }
                 ),
-                redemptionType = "online"
+                redemptionType = "online",
+                isStackable = exclusiveCoupon.stackable?.lowercase()?.let { it == "yes" || it == "true" } ?: false
             ),
             actions = CouponActions(
                 canEdit = false,

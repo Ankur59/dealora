@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.BackendResult
+import com.ayaan.dealora.data.repository.BackendAuthRepository
 import com.ayaan.dealora.data.repository.ProfileRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,7 +19,8 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val firebaseAuth: FirebaseAuth,
-    private val syncedAppRepository: com.ayaan.dealora.data.repository.SyncedAppRepository
+    private val syncedAppRepository: com.ayaan.dealora.data.repository.SyncedAppRepository,
+    private val backendAuthRepository: BackendAuthRepository
 ) : ViewModel() {
 
     companion object {
@@ -150,21 +152,37 @@ class ProfileViewModel @Inject constructor(
         }
     }
     fun logout() {
-        Log.d(TAG, "logout: Clearing synced apps from database")
+        Log.d(TAG, "logout: Starting logout process")
         viewModelScope.launch {
             try {
+                val uid = firebaseAuth.currentUser?.uid
+
+                if (uid != null) {
+                    // Delete FCM token from backend first
+                    Log.d(TAG, "logout: Deleting FCM token from backend")
+                    val fcmTokenDeleted = backendAuthRepository.deleteFcmToken(uid)
+
+                    if (fcmTokenDeleted) {
+                        Log.d(TAG, "logout: FCM token deleted successfully from backend")
+                    } else {
+                        Log.w(TAG, "logout: Failed to delete FCM token from backend, but continuing logout")
+                    }
+                } else {
+                    Log.w(TAG, "logout: No user UID found, skipping FCM token deletion")
+                }
+
                 // Clear all synced apps from Room database
 //                syncedAppRepository.deleteAllSyncedApps()
                 Log.d(TAG, "logout: Database cleared successfully")
 
-                // Sign out from Firebase
+                // Sign out from Firebase only after FCM token is deleted
                 firebaseAuth.signOut()
                 Log.d(TAG, "logout: User signed out successfully")
             } catch (e: Exception) {
-                Log.e(TAG, "logout: Error clearing database", e)
-                // Still sign out even if database clear fails
+                Log.e(TAG, "logout: Error during logout", e)
+                // Still sign out even if there are errors
                 firebaseAuth.signOut()
-                Log.d(TAG, "logout: User signed out successfully (despite database error)")
+                Log.d(TAG, "logout: User signed out successfully (despite errors)")
             }
         }
     }

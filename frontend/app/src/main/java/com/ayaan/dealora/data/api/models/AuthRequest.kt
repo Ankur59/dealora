@@ -43,6 +43,15 @@ data class FcmTokenRequest(
 )
 
 /**
+ * Request model for FCM token deletion
+ */
+@JsonClass(generateAdapter = true)
+data class DeleteFcmTokenRequest(
+    @Json(name = "uid")
+    val uid: String
+)
+
+/**
  * Response model for FCM token update
  */
 @JsonClass(generateAdapter = true)
@@ -52,5 +61,14 @@ data class FcmTokenResponse(
 
     @Json(name = "fcmToken")
     val fcmToken: String
+)
+
+/**
+ * Response model for FCM token deletion
+ */
+@JsonClass(generateAdapter = true)
+data class DeleteFcmTokenResponse(
+    @Json(name = "uid")
+    val uid: String
 )
 

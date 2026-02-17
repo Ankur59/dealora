@@ -126,7 +126,10 @@ data class CouponDisplay(
     val badgeLabels: List<String>,
 
     @Json(name = "redemptionType")
-    val redemptionType: String
+    val redemptionType: String,
+
+    @Json(name = "isStackable")
+    val isStackable: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)
