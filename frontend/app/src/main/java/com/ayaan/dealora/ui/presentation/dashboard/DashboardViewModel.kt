@@ -33,8 +33,9 @@ class DashboardViewModel @Inject constructor(
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
     private val firebaseAuth: FirebaseAuth,
-    private val moshi: Moshi
+    val moshi: Moshi
 ) : ViewModel() {
+
 
     companion object {
         private const val TAG = "DashboardViewModel"

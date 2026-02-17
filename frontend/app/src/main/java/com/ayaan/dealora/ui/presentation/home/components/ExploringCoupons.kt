@@ -103,16 +103,17 @@ fun ExploringCoupons(
                                 viewModel.removeSavedCoupon(couponId)
                             },
                             onDetailsClick = {
-                                // Cache the coupon before navigation so CouponDetailsViewModel can access it
-                                viewModel.cacheExploringCoupon(coupon)
+                                val couponJson = viewModel.moshi.adapter(PrivateCoupon::class.java).toJson(coupon)
                                 navController.navigate(
                                     Route.CouponDetails.createRoute(
                                         couponId = coupon.id,
                                         isPrivate = true,
-                                        couponCode = coupon.couponCode ?: "WELCOME100"
+                                        couponCode = coupon.couponCode ?: "WELCOME100",
+                                        couponData = Uri.encode(couponJson)
                                     )
                                 )
                             },
+
                             onDiscoverClick = {
                                 try {
                                     // Create implicit intent with custom action

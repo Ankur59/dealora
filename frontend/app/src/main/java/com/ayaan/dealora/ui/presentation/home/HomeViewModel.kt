@@ -36,8 +36,9 @@ class HomeViewModel @Inject constructor(
     private val savedCouponRepository: SavedCouponRepository,
     private val backendAuthRepository: BackendAuthRepository,
     private val firebaseAuth: FirebaseAuth,
-    private val moshi: Moshi
+    val moshi: Moshi
 ) : ViewModel() {
+
 
     companion object {
         private const val TAG = "HomeViewModel"

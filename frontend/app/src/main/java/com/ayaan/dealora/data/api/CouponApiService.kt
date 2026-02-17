@@ -7,6 +7,8 @@ import com.ayaan.dealora.data.api.models.CouponResponseData
 import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CouponStatisticsRequest
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
+import com.ayaan.dealora.data.api.models.ExclusiveCouponDetailResponseData
+import com.ayaan.dealora.data.api.models.ExclusiveCouponListResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
@@ -61,4 +63,24 @@ interface CouponApiService {
     suspend fun getPrivateCouponStatistics(
         @Body request: CouponStatisticsRequest
     ): Response<ApiResponse<CouponStatistics>>
+
+    // Exclusive coupons endpoints
+    @GET("api/exclusive-coupons")
+    suspend fun getExclusiveCoupons(
+        @Query("brands") brands: String? = null,
+        @Query("brand") brand: String? = null,
+        @Query("category") category: String? = null,
+        @Query("search") search: String? = null,
+        @Query("source") source: String? = null,
+        @Query("stackable") stackable: String? = null,
+        @Query("validity") validity: String? = null,
+        @Query("sortBy") sortBy: String? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("page") page: Int? = null
+    ): Response<ApiResponse<ExclusiveCouponListResponseData>>
+
+    @GET("api/exclusive-coupons/{couponCode}")
+    suspend fun getExclusiveCouponByCode(
+        @Path("couponCode") couponCode: String
+    ): Response<ApiResponse<ExclusiveCouponDetailResponseData>>
 }

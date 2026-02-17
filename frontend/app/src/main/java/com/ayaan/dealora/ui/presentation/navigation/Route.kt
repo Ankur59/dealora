@@ -32,8 +32,9 @@ sealed class Route(val path: String) {
         fun createRoute(selectedApps: List<String>) =
             "syncingprogress/${selectedApps.joinToString(",")}"
     }
-    object CouponDetails:Route("coupondetails/{couponId}?isPrivate={isPrivate}&couponCode={couponCode}") {
-        fun createRoute(couponId: String, isPrivate: Boolean = false, couponCode: String? = null) =
-            "coupondetails/$couponId?isPrivate=$isPrivate&couponCode=${couponCode ?: ""}"
+    object CouponDetails:Route("coupondetails/{couponId}?isPrivate={isPrivate}&couponCode={couponCode}&couponData={couponData}") {
+        fun createRoute(couponId: String, isPrivate: Boolean = false, couponCode: String? = null, couponData: String? = null) =
+            "coupondetails/$couponId?isPrivate=$isPrivate&couponCode=${couponCode ?: ""}&couponData=${couponData ?: ""}"
     }
+
 }

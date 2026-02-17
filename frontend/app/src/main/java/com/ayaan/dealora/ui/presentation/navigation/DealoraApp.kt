@@ -64,7 +64,13 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                },
+                navArgument("couponData") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 })) {
+
             CouponDetailsScreen(navController)
         }
         composable(Route.AccountPrivacy.path) {
