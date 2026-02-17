@@ -1,20 +1,49 @@
+const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 const { successResponse, errorResponse } = require('../utils/responseHandler');
 const { STATUS_CODES } = require('../config/constants');
 const logger = require('../utils/logger');
+
+/**
+ * Helper to resolve userId/uid to MongoDB ObjectId
+ */
+const resolveUserObjectId = async (userIdOrUid) => {
+    if (!userIdOrUid) return null;
+
+    // Check if it's already a valid MongoDB ObjectId
+    if (mongoose.Types.ObjectId.isValid(userIdOrUid)) {
+        return userIdOrUid;
+    }
+
+    // Otherwise, treat as Firebase uid and find the user
+    const user = await User.findOne({ uid: userIdOrUid }).select('_id').lean();
+    return user ? user._id : null;
+};
 
 /**
  * GET /notifications - Get all notifications for a user
  */
 const getNotifications = async (req, res, next) => {
     try {
-        const { userId } = req.query;
+        const { userId: rawUserId } = req.query;
 
         // Build query
         const query = {};
-        
-        if (userId) {
-            query.userId = { $in: [userId] };
+
+        if (rawUserId) {
+            const resolvedId = await resolveUserObjectId(rawUserId);
+            if (resolvedId) {
+                query.userId = { $in: [resolvedId] };
+            } else {
+                // If userId/uid provided but not found, return empty list
+                return successResponse(
+                    res,
+                    STATUS_CODES.OK,
+                    'Notifications retrieved successfully',
+                    { notifications: [] }
+                );
+            }
         }
 
         // Execute query - only get title, body and createdAt
@@ -104,9 +133,9 @@ const markAsRead = async (req, res, next) => {
  */
 const markAllAsRead = async (req, res, next) => {
     try {
-        const { userId } = req.body;
+        const { userId: rawUserId } = req.body;
 
-        if (!userId) {
+        if (!rawUserId) {
             return errorResponse(
                 res,
                 STATUS_CODES.BAD_REQUEST,
@@ -114,7 +143,16 @@ const markAllAsRead = async (req, res, next) => {
             );
         }
 
-        const result = await Notification.markAllAsRead(userId);
+        const resolvedId = await resolveUserObjectId(rawUserId);
+        if (!resolvedId) {
+            return errorResponse(
+                res,
+                STATUS_CODES.NOT_FOUND,
+                'User not found'
+            );
+        }
+
+        const result = await Notification.markAllAsRead(resolvedId);
 
         return successResponse(
             res,
@@ -163,9 +201,9 @@ const deleteNotification = async (req, res, next) => {
  */
 const clearAllNotifications = async (req, res, next) => {
     try {
-        const { userId } = req.body;
+        const { userId: rawUserId } = req.body;
 
-        if (!userId) {
+        if (!rawUserId) {
             return errorResponse(
                 res,
                 STATUS_CODES.BAD_REQUEST,
@@ -173,7 +211,16 @@ const clearAllNotifications = async (req, res, next) => {
             );
         }
 
-        const result = await Notification.deleteMany({ userId });
+        const resolvedId = await resolveUserObjectId(rawUserId);
+        if (!resolvedId) {
+            return errorResponse(
+                res,
+                STATUS_CODES.NOT_FOUND,
+                'User not found'
+            );
+        }
+
+        const result = await Notification.deleteMany({ userId: { $in: [resolvedId] } });
 
         return successResponse(
             res,
@@ -194,9 +241,9 @@ const clearAllNotifications = async (req, res, next) => {
  */
 const getUnreadCount = async (req, res, next) => {
     try {
-        const { userId } = req.query;
+        const { userId: rawUserId } = req.query;
 
-        if (!userId) {
+        if (!rawUserId) {
             return errorResponse(
                 res,
                 STATUS_CODES.BAD_REQUEST,
@@ -204,7 +251,17 @@ const getUnreadCount = async (req, res, next) => {
             );
         }
 
-        const count = await Notification.getUnreadCount(userId);
+        const resolvedId = await resolveUserObjectId(rawUserId);
+        if (!resolvedId) {
+            return successResponse(
+                res,
+                STATUS_CODES.OK,
+                'Unread count retrieved successfully',
+                { unreadCount: 0 }
+            );
+        }
+
+        const count = await Notification.getUnreadCount(resolvedId);
 
         return successResponse(
             res,
@@ -243,8 +300,10 @@ const createNotification = async (req, res, next) => {
             );
         }
 
+        const resolvedId = await resolveUserObjectId(userId);
+
         const notification = await Notification.create({
-            userId: userId || null,
+            userId: resolvedId ? [resolvedId] : [],
             title,
             body,
             type: type || 'general',
