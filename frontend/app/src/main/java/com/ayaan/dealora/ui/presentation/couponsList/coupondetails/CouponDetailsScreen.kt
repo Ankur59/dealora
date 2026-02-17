@@ -201,8 +201,9 @@ fun CouponDetailsContent(
         },
         containerColor = AppColors.Background,
         bottomBar = {
-            // Only show bottom action buttons when in private mode
-            if (isPrivateMode) {
+            // Only show bottom action buttons when in private mode and not an exclusive coupon
+            if (isPrivateMode && coupon.addedMethod != "exclusive") {
+
                 BottomActionButtons(
                     couponLink = coupon.couponVisitingLink?.toString(),
                     onRedeemed = {
@@ -539,7 +540,7 @@ fun BrandHeader(
 
         Column {
             Text(
-                text = brandName,
+                text = brandName.uppercase(),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = AppColors.PrimaryText

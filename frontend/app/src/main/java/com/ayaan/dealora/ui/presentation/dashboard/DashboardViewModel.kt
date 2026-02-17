@@ -4,7 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+
 import com.ayaan.dealora.data.local.entity.SavedCouponEntity
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
@@ -222,28 +224,49 @@ class DashboardViewModel @Inject constructor(
                 // 2. Add coupons from DB that weren't in the API response
                 savedEntities.filter { !addedIds.contains(it.couponId) }.forEach { savedCoupon ->
                     val coupon = try {
-                        if (savedCoupon.couponType == "private") {
-                            moshi.adapter(PrivateCoupon::class.java).fromJson(savedCoupon.couponJson)
-                        } else {
-                            // Map public CouponListItem to PrivateCoupon
-                            moshi.adapter(CouponListItem::class.java).fromJson(savedCoupon.couponJson)?.let { listItem ->
-                                PrivateCoupon(
-                                    id = listItem.id,
-                                    brandName = listItem.brandName ?: "Dealora",
-                                    couponTitle = listItem.couponTitle ?: "Special Offer",
-                                    description = listItem.description,
-                                    category = listItem.category,
-                                    daysUntilExpiry = listItem.daysUntilExpiry,
-                                    redeemable = false, // Public usually not redeemable in-app
-                                    redeemed = false,
-                                    couponType = "public"
-                                )
+                        when (savedCoupon.couponType) {
+                            "private" -> {
+                                moshi.adapter(PrivateCoupon::class.java).fromJson(savedCoupon.couponJson)
+                            }
+                            "exclusive" -> {
+                                moshi.adapter(ExclusiveCoupon::class.java).fromJson(savedCoupon.couponJson)?.let { exclusive ->
+                                    PrivateCoupon(
+                                        id = exclusive.id,
+                                        brandName = exclusive.brandName,
+                                        couponTitle = exclusive.couponName,
+                                        description = exclusive.description,
+                                        category = exclusive.category,
+                                        daysUntilExpiry = exclusive.daysUntilExpiry,
+                                        couponCode = exclusive.couponCode,
+                                        couponLink = exclusive.couponLink,
+                                        couponType = "exclusive",
+                                        redeemable = false,
+                                        redeemed = false
+                                    )
+                                }
+                            }
+                            else -> {
+                                // Map public CouponListItem to PrivateCoupon
+                                moshi.adapter(CouponListItem::class.java).fromJson(savedCoupon.couponJson)?.let { listItem ->
+                                    PrivateCoupon(
+                                        id = listItem.id,
+                                        brandName = listItem.brandName ?: "Dealora",
+                                        couponTitle = listItem.couponTitle ?: "Special Offer",
+                                        description = listItem.description,
+                                        category = listItem.category,
+                                        daysUntilExpiry = listItem.daysUntilExpiry,
+                                        redeemable = false,
+                                        redeemed = false,
+                                        couponType = "public"
+                                    )
+                                }
                             }
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error parsing saved coupon JSON: ${savedCoupon.couponId}", e)
                         null
                     }
+
 
                     coupon?.let {
                         combined.add(it)
