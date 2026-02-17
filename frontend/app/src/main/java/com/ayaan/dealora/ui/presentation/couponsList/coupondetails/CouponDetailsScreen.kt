@@ -275,7 +275,8 @@ fun CouponDetailsContent(
                     categoryLabel = coupon.categoryLabel?.toString(),
                     daysUntilExpiry = coupon.display?.daysUntilExpiry,
                     initial = coupon.display?.initial ?: coupon.brandName?.toString()?.firstOrNull()
-                        ?.toString() ?: "?"
+                        ?.toString() ?: "?",
+                    isStackable = coupon.display?.isStackable ?: false
                 )
             }
 
@@ -511,7 +512,11 @@ fun CouponDetailsContent(
 
 @Composable
 fun BrandHeader(
-    brandName: String, categoryLabel: String?, daysUntilExpiry: Int?, initial: String
+    brandName: String, 
+    categoryLabel: String?, 
+    daysUntilExpiry: Int?, 
+    initial: String,
+    isStackable: Boolean = false
 ) {
     val painter: Int = remember(brandName) {
         getBrandLogoResource(brandName.replace("\n", "").trim().lowercase())
@@ -560,6 +565,9 @@ fun BrandHeader(
                         else -> "Expires in $it days"
                     }
                     Chip(text = expiryText, backgroundColor = Color(0xFFE8DCFF))
+                }
+                if (isStackable) {
+                    Chip(text = "Stackable", backgroundColor = Color(0xFFE8DCFF))
                 }
             }
         }
