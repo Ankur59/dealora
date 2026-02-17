@@ -199,6 +199,7 @@ exports.redeemPrivateCoupon = async (req, res) => {
     try {
         const { id } = req.params;
         const uid = req.uid || req.body.uid; // Get UID from auth or body (optional)
+        const { brands } = req.body; // Optional: brands to recalculate statistics
 
         const coupon = await PrivateCoupon.findById(id);
 
@@ -220,8 +221,50 @@ exports.redeemPrivateCoupon = async (req, res) => {
 
         logger.info(`Private coupon ${id} redeemed${uid ? ` by user ${uid}` : ''}`);
 
+        // Calculate updated statistics
+        const query = {};
+        if (brands && Array.isArray(brands) && brands.length > 0) {
+            query.brandName = {
+                $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i'))
+            };
+        }
+
+        const activeCouponsQuery = { ...query, redeemable: true };
+        const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1 }).lean();
+        const activeCouponsCount = activeCoupons.length;
+
+        // Calculate total savings
+        let totalSavings = 0;
+
+        if (brands && Array.isArray(brands) && brands.length > 0) {
+            activeCoupons.forEach(c => {
+                if (!c.couponTitle) return;
+
+                const percentMatch = c.couponTitle.match(/(\d+)%/);
+                const amountMatch = c.couponTitle.match(/₹\s*(\d+)/);
+
+                if (percentMatch && amountMatch) {
+                    const percentage = parseInt(percentMatch[1], 10);
+                    const amount = parseInt(amountMatch[1], 10);
+
+                    if (!isNaN(percentage) && !isNaN(amount)) {
+                        const discount = Math.round((percentage / 100) * amount);
+                        totalSavings += discount;
+                    }
+                }
+            });
+
+            if (totalSavings > 999) {
+                totalSavings = 999;
+            }
+        }
+
         return successResponse(res, STATUS_CODES.OK, 'Coupon redeemed successfully', {
-            coupon
+            coupon,
+            updatedStatistics: {
+                activeCouponsCount,
+                totalSavings
+            }
         });
     } catch (error) {
         logger.error(`Error redeeming private coupon: ${error.message}`);
