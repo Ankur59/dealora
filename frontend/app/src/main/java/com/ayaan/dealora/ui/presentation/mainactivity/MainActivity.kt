@@ -19,10 +19,44 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            Log.d("MainActivity", "Notification permission granted")
+        } else {
+            Log.d("MainActivity", "Notification permission denied")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//        enableEdgeToEdge()
+
+        // Request notification permission for Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            when {
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
+                    Log.d("MainActivity", "Notification permission already granted")
+                }
+                shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS) -> {
+                    Log.d("MainActivity", "Show rationale for notification permission")
+                    // In a real app, you might show a custom dialog here. 
+                    // For now, we'll just launch the request again to be proactive as requested.
+                    requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+                else -> {
+                    requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+
+
         val user= FirebaseAuth.getInstance().currentUser?.uid
+
         Log.d("MainActivity", "User: $user")
         setContent {
             DealoraTheme(darkTheme = false) {

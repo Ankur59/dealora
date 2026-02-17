@@ -262,7 +262,8 @@ class CouponDetailsViewModel @Inject constructor(
             couponDetails = privateCoupon.couponDetails ?: (privateCoupon.description ?: "Visit the brand website to redeem this coupon."),
             terms = privateCoupon.terms ?: "• Check brand website for complete terms\n• Subject to availability\n• Cannot be combined with other offers",
             status = "active",
-            addedMethod = "private",
+            addedMethod = privateCoupon.couponType,
+
             base64ImageUrl = privateCoupon.base64ImageUrl,
             createdAt = privateCoupon.createdAt ?: System.currentTimeMillis().toString(),
             updatedAt = privateCoupon.updatedAt ?: System.currentTimeMillis().toString(),

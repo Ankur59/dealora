@@ -128,7 +128,10 @@ class HomeViewModel @Inject constructor(
                     // Fetch statistics and explore coupons after profile is successful
                     fetchStatistics()
                     fetchExploreCoupons()
+                    // Update FCM token
+                    updateFcmToken()
                 }
+
                 is BackendResult.Error -> {
                     Log.e(TAG, "fetchProfile: Error - ${result.message}")
                     _uiState.update {
