@@ -11,6 +11,7 @@ import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.api.models.CouponListResponseData
 import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
+import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
 import com.ayaan.dealora.data.paging.CouponPagingSource
@@ -367,6 +368,128 @@ class CouponRepository @Inject constructor(
             PrivateCouponStatisticsResult.Error(e.message ?: "Network error occurred")
         }
     }
+
+    /**
+     * Get exclusive coupons with filters and pagination
+     */
+    suspend fun getExclusiveCoupons(
+        brands: String? = null,
+        brand: String? = null,
+        category: String? = null,
+        search: String? = null,
+        source: String? = null,
+        stackable: String? = null,
+        validity: String? = null,
+        sortBy: String? = null,
+        limit: Int? = null,
+        page: Int? = null
+    ): ExclusiveCouponResult {
+        return try {
+            Log.d(TAG, "Fetching exclusive coupons - brands: $brands, category: $category, search: $search, sortBy: $sortBy")
+            val response = couponApiService.getExclusiveCoupons(
+                brands = brands,
+                brand = brand,
+                category = category,
+                search = search,
+                source = source,
+                stackable = stackable,
+                validity = validity,
+                sortBy = sortBy,
+                limit = limit,
+                page = page
+            )
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Log.d(TAG, "Exclusive coupons fetched successfully: ${body.data.coupons.size} coupons")
+                    ExclusiveCouponResult.Success(
+                        message = body.message,
+                        coupons = body.data.coupons,
+                        total = body.data.total,
+                        page = body.data.page,
+                        pages = body.data.pages
+                    )
+                } else {
+                    val errorMsg = body?.message ?: "Failed to fetch exclusive coupons"
+                    Log.e(TAG, "Fetch exclusive coupons failed: $errorMsg")
+                    ExclusiveCouponResult.Error(errorMsg)
+                }
+            } else {
+                val errorMsg = "HTTP ${response.code()}: ${response.message()}"
+                Log.e(TAG, "Fetch exclusive coupons HTTP error: $errorMsg")
+                ExclusiveCouponResult.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fetch exclusive coupons exception", e)
+            ExclusiveCouponResult.Error(e.message ?: "Network error occurred")
+        }
+    }
+
+    /**
+     * Get exclusive coupon by coupon code
+     */
+    suspend fun getExclusiveCouponByCode(couponCode: String): ExclusiveCouponDetailResult {
+        return try {
+            Log.d(TAG, "Fetching exclusive coupon by code: $couponCode")
+            val response = couponApiService.getExclusiveCouponByCode(couponCode)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Log.d(TAG, "Exclusive coupon fetched successfully")
+                    ExclusiveCouponDetailResult.Success(
+                        message = body.message,
+                        coupon = body.data.coupon
+                    )
+                } else {
+                    val errorMsg = body?.message ?: "Failed to fetch exclusive coupon"
+                    Log.e(TAG, "Fetch exclusive coupon failed: $errorMsg")
+                    ExclusiveCouponDetailResult.Error(errorMsg)
+                }
+            } else {
+                val errorMsg = when (response.code()) {
+                    404 -> "Coupon not found"
+                    else -> "HTTP ${response.code()}: ${response.message()}"
+                }
+                Log.e(TAG, "Fetch exclusive coupon HTTP error: $errorMsg")
+                ExclusiveCouponDetailResult.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fetch exclusive coupon exception", e)
+            ExclusiveCouponDetailResult.Error(e.message ?: "Network error occurred")
+        }
+    }
+
+    // Exclusive coupons cache for details screen
+    private val exclusiveCouponCache = mutableMapOf<String, ExclusiveCoupon>()
+
+    /**
+     * Cache an exclusive coupon temporarily
+     */
+    fun cacheExclusiveCoupon(coupon: ExclusiveCoupon) {
+        exclusiveCouponCache[coupon.id] = coupon
+        Log.d(TAG, "Exclusive coupon cached: ${coupon.id}")
+    }
+
+    /**
+     * Retrieve a cached exclusive coupon
+     */
+    fun getCachedExclusiveCoupon(couponId: String): ExclusiveCoupon? {
+        return exclusiveCouponCache[couponId].also {
+            if (it != null) {
+                Log.d(TAG, "Retrieved cached exclusive coupon: $couponId")
+            }
+        }
+    }
+
+    /**
+     * Clear cached exclusive coupon
+     */
+    fun clearCachedExclusiveCoupon(couponId: String) {
+        exclusiveCouponCache.remove(couponId)
+        Log.d(TAG, "Cleared cached exclusive coupon: $couponId")
+    }
 }
 
 /**
@@ -411,3 +534,33 @@ sealed class PrivateCouponStatisticsResult {
     ) : PrivateCouponStatisticsResult()
 }
 
+/**
+ * Sealed class representing exclusive coupon API call results
+ */
+sealed class ExclusiveCouponResult {
+    data class Success(
+        val message: String,
+        val coupons: List<ExclusiveCoupon>,
+        val total: Int,
+        val page: Int,
+        val pages: Int
+    ) : ExclusiveCouponResult()
+
+    data class Error(
+        val message: String
+    ) : ExclusiveCouponResult()
+}
+
+/**
+ * Sealed class representing exclusive coupon detail API call results
+ */
+sealed class ExclusiveCouponDetailResult {
+    data class Success(
+        val message: String,
+        val coupon: ExclusiveCoupon
+    ) : ExclusiveCouponDetailResult()
+
+    data class Error(
+        val message: String
+    ) : ExclusiveCouponDetailResult()
+}

@@ -5,11 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.BackendResult
 import com.ayaan.dealora.data.auth.AuthRepository
+import com.ayaan.dealora.data.repository.BackendAuthRepository
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.ProfileRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +25,7 @@ import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import kotlinx.coroutines.tasks.await
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -31,9 +34,11 @@ class HomeViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
+    private val backendAuthRepository: BackendAuthRepository,
     private val firebaseAuth: FirebaseAuth,
-    private val moshi: Moshi
+    val moshi: Moshi
 ) : ViewModel() {
+
 
     companion object {
         private const val TAG = "HomeViewModel"
@@ -54,6 +59,40 @@ class HomeViewModel @Inject constructor(
             savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
                 val ids = savedCoupons.map { it.couponId }.toSet()
                 _savedCouponIds.value = ids
+            }
+        }
+    }
+
+    /**
+     * Fetch FCM token and update it on the backend
+     */
+    fun updateFcmToken() {
+        val uid = firebaseAuth.currentUser?.uid
+
+        if (uid == null) {
+            Log.e(TAG, "updateFcmToken: No user logged in")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "updateFcmToken: Fetching FCM token from Firebase")
+
+                // Get FCM token from Firebase Messaging
+                val token = FirebaseMessaging.getInstance().token.await()
+
+                Log.d(TAG, "updateFcmToken: FCM Token retrieved: ${token.take(20)}...")
+
+                // Send token to backend
+                val success = backendAuthRepository.updateFcmToken(uid, token)
+
+                if (success) {
+                    Log.d(TAG, "updateFcmToken: FCM token updated successfully on backend")
+                } else {
+                    Log.e(TAG, "updateFcmToken: Failed to update FCM token on backend")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "updateFcmToken: Exception occurred", e)
             }
         }
     }

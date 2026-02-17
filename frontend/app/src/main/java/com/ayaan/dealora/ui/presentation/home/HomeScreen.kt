@@ -46,6 +46,7 @@ fun HomeScreen(
         viewModel.fetchProfile()
         viewModel.fetchStatistics()
         viewModel.fetchExploreCoupons()
+        viewModel.updateFcmToken()
     }
     Scaffold(
         topBar = {

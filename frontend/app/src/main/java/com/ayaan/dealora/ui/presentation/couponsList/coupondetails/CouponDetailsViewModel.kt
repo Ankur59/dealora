@@ -7,12 +7,15 @@ import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.data.api.models.CouponDisplay
 import com.ayaan.dealora.data.api.models.CouponActions
+import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponDetailResult
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +31,7 @@ class CouponDetailsViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
     private val firebaseAuth: FirebaseAuth,
+    private val moshi: Moshi,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -38,6 +42,7 @@ class CouponDetailsViewModel @Inject constructor(
     private val couponId: String = checkNotNull(savedStateHandle["couponId"])
     private val _isPrivate: Boolean = savedStateHandle["isPrivate"] ?: false
     private val _couponCode: String? = savedStateHandle["couponCode"]
+    private val _couponDataJson: String? = savedStateHandle["couponData"]
 
     private val _uiState = MutableStateFlow<CouponDetailsUiState>(CouponDetailsUiState.Loading)
     val uiState: StateFlow<CouponDetailsUiState> = _uiState.asStateFlow()
@@ -51,8 +56,54 @@ class CouponDetailsViewModel @Inject constructor(
         Log.d(TAG, "Coupon ID: $couponId")
         Log.d(TAG, "Is Private: $_isPrivate")
         Log.d(TAG, "Coupon Code: $_couponCode")
-        loadCouponDetails()
+        
+        if (!_couponDataJson.isNullOrBlank()) {
+            Log.d(TAG, "Found couponData in arguments, attempting to deserialize...")
+            handlePassedCouponData(_couponDataJson)
+        } else {
+            loadCouponDetails()
+        }
     }
+
+    private fun handlePassedCouponData(json: String) {
+        try {
+            if (_isPrivate) {
+                val adapter = moshi.adapter(PrivateCoupon::class.java)
+                val privateCoupon = adapter.fromJson(json)
+                if (privateCoupon != null) {
+                    Log.d(TAG, "✓ Successfully deserialized PrivateCoupon")
+                    val couponDetail = convertPrivateCouponToCouponDetail(privateCoupon)
+                    _uiState.value = CouponDetailsUiState.Success(couponDetail)
+                    // Also cache it just in case
+                    viewModelScope.launch {
+                        couponRepository.cacheCoupon(privateCoupon)
+                    }
+                } else {
+                    Log.e(TAG, "Failed to deserialize PrivateCoupon from JSON")
+                    loadCouponDetails()
+                }
+            } else {
+                val adapter = moshi.adapter(ExclusiveCoupon::class.java)
+                val exclusiveCoupon = adapter.fromJson(json)
+                if (exclusiveCoupon != null) {
+                    Log.d(TAG, "✓ Successfully deserialized ExclusiveCoupon")
+                    val couponDetail = convertExclusiveCouponToCouponDetail(exclusiveCoupon)
+                    _uiState.value = CouponDetailsUiState.Success(couponDetail)
+                    // Also cache it for compatibility
+                    viewModelScope.launch {
+                        couponRepository.cacheExclusiveCoupon(exclusiveCoupon)
+                    }
+                } else {
+                    Log.e(TAG, "Failed to deserialize ExclusiveCoupon from JSON")
+                    loadCouponDetails()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deserializing coupon data", e)
+            loadCouponDetails()
+        }
+    }
+
 
     fun loadCouponDetails() {
         viewModelScope.launch {
@@ -106,26 +157,21 @@ class CouponDetailsViewModel @Inject constructor(
                         _uiState.value = CouponDetailsUiState.Error("Coupon not found")
                     }
                     return@launch
-                }
+                } else {
+                    // Public mode - EXCLUSIVE COUPONS ONLY USE CACHE
+                    Log.d(TAG, "Loading exclusive coupon with id: $couponId")
 
-                val currentUser = firebaseAuth.currentUser
-                if (currentUser == null) {
-                    Log.e(TAG, "User not authenticated")
-                    _uiState.value = CouponDetailsUiState.Error("Please login to view coupon details.")
-                    return@launch
-                }
-
-                val uid = currentUser.uid
-                Log.d(TAG, "Loading coupon details for id: $couponId, uid: $uid")
-
-                when (val result = couponRepository.getCouponById(couponId, uid)) {
-                    is CouponDetailResult.Success -> {
-                        Log.d(TAG, "Coupon details loaded successfully")
-                        _uiState.value = CouponDetailsUiState.Success(result.coupon)
-                    }
-                    is CouponDetailResult.Error -> {
-                        Log.e(TAG, "Error loading coupon details: ${result.message}")
-                        _uiState.value = CouponDetailsUiState.Error(result.message)
+                    val exclusiveCoupon = couponRepository.getCachedExclusiveCoupon(couponId)
+                    if (exclusiveCoupon != null) {
+                        Log.d(TAG, "✓ Found exclusive coupon in cache: $couponId")
+                        val couponDetail = convertExclusiveCouponToCouponDetail(exclusiveCoupon)
+                        _uiState.value = CouponDetailsUiState.Success(couponDetail)
+                        return@launch
+                    } else {
+                        // Exclusive coupon not found in cache - this should not happen
+                        Log.e(TAG, "❌ Exclusive coupon not found in cache: $couponId")
+                        _uiState.value = CouponDetailsUiState.Error("Coupon data not available. Please go back and try again.")
+                        return@launch
                     }
                 }
             } catch (e: Exception) {
@@ -242,6 +288,57 @@ class CouponDetailsViewModel @Inject constructor(
                 canDelete = false,
                 canRedeem = privateCoupon.redeemable ?: true,
                 canShare = false
+            )
+        )
+    }
+
+    private fun convertExclusiveCouponToCouponDetail(exclusiveCoupon: ExclusiveCoupon): CouponDetail {
+        return CouponDetail(
+            id = exclusiveCoupon.id,
+            userId = "exclusive_public",
+            couponName = exclusiveCoupon.couponName,
+            brandName = exclusiveCoupon.brandName,
+            couponTitle = exclusiveCoupon.couponName,
+            description = exclusiveCoupon.description,
+            expireBy = exclusiveCoupon.expiryDate,
+            categoryLabel = exclusiveCoupon.category,
+            useCouponVia = "Online",
+            discountType = "exclusive",
+            discountValue = null,
+            minimumOrder = null,
+            couponCode = exclusiveCoupon.couponCode,
+            couponVisitingLink = exclusiveCoupon.couponLink,
+            couponDetails = exclusiveCoupon.details ?: (exclusiveCoupon.description ?: "Visit the brand website to redeem this exclusive coupon."),
+            terms = exclusiveCoupon.terms ?: "• Check brand website for complete terms\n• Subject to availability\n• Cannot be combined with other offers",
+            status = "active",
+            addedMethod = "exclusive",
+            base64ImageUrl = null,
+            createdAt = exclusiveCoupon.createdAt ?: System.currentTimeMillis().toString(),
+            updatedAt = exclusiveCoupon.updatedAt ?: System.currentTimeMillis().toString(),
+            display = CouponDisplay(
+                initial = exclusiveCoupon.brandName.firstOrNull()?.toString() ?: "?",
+                daysUntilExpiry = exclusiveCoupon.daysUntilExpiry,
+                isExpiringSoon = (exclusiveCoupon.daysUntilExpiry ?: 0) <= 7,
+                formattedExpiry = exclusiveCoupon.daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
+                expiryStatusColor = when {
+                    exclusiveCoupon.daysUntilExpiry == null -> "gray"
+                    exclusiveCoupon.daysUntilExpiry <= 3 -> "red"
+                    exclusiveCoupon.daysUntilExpiry <= 7 -> "orange"
+                    else -> "green"
+                },
+                badgeLabels = listOfNotNull(
+                    exclusiveCoupon.category,
+                    "Exclusive Coupon",
+                    exclusiveCoupon.source?.let { "Source: $it" },
+                    exclusiveCoupon.stackable?.let { if (it == "yes" || it == "true") "Stackable" else null }
+                ),
+                redemptionType = "online"
+            ),
+            actions = CouponActions(
+                canEdit = false,
+                canDelete = false,
+                canRedeem = false, // Exclusive coupons are not redeemable through the app
+                canShare = true
             )
         )
     }

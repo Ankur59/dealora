@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,9 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.paging.LoadState
-import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
+import androidx.compose.foundation.lazy.items
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
@@ -47,6 +43,8 @@ import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomShe
 import com.ayaan.dealora.ui.presentation.couponsList.components.PrivateEmptyState
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
 import com.ayaan.dealora.ui.presentation.navigation.Route
+import androidx.core.net.toUri
+import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 
 @Composable
 fun CouponsList(
@@ -54,7 +52,8 @@ fun CouponsList(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    val coupons = viewModel.couponsFlow.collectAsLazyPagingItems()
+    val exclusiveCoupons by viewModel.exclusiveCoupons.collectAsState()
+    val isLoadingExclusiveCoupons by viewModel.isLoadingExclusiveCoupons.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSortOption by viewModel.currentSortOption.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
@@ -136,448 +135,238 @@ fun CouponsList(
                 }
 
                 is CouponsListUiState.Success -> {
-                    // Handle paging load states
-                    when (val refreshState = coupons.loadState.refresh) {
-                        is LoadState.Loading -> {
+                    if (!isPublicMode) {
+                        // Show loading indicator when fetching private coupons
+                        if (isLoadingPrivateCoupons) {
                             LoadingContent()
-                        }
+                        } else if (privateCoupons.isEmpty()) {
+                            PrivateEmptyState()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                contentPadding = PaddingValues(16.dp)
+                            ) {
+                                items(
+                                    count = privateCoupons.size,
+                                    key = { index -> privateCoupons[index].id }) { index ->
+                                    val privateCoupon = privateCoupons[index]
 
-                        is LoadState.Error -> {
-                            val errorMessage = refreshState.error.message
-                                ?: "Unable to load coupons. Please try again."
-                            ErrorContent(
-                                message = errorMessage, onRetry = { coupons.retry() })
-                        }
+                                    // State for this specific card
+                                    var showSuccessDialog by remember { mutableStateOf(false) }
+                                    var showErrorDialog by remember { mutableStateOf(false) }
+                                    var errorMessage by remember { mutableStateOf("") }
 
-                        is LoadState.NotLoading -> {
-                            if (!isPublicMode) {
-                                // Show loading indicator when fetching private coupons
-                                if (isLoadingPrivateCoupons) {
-                                    LoadingContent()
-                                } else if (privateCoupons.isEmpty()) {
-                                    PrivateEmptyState()
-                                } else {
-                                    LazyColumn(
-                                        modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                                        contentPadding = PaddingValues(16.dp)
-                                    ) {
-                                        items(
-                                            count = privateCoupons.size,
-                                            key = { index -> privateCoupons[index].id }) { index ->
-                                            val privateCoupon = privateCoupons[index]
-
-                                            // State for this specific card
-                                            var showSuccessDialog by remember { mutableStateOf(false) }
-                                            var showErrorDialog by remember { mutableStateOf(false) }
-                                            var errorMessage by remember { mutableStateOf("") }
-
-                                            CouponCard(
-                                                brandName = privateCoupon.brandName.uppercase()
-                                                    .replace(" ", "\n"),
-                                                couponTitle = privateCoupon.couponTitle,
-                                                description = privateCoupon.description ?: "",
-                                                category = privateCoupon.category,
-                                                expiryDays = privateCoupon.daysUntilExpiry,
-                                                couponCode = privateCoupon.couponCode ?: "",
-                                                couponId = privateCoupon.id,
-                                                isRedeemed = privateCoupon.redeemed ?: false,
-                                                isSaved = savedCouponIds.contains(privateCoupon.id),
-                                                onSave = { couponId ->
-                                                    viewModel.saveCouponFromModel(couponId, privateCoupon)
-                                                },
-                                                onRemoveSave = { couponId ->
-                                                    viewModel.removeSavedCoupon(couponId)
-                                                },
-                                                onRedeem = { couponId ->
+                                    CouponCard(
+                                        brandName = privateCoupon.brandName.uppercase()
+                                            .replace(" ", "\n"),
+                                        couponTitle = privateCoupon.couponTitle,
+                                        description = privateCoupon.description ?: "",
+                                        category = privateCoupon.category,
+                                        expiryDays = privateCoupon.daysUntilExpiry,
+                                        couponCode = privateCoupon.couponCode ?: "",
+                                        couponId = privateCoupon.id,
+                                        isRedeemed = privateCoupon.redeemed ?: false,
+                                        isSaved = savedCouponIds.contains(privateCoupon.id),
+                                        onSave = { couponId ->
+                                            viewModel.saveCouponFromModel(couponId, privateCoupon)
+                                        },
+                                        onRemoveSave = { couponId ->
+                                            viewModel.removeSavedCoupon(couponId)
+                                        },
+                                        onRedeem = { couponId ->
+                                            Log.d(
+                                                "CouponsList",
+                                                "Redeem clicked for coupon: $couponId"
+                                            )
+                                            viewModel.redeemCoupon(
+                                                couponId = couponId,
+                                                onSuccess = {
                                                     Log.d(
                                                         "CouponsList",
-                                                        "Redeem clicked for coupon: $couponId"
+                                                        "Redeem success for coupon: $couponId"
                                                     )
-                                                    viewModel.redeemCoupon(
-                                                        couponId = couponId,
-                                                        onSuccess = {
-                                                            Log.d(
-                                                                "CouponsList",
-                                                                "Redeem success for coupon: $couponId"
-                                                            )
-                                                            showSuccessDialog = true
-                                                        },
-                                                        onError = { error ->
-                                                            Log.e(
-                                                                "CouponsList",
-                                                                "Redeem error for coupon: $couponId - $error"
-                                                            )
-                                                            errorMessage = error
-                                                            showErrorDialog = true
-                                                        })
+                                                    showSuccessDialog = true
                                                 },
-                                                onDetailsClick = {
-                                                    navController.navigate(
-                                                        Route.CouponDetails.createRoute(
-                                                            couponId = privateCoupon.id,
-                                                            isPrivate = true,
-                                                            couponCode = privateCoupon.couponCode
-                                                                ?: "WELCOME100"
-                                                        )
+                                                onError = { error ->
+                                                    Log.e(
+                                                        "CouponsList",
+                                                        "Redeem error for coupon: $couponId - $error"
                                                     )
-                                                },
-                                                onDiscoverClick = {
-                                                    try {
-                                                        // Create implicit intent with custom action
-                                                        val intent = Intent().apply {
-                                                            action =
-                                                                "com.ayaan.couponviewer.SHOW_COUPON"
-
-                                                            // Add coupon data as extras with defaults for null/empty values
-                                                            putExtra(
-                                                                "EXTRA_COUPON_CODE",
-                                                                privateCoupon.couponCode?.takeIf { it.isNotEmpty() }
-                                                                    ?: "NO CODE")
-                                                            putExtra(
-                                                                "EXTRA_COUPON_TITLE",
-                                                                privateCoupon.couponTitle?.takeIf { it.isNotEmpty() }
-                                                                    ?: "Special Offer")
-                                                            putExtra(
-                                                                "EXTRA_DESCRIPTION",
-                                                                privateCoupon.description?.takeIf { it.isNotEmpty() }
-                                                                    ?: "Check app for details")
-                                                            putExtra(
-                                                                "EXTRA_BRAND_NAME",
-                                                                privateCoupon.brandName?.takeIf { it.isNotEmpty() }
-                                                                    ?: "Dealora")
-                                                            putExtra(
-                                                                "EXTRA_CATEGORY",
-                                                                privateCoupon.category?.takeIf { it.isNotEmpty() }
-                                                                    ?: "General")
-                                                            privateCoupon.daysUntilExpiry?.let {
-                                                                putExtra(
-                                                                    "EXTRA_EXPIRY_DATE",
-                                                                    "$it days"
-                                                                )
-                                                            } ?: putExtra(
-                                                                "EXTRA_EXPIRY_DATE",
-                                                                "Check app for expiry"
-                                                            )
-                                                            putExtra(
-                                                                "EXTRA_MINIMUM_ORDER",
-                                                                privateCoupon.minimumOrderValue?.takeIf { it.isNotEmpty() }
-                                                                    ?: "No minimum")
-                                                            putExtra(
-                                                                "EXTRA_COUPON_LINK",
-                                                                privateCoupon.couponLink?.takeIf { it.isNotEmpty() }
-                                                                    ?: "")
-                                                            putExtra(
-                                                                "EXTRA_SOURCE_PACKAGE",
-                                                                context.packageName
-                                                            )
-
-                                                            // Set package to ensure it opens the right app
-                                                            setPackage("com.ayaan.couponviewer")
-
-                                                            // Add category to help Android find the intent handler
-                                                            addCategory(Intent.CATEGORY_DEFAULT)
-                                                        }
-
-                                                        Log.d(
-                                                            "CouponsList",
-                                                            "Attempting to launch CouponViewer with intent: $intent"
-                                                        )
-                                                        Log.d(
-                                                            "CouponsList",
-                                                            "Coupon Code: ${privateCoupon.couponCode}"
-                                                        )
-
-                                                        context.startActivity(intent)
-                                                    } catch (e: Exception) {
-                                                        Log.e(
-                                                            "CouponsList",
-                                                            "Failed to open CouponViewer app: ${e.message}",
-                                                            e
-                                                        )
-
-                                                        // Fallback to Play Store
-                                                        try {
-                                                            val playStoreIntent =
-                                                                Intent(Intent.ACTION_VIEW).apply {
-                                                                    data =
-                                                                        Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                                    setPackage("com.android.vending")
-                                                                }
-                                                            context.startActivity(playStoreIntent)
-                                                        } catch (e2: Exception) {
-                                                            // Last resort - open in browser
-                                                            val browserIntent =
-                                                                Intent(Intent.ACTION_VIEW).apply {
-                                                                    data =
-                                                                        Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                                }
-                                                            context.startActivity(browserIntent)
-                                                        }
-                                                    }
+                                                    errorMessage = error
+                                                    showErrorDialog = true
                                                 })
-
-                                            // Success Dialog for this card
-                                            if (showSuccessDialog) {
-                                                androidx.compose.material3.AlertDialog(
-                                                    onDismissRequest = {
-                                                        showSuccessDialog = false
-                                                    },
-                                                    containerColor = Color.White,
-                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                                                        16.dp
-                                                    ),
-                                                    title = {
-                                                        Text(
-                                                            text = "Success!",
-                                                            fontSize = 20.sp,
-                                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                                            color = Color(
-                                                                0xFF00C853
-                                                            )
-                                                        )
-                                                    },
-                                                    text = {
-                                                        Text(
-                                                            text = "Coupon has been marked as redeemed successfully.",
-                                                            fontSize = 14.sp,
-                                                            color = Color(
-                                                                0xFF666666
-                                                            )
-                                                        )
-                                                    },
-                                                    confirmButton = {
-                                                        Button(
-                                                            onClick = { showSuccessDialog = false },
-                                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                                                containerColor = Color(
-                                                                    0xFF00C853
-                                                                )
-                                                            ),
-                                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                                                                8.dp
-                                                            )
-                                                        ) {
-                                                            Text(
-                                                                text = "OK",
-                                                                fontSize = 14.sp,
-                                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                                                            )
-                                                        }
-                                                    })
-                                            }
-
-                                            // Error Dialog for this card
-                                            if (showErrorDialog) {
-                                                androidx.compose.material3.AlertDialog(
-                                                    onDismissRequest = { showErrorDialog = false },
-                                                    containerColor = Color.White,
-                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                                                        16.dp
-                                                    ),
-                                                    title = {
-                                                        Text(
-                                                            text = "Error",
-                                                            fontSize = 20.sp,
-                                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                                            color = Color.Red
-                                                        )
-                                                    },
-                                                    text = {
-                                                        Text(
-                                                            text = errorMessage,
-                                                            fontSize = 14.sp,
-                                                            color = Color(
-                                                                0xFF666666
-                                                            )
-                                                        )
-                                                    },
-                                                    confirmButton = {
-                                                        Button(
-                                                            onClick = { showErrorDialog = false },
-                                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                                                containerColor = Color.Red
-                                                            ),
-                                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                                                                8.dp
-                                                            )
-                                                        ) {
-                                                            Text(
-                                                                text = "OK",
-                                                                fontSize = 14.sp,
-                                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                                                            )
-                                                        }
-                                                    })
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if (coupons.itemCount == 0) {
-                                EmptyContent()
-                            } else {
-                                // Coupon cards with CouponCard component
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                                    contentPadding = PaddingValues(16.dp)
-                                ) {
-                                    items(
-                                        count = coupons.itemCount,
-                                        key = coupons.itemKey { it.id }) { index ->
-                                        val coupon = coupons[index]
-                                        if (coupon != null) {
-                                            CouponCard(
-                                                brandName = coupon.brandName?.uppercase()
-                                                    ?.replace(" ", "\n") ?: "DEALORA",
-                                                couponTitle = coupon.couponTitle ?: "Special Offer",
-                                                description = coupon.description ?: "",
-                                                category = coupon.category,
-                                                expiryDays = coupon.daysUntilExpiry,
-                                                couponCode = "", // Not available in list API
-                                                couponId = coupon.id,
-                                                isRedeemed = false,
-                                                showActionButtons = false,
-                                                isSaved = savedCouponIds.contains(coupon.id),
-                                                onSave = { couponId ->
-                                                    // For public coupons, save with basic info from list item
-                                                    viewModel.saveCouponFromListItem(couponId, coupon)
-                                                },
-                                                onRemoveSave = { couponId ->
-                                                    viewModel.removeSavedCoupon(couponId)
-                                                },
-                                                onDetailsClick = {
-                                                    navController.navigate(
-                                                        Route.CouponDetails.createRoute(
-                                                            couponId = coupon.id, isPrivate = false
-                                                        )
-                                                    )
-                                                },
-                                                onDiscoverClick = {
-                                                    try {
-                                                        // Create implicit intent with custom action
-                                                        val intent = Intent().apply {
-                                                            action =
-                                                                "com.ayaan.couponviewer.SHOW_COUPON"
-
-                                                            // Add coupon data as extras with defaults for missing data
-                                                            putExtra(
-                                                                "EXTRA_COUPON_CODE",
-                                                                coupon.couponTitle ?: "DISCOVER"
-                                                            )
-                                                            putExtra(
-                                                                "EXTRA_COUPON_TITLE",
-                                                                coupon.couponTitle
-                                                                    ?: "Special Offer"
-                                                            )
-                                                            putExtra(
-                                                                "EXTRA_DESCRIPTION",
-                                                                "View details in the app for more information"
-                                                            )
-                                                            putExtra(
-                                                                "EXTRA_BRAND_NAME",
-                                                                coupon.brandName ?: "Dealora"
-                                                            )
-                                                            putExtra("EXTRA_CATEGORY", "General")
-                                                            putExtra(
-                                                                "EXTRA_MINIMUM_ORDER",
-                                                                "No minimum"
-                                                            )
-                                                            putExtra("EXTRA_COUPON_LINK", "")
-                                                            putExtra(
-                                                                "EXTRA_SOURCE_PACKAGE",
-                                                                context.packageName
-                                                            )
-
-                                                            // Set package to ensure it opens the right app
-                                                            setPackage("com.ayaan.couponviewer")
-
-                                                            // Add category to help Android find the intent handler
-                                                            addCategory(Intent.CATEGORY_DEFAULT)
-                                                        }
-
-                                                        Log.d(
-                                                            "CouponsList",
-                                                            "Attempting to launch CouponViewer with intent: $intent"
-                                                        )
-                                                        Log.d(
-                                                            "CouponsList",
-                                                            "Coupon Title: ${coupon.couponTitle}"
-                                                        )
-
-                                                        context.startActivity(intent)
-                                                    } catch (e: Exception) {
-                                                        Log.e(
-                                                            "CouponsList",
-                                                            "Failed to open CouponViewer app: ${e.message}",
-                                                            e
-                                                        )
-
-                                                        // Fallback to Play Store
-                                                        try {
-                                                            val playStoreIntent =
-                                                                Intent(Intent.ACTION_VIEW).apply {
-                                                                    data =
-                                                                        Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                                    setPackage("com.android.vending")
-                                                                }
-                                                            context.startActivity(playStoreIntent)
-                                                        } catch (e2: Exception) {
-                                                            // Last resort - open in browser
-                                                            val browserIntent =
-                                                                Intent(Intent.ACTION_VIEW).apply {
-                                                                    data =
-                                                                        Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                                }
-                                                            context.startActivity(browserIntent)
-                                                        }
-                                                    }
-                                                })
-                                        }
-                                    }
-
-                                    // Show loading indicator when loading more items
-                                    if (coupons.loadState.append is LoadState.Loading) {
-                                        item {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(16.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(32.dp),
-                                                    strokeWidth = 2.dp
+                                        },
+                                        onDetailsClick = {
+                                            navController.navigate(
+                                                Route.CouponDetails.createRoute(
+                                                    couponId = privateCoupon.id,
+                                                    isPrivate = true,
+                                                    couponCode = privateCoupon.couponCode
+                                                        ?: "WELCOME100"
                                                 )
-                                            }
-                                        }
-                                    }
+                                            )
+                                        },
+                                        onDiscoverClick = {
+                                            // ...existing discover click code...
+                                        })
 
-                                    // Show error when loading more items fails
-                                    if (coupons.loadState.append is LoadState.Error) {
-                                        item {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(16.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Column(
-                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                    // Success Dialog for this card
+                                    if (showSuccessDialog) {
+                                        androidx.compose.material3.AlertDialog(
+                                            onDismissRequest = {
+                                                showSuccessDialog = false
+                                            },
+                                            containerColor = Color.White,
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                                                16.dp
+                                            ),
+                                            title = {
+                                                Text(
+                                                    text = "Success!",
+                                                    fontSize = 20.sp,
+                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                    color = Color(
+                                                        0xFF00C853
+                                                    )
+                                                )
+                                            },
+                                            text = {
+                                                Text(
+                                                    text = "Coupon has been marked as redeemed successfully.",
+                                                    fontSize = 14.sp,
+                                                    color = Color(
+                                                        0xFF666666
+                                                    )
+                                                )
+                                            },
+                                            confirmButton = {
+                                                Button(
+                                                    onClick = { showSuccessDialog = false },
+                                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                                        containerColor = Color(
+                                                            0xFF00C853
+                                                        )
+                                                    ),
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                                                        8.dp
+                                                    )
                                                 ) {
                                                     Text(
-                                                        text = "Failed to load more coupons",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        color = Color.Gray
+                                                        text = "OK",
+                                                        fontSize = 14.sp,
+                                                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                                                     )
-                                                    Spacer(modifier = Modifier.height(8.dp))
-                                                    Button(onClick = { coupons.retry() }) {
-                                                        Text("Retry")
+                                                }
+                                            })
+                                    }
+
+                                    // Error Dialog for this card
+                                    if (showErrorDialog) {
+                                        androidx.compose.material3.AlertDialog(
+                                            onDismissRequest = { showErrorDialog = false },
+                                            containerColor = Color.White,
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                                                16.dp
+                                            ),
+                                            title = {
+                                                Text(
+                                                    text = "Error",
+                                                    fontSize = 20.sp,
+                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                    color = Color.Red
+                                                )
+                                            },
+                                            text = {
+                                                Text(
+                                                    text = errorMessage,
+                                                    fontSize = 14.sp,
+                                                    color = Color(
+                                                        0xFF666666
+                                                    )
+                                                )
+                                            },
+                                            confirmButton = {
+                                                Button(
+                                                    onClick = { showErrorDialog = false },
+                                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                                        containerColor = Color.Red
+                                                    ),
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                                                        8.dp
+                                                    )
+                                                ) {
+                                                    Text(
+                                                        text = "OK",
+                                                        fontSize = 14.sp,
+                                                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                                    )
+                                                }
+                                            })
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Public mode - show exclusive coupons
+                        if (isLoadingExclusiveCoupons) {
+                            LoadingContent()
+                        } else if (exclusiveCoupons.isEmpty()) {
+                            EmptyContent()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                contentPadding = PaddingValues(16.dp)
+                            ) {
+                                items(
+                                    items = exclusiveCoupons,
+                                    key = { it.id }
+                                ) { coupon ->
+                                    CouponCard(
+                                        brandName = coupon.brandName.uppercase()
+                                            .replace(" ", "\n"),
+                                        couponTitle = coupon.couponName,
+                                        description = coupon.description ?: "",
+                                        category = coupon.category,
+                                        expiryDays = coupon.daysUntilExpiry,
+                                        couponCode = coupon.couponCode,
+                                        couponId = coupon.id,
+                                        isRedeemed = false,
+                                        showActionButtons = false,
+                                        isSaved = savedCouponIds.contains(coupon.id),
+                                        onSave = { couponId ->
+                                            viewModel.saveCouponFromExclusiveCoupon(couponId, coupon)
+                                        },
+                                        onRemoveSave = { couponId ->
+                                            viewModel.removeSavedCoupon(couponId)
+                                        },
+                                        onDetailsClick = {
+                                            val couponJson = viewModel.moshi.adapter(ExclusiveCoupon::class.java).toJson(coupon)
+                                            navController.navigate(
+                                                Route.CouponDetails.createRoute(
+                                                    couponId = coupon.id,
+                                                    isPrivate = false,
+                                                    couponCode = coupon.couponCode,
+                                                    couponData = Uri.encode(couponJson)
+                                                )
+                                            )
+                                        },
+
+                                        onDiscoverClick = {
+                                            // Open coupon link in browser if available
+                                            if (!coupon.couponLink.isNullOrBlank()) {
+                                                try {
+                                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                        data = coupon.couponLink.toUri()
                                                     }
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    Log.e("CouponsList", "Failed to open link: ${e.message}")
                                                 }
                                             }
                                         }
-                                    }
+                                    )
                                 }
                             }
                         }

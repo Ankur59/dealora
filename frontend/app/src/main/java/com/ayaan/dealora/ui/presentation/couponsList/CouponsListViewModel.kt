@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.ayaan.dealora.data.api.models.CouponListItem
+import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
+import com.ayaan.dealora.data.repository.ExclusiveCouponResult
 import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
@@ -38,8 +40,9 @@ class CouponsListViewModel @Inject constructor(
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
     private val firebaseAuth: FirebaseAuth,
-    private val moshi: Moshi
+    val moshi: Moshi
 ) : ViewModel() {
+
 
     companion object {
         private const val TAG = "CouponsListViewModel"
@@ -50,8 +53,12 @@ class CouponsListViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<CouponsListUiState>(CouponsListUiState.Success)
     val uiState: StateFlow<CouponsListUiState> = _uiState.asStateFlow()
 
-    private val _couponsFlow = MutableStateFlow<PagingData<CouponListItem>>(PagingData.empty())
-    val couponsFlow: StateFlow<PagingData<CouponListItem>> = _couponsFlow.asStateFlow()
+    // Exclusive coupons (public mode)
+    private val _exclusiveCoupons = MutableStateFlow<List<ExclusiveCoupon>>(emptyList())
+    val exclusiveCoupons: StateFlow<List<ExclusiveCoupon>> = _exclusiveCoupons.asStateFlow()
+
+    private val _isLoadingExclusiveCoupons = MutableStateFlow(false)
+    val isLoadingExclusiveCoupons: StateFlow<Boolean> = _isLoadingExclusiveCoupons.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -84,27 +91,22 @@ class CouponsListViewModel @Inject constructor(
     private var privateSearchJob: Job? = null
 
     init {
-        // Setup debounced search
+        // Setup debounced search for both modes
         viewModelScope.launch {
             _searchQuery
                 .debounce(SEARCH_DEBOUNCE_MS)
                 .distinctUntilChanged()
                 .collectLatest { query ->
                     Log.d(TAG, "Debounced search triggered with query: $query")
-                    val filters = _currentFilters.value
-                    loadCouponsInternal(
-                        search = query.ifBlank { null },
-                        sortBy = _currentSortOption.value.apiValue,
-                        category = _currentCategory.value,
-                        brand = filters.brand,
-                        discountType = filters.getDiscountTypeApiValue(),
-                        price = filters.getPriceApiValue(),
-                        validity = filters.getValidityApiValue()
-                    )
+                    if (_isPublicMode.value) {
+                        loadExclusiveCoupons()
+                    } else {
+                        loadPrivateCoupons()
+                    }
                 }
         }
 
-        // Load private coupons
+        // Load private coupons by default
         loadPrivateCoupons()
     }
 
@@ -118,40 +120,17 @@ class CouponsListViewModel @Inject constructor(
         }
     }
 
-//    init {
-//        loadCoupons()
-//    }
-
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
-
-        // If in private mode, debounce search for private coupons
-        if (!_isPublicMode.value) {
-            privateSearchJob?.cancel()
-            privateSearchJob = viewModelScope.launch {
-                kotlinx.coroutines.delay(SEARCH_DEBOUNCE_PRIVATE_MS)
-                Log.d(TAG, "Private coupon search debounced: $query")
-                loadPrivateCoupons()
-            }
-        }
-        // Public mode search is handled by the debounced flow in init
+        // Search is handled by the debounced flow in init for both modes
     }
 
     fun onSortOptionChanged(sortOption: SortOption) {
         _currentSortOption.value = sortOption
 
         if (_isPublicMode.value) {
-            // Reload public coupons with new sort
-            val filters = _currentFilters.value
-            loadCouponsInternal(
-                search = _searchQuery.value.ifBlank { null },
-                sortBy = sortOption.apiValue,
-                category = _currentCategory.value,
-                brand = filters.brand,
-                discountType = filters.getDiscountTypeApiValue(),
-                price = filters.getPriceApiValue(),
-                validity = filters.getValidityApiValue()
-            )
+            // Reload exclusive coupons with new sort
+            loadExclusiveCoupons()
         } else {
             // Reload private coupons with new sort
             loadPrivateCoupons()
@@ -164,17 +143,8 @@ class CouponsListViewModel @Inject constructor(
         _currentCategory.value = apiCategory
 
         if (_isPublicMode.value) {
-            // Reload public coupons with new category
-            val filters = _currentFilters.value
-            loadCouponsInternal(
-                search = _searchQuery.value.ifBlank { null },
-                sortBy = _currentSortOption.value.apiValue,
-                category = apiCategory,
-                brand = filters.brand,
-                discountType = filters.getDiscountTypeApiValue(),
-                price = filters.getPriceApiValue(),
-                validity = filters.getValidityApiValue()
-            )
+            // Reload exclusive coupons with new category
+            loadExclusiveCoupons()
         } else {
             // Reload private coupons with new category
             loadPrivateCoupons()
@@ -185,16 +155,8 @@ class CouponsListViewModel @Inject constructor(
         _currentFilters.value = filters
 
         if (_isPublicMode.value) {
-            // Reload public coupons with new filters
-            loadCouponsInternal(
-                search = _searchQuery.value.ifBlank { null },
-                sortBy = _currentSortOption.value.apiValue,
-                category = _currentCategory.value,
-                brand = filters.brand,
-                discountType = filters.getDiscountTypeApiValue(),
-                price = filters.getPriceApiValue(),
-                validity = filters.getValidityApiValue()
-            )
+            // Reload exclusive coupons with new filters
+            loadExclusiveCoupons()
         } else {
             // Reload private coupons with new filters
             loadPrivateCoupons()
@@ -204,83 +166,89 @@ class CouponsListViewModel @Inject constructor(
     fun onPublicModeChanged(isPublic: Boolean) {
         _isPublicMode.value = isPublic
         if (isPublic) {
-            // Load coupons from API when switching to public mode
-            loadCoupons()
+            // Load exclusive coupons when switching to public mode
+            loadExclusiveCoupons()
         } else {
-            // Clear API data when switching to private mode
-            _couponsFlow.value = PagingData.empty()
+            // Clear exclusive coupons when switching to private mode
+            _exclusiveCoupons.value = emptyList()
             _uiState.value = CouponsListUiState.Success
+            // Load private coupons
+            loadPrivateCoupons()
         }
     }
 
-    fun loadCoupons(
-        status: String = "active",
-        brand: String? = null,
-        discountType: String? = null
-    ) {
-        val filters = _currentFilters.value
-        loadCouponsInternal(
-            status = status,
-            brand = brand,
-            category = _currentCategory.value,
-            discountType = discountType,
-            search = _searchQuery.value.ifBlank { null },
-            sortBy = _currentSortOption.value.apiValue,
-            price = filters.getPriceApiValue(),
-            validity = filters.getValidityApiValue()
-        )
+    fun loadCoupons() {
+        if (_isPublicMode.value) {
+            loadExclusiveCoupons()
+        } else {
+            loadPrivateCoupons()
+        }
     }
 
-    private fun loadCouponsInternal(
-        status: String = "active",
-        brand: String? = null,
-        category: String? = null,
-        discountType: String? = null,
-        price: String? = null,
-        validity: String? = null,
-        search: String? = null,
-        sortBy: String? = null
-    ) {
-        // Only load from API if in public mode
-        if (!_isPublicMode.value) {
-            Log.d(TAG, "Skipping API call - in private mode")
-            _uiState.value = CouponsListUiState.Success
-            return
-        }
-
+    private fun loadExclusiveCoupons() {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            _uiState.value = CouponsListUiState.Loading
-
             try {
-                val currentUser = firebaseAuth.currentUser
-                if (currentUser == null) {
-                    Log.e(TAG, "User not authenticated")
-                    _uiState.value = CouponsListUiState.Error("Please login to view your coupons.")
-                    return@launch
+                Log.d(TAG, "Loading exclusive coupons with filters")
+                _isLoadingExclusiveCoupons.value = true
+                _uiState.value = CouponsListUiState.Loading
+
+                // Convert UI sort option to API value
+                val sortByApi = when (_currentSortOption.value) {
+                    SortOption.NEWEST_FIRST -> "newest_first"
+                    SortOption.EXPIRING_SOON -> "expiring_soon"
+                    SortOption.A_TO_Z -> "a_to_z"
+                    SortOption.Z_TO_A -> "z_to_a"
+                    else -> null
                 }
 
-                val uid = currentUser.uid
-                Log.d(TAG, "Loading coupons for uid: $uid, search: $search, sortBy: $sortBy")
-                _uiState.value = CouponsListUiState.Success
+                // Get category filter
+                val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
 
-                // Collect paging data
-                couponRepository.getCoupons(
-                    uid = uid,
-                    status = status,
-                    brand = brand,
-                    category = category,
-                    discountType = discountType,
-                    price = price,
-                    validity = validity,
-                    search = search,
-                    sortBy = sortBy
-                ).cachedIn(viewModelScope).collectLatest { pagingData ->
-                    _couponsFlow.value = pagingData
+                // Get filters
+                val filters = _currentFilters.value
+                val brandApi = filters.brand
+
+                // Get search query
+                val searchApi = _searchQuery.value.takeIf { it.isNotBlank() }
+
+                // Get validity filter
+                val validityApi = filters.getValidityApiValue()
+
+                // Get stackable filter (convert from filters if available)
+                val stackableApi = null // Add this to FilterOptions if needed
+
+                Log.d(TAG, "Filter params - search: $searchApi, sort: $sortByApi, category: $categoryApi, brand: $brandApi, validity: $validityApi")
+
+                when (val result = couponRepository.getExclusiveCoupons(
+                    brands = null, // Send null to get all brands
+                    brand = brandApi,
+                    category = categoryApi,
+                    search = searchApi,
+                    source = null,
+                    stackable = stackableApi,
+                    validity = validityApi,
+                    sortBy = sortByApi,
+                    limit = null, // Get all results
+                    page = null
+                )) {
+                    is ExclusiveCouponResult.Success -> {
+                        Log.d(TAG, "Exclusive coupons loaded: ${result.coupons.size} coupons")
+                        _exclusiveCoupons.value = result.coupons
+                        _uiState.value = CouponsListUiState.Success
+                    }
+                    is ExclusiveCouponResult.Error -> {
+                        Log.e(TAG, "Error loading exclusive coupons: ${result.message}")
+                        _exclusiveCoupons.value = emptyList()
+                        _uiState.value = CouponsListUiState.Error(result.message)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading coupons", e)
+                Log.e(TAG, "Exception loading exclusive coupons", e)
+                _exclusiveCoupons.value = emptyList()
                 _uiState.value = CouponsListUiState.Error("Unable to load coupons. Please try again.")
+            } finally {
+                _isLoadingExclusiveCoupons.value = false
             }
         }
     }
@@ -506,6 +474,26 @@ class CouponsListViewModel @Inject constructor(
         }
     }
 
+    fun saveCouponFromExclusiveCoupon(couponId: String, coupon: ExclusiveCoupon) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Saving exclusive coupon: $couponId")
+                val adapter = moshi.adapter(ExclusiveCoupon::class.java)
+                val couponJson = adapter.toJson(coupon)
+                savedCouponRepository.saveCoupon(
+                    couponId = couponId,
+                    couponJson = couponJson,
+                    couponType = "exclusive"
+                )
+                // Update local state
+                _savedCouponIds.value = _savedCouponIds.value + couponId
+                Log.d(TAG, "Exclusive coupon saved successfully: $couponId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving exclusive coupon: $couponId", e)
+            }
+        }
+    }
+
     fun removeSavedCoupon(couponId: String) {
         viewModelScope.launch {
             try {
@@ -522,6 +510,10 @@ class CouponsListViewModel @Inject constructor(
 
     fun isCouponSaved(couponId: String): Boolean {
         return _savedCouponIds.value.contains(couponId)
+    }
+
+    fun cacheExclusiveCoupon(coupon: ExclusiveCoupon) {
+        couponRepository.cacheExclusiveCoupon(coupon)
     }
 }
 

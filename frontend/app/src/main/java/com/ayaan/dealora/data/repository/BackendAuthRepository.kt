@@ -3,6 +3,7 @@ package com.ayaan.dealora.data.repository
 import android.util.Log
 import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.BackendResult
+import com.ayaan.dealora.data.api.models.FcmTokenRequest
 import com.ayaan.dealora.data.api.models.LoginRequest
 import com.ayaan.dealora.data.api.models.SignupRequest
 import javax.inject.Inject
@@ -96,6 +97,41 @@ class BackendAuthRepository @Inject constructor(
                 message = "Network error: ${e.localizedMessage ?: "Unknown error"}",
                 throwable = e
             )
+        }
+    }
+
+    /**
+     * Update FCM token for push notifications
+     */
+    suspend fun updateFcmToken(uid: String, fcmToken: String): Boolean {
+        return try {
+            Log.d(TAG, "updateFcmToken: Updating FCM token for uid: $uid")
+
+            val request = FcmTokenRequest(
+                uid = uid,
+                fcmToken = fcmToken
+            )
+
+            val response = authApiService.updateFcmToken(request)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.success) {
+                    Log.d(TAG, "updateFcmToken: Success - ${body.message}")
+                    true
+                } else {
+                    val errorMsg = body?.message ?: "FCM token update failed"
+                    Log.e(TAG, "updateFcmToken: Failed - $errorMsg")
+                    false
+                }
+            } else {
+                val errorMsg = "Server error: ${response.code()} - ${response.message()}"
+                Log.e(TAG, "updateFcmToken: $errorMsg")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateFcmToken: Exception occurred", e)
+            false
         }
     }
 }

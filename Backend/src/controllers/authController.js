@@ -99,7 +99,13 @@ const login = async (req, res, next) => {
 
 const getProfile = async (req, res, next) => {
     try {
-        const user = req.user;
+        const uid = req.query.uid || req.body.uid;
+
+        if (!uid) {
+            throw new ValidationError('UID is required');
+        }
+
+        const user = await User.findByUid(uid);
 
         if (!user) {
             throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);

@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.R
+import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
@@ -359,14 +360,17 @@ fun Dashboard(
                                         })
                                     },
                                     onDetailsClick = {
+                                        val couponJson = viewModel.moshi.adapter(PrivateCoupon::class.java).toJson(coupon)
                                         navController.navigate(
                                             Route.CouponDetails.createRoute(
                                                 couponId = coupon.id,
                                                 isPrivate = coupon.couponType != "public",
-                                                couponCode = coupon.couponCode ?: "WELCOME100"
+                                                couponCode = coupon.couponCode ?: "WELCOME100",
+                                                couponData = Uri.encode(couponJson)
                                             )
                                         )
                                     },
+
                                     onDiscoverClick = {
                                         try {
                                             val intent = Intent().apply {
