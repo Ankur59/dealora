@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -20,7 +21,9 @@ fun Chip(text: String, backgroundColor: Color) {
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Text(
-            text = text, fontSize = 12.sp, color = Color(0xFF5B4CFF), fontWeight = FontWeight.Medium
+            text = text, fontSize = 12.sp, color = Color(0xFF5B4CFF), fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
