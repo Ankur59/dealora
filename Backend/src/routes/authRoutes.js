@@ -10,6 +10,6 @@ router.post('/login', validateLogin, login);
 router.get('/profile', getProfile);
 router.put('/profile', authenticate, validateProfileUpdate, updateProfile);
 router.post('/fcm-token', validateFCMToken, updateFCMToken);
-router.delete('/fcm-token', deleteFCMToken);
+router.post('/fcm-token', deleteFCMToken);
 
 module.exports = router;
