@@ -571,7 +571,6 @@ fun BrandHeader(
                 }
 
                 if (isStackable) {
-                    // 👇 force stackable to next line if already 2 chips present
                     if (chipCount >= 2) {
                         Spacer(modifier = Modifier.fillMaxWidth())
                     }
