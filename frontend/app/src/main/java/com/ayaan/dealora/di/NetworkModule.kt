@@ -92,6 +92,13 @@ object NetworkModule {
     fun provideNotificationApiService(retrofit: Retrofit): NotificationApiService {
         return retrofit.create(NotificationApiService::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideFeatureApiService(retrofit: Retrofit): com.ayaan.dealora.data.api.FeatureApiService {
+        return retrofit.create(com.ayaan.dealora.data.api.FeatureApiService::class.java)
+    }
 }
+
 
 

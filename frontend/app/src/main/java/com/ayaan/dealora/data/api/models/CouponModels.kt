@@ -62,6 +62,10 @@ data class Coupon(
     @Json(name = "couponName")
     val couponName: String,
 
+    @Json(name = "brandName")
+    val brandName: String? = null,
+
+
     @Json(name = "description")
     val description: String?,
 
