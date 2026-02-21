@@ -6,8 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.CouponResult
-import com.ayaan.dealora.data.repository.FeatureRepository
-import com.ayaan.dealora.data.repository.FeatureResult
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +20,6 @@ import javax.inject.Inject
 @HiltViewModel
 class AddCouponViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
-    private val featureRepository: FeatureRepository,
     private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
 
@@ -148,6 +145,11 @@ class AddCouponViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     Log.d(TAG, "Coupon created - coupon id: ${result.coupon.id}")
                     val imageBase64 = result.couponImageBase64
+                    Log.d(TAG, "couponImageBase64 is null: ${imageBase64 == null}")
+                    Log.d(TAG, "couponImageBase64 is blank: ${imageBase64?.isBlank()}")
+                    Log.d(TAG, "couponImageBase64 length: ${imageBase64?.length ?: 0}")
+                    // Log first 100 chars to verify data (Base64 strings are too long for full log)
+                    Log.d(TAG, "couponImageBase64 preview: ${imageBase64?.take(100)}")
                     _couponImageBase64.value = imageBase64
                     onSuccess()
                 }
@@ -159,72 +161,6 @@ class AddCouponViewModel @Inject constructor(
                     onError(result.message)
                 }
             }
-        }
-    }
-
-    /**
-     * Process image with OCR
-     */
-    fun processOcr(base64Image: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        val uid = firebaseAuth.currentUser?.uid
-        
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            
-            when (val result = featureRepository.processScreenshot(base64Image, uid)) {
-                is FeatureResult.Success -> {
-                    val extractedCoupon = result.data.data
-                    if (extractedCoupon != null) {
-                        // Pre-fill form with extracted data
-                        _uiState.value = _uiState.value.copy(
-                            couponName = extractedCoupon.coupon.couponName,
-                            description = extractedCoupon.coupon.description ?: "",
-                            expiryDate = convertToDisplayDate(extractedCoupon.coupon.expireBy),
-                            selectedCategory = mapCategory(extractedCoupon.coupon.categoryLabel ?: ""),
-                            selectedUsageMethod = extractedCoupon.coupon.useCouponVia,
-                            couponCode = extractedCoupon.coupon.couponCode ?: "",
-                            visitingLink = extractedCoupon.coupon.couponVisitingLink ?: "",
-                            couponDetails = extractedCoupon.coupon.couponDetails ?: "",
-                            isLoading = false
-                        )
-                        Log.d(TAG, "Form pre-filled from OCR data")
-                        onSuccess()
-                    } else {
-                        _uiState.value = _uiState.value.copy(isLoading = false, error = "No coupon data found in image")
-                        onError("No coupon data found in image")
-                    }
-                }
-                is FeatureResult.Error -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = result.message)
-                    Log.e(TAG, "OCR error: ${result.message}")
-                    onError(result.message)
-                }
-            }
-        }
-    }
-
-    private fun mapCategory(category: String): String {
-        return when (category.lowercase()) {
-            "food" -> "Food"
-            "fashion" -> "Fashion"
-            "electronics" -> "Electronics"
-            "travel" -> "Travel"
-            "health" -> "Health"
-            else -> "Other"
-        }
-    }
-
-    private fun convertToDisplayDate(isoDate: String): String {
-        return try {
-            val datePart = isoDate.split("T")[0] // 2025-12-31
-            val parts = datePart.split("-")
-            if (parts.size == 3) {
-                "${parts[2]}/${parts[1]}/${parts[0]}" // 31/12/2025
-            } else {
-                isoDate
-            }
-        } catch (_: Exception) {
-            isoDate
         }
     }
 
