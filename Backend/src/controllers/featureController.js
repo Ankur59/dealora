@@ -27,8 +27,8 @@ exports.processScreenshot = async (req, res) => {
         // 2. Validate Confidence
         if (extractedData.confidence_score && extractedData.confidence_score < 0.70) {
             logger.warn(`Specific validation failed: Low confidence score (${extractedData.confidence_score})`);
-             // We can chose to reject or just flag. For now, we proceed but log it.
-             // Or return specific warning
+            // We can chose to reject or just flag. For now, we proceed but log it.
+            // Or return specific warning
         }
 
         // 3. Map to Schema
@@ -42,7 +42,7 @@ exports.processScreenshot = async (req, res) => {
             discountType: extractedData.discount_type || 'unknown',
             discountValue: extractedData.discount_value,
             minimumOrder: extractedData.minimum_order_value,
-            expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30*24*60*60*1000), // Default 30 days if null
+            expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days if null
             description: extractedData.coupon_title + (extractedData.max_discount ? ` Max Discount: ${extractedData.max_discount}` : ''),
             categoryLabel: 'Other', // Default
             useCouponVia: extractedData.coupon_code ? 'Coupon Code' : 'None',
@@ -54,9 +54,9 @@ exports.processScreenshot = async (req, res) => {
         // 4. Schema Validations logic (simple check)
         // Check for duplicates
         if (newCouponData.couponCode) {
-            const existing = await Coupon.findOne({ 
-                couponCode: newCouponData.couponCode, 
-                brandName: newCouponData.brandName 
+            const existing = await Coupon.findOne({
+                couponCode: newCouponData.couponCode,
+                brandName: newCouponData.brandName
             });
             if (existing) {
                 return res.status(409).json({ success: false, message: 'Duplicate coupon found', data: existing });
@@ -88,7 +88,7 @@ exports.getOcrHistory = async (req, res) => {
         const coupons = await Coupon.find({ sourceWebsite: 'OCR Upload' })
             .sort({ createdAt: -1 })
             .limit(50);
-        
+
         res.status(200).json({ success: true, count: coupons.length, data: coupons });
     } catch (error) {
         logger.error('OCR History Error:', error);
@@ -105,7 +105,7 @@ exports.processEmail = async (req, res) => {
         if (!emailContent) {
             return res.status(400).json({ success: false, message: 'Email content is required' });
         }
-        
+
         const coupon = await processSingleEmailContent(emailContent, sender || 'Unknown', userId);
 
         res.status(201).json({
@@ -117,7 +117,7 @@ exports.processEmail = async (req, res) => {
 
     } catch (error) {
         if (error.status === 409) {
-             return res.status(409).json({ success: false, message: 'Duplicate coupon found', data: error.existing });
+            return res.status(409).json({ success: false, message: 'Duplicate coupon found', data: error.existing });
         }
         logger.error('Email Controller Error:', error);
         res.status(500).json({ success: false, message: 'Failed to process email', error: error.message });
@@ -137,20 +137,20 @@ exports.syncGmail = async (req, res) => {
         // 1. Fetch Lists of Messages from Gmail API
         logger.info('Fetching emails from Gmail API (last 2 days)...');
         const listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
-        
+
         // Calculate date range for email fetching
         // DEVELOPER NOTE: To change the date range:
         // Change the number below (e.g., -2 to -10 for last 10 days, -30 for last 30 days)
         const daysAgo = new Date();
         daysAgo.setDate(daysAgo.getDate() - 2); // Currently: last 2 days
         const dateString = daysAgo.toISOString().split('T')[0].replace(/-/g, '/'); // Format: YYYY/MM/DD
-        
+
         // Gmail API query: promotional emails from specified date range
         const listParams = {
             maxResults: 20, // Keep low to avoid rate limits and timeouts on free Gemini tier
             q: `category:promotions after:${dateString}` // Fetches promotional emails after the calculated date
         };
-        
+
         const listResponse = await axios.get(listUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
             params: listParams,
@@ -181,11 +181,11 @@ exports.syncGmail = async (req, res) => {
 
                 const payload = msgRes.data.payload;
                 const headers = payload.headers;
-                
+
                 // Get Sender
                 const fromHeader = headers.find(h => h.name === 'From');
                 const sender = fromHeader ? fromHeader.value : 'Unknown';
-                
+
                 // Get Subject
                 const subjectHeader = headers.find(h => h.name === 'Subject');
                 const subject = subjectHeader ? subjectHeader.value : '';
@@ -193,7 +193,7 @@ exports.syncGmail = async (req, res) => {
                 // Get Body (Snippet is often enough for simple extraction, but Body is better)
                 // Decode body data (Base64Url encoded)
                 let body = msgRes.data.snippet; // Fallback to snippet
-                
+
                 // Try to find text/plain part
                 if (payload.parts) {
                     const textPart = payload.parts.find(p => p.mimeType === 'text/plain');
@@ -215,7 +215,7 @@ exports.syncGmail = async (req, res) => {
 
                 // Call AI extraction with a 30-second timeout to prevent hanging
                 try {
-                    const aiTimeout = new Promise((_, reject) => 
+                    const aiTimeout = new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('AI extraction timed out after 30s')), 30000)
                     );
                     const aiWork = processSingleEmailContent(fullContent, sender, userId, true);
@@ -272,7 +272,7 @@ async function processSingleEmailContent(emailContent, sender, userId, skipDupli
         discountType: extractedData.discount_type || 'unknown',
         discountValue: extractedData.discount_value,
         minimumOrder: extractedData.minimum_order_value,
-        expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30*24*60*60*1000),
+        expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         description: `From Email: ${sender}. ${extractedData.coupon_title}`,
         categoryLabel: 'Other',
         useCouponVia: extractedData.coupon_code ? 'Coupon Code' : 'None',
@@ -283,9 +283,9 @@ async function processSingleEmailContent(emailContent, sender, userId, skipDupli
 
     // 3. Validation & Duplicate Check
     if (newCouponData.couponCode) {
-        const existing = await Coupon.findOne({ 
-            couponCode: newCouponData.couponCode, 
-            brandName: newCouponData.brandName 
+        const existing = await Coupon.findOne({
+            couponCode: newCouponData.couponCode,
+            brandName: newCouponData.brandName
         });
         if (existing) {
             const err = new Error('Duplicate coupon');
@@ -310,7 +310,7 @@ exports.getEmailHistory = async (req, res) => {
         const coupons = await Coupon.find({ sourceWebsite: 'Email Parsing' })
             .sort({ createdAt: -1 })
             .limit(50);
-        
+
         res.status(200).json({ success: true, count: coupons.length, data: coupons });
     } catch (error) {
         logger.error('Email History Error:', error);
@@ -326,7 +326,7 @@ exports.getStatus = async (req, res) => {
         // Use cached model if available, don't trigger full discovery on every status check
         const hasModel = geminiService.model !== null;
         const isEnabled = geminiService.enabled !== false;
-        
+
         res.status(200).json({
             status: isEnabled ? (hasModel ? 'online' : 'initializing') : 'offline',
             service: 'Gemini Vision AI',
