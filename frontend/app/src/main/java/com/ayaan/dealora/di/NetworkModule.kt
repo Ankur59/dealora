@@ -3,7 +3,9 @@ package com.ayaan.dealora.di
 import com.ayaan.dealora.data.api.NotificationApiService
 import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.CouponApiService
+import com.ayaan.dealora.data.api.FeatureApiService
 import com.ayaan.dealora.data.api.ProfileApiService
+import com.ayaan.dealora.data.repository.GmailSyncRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -21,7 +23,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "http://10.0.2.2:5000/" // Android emulator localhost
+    private const val BASE_URL = "http://10.0.2.2:3001/" // Android emulator localhost
     // For physical device, use your computer's IP address:
 //     private const val BASE_URL = "https://rheumatoid-ringlike-al.ngrok-free.dev"
 
@@ -89,6 +91,18 @@ object NetworkModule {
     @Singleton
     fun provideNotificationApiService(retrofit: Retrofit): NotificationApiService {
         return retrofit.create(NotificationApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFeatureApiService(retrofit: Retrofit): FeatureApiService {
+        return retrofit.create(FeatureApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGmailSyncRepository(featureApiService: FeatureApiService): GmailSyncRepository {
+        return GmailSyncRepository(featureApiService)
     }
 }
 

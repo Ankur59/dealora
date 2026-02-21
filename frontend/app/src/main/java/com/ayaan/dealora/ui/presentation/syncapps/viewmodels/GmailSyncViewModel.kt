@@ -1,0 +1,173 @@
+package com.ayaan.dealora.ui.presentation.syncapps.viewmodels
+
+import android.content.Context
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ayaan.dealora.BuildConfig
+import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
+import com.ayaan.dealora.data.repository.GmailSyncRepository
+import com.ayaan.dealora.data.repository.GmailSyncResult
+import com.google.android.gms.auth.GoogleAuthUtil
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.Scope
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
+
+// Represents the state of the entire Gmail Sync feature screen
+sealed class GmailSyncState {
+    data object Idle : GmailSyncState()
+    data object SigningIn : GmailSyncState()
+    data object Syncing : GmailSyncState()
+    data class Success(
+        val extractedCount: Int,
+        val skippedCount: Int,
+        val coupons: List<GmailExtractedCoupon>
+    ) : GmailSyncState()
+    data class Error(val message: String) : GmailSyncState()
+}
+
+@HiltViewModel
+class GmailSyncViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val gmailSyncRepository: GmailSyncRepository
+) : ViewModel() {
+
+    companion object {
+        private const val TAG = "GmailSyncViewModel"
+    }
+
+    private val _state = MutableStateFlow<GmailSyncState>(GmailSyncState.Idle)
+    val state: StateFlow<GmailSyncState> = _state.asStateFlow()
+
+    private val _isSignedIn = MutableStateFlow(false)
+    val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
+
+    // GoogleSignInClient is created once and reused
+    val googleSignInClient: GoogleSignInClient by lazy {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestServerAuthCode(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+            .requestScopes(Scope("https://www.googleapis.com/auth/gmail.readonly"))
+            .build()
+        GoogleSignIn.getClient(context, gso)
+    }
+
+    init {
+        // Check if user already granted Gmail access in a previous session
+        val lastAccount = GoogleSignIn.getLastSignedInAccount(context)
+        val hasGmailScope = lastAccount?.grantedScopes?.any {
+            it.scopeUri == "https://www.googleapis.com/auth/gmail.readonly"
+        } ?: false
+        _isSignedIn.value = hasGmailScope
+        Log.d(TAG, "Init: isSignedIn=$hasGmailScope")
+    }
+
+    /**
+     * Called after the Google Sign-In Activity returns its result.
+     */
+    fun handleSignInResult(account: GoogleSignInAccount?, errorCode: Int = -1) {
+        if (account == null) {
+            val reason = when (errorCode) {
+                10   -> "DEVELOPER_ERROR (code 10): SHA-1 fingerprint or Web Client ID mismatch. Check Cloud Console."
+                12500 -> "Sign-in cancelled by user."
+                12501 -> "Sign-in cancelled (no account selected)."
+                7    -> "Network error. Check your internet connection."
+                else -> "Sign-in failed (code $errorCode). Check Logcat for details."
+            }
+            Log.e(TAG, "handleSignInResult failed: $reason")
+            _state.value = GmailSyncState.Error(reason)
+            return
+        }
+        _isSignedIn.value = true
+        Log.d(TAG, "Sign-in successful for: ${account.email}")
+        syncEmails(account)
+    }
+
+    /**
+     * Called when the user is already signed in and taps "Scan for Coupons" again.
+     */
+    fun syncWithExistingAccount() {
+        viewModelScope.launch {
+            try {
+                _state.value = GmailSyncState.Syncing
+                // silently re-authenticate to get fresh tokens
+                val account = googleSignInClient.silentSignIn().await()
+                syncEmails(account)
+            } catch (e: ApiException) {
+                Log.e(TAG, "Silent sign-in failed (code ${e.statusCode}), need explicit sign-in")
+                _isSignedIn.value = false
+                _state.value = GmailSyncState.Error("Session expired. Please sign in again.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Sync error", e)
+                _state.value = GmailSyncState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private fun syncEmails(account: GoogleSignInAccount) {
+        viewModelScope.launch {
+            _state.value = GmailSyncState.Syncing
+
+            // GoogleAuthUtil.getToken() is blocking — must run on IO dispatcher.
+            // It returns a real OAuth Bearer access token for the requested scope.
+            val accessToken = try {
+                withContext(Dispatchers.IO) {
+                    GoogleAuthUtil.getToken(
+                        context,
+                        account.account!!,
+                        "oauth2:https://www.googleapis.com/auth/gmail.readonly"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get Gmail access token", e)
+                _state.value = GmailSyncState.Error(
+                    "Failed to get Gmail access token: ${e.message}"
+                )
+                return@launch
+            }
+
+            Log.d(TAG, "Access token retrieved successfully (${accessToken.take(10)}...)")
+            val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+
+            when (val result = gmailSyncRepository.syncGmail(accessToken, userId)) {
+                is GmailSyncResult.Success -> {
+                    _state.value = GmailSyncState.Success(
+                        extractedCount = result.extractedCount,
+                        skippedCount = result.skippedCount,
+                        coupons = result.coupons
+                    )
+                }
+                is GmailSyncResult.Error -> {
+                    _state.value = GmailSyncState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    fun signOut() {
+        viewModelScope.launch {
+            googleSignInClient.signOut().await()
+            _isSignedIn.value = false
+            _state.value = GmailSyncState.Idle
+            Log.d(TAG, "Signed out from Gmail")
+        }
+    }
+
+    fun resetState() {
+        _state.value = GmailSyncState.Idle
+    }
+}
