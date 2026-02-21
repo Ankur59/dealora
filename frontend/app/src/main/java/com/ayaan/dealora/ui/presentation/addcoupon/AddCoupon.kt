@@ -40,7 +40,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import com.ayaan.dealora.utils.Base64ImageUtils
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.addcoupon.components.AddCouponTopBar
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDatePicker
@@ -59,7 +64,27 @@ fun AddCoupons(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val couponImageBase64 by viewModel.couponImageBase64.collectAsState()
-    val couponImageBitmap: ImageBitmap= Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64 )
+    val couponImageBitmap: ImageBitmap = Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64)
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val base64 = Base64ImageUtils.encodeUriToBase64(context, it)
+            if (base64 != null) {
+                viewModel.processOcr(
+                    base64,
+                    onSuccess = {
+                        Toast.makeText(context, "Coupon Scanned!", Toast.LENGTH_LONG).show()
+                    },
+                    onError = { error ->
+                        Toast.makeText(context, "Scan failed: $error", Toast.LENGTH_LONG).show()
+                    }
+                )
+            }
+        }
+    }
+
     LaunchedEffect(uiState, couponImageBase64) {
         Log.d("AddCoupons", "uiState updated: $uiState")
         Log.d("AddCoupons", "isFormValid: ${viewModel.isFormValid()}")
@@ -94,22 +119,64 @@ fun AddCoupons(
                         color = Color.Black,
                     )
                 )
+
+                if (uiState.error != null) {
+                    Text(
+                        text = uiState.error!!,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
-            Box(
+            Row(
                 modifier = Modifier
                     .padding(horizontal = 6.dp)
-                    .width(155.dp)
-                    .height(49.dp)
-                    .background(color = DealoraPrimary, shape = RoundedCornerShape(size = 9.dp)),
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Manually", style = TextStyle(
-                        fontSize = 32.sp,
-                        lineHeight = 47.sp,
-                        fontWeight = FontWeight(500),
-                        color = DealoraWhite,
-                    ), modifier = Modifier.align(Alignment.Center)
-                )
+                Box(
+                    modifier = Modifier
+                        .width(155.dp)
+                        .height(49.dp)
+                        .background(color = DealoraPrimary, shape = RoundedCornerShape(size = 9.dp)),
+                ) {
+                    Text(
+                        text = "Manually", style = TextStyle(
+                            fontSize = 32.sp,
+                            lineHeight = 47.sp,
+                            fontWeight = FontWeight(500),
+                            color = DealoraWhite,
+                        ), modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+
+                Button(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    modifier = Modifier
+                        .height(49.dp)
+                        .weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFDEEF1),
+                        contentColor = DealoraPrimary
+                    ),
+                    shape = RoundedCornerShape(9.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
+                    enabled = !uiState.isLoading
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.dashboard_48), // Replace with scan icon if available
+                        contentDescription = "Scan",
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Scan",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(10.dp))
             Box(
