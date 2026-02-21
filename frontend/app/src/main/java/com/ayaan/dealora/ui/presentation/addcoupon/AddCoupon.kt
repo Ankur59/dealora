@@ -50,6 +50,14 @@ import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponPreviewCard
 import com.ayaan.dealora.ui.presentation.addcoupon.components.UseCouponViaSection
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraWhite
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material3.Icon
+import com.ayaan.dealora.ui.theme.DealoraGray
+import androidx.compose.foundation.clickable
+
 
 @Composable
 fun AddCoupons(
@@ -60,7 +68,28 @@ fun AddCoupons(
     val uiState by viewModel.uiState.collectAsState()
     val couponImageBase64 by viewModel.couponImageBase64.collectAsState()
     val couponImageBitmap: ImageBitmap= Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64 )
+    
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            val base64 = Base64ImageUtils.encodeUriToBase64(context, it)
+            base64?.let { b64 ->
+                viewModel.processOcr(
+                    imageBase64 = b64,
+                    onSuccess = {
+                        Toast.makeText(context, "OCR processed successfully!", Toast.LENGTH_SHORT).show()
+                    },
+                    onError = { error ->
+                        Toast.makeText(context, "OCR failed: $error", Toast.LENGTH_LONG).show()
+                    }
+                )
+            }
+        }
+    }
+
     LaunchedEffect(uiState, couponImageBase64) {
+
         Log.d("AddCoupons", "uiState updated: $uiState")
         Log.d("AddCoupons", "isFormValid: ${viewModel.isFormValid()}")
         Log.d("AddCoupons", "couponImageBase64: $couponImageBase64")
@@ -95,22 +124,75 @@ fun AddCoupons(
                     )
                 )
             }
-            Box(
+            Row(
                 modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .width(155.dp)
-                    .height(49.dp)
-                    .background(color = DealoraPrimary, shape = RoundedCornerShape(size = 9.dp)),
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Manually", style = TextStyle(
-                        fontSize = 32.sp,
-                        lineHeight = 47.sp,
-                        fontWeight = FontWeight(500),
-                        color = DealoraWhite,
-                    ), modifier = Modifier.align(Alignment.Center)
-                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(49.dp)
+                        .background(color = DealoraPrimary, shape = RoundedCornerShape(size = 9.dp)),
+                ) {
+                    Text(
+                        text = "Manually", style = TextStyle(
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight(500),
+                            color = DealoraWhite,
+                        ), modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(49.dp)
+                        .background(
+                            color = if (uiState.isOcrLoading) DealoraGray else DealoraWhite, 
+                            shape = RoundedCornerShape(size = 9.dp)
+                        )
+
+                        .background(color = Color.Transparent) // placeholder for border
+                        .clickable(enabled = !uiState.isOcrLoading) {
+                            galleryLauncher.launch("image/*")
+                        }
+                        .then(
+                            if (!uiState.isOcrLoading) Modifier.background(Color.White) else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (uiState.isOcrLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.height(20.dp).width(20.dp),
+                                strokeWidth = 2.dp,
+                                color = DealoraPrimary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.DocumentScanner,
+                                contentDescription = "Scan",
+                                tint = DealoraPrimary,
+                                modifier = Modifier.height(20.dp).width(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Scan", style = TextStyle(
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight(500),
+                                    color = DealoraPrimary,
+                                )
+                            )
+                        }
+                    }
+                }
             }
+
             Spacer(modifier = Modifier.height(10.dp))
             Box(
                 modifier = Modifier

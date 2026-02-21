@@ -191,47 +191,41 @@ object Base64ImageUtils {
      * )
      * ```
      */
-//    fun encodeUriToBase64(
-//        context: Context,
-//        uri: Uri?,
-//        quality: Int = 80,
-//        format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
-//        includeDataUriPrefix: Boolean = true
-//    ): String? {
-//        if (uri == null) return null
-//
-//        return try {
-//            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-//            val byteArrayOutputStream = ByteArrayOutputStream()
-//            val buffer = ByteArray(1024)
-//            var length: Int
-//
-//            inputStream?.use { input ->
-//                while (input.read(buffer).also { length = it } != -1) {
-//                    byteArrayOutputStream.write(buffer, 0, length)
-//                }
-//            }
-//
-//            val imageBytes = byteArrayOutputStream.toByteArray()
-//            val base64String = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
-//
-//            if (includeDataUriPrefix) {
-//                // Get MIME type from URI or use default based on format
-//                val mimeType = context.contentResolver.getType(uri)
-//                    ?: when (format) {
-//                        Bitmap.CompressFormat.PNG -> "image/png"
-//                        Bitmap.CompressFormat.WEBP -> "image/webp"
-//                        else -> "image/jpeg"
-//                    }
-//                "data:$mimeType;base64,$base64String"
-//            } else {
-//                base64String
-//            }
-//        } catch (e: Exception) {
-//            e.printStackTrace()
-//            null
-//        }
-//    }
+    fun encodeUriToBase64(
+        context: android.content.Context,
+        uri: android.net.Uri?,
+        includeDataUriPrefix: Boolean = true
+    ): String? {
+        if (uri == null) return null
+
+        return try {
+            val inputStream: java.io.InputStream? = context.contentResolver.openInputStream(uri)
+            val byteArrayOutputStream = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(1024)
+            var length: Int
+
+            inputStream?.use { input ->
+                while (input.read(buffer).also { length = it } != -1) {
+                    byteArrayOutputStream.write(buffer, 0, length)
+                }
+            }
+
+            val imageBytes = byteArrayOutputStream.toByteArray()
+            val base64String = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP)
+
+            if (includeDataUriPrefix) {
+                // Get MIME type from URI
+                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                "data:$mimeType;base64,$base64String"
+            } else {
+                base64String
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
 
     /**
      * Encodes a Bitmap to a Base64 string with optional compression.
