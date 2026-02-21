@@ -26,6 +26,7 @@ sealed class Route(val path: String) {
     data object NotificationPreferences:Route("notificationpreferences")
     data object Notifications:Route("notifications")
     data object DesyncApps:Route("desyncapp")
+    data object GmailSync:Route("gmailsync")
     data object SyncAppsStart:Route("syncappsstart")
     data object SelectAppsScreen:Route("selectapps")
     data object SyncingProgress: Route("syncingprogress/{selectedApps}") {

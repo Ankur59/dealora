@@ -38,6 +38,7 @@ import com.ayaan.dealora.ui.presentation.categories.CategoriesScreen
 import com.ayaan.dealora.ui.presentation.syncapps.screens.SelectAppsScreen
 import com.ayaan.dealora.ui.presentation.syncapps.screens.SyncApp
 import com.ayaan.dealora.ui.presentation.syncapps.screens.SyncAppsStart
+import com.ayaan.dealora.ui.presentation.syncapps.screens.GmailSyncScreen
 import com.ayaan.dealora.ui.presentation.syncapps.screens.SyncingProgressScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -129,6 +130,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.DesyncApps.path) {
             DesyncAppScreen(navController)
+        }
+        composable(Route.GmailSync.path) {
+            GmailSyncScreen(navController)
         }
         composable(NotificationPreferences.path) {
             NotificationPreferencesScreen(navController)
