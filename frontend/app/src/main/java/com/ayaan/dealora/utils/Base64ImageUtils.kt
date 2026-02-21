@@ -172,68 +172,6 @@ object Base64ImageUtils {
 //        }
 //    }
     /**
-     * Encodes a URI to a Base64 string with data URI prefix.
-     *
-     * @param context Android context
-     * @param uri Image URI to encode
-     * @param quality JPEG compression quality (0-100), default is 80
-     * @param format Image format (JPEG or PNG), default is JPEG
-     * @param includeDataUriPrefix Whether to include "data:image/...;base64," prefix, default is true
-     * @return Base64 encoded string with data URI prefix, or null if encoding fails
-     *
-     * @example
-     * ```kotlin
-     * val base64 = Base64ImageUtils.encodeUriToBase64(
-     *     context = context,
-     *     uri = imageUri,
-     *     quality = 80,
-     *     format = Bitmap.CompressFormat.JPEG
-     * )
-     * ```
-     */
-//    fun encodeUriToBase64(
-//        context: Context,
-//        uri: Uri?,
-//        quality: Int = 80,
-//        format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
-//        includeDataUriPrefix: Boolean = true
-//    ): String? {
-//        if (uri == null) return null
-//
-//        return try {
-//            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-//            val byteArrayOutputStream = ByteArrayOutputStream()
-//            val buffer = ByteArray(1024)
-//            var length: Int
-//
-//            inputStream?.use { input ->
-//                while (input.read(buffer).also { length = it } != -1) {
-//                    byteArrayOutputStream.write(buffer, 0, length)
-//                }
-//            }
-//
-//            val imageBytes = byteArrayOutputStream.toByteArray()
-//            val base64String = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
-//
-//            if (includeDataUriPrefix) {
-//                // Get MIME type from URI or use default based on format
-//                val mimeType = context.contentResolver.getType(uri)
-//                    ?: when (format) {
-//                        Bitmap.CompressFormat.PNG -> "image/png"
-//                        Bitmap.CompressFormat.WEBP -> "image/webp"
-//                        else -> "image/jpeg"
-//                    }
-//                "data:$mimeType;base64,$base64String"
-//            } else {
-//                base64String
-//            }
-//        } catch (e: Exception) {
-//            e.printStackTrace()
-//            null
-//        }
-//    }
-
-    /**
      * Encodes a Bitmap to a Base64 string with optional compression.
      *
      * @param bitmap Bitmap to encode
