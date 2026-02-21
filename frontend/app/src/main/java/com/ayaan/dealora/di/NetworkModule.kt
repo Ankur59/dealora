@@ -21,10 +21,10 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "http://10.0.2.2:3001/" 
-    // http://13.127.182.6:5000/
-    // Android emulator localhost
+    private const val BASE_URL = "http://10.0.2.2:3001/"
+    // Android emulator localhost (10.0.2.2 points to host machine)
     // For physical device, use your computer's IP address:
+
 //     private const val BASE_URL = "https://rheumatoid-ringlike-al.ngrok-free.dev"
 
     @Provides
