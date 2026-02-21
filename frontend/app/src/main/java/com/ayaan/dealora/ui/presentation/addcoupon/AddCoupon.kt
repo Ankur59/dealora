@@ -64,26 +64,26 @@ fun AddCoupons(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val couponImageBase64 by viewModel.couponImageBase64.collectAsState()
-    val couponImageBitmap: ImageBitmap = Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64)
+    val couponImageBitmap: ImageBitmap = Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64 as? String)
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            val base64 = Base64ImageUtils.encodeUriToBase64(context, it)
-            if (base64 != null) {
-                viewModel.processOcr(
-                    base64,
-                    onSuccess = {
-                        Toast.makeText(context, "Coupon Scanned!", Toast.LENGTH_LONG).show()
-                    },
-                    onError = { error ->
-                        Toast.makeText(context, "Scan failed: $error", Toast.LENGTH_LONG).show()
-                    }
-                )
-            }
+    contract = ActivityResultContracts.GetContent()
+) { uri: Uri? ->
+    uri?.let {
+        val base64 = Base64ImageUtils.encodeUriToBase64(context, it)
+        if (base64 != null) {
+            // Ensure you pass it as a non-null String
+            viewModel.processOcr(base64, 
+                onSuccess = {
+                    Toast.makeText(context, "Coupon Scanned!", Toast.LENGTH_LONG).show()
+                },
+                onError = { error ->
+                    Toast.makeText(context, "Scan failed: $error", Toast.LENGTH_LONG).show()
+                }
+            )
         }
     }
+}
 
     LaunchedEffect(uiState, couponImageBase64) {
         Log.d("AddCoupons", "uiState updated: $uiState")
