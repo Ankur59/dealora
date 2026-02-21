@@ -54,23 +54,23 @@ class AiExtractionService {
 
             } catch (error) {
                 const errorMsg = error.message || String(error);
-                
+
                 // Check if it's a rate limit or model capability error
                 const isRateLimit = errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('Quota');
                 const isModelError = errorMsg.includes('modality') || errorMsg.includes('400');
-                
+
                 if ((isRateLimit || isModelError) && attempts < maxAttempts - 1) {
                     attempts++;
                     logger.warn(`OCR failed (attempt ${attempts}/${maxAttempts}). Trying alternative vision model...`);
-                    
+
                     const nextModel = await geminiService.getNextAvailableModel(geminiService.workingModelName, true);
                     if (!nextModel) {
                         throw new Error('All vision-capable models unavailable. Try again later.');
                     }
-                    
+
                     continue;
                 }
-                
+
                 logger.error('OCR Extraction Failed:', error.message);
                 throw error;
             }
@@ -134,7 +134,7 @@ class AiExtractionService {
             let jsonString = text.trim();
             // Remove markdown code blocks
             jsonString = jsonString.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-            
+
             const firstBrace = jsonString.indexOf('{');
             const lastBrace = jsonString.lastIndexOf('}');
 
@@ -143,12 +143,12 @@ class AiExtractionService {
             }
 
             const parsed = JSON.parse(jsonString);
-            
+
             // Normalize numeric fields
             if (parsed.discount_value) parsed.discount_value = Number(parsed.discount_value) || 0;
             if (parsed.max_discount) parsed.max_discount = Number(parsed.max_discount) || 0;
             if (parsed.minimum_order_value) parsed.minimum_order_value = Number(parsed.minimum_order_value) || 0;
-            
+
             // Normalize dates
             if (parsed.expiry_date) {
                 // Ensure YYYY-MM-DD
