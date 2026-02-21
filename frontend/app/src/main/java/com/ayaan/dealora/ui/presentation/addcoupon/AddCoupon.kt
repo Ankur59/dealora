@@ -1,8 +1,6 @@
 package com.ayaan.dealora.ui.presentation.addcoupon
 
-import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,36 +19,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.imageResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.net.Uri
-import com.ayaan.dealora.utils.Base64ImageUtils
-import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.addcoupon.components.AddCouponTopBar
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDatePicker
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponDropdown
 import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponInputField
-import com.ayaan.dealora.ui.presentation.addcoupon.components.CouponPreviewCard
 import com.ayaan.dealora.ui.presentation.addcoupon.components.UseCouponViaSection
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraWhite
@@ -63,38 +48,9 @@ fun AddCoupons(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    val couponImageBase64 by viewModel.couponImageBase64.collectAsState()
-    val couponImageBitmap: ImageBitmap= Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64 )
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            val base64 = Base64ImageUtils.encodeUriToBase64(context, it)
-            if (base64 != null) {
-                viewModel.processOcr(base64,
-                    onSuccess = {
-                        Toast.makeText(context, "Coupon data extracted!", Toast.LENGTH_SHORT).show()
-                    },
-                    onError = { error ->
-                        Toast.makeText(context, "Scan failed: $error", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-        }
-    }
-
-    LaunchedEffect(uiState, couponImageBase64) {
-        Log.d("AddCoupons", "uiState updated: $uiState")
-        Log.d("AddCoupons", "isFormValid: ${viewModel.isFormValid()}")
-        Log.d("AddCoupons", "couponImageBase64: $couponImageBase64")
-        Log.d("AddCoupons", "couponImageBitmap: $couponImageBitmap")
-    }
-
 
     Scaffold(
         topBar = {
-            // Top Bar
             AddCouponTopBar(
                 onBackClick = { navController.navigateUp() })
         }, contentWindowInsets = WindowInsets(0.dp), containerColor = DealoraWhite
@@ -119,62 +75,7 @@ fun AddCoupons(
                     )
                 )
             }
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(155.dp)
-                        .height(49.dp)
-                        .background(color = DealoraPrimary, shape = RoundedCornerShape(size = 9.dp)),
-                ) {
-                    Text(
-                        text = "Manually", style = TextStyle(
-                            fontSize = 32.sp,
-                            lineHeight = 47.sp,
-                            fontWeight = FontWeight(500),
-                            color = DealoraWhite,
-                        ), modifier = Modifier.align(Alignment.Center)
-                    )
-                }
 
-                Button(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    modifier = Modifier
-                        .height(49.dp)
-                        .weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF1F8E9),
-                        contentColor = DealoraPrimary
-                    ),
-                    shape = RoundedCornerShape(9.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.dashboard_48),
-                        contentDescription = "Scan",
-                        modifier = Modifier.size(20.dp),
-                        tint = DealoraPrimary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Scan", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-            ) {
-                Text(
-                    text = "Your selected apps are being synced individually.\nPlease wait until all apps are fully synced.",
-                    lineHeight = 18.sp
-                )
-            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -284,30 +185,6 @@ fun AddCoupons(
                     isRequired = false
                 )
 
-//                Spacer(modifier = Modifier.height(24.dp))
-
-                // Review Section
-//                Text(
-//                    text = "Review your coupon",
-//                    fontSize = 14.sp,
-//                    fontWeight = FontWeight.SemiBold,
-//                    color = Color.Black,
-//                    modifier = Modifier.padding(bottom = 12.dp)
-//                )
-
-//                CouponPreviewCard(
-//                    couponName = uiState.couponName,
-//                    description = uiState.description,
-//                    expiryDate = uiState.expiryDate,
-//                    couponCode = uiState.couponCode,
-//                    isRedeemed = false
-//                )
-                Image(
-                    bitmap = couponImageBitmap?: ImageBitmap.imageResource(id = R.drawable.coupon_banner1),
-                    contentDescription = "Coupon Image",
-                    modifier = Modifier
-                        .fillMaxSize()
-                )
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Add Coupon Button
