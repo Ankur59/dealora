@@ -142,14 +142,21 @@ exports.syncGmail = async (req, res) => {
         // DEVELOPER NOTE: To change the date range:
         // Change the number below (e.g., -2 to -10 for last 10 days, -30 for last 30 days)
         const daysAgo = new Date();
-        daysAgo.setDate(daysAgo.getDate() - 2); // Currently: last 2 days on free Gemini tier
+        daysAgo.setDate(daysAgo.getDate() - 7); // DEMO MODE: last 7 days (increased from 2)
         const dateString = daysAgo.toISOString().split('T')[0].replace(/-/g, '/'); // Format: YYYY/MM/DD
 
         // Gmail API query: promotional emails from specified date range
         const listParams = {
-            maxResults: 20, // Keep low to avoid rate limits and timeouts on free Gemini tier
+            maxResults: 50, // DEMO MODE: increased from 20 to 50 for demo purposes
             q: `category:promotions after:${dateString}` // Fetches promotional emails after the calculated date
         };
+
+        console.log('\n' + '='.repeat(60));
+        console.log('🔍  DEALORA EMAIL PARSING — DEMO MODE ACTIVE');
+        console.log('='.repeat(60));
+        console.log(`📅  Scanning promotional emails from last 7 days`);
+        console.log(`🔑  Access Token: ${accessToken ? accessToken.substring(0, 15) + '...' : 'N/A'}`);
+        console.log('='.repeat(60) + '\n');
 
         const listResponse = await axios.get(listUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
@@ -159,8 +166,12 @@ exports.syncGmail = async (req, res) => {
 
         const messages = listResponse.data.messages || [];
         if (messages.length === 0) {
+            console.log('⚠️  No promotional emails found in inbox for the selected date range.\n');
             return res.status(200).json({ success: true, message: 'No promotional emails found', count: 0 });
         }
+
+        console.log(`📬  Found ${messages.length} promotional emails in inbox!`);
+        console.log(`🤖  Sending each email to Gemini AI for coupon extraction...\n`);
 
         // Process all emails sequentially with 30s timeout per email to prevent server hanging
         // DEVELOPER NOTE: Each email is processed one-by-one with timeout protection
@@ -172,7 +183,9 @@ exports.syncGmail = async (req, res) => {
         const skipped = [];
         const errors = [];
 
+        let emailIndex = 0;
         for (const msg of messagesToProcess) {
+            emailIndex++;
             try {
                 const msgUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`;
                 const msgRes = await axios.get(msgUrl, {
@@ -207,11 +220,18 @@ exports.syncGmail = async (req, res) => {
                 // Combine Subject + Body for better context
                 const fullContent = `Subject: ${subject}\nFrom: ${sender}\n\n${body}`;
 
+                console.log(`\n--- EMAIL [${emailIndex}/${messagesToProcess.length}] ---`);
+                console.log(`📧  FROM   : ${sender}`);
+                console.log(`📝  SUBJECT: ${subject || '(no subject)'}`);
+
                 // Simple Heuristic Filter: Skip if no coupon keywords
                 if (!/discount|off|code|coupon|deal/i.test(fullContent)) {
+                    console.log(`⏭️  SKIPPED : No coupon keywords found in this email`);
                     skipped.push(msg.id);
                     continue;
                 }
+
+                console.log(`🔍  PARSING: Sending to Gemini AI for coupon extraction...`);
 
                 // Call AI extraction with a 30-second timeout to prevent hanging
                 try {
@@ -222,21 +242,45 @@ exports.syncGmail = async (req, res) => {
                     const couponResult = await Promise.race([aiWork, aiTimeout]);
                     processedCoupons.push(couponResult.data);
                     logger.info(`Successfully extracted coupon from email ${msg.id}`);
+
+                    // ✅ DEMO: Show what was extracted
+                    const extracted = couponResult.data;
+                    console.log(`✅  COUPON EXTRACTED!`);
+                    console.log(`    🏷️  Brand        : ${extracted.brandName || 'Unknown'}`);
+                    console.log(`    🎟️  Coupon Title : ${extracted.couponTitle || extracted.couponName || 'N/A'}`);
+                    console.log(`    🔑  Coupon Code  : ${extracted.couponCode || '(no code — deal link)'}`);
+                    console.log(`    💰  Discount     : ${extracted.discountType || 'unknown'} — ${extracted.discountValue || 'N/A'}`);
+                    console.log(`    📅  Expires      : ${extracted.expireBy ? new Date(extracted.expireBy).toDateString() : 'N/A'}`);
+                    console.log(`    📊  Confidence   : ${couponResult.confidence ? (couponResult.confidence * 100).toFixed(0) + '%' : 'N/A'}`);
+
                 } catch (innerErr) {
-                    if (innerErr.status !== 409) { // Ignore duplicates silently
+                    if (innerErr.status === 409) {
+                        console.log(`⚠️  DUPLICATE: Coupon already exists in DB, skipping.`);
+                    } else {
+                        console.log(`❌  FAILED   : ${innerErr.message}`);
                         logger.warn(`Failed to process email ${msg.id}: ${innerErr.message}`);
                     }
                 }
 
             } catch (err) {
                 logger.error(`Error fetching message ${msg.id}: ${err.message}`);
+                console.log(`❌  ERROR fetching email ${msg.id}: ${err.message}`);
                 errors.push(msg.id);
             }
         }
 
+        console.log('\n' + '='.repeat(60));
+        console.log(`📊  PARSING COMPLETE — SUMMARY`);
+        console.log('='.repeat(60));
+        console.log(`📬  Total Emails Found : ${messages.length}`);
+        console.log(`✅  Coupons Extracted  : ${processedCoupons.length}`);
+        console.log(`⏭️  Skipped            : ${skipped.length} (no coupon keywords)`);
+        console.log(`❌  Errors             : ${errors.length}`);
+        console.log('='.repeat(60) + '\n');
+
         res.status(200).json({
             success: true,
-            message: `Found ${messages.length} emails (last 2 days). Processed all ${messagesToProcess.length} emails, extracted ${processedCoupons.length} coupons. ${skipped.length} skipped (no coupon keywords), ${errors.length} errors.`,
+            message: `Found ${messages.length} emails (last 7 days). Processed all ${messagesToProcess.length} emails, extracted ${processedCoupons.length} coupons. ${skipped.length} skipped (no coupon keywords), ${errors.length} errors.`,
             totalFound: messages.length,
             processedCount: messagesToProcess.length,
             extractedCount: processedCoupons.length,
