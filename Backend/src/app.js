@@ -16,6 +16,7 @@ const privateCouponRoutes = require('./routes/privateCouponRoutes');
 const featureRoutes = require('./routes/featureRoutes');
 const exclusiveCouponRoutes = require('./routes/exclusiveCouponRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const connectEmailRoutes = require('./routes/connectEmailRoutes');
 
 
 const app = express();
@@ -30,12 +31,12 @@ const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps, curl, Postman)
         if (!origin) return callback(null, true);
-        
+
         // In development, allow all origins
         if (process.env.NODE_ENV === 'development') {
             return callback(null, true);
         }
-        
+
         // In production, check against allowed origins
         const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
         if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
@@ -66,7 +67,7 @@ app.use((req, res, next) => {
         if (urlParts[1]) {
             const params = new URLSearchParams(urlParts[1]);
             const paramMap = {};
-            
+
             params.forEach((value, key) => {
                 if (paramMap[key]) {
                     // If key already exists, convert to array
@@ -79,7 +80,7 @@ app.use((req, res, next) => {
                     paramMap[key] = value;
                 }
             });
-            
+
             // Merge with existing req.query
             req.query = { ...req.query, ...paramMap };
         }
@@ -122,7 +123,7 @@ app.use('/api/private-coupons', privateCouponRoutes);
 app.use('/api/features', featureRoutes);
 app.use('/api/exclusive-coupons', exclusiveCouponRoutes);
 app.use('/api/notifications', notificationRoutes);
-
+// app.use('/api/connected-emails', connectEmailRoutes);
 
 app.get('/', (req, res) => {
     res.status(200).json({

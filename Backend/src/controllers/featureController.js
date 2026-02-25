@@ -163,7 +163,6 @@ exports.syncGmail = async (req, res) => {
             params: listParams,
             timeout: 10000 // 10 second timeout for Gmail API
         });
-
         const messages = listResponse.data.messages || [];
         if (messages.length === 0) {
             console.log('⚠️  No promotional emails found in inbox for the selected date range.\n');
@@ -245,13 +244,13 @@ exports.syncGmail = async (req, res) => {
 
                     // ✅ DEMO: Show what was extracted
                     const extracted = couponResult.data;
-                    console.log(`✅  COUPON EXTRACTED!`);
+                   { console.log(`✅  COUPON EXTRACTED!`);
                     console.log(`    🏷️  Brand        : ${extracted.brandName || 'Unknown'}`);
                     console.log(`    🎟️  Coupon Title : ${extracted.couponTitle || extracted.couponName || 'N/A'}`);
                     console.log(`    🔑  Coupon Code  : ${extracted.couponCode || '(no code — deal link)'}`);
                     console.log(`    💰  Discount     : ${extracted.discountType || 'unknown'} — ${extracted.discountValue || 'N/A'}`);
                     console.log(`    📅  Expires      : ${extracted.expireBy ? new Date(extracted.expireBy).toDateString() : 'N/A'}`);
-                    console.log(`    📊  Confidence   : ${couponResult.confidence ? (couponResult.confidence * 100).toFixed(0) + '%' : 'N/A'}`);
+                    console.log(`    📊  Confidence   : ${couponResult.confidence ? (couponResult.confidence * 100).toFixed(0) + '%' : 'N/A'}`);}
 
                 } catch (innerErr) {
                     if (innerErr.status === 409) {
