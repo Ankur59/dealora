@@ -1,10 +1,13 @@
 package com.ayaan.dealora.ui.presentation.syncapps.screens
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,15 +16,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Warning
@@ -30,7 +35,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -39,10 +48,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,8 +65,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
+import com.ayaan.dealora.data.api.models.LinkedEmail
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncState
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncViewModel
+import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.LinkEmailState
+import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.LinkEmailViewModel
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
@@ -61,14 +78,25 @@ import com.google.android.gms.common.api.ApiException
 @Composable
 fun GmailSyncScreen(
     navController: NavController,
-    viewModel: GmailSyncViewModel = hiltViewModel()
+    viewModel: GmailSyncViewModel = hiltViewModel(),
+    linkEmailViewModel: LinkEmailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val isSignedIn by viewModel.isSignedIn.collectAsState()
+    val linkedEmails by viewModel.linkedEmails.collectAsState()
+    val selectedEmail by viewModel.selectedEmail.collectAsState()
+    val isLoadingEmails by viewModel.isLoadingEmails.collectAsState()
+    val linkEmailState by linkEmailViewModel.state.collectAsState()
 
-    // Launcher for the Google Sign-In intent.
-    // IMPORTANT: Always parse via getSignedInAccountFromIntent regardless of resultCode —
-    // the SDK sometimes returns RESULT_CANCELED even on errors but still puts info in the intent.
+    // When a new Gmail is successfully linked → refresh the dropdown automatically
+    LaunchedEffect(linkEmailState) {
+        if (linkEmailState is LinkEmailState.Success) {
+            viewModel.loadLinkedEmails()
+            linkEmailViewModel.resetState()
+        }
+    }
+
+    // Launcher for the Gmail SCAN sign-in (GmailSyncViewModel)
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -79,6 +107,21 @@ fun GmailSyncScreen(
         } catch (e: ApiException) {
             android.util.Log.e("GmailSyncScreen", "Sign-in failed. Status code: ${e.statusCode}")
             viewModel.handleSignInResult(null, errorCode = e.statusCode)
+        }
+    }
+
+    // Launcher for the LINK EMAIL sign-in (LinkEmailViewModel)
+    // Separate launcher so serverAuthCode goes to the correct ViewModel
+    val linkEmailLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            linkEmailViewModel.handleSignInResult(account)
+        } catch (e: ApiException) {
+            android.util.Log.e("GmailSyncScreen", "Link email sign-in failed: ${e.statusCode}")
+            linkEmailViewModel.handleSignInResult(null)
         }
     }
 
@@ -104,6 +147,37 @@ fun GmailSyncScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
+        // Floating Add Button — bottom-right
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    // Sign out first so Google shows the account picker fresh
+                    // (instead of silently reusing the last account)
+                    linkEmailViewModel.googleSignInClient.signOut().addOnCompleteListener {
+                        linkEmailLauncher.launch(linkEmailViewModel.googleSignInClient.signInIntent)
+                    }
+                },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = DealoraPrimary,
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+            ) {
+                // Show spinner while linking is in progress, otherwise show +
+                if (linkEmailState is LinkEmailState.Linking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.5.dp,
+                        color = Color.White
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Email Account",
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+        },
         containerColor = Color.White
     ) { paddingValues ->
         Column(
@@ -114,86 +188,252 @@ fun GmailSyncScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Gmail icon
+            // ── Email Account Dropdown ─────────────────────────────────────
+            EmailDropdown(
+                linkedEmails = linkedEmails,
+                selectedEmail = selectedEmail,
+                isLoading = isLoadingEmails,
+                onEmailSelected = { viewModel.selectEmail(it) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Coupon Area (shows placeholder or sync UI) ─────────────────
+            if (selectedEmail == null) {
+                // Nothing selected yet → placeholder box
+                NoEmailSelectedBox()
+            } else {
+                // Email selected → show the normal state-driven sync content
+                SyncContent(
+                    state = state,
+                    isSignedIn = isSignedIn,
+                    onConnectGmail = {
+                        signInLauncher.launch(viewModel.googleSignInClient.signInIntent)
+                    },
+                    onScanAgain = { viewModel.syncWithExistingAccount() },
+                    onSignOut = { viewModel.signOut() },
+                    onRetry = { viewModel.resetState() }
+                )
+            }
+        }
+    }
+}
+
+// ── Email Dropdown ────────────────────────────────────────────────────────────
+
+@Composable
+private fun EmailDropdown(
+    linkedEmails: List<LinkedEmail>,
+    selectedEmail: String?,
+    isLoading: Boolean,
+    onEmailSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Trigger row
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .border(
+                    width = 1.5.dp,
+                    color = if (selectedEmail != null) DealoraPrimary else Color(0xFFDDDDDD),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .background(Color(0xFFFAFAFA))
+                .clickable(enabled = !isLoading && linkedEmails.isNotEmpty()) {
+                    expanded = true
+                }
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Email,
+                    contentDescription = null,
+                    tint = if (selectedEmail != null) DealoraPrimary else Color(0xFFAAAAAA),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+
+                when {
+                    isLoading -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = DealoraPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Loading accounts…",
+                                fontSize = 14.sp,
+                                color = Color(0xFFAAAAAA)
+                            )
+                        }
+                    }
+                    linkedEmails.isEmpty() -> {
+                        Text(
+                            text = "No linked accounts — tap + to add one",
+                            fontSize = 14.sp,
+                            color = Color(0xFFAAAAAA),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = selectedEmail ?: "Select an email account",
+                            fontSize = 14.sp,
+                            color = if (selectedEmail != null) Color(0xFF1A1A1A) else Color(0xFF888888),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint = Color(0xFF888888)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Dropdown list
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .background(Color.White)
+        ) {
+            linkedEmails.forEach { entry ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(
+                                text = entry.email,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF1A1A1A)
+                            )
+                        }
+                    },
+                    onClick = {
+                        onEmailSelected(entry.email)
+                        expanded = false
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            tint = DealoraPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+// ── No-email-selected placeholder ────────────────────────────────────────────
+
+@Composable
+private fun NoEmailSelectedBox() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 220.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = 1.dp,
+                color = Color(0xFFE8E8E8),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .background(Color(0xFFF9F9F9)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(32.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .size(72.dp)
-                    .background(Color(0xFFFCE8E6), RoundedCornerShape(20.dp)),
+                    .size(64.dp)
+                    .background(Color(0xFFEEEEEE), RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Email,
-                    contentDescription = "Gmail",
-                    tint = Color(0xFFEA4335),
-                    modifier = Modifier.size(40.dp)
+                    contentDescription = null,
+                    tint = Color(0xFFBBBBBB),
+                    modifier = Modifier.size(32.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Scan Gmail for Coupons",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Connect your Gmail to automatically find promotional emails and extract coupon codes.",
+                text = "Please select an email to see the scanned coupons",
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = Color(0xFF999999),
                 textAlign = TextAlign.Center,
-                lineHeight = 20.sp
+                lineHeight = 22.sp
             )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(32.dp))
+// ── State-driven sync content (shown after email is selected) ─────────────────
 
-            // ── State-driven content ──────────────────────────────────────
+@Composable
+private fun SyncContent(
+    state: GmailSyncState,
+    isSignedIn: Boolean,
+    onConnectGmail: () -> Unit,
+    onScanAgain: () -> Unit,
+    onSignOut: () -> Unit,
+    onRetry: () -> Unit
+) {
+    when (val s = state) {
 
-            when (val s = state) {
+        is GmailSyncState.Idle -> {
+            IdleContent(
+                isSignedIn = isSignedIn,
+                onConnectGmail = onConnectGmail,
+                onScanAgain = onScanAgain,
+                onSignOut = onSignOut
+            )
+        }
 
-                is GmailSyncState.Idle -> {
-                    IdleContent(
-                        isSignedIn = isSignedIn,
-                        onConnectGmail = {
-                            signInLauncher.launch(viewModel.googleSignInClient.signInIntent)
-                        },
-                        onScanAgain = { viewModel.syncWithExistingAccount() },
-                        onSignOut = { viewModel.signOut() }
-                    )
-                }
+        is GmailSyncState.SigningIn,
+        is GmailSyncState.Syncing -> {
+            LoadingContent(
+                message = if (state is GmailSyncState.SigningIn)
+                    "Connecting to Gmail…"
+                else
+                    "Scanning your promo emails…"
+            )
+        }
 
-                is GmailSyncState.SigningIn,
-                is GmailSyncState.Syncing -> {
-                    LoadingContent(
-                        message = if (state is GmailSyncState.SigningIn)
-                            "Connecting to Gmail…"
-                        else
-                            "Scanning your promo emails…"
-                    )
-                }
+        is GmailSyncState.Success -> {
+            SuccessContent(
+                extractedCount = s.extractedCount,
+                skippedCount = s.skippedCount,
+                coupons = s.coupons,
+                onScanAgain = onRetry,
+                onSignOut = onSignOut
+            )
+        }
 
-                is GmailSyncState.Success -> {
-                    SuccessContent(
-                        extractedCount = s.extractedCount,
-                        skippedCount = s.skippedCount,
-                        coupons = s.coupons,
-                        onScanAgain = { viewModel.resetState() },
-                        onSignOut = { viewModel.signOut() }
-                    )
-                }
-
-                is GmailSyncState.Error -> {
-                    ErrorContent(
-                        message = s.message,
-                        onRetry = { viewModel.resetState() }
-                    )
-                }
-            }
+        is GmailSyncState.Error -> {
+            ErrorContent(
+                message = s.message,
+                onRetry = onRetry
+            )
         }
     }
 }
@@ -207,6 +447,8 @@ private fun IdleContent(
     onScanAgain: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    Spacer(modifier = Modifier.height(8.dp))
+
     if (!isSignedIn) {
         Button(
             onClick = onConnectGmail,
@@ -257,7 +499,7 @@ private fun IdleContent(
         }
     }
 
-    Spacer(modifier = Modifier.height(28.dp))
+    Spacer(modifier = Modifier.height(24.dp))
 
     // Privacy note
     Card(
@@ -340,7 +582,7 @@ private fun SuccessContent(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "No new coupons found in your last 2 days of promotional emails.",
+                text = "No new coupons found in your last 7 days of promotional emails.",
                 fontSize = 14.sp,
                 color = Color.Gray,
                 textAlign = TextAlign.Center,
@@ -424,7 +666,9 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
             shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
         ) {
             Text("Try Again", fontWeight = FontWeight.SemiBold)
         }
