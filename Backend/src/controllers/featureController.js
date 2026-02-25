@@ -4,6 +4,7 @@ const Coupon = require('../models/Coupon');
 const logger = require('../utils/logger');
 const { validationResult } = require('express-validator');
 const geminiService = require('../services/geminiExtractionService');
+const User = require('../models/User');
 
 /**
  * Handle OCR extraction and coupon creation
@@ -129,7 +130,49 @@ exports.processEmail = async (req, res) => {
  */
 exports.syncGmail = async (req, res) => {
     try {
-        const { accessToken, userId } = req.body;
+        let { accessToken, userId, selectedEmail } = req.body;
+
+        const userDetails = await User.findOne({ uid: userId });
+
+        if (!userDetails) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        // If a selectedEmail is provided, find the matching connectedEmail entry
+        // and exchange its refreshToken for a fresh access token from Google
+        if (selectedEmail) {
+            const connectedEmail = userDetails.connectedEmails.find(
+                (entry) => entry.email === selectedEmail.toLowerCase().trim()
+            );
+
+            if (!connectedEmail) {
+                return res.status(404).json({
+                    success: false,
+                    message: `No connected email found for '${selectedEmail}'. Please link this account first.`
+                });
+            }
+
+            // Exchange the stored refresh token for a fresh access token
+            try {
+                const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+                    client_id: process.env.GOOGLE_CLIENT_ID,
+                    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                    refresh_token: connectedEmail.refreshToken,
+                    grant_type: 'refresh_token'
+                });
+
+                accessToken = tokenResponse.data.access_token;
+                logger.info(`Access token refreshed successfully for ${selectedEmail}`);
+            } catch (tokenErr) {
+                logger.error('Failed to refresh access token:', tokenErr.response?.data || tokenErr.message);
+                return res.status(401).json({
+                    success: false,
+                    message: 'Failed to refresh access token. Please re-link your email account.',
+                    error: tokenErr.response?.data || tokenErr.message
+                });
+            }
+        }
+
         if (!accessToken) {
             return res.status(400).json({ success: false, message: 'Access Token is required' });
         }
@@ -244,13 +287,15 @@ exports.syncGmail = async (req, res) => {
 
                     // ✅ DEMO: Show what was extracted
                     const extracted = couponResult.data;
-                   { console.log(`✅  COUPON EXTRACTED!`);
-                    console.log(`    🏷️  Brand        : ${extracted.brandName || 'Unknown'}`);
-                    console.log(`    🎟️  Coupon Title : ${extracted.couponTitle || extracted.couponName || 'N/A'}`);
-                    console.log(`    🔑  Coupon Code  : ${extracted.couponCode || '(no code — deal link)'}`);
-                    console.log(`    💰  Discount     : ${extracted.discountType || 'unknown'} — ${extracted.discountValue || 'N/A'}`);
-                    console.log(`    📅  Expires      : ${extracted.expireBy ? new Date(extracted.expireBy).toDateString() : 'N/A'}`);
-                    console.log(`    📊  Confidence   : ${couponResult.confidence ? (couponResult.confidence * 100).toFixed(0) + '%' : 'N/A'}`);}
+                    {
+                        console.log(`✅  COUPON EXTRACTED!`);
+                        console.log(`    🏷️  Brand        : ${extracted.brandName || 'Unknown'}`);
+                        console.log(`    🎟️  Coupon Title : ${extracted.couponTitle || extracted.couponName || 'N/A'}`);
+                        console.log(`    🔑  Coupon Code  : ${extracted.couponCode || '(no code — deal link)'}`);
+                        console.log(`    💰  Discount     : ${extracted.discountType || 'unknown'} — ${extracted.discountValue || 'N/A'}`);
+                        console.log(`    📅  Expires      : ${extracted.expireBy ? new Date(extracted.expireBy).toDateString() : 'N/A'}`);
+                        console.log(`    📊  Confidence   : ${couponResult.confidence ? (couponResult.confidence * 100).toFixed(0) + '%' : 'N/A'}`);
+                    }
 
                 } catch (innerErr) {
                     if (innerErr.status === 409) {
