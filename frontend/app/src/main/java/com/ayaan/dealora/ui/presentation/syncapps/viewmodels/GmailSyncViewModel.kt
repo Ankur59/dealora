@@ -6,8 +6,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.BuildConfig
 import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
+import com.ayaan.dealora.data.api.models.LinkedEmail
+import com.ayaan.dealora.data.repository.ConnectEmailRepository
 import com.ayaan.dealora.data.repository.GmailSyncRepository
 import com.ayaan.dealora.data.repository.GmailSyncResult
+import com.ayaan.dealora.data.repository.LinkedEmailsResult
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -43,7 +46,8 @@ sealed class GmailSyncState {
 @HiltViewModel
 class GmailSyncViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val gmailSyncRepository: GmailSyncRepository
+    private val gmailSyncRepository: GmailSyncRepository,
+    private val connectEmailRepository: ConnectEmailRepository
 ) : ViewModel() {
 
     companion object {
@@ -55,6 +59,18 @@ class GmailSyncViewModel @Inject constructor(
 
     private val _isSignedIn = MutableStateFlow(false)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
+
+    /** List of emails the user has linked via the connect-email flow */
+    private val _linkedEmails = MutableStateFlow<List<LinkedEmail>>(emptyList())
+    val linkedEmails: StateFlow<List<LinkedEmail>> = _linkedEmails.asStateFlow()
+
+    /** The email the user has selected in the dropdown — null means nothing selected yet */
+    private val _selectedEmail = MutableStateFlow<String?>(null)
+    val selectedEmail: StateFlow<String?> = _selectedEmail.asStateFlow()
+
+    /** True while we are fetching the linked emails list from the backend */
+    private val _isLoadingEmails = MutableStateFlow(false)
+    val isLoadingEmails: StateFlow<Boolean> = _isLoadingEmails.asStateFlow()
 
     // GoogleSignInClient is created once and reused
     val googleSignInClient: GoogleSignInClient by lazy {
@@ -74,6 +90,36 @@ class GmailSyncViewModel @Inject constructor(
         } ?: false
         _isSignedIn.value = hasGmailScope
         Log.d(TAG, "Init: isSignedIn=$hasGmailScope")
+
+        // Fetch linked emails immediately on screen open
+        loadLinkedEmails()
+    }
+
+    /**
+     * Fetches the list of linked Gmail accounts from the backend.
+     */
+    fun loadLinkedEmails() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        viewModelScope.launch {
+            _isLoadingEmails.value = true
+            when (val result = connectEmailRepository.getLinkedEmails(userId)) {
+                is LinkedEmailsResult.Success -> {
+                    _linkedEmails.value = result.emails
+                    Log.d(TAG, "Loaded ${result.emails.size} linked email(s)")
+                }
+                is LinkedEmailsResult.Error -> {
+                    Log.e(TAG, "Failed to load linked emails: ${result.message}")
+                }
+            }
+            _isLoadingEmails.value = false
+        }
+    }
+
+    /**
+     * Called when the user picks an email from the dropdown.
+     */
+    fun selectEmail(email: String) {
+        _selectedEmail.value = email
     }
 
     /**

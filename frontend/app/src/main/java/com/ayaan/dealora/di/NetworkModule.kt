@@ -1,10 +1,12 @@
 package com.ayaan.dealora.di
 
+import com.ayaan.dealora.data.api.ConnectEmailApiService
 import com.ayaan.dealora.data.api.NotificationApiService
 import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.FeatureApiService
 import com.ayaan.dealora.data.api.ProfileApiService
+import com.ayaan.dealora.data.repository.ConnectEmailRepository
 import com.ayaan.dealora.data.repository.GmailSyncRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -103,6 +105,18 @@ object NetworkModule {
     @Singleton
     fun provideGmailSyncRepository(featureApiService: FeatureApiService): GmailSyncRepository {
         return GmailSyncRepository(featureApiService)
+    }
+
+    @Provides
+    @Singleton
+    fun provideConnectEmailApiService(retrofit: Retrofit): ConnectEmailApiService {
+        return retrofit.create(ConnectEmailApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideConnectEmailRepository(connectEmailApiService: ConnectEmailApiService): ConnectEmailRepository {
+        return ConnectEmailRepository(connectEmailApiService)
     }
 }
 
