@@ -8,9 +8,10 @@ const logger = require('../utils/logger');
  *
  * Expected body: { serverAuthCode: string, userId: string }
  */
+// For connecting a new gmail
 const handleConnect = async (req, res) => {
     const { serverAuthCode, userId } = req.body;
-
+    console.log("this is the serverAuthCode", serverAuthCode, userId)
     // --- Validation ---
     if (!serverAuthCode) {
         return res.status(400).json({ success: false, message: 'serverAuthCode is required' });
@@ -40,7 +41,7 @@ const handleConnect = async (req, res) => {
             code: serverAuthCode,
             client_id: process.env.GOOGLE_CLIENT_ID,
             client_secret: process.env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: 'postmessage',      // Standard value for mobile/installed apps
+            redirect_uri: '',                 // Must be empty string for Android requestServerAuthCode() flow
             grant_type: 'authorization_code', // Tells Google this is a code exchange
         });
 
@@ -112,6 +113,7 @@ const handleConnect = async (req, res) => {
     }
 };
 
+// Handle all the linked emails to the user
 const handleAllEmails = async (req, res) => {
     const { userId } = req.query;
 

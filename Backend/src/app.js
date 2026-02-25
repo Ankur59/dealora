@@ -123,7 +123,7 @@ app.use('/api/private-coupons', privateCouponRoutes);
 app.use('/api/features', featureRoutes);
 app.use('/api/exclusive-coupons', exclusiveCouponRoutes);
 app.use('/api/notifications', notificationRoutes);
-// app.use('/api/connected-emails', connectEmailRoutes);
+app.use('/api/connect-email', connectEmailRoutes);
 
 app.get('/', (req, res) => {
     res.status(200).json({
