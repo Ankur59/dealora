@@ -168,6 +168,7 @@ couponSchema.index({ brandName: 1, status: 1 });
 couponSchema.index({ expireBy: 1, status: 1 });
 couponSchema.index({ brandName: 1, couponCode: 1 }, { sparse: true }); // For deduplication
 couponSchema.index({ categoryLabel: 1, status: 1 });
+couponSchema.index({ userId: 1, couponCode: 1, brandName: 1 }, { unique: true })
 
 const Coupon = mongoose.model('Coupon', couponSchema);
 

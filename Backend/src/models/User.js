@@ -65,6 +65,26 @@ const userSchema = new mongoose.Schema(
             default: null,
             trim: true,
         },
+
+        // Gmail accounts the user has linked via OAuth for email parsing
+        connectedEmails: [
+            {
+                email: {
+                    type: String,
+                    required: true,
+                    lowercase: true,
+                    trim: true,
+                },
+                refreshToken: {
+                    type: String,
+                    required: true,
+                },
+                linkedAt: {
+                    type: Date,
+                    default: Date.now,
+                },
+            },
+        ],
     },
     {
         timestamps: true,
