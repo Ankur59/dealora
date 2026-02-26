@@ -24,11 +24,11 @@ class GmailSyncRepository @Inject constructor(
         private const val TAG = "GmailSyncRepository"
     }
 
-    suspend fun syncGmail(accessToken: String, userId: String): GmailSyncResult {
+    suspend fun syncGmail(accessToken: String, userId: String, selectedEmail: String? = null): GmailSyncResult {
         return try {
-            Log.d(TAG, "Calling gmail-sync with userId: $userId")
+            Log.d(TAG, "Calling gmail-sync with userId: $userId, selectedEmail: $selectedEmail")
             val response = featureApiService.syncGmail(
-                GmailSyncRequest(accessToken = accessToken, userId = userId)
+                GmailSyncRequest(accessToken = accessToken, userId = userId, selectedEmail = selectedEmail)
             )
             if (response.isSuccessful) {
                 val body = response.body()

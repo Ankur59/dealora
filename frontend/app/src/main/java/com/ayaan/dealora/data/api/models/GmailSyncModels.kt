@@ -12,7 +12,10 @@ data class GmailSyncRequest(
     val accessToken: String,
 
     @Json(name = "userId")
-    val userId: String
+    val userId: String,
+
+    @Json(name = "selectedEmail")
+    val selectedEmail: String? = null
 )
 
 /**

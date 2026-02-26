@@ -58,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -88,11 +89,39 @@ fun GmailSyncScreen(
     val isLoadingEmails by viewModel.isLoadingEmails.collectAsState()
     val linkEmailState by linkEmailViewModel.state.collectAsState()
 
-    // When a new Gmail is successfully linked → refresh the dropdown automatically
+    val context = LocalContext.current
+
+    // Show a toast for every link-email outcome, then reset state
     LaunchedEffect(linkEmailState) {
-        if (linkEmailState is LinkEmailState.Success) {
-            viewModel.loadLinkedEmails()
-            linkEmailViewModel.resetState()
+        when (val s = linkEmailState) {
+            is LinkEmailState.Success -> {
+                android.widget.Toast.makeText(
+                    context,
+                    "✅ ${s.linkedEmail} linked successfully!",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                viewModel.loadLinkedEmails()
+                linkEmailViewModel.resetState()
+            }
+            is LinkEmailState.Updated -> {
+                android.widget.Toast.makeText(
+                    context,
+                    "🔄 ${s.linkedEmail} updated successfully!",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                viewModel.loadLinkedEmails()
+                linkEmailViewModel.resetState()
+            }
+            is LinkEmailState.Error -> {
+                val msg = if (s.isLimitReached) {
+                    "⚠️ Limit reached! You can only link up to 3 Gmail accounts."
+                } else {
+                    "❌ Could not link account. Please try again."
+                }
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                linkEmailViewModel.resetState()
+            }
+            else -> Unit  // Idle / Linking — no toast needed
         }
     }
 
@@ -424,7 +453,7 @@ private fun SyncContent(
                 extractedCount = s.extractedCount,
                 skippedCount = s.skippedCount,
                 coupons = s.coupons,
-                onScanAgain = onRetry,
+                onScanAgain = onScanAgain,  // directly scans, skips Idle detour
                 onSignOut = onSignOut
             )
         }

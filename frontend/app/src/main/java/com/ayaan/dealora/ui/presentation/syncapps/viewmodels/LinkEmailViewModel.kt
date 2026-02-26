@@ -25,8 +25,14 @@ import javax.inject.Inject
 sealed class LinkEmailState {
     data object Idle : LinkEmailState()
     data object Linking : LinkEmailState()
-    data class Success(val linkedEmail: String) : LinkEmailState()
-    data class Error(val message: String) : LinkEmailState()
+    data class Success(val linkedEmail: String) : LinkEmailState()   // brand-new link
+    data class Updated(val linkedEmail: String) : LinkEmailState()   // token refresh for existing email
+    data class Error(val message: String) : LinkEmailState() {
+        /** True when the failure is specifically the 3-account limit */
+        val isLimitReached: Boolean
+            get() = message.contains("3", ignoreCase = true) &&
+                    message.contains("link", ignoreCase = true)
+    }
 }
 
 @HiltViewModel
@@ -103,6 +109,10 @@ class LinkEmailViewModel @Inject constructor(
                 is LinkGmailResult.Success -> {
                     Log.d(TAG, "Linked: ${result.email}")
                     _state.value = LinkEmailState.Success(result.email)
+                }
+                is LinkGmailResult.Updated -> {
+                    Log.d(TAG, "Token refreshed for: ${result.email}")
+                    _state.value = LinkEmailState.Updated(result.email)
                 }
                 is LinkGmailResult.Error -> {
                     Log.e(TAG, "Link failed: ${result.message}")

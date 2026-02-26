@@ -40,5 +40,6 @@ data class LinkGmailRequest(
 data class LinkGmailResponse(
     @Json(name = "success") val success: Boolean,
     @Json(name = "message") val message: String,
-    @Json(name = "email") val email: String? = null
+    @Json(name = "email") val email: String? = null,
+    @Json(name = "updated") val updated: Boolean = false  // true = refresh-token refresh only
 )

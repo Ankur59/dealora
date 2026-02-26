@@ -119,6 +119,11 @@ class GmailSyncViewModel @Inject constructor(
      * Called when the user picks an email from the dropdown.
      */
     fun selectEmail(email: String) {
+        // Reset sync state whenever a different email is picked so the
+        // results area returns to the initial "Scan for Coupons" view.
+        if (_selectedEmail.value != email) {
+            _state.value = GmailSyncState.Idle
+        }
         _selectedEmail.value = email
     }
 
@@ -189,7 +194,7 @@ class GmailSyncViewModel @Inject constructor(
             Log.d(TAG, "Access token retrieved successfully (${accessToken.take(10)}...)")
             val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
 
-            when (val result = gmailSyncRepository.syncGmail(accessToken, userId)) {
+            when (val result = gmailSyncRepository.syncGmail(accessToken, userId, selectedEmail = _selectedEmail.value)) {
                 is GmailSyncResult.Success -> {
                     _state.value = GmailSyncState.Success(
                         extractedCount = result.extractedCount,
