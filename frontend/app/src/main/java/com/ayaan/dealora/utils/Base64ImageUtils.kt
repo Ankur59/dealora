@@ -235,46 +235,36 @@ object Base64ImageUtils {
      * @param format Image format (JPEG, PNG, or WEBP), default is JPEG
      * @param includeDataUriPrefix Whether to include "data:image/...;base64," prefix, default is true
      * @return Base64 encoded string, or null if encoding fails
-     *
-     * @example
-     * ```kotlin
-     * val base64 = Base64ImageUtils.encodeBitmapToBase64(
-     *     bitmap = myBitmap,
-     *     quality = 90,
-     *     format = Bitmap.CompressFormat.PNG
-     * )
-     * ```
      */
-//    @RequiresApi(Build.VERSION_CODES.R)
-//    fun encodeBitmapToBase64(
-//        bitmap: Bitmap?,
-//        quality: Int = 80,
-//        format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
-//        includeDataUriPrefix: Boolean = true
-//    ): String? {
-//        if (bitmap == null) return null
-//
-//        return try {
-//            val outputStream = ByteArrayOutputStream()
-//            bitmap.compress(format, quality, outputStream)
-//            val byteArray = outputStream.toByteArray()
-//            val base64String = Base64.encodeToString(byteArray, Base64.NO_WRAP)
-//
-//            if (includeDataUriPrefix) {
-//                val mimeType = when (format) {
-//                    Bitmap.CompressFormat.PNG -> "image/png"
-//                    Bitmap.CompressFormat.WEBP, Bitmap.CompressFormat.WEBP_LOSSLESS, Bitmap.CompressFormat.WEBP_LOSSY -> "image/webp"
-//                    else -> "image/jpeg"
-//                }
-//                "data:$mimeType;base64,$base64String"
-//            } else {
-//                base64String
-//            }
-//        } catch (e: Exception) {
-//            e.printStackTrace()
-//            null
-//        }
-//    }
+    fun encodeBitmapToBase64(
+        bitmap: Bitmap?,
+        quality: Int = 80,
+        format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
+        includeDataUriPrefix: Boolean = true
+    ): String? {
+        if (bitmap == null) return null
+
+        return try {
+            val outputStream = java.io.ByteArrayOutputStream()
+            bitmap.compress(format, quality, outputStream)
+            val byteArray = outputStream.toByteArray()
+            val base64String = android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
+
+            if (includeDataUriPrefix) {
+                val mimeType = when (format) {
+                    Bitmap.CompressFormat.PNG -> "image/png"
+                    Bitmap.CompressFormat.WEBP -> "image/webp"
+                    else -> "image/jpeg"
+                }
+                "data:$mimeType;base64,$base64String"
+            } else {
+                base64String
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     /**
      * Cleans a Base64 string by removing the data URI prefix if present.

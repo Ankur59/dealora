@@ -28,6 +28,10 @@ exports.processScreenshot = async (req, res) => {
         if (extractedData.confidence_score && extractedData.confidence_score < 0.70) {
             logger.warn(`Specific validation failed: Low confidence score (${extractedData.confidence_score})`);
             // We can chose to reject or just flag. For now, we proceed but log it.
+            res.status(400).json({
+                success: false,
+                message: "Invalid coupon"
+            })
             // Or return specific warning
         }
 

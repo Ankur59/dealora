@@ -184,6 +184,7 @@ class AddCouponViewModel @Inject constructor(
                 is FeatureResult.Success -> {
                     _uiState.value = _uiState.value.copy(
                         isOcrLoading = false,
+                        createdCoupon = result.coupon,
                         // Optionally pre-fill form fields from OCR data if needed
                         // brandName/couponName map to couponName in UI for now
                         couponName = result.coupon.brandName ?: result.coupon.couponName ?: "",
@@ -203,6 +204,13 @@ class AddCouponViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Reset the created coupon state (e.g., after dismissing success modal)
+     */
+    fun resetCreatedCoupon() {
+        _uiState.value = _uiState.value.copy(createdCoupon = null)
     }
 
 
@@ -241,7 +249,8 @@ data class AddCouponUiState(
     val couponDetails: String = "",
     val isLoading: Boolean = false,
     val isOcrLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val createdCoupon: com.ayaan.dealora.data.api.models.Coupon? = null
 )
 
 

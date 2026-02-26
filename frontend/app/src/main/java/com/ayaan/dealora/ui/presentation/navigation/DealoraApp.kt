@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.addcoupon.AddCoupons
+import com.ayaan.dealora.ui.presentation.addcoupon.CameraScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginFormScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginOtpScreen
 import com.ayaan.dealora.ui.presentation.auth.screens.login.LoginViewModel
@@ -238,6 +239,9 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
         }
         composable(Route.AddCoupon.path) {
             AddCoupons(navController)
+        }
+        composable(Route.Camera.path) {
+            CameraScreen(navController)
         }
     }
 }
