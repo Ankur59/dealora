@@ -43,3 +43,22 @@ data class LinkGmailResponse(
     @Json(name = "email") val email: String? = null,
     @Json(name = "updated") val updated: Boolean = false  // true = refresh-token refresh only
 )
+
+/**
+ * Request body for DELETE /api/connect-email/remove-email
+ */
+@JsonClass(generateAdapter = true)
+data class RemoveEmailRequest(
+    @Json(name = "userId") val userId: String,
+    @Json(name = "email") val email: String
+)
+
+/**
+ * Response from DELETE /api/connect-email/remove-email
+ */
+@JsonClass(generateAdapter = true)
+data class RemoveEmailResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "message") val message: String,
+    @Json(name = "email") val email: String? = null
+)

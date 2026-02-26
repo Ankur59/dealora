@@ -52,7 +52,12 @@ const couponSchema = new mongoose.Schema(
                 message: 'Category must be one of: Food, Fashion, Grocery, Wallet Rewards, Beauty, Travel, Entertainment, Other',
             },
         },
-
+        fetchedEmail: {
+            type: String,
+            required: function () {
+                return this.sourceWebsite === "Email Parsing"
+            }
+        },
         useCouponVia: {
             type: String,
             required: [true, 'Use coupon via is required'],
