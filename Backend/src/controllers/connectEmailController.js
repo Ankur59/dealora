@@ -21,18 +21,11 @@ const handleConnect = async (req, res) => {
     }
 
     try {
-        // --- Step 1: Fetch user and enforce 3-email limit BEFORE calling Google ---
+        // --- Step 1: Fetch user (limit check happens later, after we know the email) ---
         const user = await User.findOne({ uid: userId });
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        if (user.connectedEmails.length >= 3) {
-            return res.status(400).json({
-                success: false,
-                message: 'You can only link up to 3 Gmail accounts. Please remove one before adding another.',
-            });
         }
 
         // --- Step 2: Exchange serverAuthCode with Google's token endpoint ---
@@ -77,10 +70,21 @@ const handleConnect = async (req, res) => {
         // Check if this Gmail is already in the connectedEmails array
         const existingIndex = user.connectedEmails.findIndex(e => e.email === gmailAddress);
 
+        // Only enforce the 3-account limit for brand-new emails.
+        // If the email is already linked, this is just a token refresh — allow it regardless of count.
+        if (existingIndex === -1 && user.connectedEmails.length >= 3) {
+            return res.status(400).json({
+                success: false,
+                message: 'You can only link up to 3 Gmail accounts. Please remove one before adding another.',
+            });
+        }
+
+        let isUpdate = false;
         if (existingIndex !== -1) {
             // Already connected — update the refresh token
             user.connectedEmails[existingIndex].refreshToken = refresh_token;
             user.connectedEmails[existingIndex].linkedAt = new Date();
+            isUpdate = true;
         } else {
             // New Gmail — push a new entry
             user.connectedEmails.push({
@@ -92,11 +96,14 @@ const handleConnect = async (req, res) => {
 
         await user.save();
 
-        logger.info(`Successfully linked ${gmailAddress} to userId: ${userId}`);
+        logger.info(`Successfully ${isUpdate ? 'updated' : 'linked'} ${gmailAddress} for userId: ${userId}`);
 
         return res.status(200).json({
             success: true,
-            message: `Gmail account ${gmailAddress} linked successfully`,
+            updated: isUpdate,          // true = refresh-token refresh, false = brand-new link
+            message: isUpdate
+                ? `Gmail account ${gmailAddress} updated successfully`
+                : `Gmail account ${gmailAddress} linked successfully`,
             email: gmailAddress,
         });
 
@@ -146,4 +153,53 @@ const handleAllEmails = async (req, res) => {
     }
 };
 
-module.exports = { handleConnect, handleAllEmails };
+/**
+ * Remove a linked Gmail account from the user's connectedEmails list.
+ * Expected body: { userId: string, email: string }
+ */
+const handleRemoveEmail = async (req, res) => {
+    const { userId, email } = req.body;
+
+    if (!userId) {
+        return res.status(400).json({ success: false, message: 'userId is required' });
+    }
+    if (!email) {
+        return res.status(400).json({ success: false, message: 'email is required' });
+    }
+
+    try {
+        const user = await User.findOne({ uid: userId });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const exists = user.connectedEmails.some(e => e.email === email);
+        if (!exists) {
+            return res.status(404).json({
+                success: false,
+                message: `Email ${email} is not linked to this account`,
+            });
+        }
+
+        // Remove the matching entry
+        await User.updateOne(
+            { uid: userId },
+            { $pull: { connectedEmails: { email } } }
+        );
+
+        logger.info(`Removed linked email ${email} for userId: ${userId}`);
+
+        return res.status(200).json({
+            success: true,
+            message: `Gmail account ${email} removed successfully`,
+            email,
+        });
+
+    } catch (error) {
+        logger.error('handleRemoveEmail error:', error.message);
+        return res.status(500).json({ success: false, message: 'Failed to remove linked email' });
+    }
+};
+
+module.exports = { handleConnect, handleAllEmails, handleRemoveEmail };

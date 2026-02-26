@@ -130,7 +130,7 @@ exports.processEmail = async (req, res) => {
  */
 exports.syncGmail = async (req, res) => {
     try {
-        let { accessToken, userId, selectedEmail } = req.body;
+        let { userId, selectedEmail } = req.body;
 
         const userDetails = await User.findOne({ uid: userId });
 
@@ -185,12 +185,12 @@ exports.syncGmail = async (req, res) => {
         // DEVELOPER NOTE: To change the date range:
         // Change the number below (e.g., -2 to -10 for last 10 days, -30 for last 30 days)
         const daysAgo = new Date();
-        daysAgo.setDate(daysAgo.getDate() - 7); // DEMO MODE: last 7 days (increased from 2)
+        daysAgo.setDate(daysAgo.getDate() - 2); //Made it 2 from 7 because of api issue
         const dateString = daysAgo.toISOString().split('T')[0].replace(/-/g, '/'); // Format: YYYY/MM/DD
 
         // Gmail API query: promotional emails from specified date range
         const listParams = {
-            maxResults: 50, // DEMO MODE: increased from 20 to 50 for demo purposes
+            maxResults: 20, // DEMO MODE: increased from 20 to 50 for demo purposes
             q: `category:promotions after:${dateString}` // Fetches promotional emails after the calculated date
         };
 
@@ -280,7 +280,8 @@ exports.syncGmail = async (req, res) => {
                     const aiTimeout = new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('AI extraction timed out after 30s')), 30000)
                     );
-                    const aiWork = processSingleEmailContent(fullContent, sender, userId, true);
+                    console.log("this is selected email", selectedEmail)
+                    const aiWork = processSingleEmailContent(fullContent, selectedEmail, sender, userId, true);
                     const couponResult = await Promise.race([aiWork, aiTimeout]);
                     processedCoupons.push(couponResult.data);
                     logger.info(`Successfully extracted coupon from email ${msg.id}`);
@@ -321,7 +322,7 @@ exports.syncGmail = async (req, res) => {
         console.log(`⏭️  Skipped            : ${skipped.length} (no coupon keywords)`);
         console.log(`❌  Errors             : ${errors.length}`);
         console.log('='.repeat(60) + '\n');
-
+        console.log("these are processed coupons", processedCoupons)
         res.status(200).json({
             success: true,
             message: `Found ${messages.length} emails (last 7 days). Processed all ${messagesToProcess.length} emails, extracted ${processedCoupons.length} coupons. ${skipped.length} skipped (no coupon keywords), ${errors.length} errors.`,
@@ -346,7 +347,7 @@ exports.syncGmail = async (req, res) => {
  * @param {string} userId
  * @param {boolean} skipDuplicateError - If true, throws specific error object for duplicate, else throws normal error
  */
-async function processSingleEmailContent(emailContent, sender, userId, skipDuplicateError = false) {
+async function processSingleEmailContent(emailContent, fetchedEmail, sender, userId, skipDuplicateError = false) {
     // 1. Extract Data
     const extractedData = await aiExtractionService.extractFromEmail(emailContent, sender);
 
@@ -356,8 +357,9 @@ async function processSingleEmailContent(emailContent, sender, userId, skipDupli
         brandName: extractedData.merchant || 'Unknown',
         couponName: extractedData.coupon_title || 'Email Coupon',
         couponTitle: extractedData.coupon_title,
-        couponCode: extractedData.coupon_code || null,
-        discountType: extractedData.discount_type || 'unknown',
+        fetchedEmail: fetchedEmail,
+        couponCode: extractedData.coupon_code || "N/A",
+        discountType: extractedData.discount_type?.toLowerCase() || 'unknown',
         discountValue: extractedData.discount_value,
         minimumOrder: extractedData.minimum_order_value,
         expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

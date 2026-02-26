@@ -53,6 +53,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +68,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
 import com.ayaan.dealora.data.api.models.LinkedEmail
+import com.ayaan.dealora.data.repository.RemoveEmailResult
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncState
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncViewModel
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.LinkEmailState
@@ -87,9 +89,31 @@ fun GmailSyncScreen(
     val linkedEmails by viewModel.linkedEmails.collectAsState()
     val selectedEmail by viewModel.selectedEmail.collectAsState()
     val isLoadingEmails by viewModel.isLoadingEmails.collectAsState()
+    val isRemovingEmail by viewModel.isRemovingEmail.collectAsState()
     val linkEmailState by linkEmailViewModel.state.collectAsState()
 
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Toast when a remove-email call completes
+    LaunchedEffect(Unit) {
+        viewModel.removeEmailEvent.collect { result ->
+            when (result) {
+                is RemoveEmailResult.Success ->
+                    android.widget.Toast.makeText(
+                        context,
+                        "🗑️ ${result.email} disconnected successfully",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                is RemoveEmailResult.Error ->
+                    android.widget.Toast.makeText(
+                        context,
+                        "❌ Could not disconnect account. Please try again.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+            }
+        }
+    }
 
     // Show a toast for every link-email outcome, then reset state
     LaunchedEffect(linkEmailState) {
@@ -230,21 +254,45 @@ fun GmailSyncScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // ── Coupon Area (shows placeholder or sync UI) ─────────────────
-            if (selectedEmail == null) {
+            // Snapshot into a local val so Kotlin can smart-cast String? → String
+            val currentEmail = selectedEmail
+            if (currentEmail == null) {
                 // Nothing selected yet → placeholder box
                 NoEmailSelectedBox()
             } else {
                 // Email selected → show the normal state-driven sync content
                 SyncContent(
                     state = state,
-                    isSignedIn = isSignedIn,
-                    onConnectGmail = {
-                        signInLauncher.launch(viewModel.googleSignInClient.signInIntent)
-                    },
                     onScanAgain = { viewModel.syncWithExistingAccount() },
-                    onSignOut = { viewModel.signOut() },
+                    onDisconnect = { viewModel.removeLinkedEmail(currentEmail) },
                     onRetry = { viewModel.resetState() }
                 )
+            }
+        }
+    }
+
+    // ── Full-screen loading overlay while disconnecting ───────────────────────
+    if (isRemovingEmail) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f))
+                .clickable(enabled = false) {},
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 40.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(color = DealoraPrimary)
+                    Text(text = "Disconnecting…", fontSize = 14.sp, color = Color.Gray)
+                }
             }
         }
     }
@@ -421,20 +469,16 @@ private fun NoEmailSelectedBox() {
 @Composable
 private fun SyncContent(
     state: GmailSyncState,
-    isSignedIn: Boolean,
-    onConnectGmail: () -> Unit,
     onScanAgain: () -> Unit,
-    onSignOut: () -> Unit,
+    onDisconnect: () -> Unit,
     onRetry: () -> Unit
 ) {
     when (val s = state) {
 
         is GmailSyncState.Idle -> {
             IdleContent(
-                isSignedIn = isSignedIn,
-                onConnectGmail = onConnectGmail,
                 onScanAgain = onScanAgain,
-                onSignOut = onSignOut
+                onDisconnect = onDisconnect
             )
         }
 
@@ -453,8 +497,8 @@ private fun SyncContent(
                 extractedCount = s.extractedCount,
                 skippedCount = s.skippedCount,
                 coupons = s.coupons,
-                onScanAgain = onScanAgain,  // directly scans, skips Idle detour
-                onSignOut = onSignOut
+                onScanAgain = onScanAgain,
+                onDisconnect = onDisconnect
             )
         }
 
@@ -471,61 +515,36 @@ private fun SyncContent(
 
 @Composable
 private fun IdleContent(
-    isSignedIn: Boolean,
-    onConnectGmail: () -> Unit,
     onScanAgain: () -> Unit,
-    onSignOut: () -> Unit
+    onDisconnect: () -> Unit
 ) {
     Spacer(modifier = Modifier.height(8.dp))
 
-    if (!isSignedIn) {
-        Button(
-            onClick = onConnectGmail,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEA4335)),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Email,
-                contentDescription = null,
-                tint = Color.White
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "Connect Gmail",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-        }
-    } else {
-        Button(
-            onClick = onScanAgain,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(
-                text = "Scan for Coupons",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-        }
+    // Always show Scan for Coupons — email is already linked via the + button
+    Button(
+        onClick = onScanAgain,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Text(
+            text = "Scan for Coupons",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White
+        )
+    }
 
-        Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedButton(
-            onClick = onSignOut,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(text = "Disconnect Gmail", color = Color.Gray)
-        }
+    OutlinedButton(
+        onClick = onDisconnect,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Text(text = "Disconnect Gmail", color = Color.Gray)
     }
 
     Spacer(modifier = Modifier.height(24.dp))
@@ -578,7 +597,7 @@ private fun SuccessContent(
     skippedCount: Int,
     coupons: List<GmailExtractedCoupon>,
     onScanAgain: () -> Unit,
-    onSignOut: () -> Unit
+    onDisconnect: () -> Unit
 ) {
     // Stats row
     Row(
@@ -656,7 +675,7 @@ private fun SuccessContent(
     Spacer(modifier = Modifier.height(8.dp))
 
     OutlinedButton(
-        onClick = onSignOut,
+        onClick = onDisconnect,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
     ) {

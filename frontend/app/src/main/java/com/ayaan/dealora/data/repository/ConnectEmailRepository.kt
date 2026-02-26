@@ -4,6 +4,7 @@ import android.util.Log
 import com.ayaan.dealora.data.api.ConnectEmailApiService
 import com.ayaan.dealora.data.api.models.LinkGmailRequest
 import com.ayaan.dealora.data.api.models.LinkedEmail
+import com.ayaan.dealora.data.api.models.RemoveEmailRequest
 import javax.inject.Inject
 
 sealed class LinkedEmailsResult {
@@ -15,6 +16,11 @@ sealed class LinkGmailResult {
     data class Success(val email: String) : LinkGmailResult()
     data class Updated(val email: String) : LinkGmailResult()   // existing email, token refreshed
     data class Error(val message: String) : LinkGmailResult()
+}
+
+sealed class RemoveEmailResult {
+    data class Success(val email: String) : RemoveEmailResult()
+    data class Error(val message: String) : RemoveEmailResult()
 }
 
 class ConnectEmailRepository @Inject constructor(
@@ -85,6 +91,39 @@ class ConnectEmailRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "linkGmail exception", e)
             LinkGmailResult.Error(e.message ?: "Network error")
+        }
+    }
+
+    /**
+     * Remove a linked Gmail account from the user's connected list.
+     */
+    suspend fun removeEmail(userId: String, email: String): RemoveEmailResult {
+        return try {
+            Log.d(TAG, "Removing linked email: $email for userId: $userId")
+            val response = connectEmailApiService.removeEmail(
+                RemoveEmailRequest(userId = userId, email = email)
+            )
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true) {
+                    Log.d(TAG, "Email removed: $email")
+                    RemoveEmailResult.Success(body.email ?: email)
+                } else {
+                    RemoveEmailResult.Error(body?.message ?: "Failed to remove email")
+                }
+            } else {
+                val errorMsg = try {
+                    val errorBody = response.errorBody()?.string()
+                    val json = org.json.JSONObject(errorBody ?: "")
+                    json.optString("message", "HTTP ${response.code()}: ${response.message()}")
+                } catch (e: Exception) {
+                    "HTTP ${response.code()}: ${response.message()}"
+                }
+                RemoveEmailResult.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "removeEmail exception", e)
+            RemoveEmailResult.Error(e.message ?: "Network error")
         }
     }
 }

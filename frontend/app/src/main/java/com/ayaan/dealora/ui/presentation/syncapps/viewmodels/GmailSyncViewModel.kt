@@ -11,6 +11,7 @@ import com.ayaan.dealora.data.repository.ConnectEmailRepository
 import com.ayaan.dealora.data.repository.GmailSyncRepository
 import com.ayaan.dealora.data.repository.GmailSyncResult
 import com.ayaan.dealora.data.repository.LinkedEmailsResult
+import com.ayaan.dealora.data.repository.RemoveEmailResult
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -22,8 +23,11 @@ import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -67,6 +71,10 @@ class GmailSyncViewModel @Inject constructor(
     /** The email the user has selected in the dropdown — null means nothing selected yet */
     private val _selectedEmail = MutableStateFlow<String?>(null)
     val selectedEmail: StateFlow<String?> = _selectedEmail.asStateFlow()
+
+    /** True while a remove-email backend call is in flight */
+    private val _isRemovingEmail = MutableStateFlow(false)
+    val isRemovingEmail: StateFlow<Boolean> = _isRemovingEmail.asStateFlow()
 
     /** True while we are fetching the linked emails list from the backend */
     private val _isLoadingEmails = MutableStateFlow(false)
@@ -220,5 +228,36 @@ class GmailSyncViewModel @Inject constructor(
 
     fun resetState() {
         _state.value = GmailSyncState.Idle
+    }
+
+    // ── Remove linked email ───────────────────────────────────────────────────
+
+    /** One-shot events emitted when a remove-email call completes. */
+    private val _removeEmailEvent = MutableSharedFlow<RemoveEmailResult>(extraBufferCapacity = 1)
+    val removeEmailEvent: SharedFlow<RemoveEmailResult> = _removeEmailEvent.asSharedFlow()
+
+    /**
+     * Removes [email] from the user's connected list on the backend.
+     * On success: clears selection, resets sync state, refreshes the dropdown.
+     */
+    fun removeLinkedEmail(email: String) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        viewModelScope.launch {
+            _isRemovingEmail.value = true
+            when (val result = connectEmailRepository.removeEmail(userId, email)) {
+                is RemoveEmailResult.Success -> {
+                    Log.d(TAG, "Removed linked email: $email")
+                    _selectedEmail.value = null           // clear picker selection
+                    _state.value = GmailSyncState.Idle   // reset scan area
+                    loadLinkedEmails()                     // refresh dropdown
+                    _removeEmailEvent.emit(result)
+                }
+                is RemoveEmailResult.Error -> {
+                    Log.e(TAG, "Failed to remove email: ${result.message}")
+                    _removeEmailEvent.emit(result)
+                }
+            }
+            _isRemovingEmail.value = false
+        }
     }
 }
