@@ -13,6 +13,7 @@ sealed class LinkedEmailsResult {
 
 sealed class LinkGmailResult {
     data class Success(val email: String) : LinkGmailResult()
+    data class Updated(val email: String) : LinkGmailResult()   // existing email, token refreshed
     data class Error(val message: String) : LinkGmailResult()
 }
 
@@ -60,13 +61,26 @@ class ConnectEmailRepository @Inject constructor(
                 val body = response.body()
                 if (body?.success == true) {
                     val email = body.email ?: "Unknown"
-                    Log.d(TAG, "Gmail linked successfully: $email")
-                    LinkGmailResult.Success(email)
+                    return if (body.updated) {
+                        Log.d(TAG, "Gmail token refreshed for: $email")
+                        LinkGmailResult.Updated(email)
+                    } else {
+                        Log.d(TAG, "Gmail linked successfully: $email")
+                        LinkGmailResult.Success(email)
+                    }
                 } else {
                     LinkGmailResult.Error(body?.message ?: "Failed to link Gmail")
                 }
             } else {
-                LinkGmailResult.Error("HTTP ${response.code()}: ${response.message()}")
+                // Try to read the real backend error message from the response body
+                val errorMsg = try {
+                    val errorBody = response.errorBody()?.string()
+                    val json = org.json.JSONObject(errorBody ?: "")
+                    json.optString("message", "HTTP ${response.code()}: ${response.message()}")
+                } catch (e: Exception) {
+                    "HTTP ${response.code()}: ${response.message()}"
+                }
+                LinkGmailResult.Error(errorMsg)
             }
         } catch (e: Exception) {
             Log.e(TAG, "linkGmail exception", e)
