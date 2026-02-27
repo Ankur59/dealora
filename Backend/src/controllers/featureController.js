@@ -130,7 +130,7 @@ exports.processEmail = async (req, res) => {
  */
 exports.syncGmail = async (req, res) => {
     try {
-        let { userId, selectedEmail } = req.body;
+        let { userId, selectedEmail, accessToken } = req.body;
 
         const userDetails = await User.findOne({ uid: userId });
 
