@@ -157,13 +157,25 @@ class GmailSyncViewModel @Inject constructor(
     }
 
     /**
-     * Called when the user is already signed in and taps "Scan for Coupons" again.
+     * Called when the user clicks "Scan for Coupons".
+     * If an email is selected in the dropdown, we sync using the backend's stored refresh token.
+     * If no email is selected (or we want to use the local account), we try a silent sign-in.
      */
     fun syncWithExistingAccount() {
         viewModelScope.launch {
+            val email = _selectedEmail.value
+            if (email != null) {
+                // OPTIMIZATION: If we have a selected email, we don't need a local access token.
+                // The backend will use its stored refresh token for this specific email.
+                // This avoids "Session expired" errors from flaky device-side Google sessions.
+                Log.d(TAG, "Syncing for selected email: $email (bypassing local sign-in)")
+                executeSyncRequest(null, email)
+                return@launch
+            }
+
             try {
                 _state.value = GmailSyncState.Syncing
-                // silently re-authenticate to get fresh tokens
+                // silently re-authenticate to get fresh tokens for the device's primary Google account
                 val account = googleSignInClient.silentSignIn().await()
                 syncEmails(account)
             } catch (e: ApiException) {
@@ -182,7 +194,6 @@ class GmailSyncViewModel @Inject constructor(
             _state.value = GmailSyncState.Syncing
 
             // GoogleAuthUtil.getToken() is blocking — must run on IO dispatcher.
-            // It returns a real OAuth Bearer access token for the requested scope.
             val accessToken = try {
                 withContext(Dispatchers.IO) {
                     GoogleAuthUtil.getToken(
@@ -199,20 +210,27 @@ class GmailSyncViewModel @Inject constructor(
                 return@launch
             }
 
-            Log.d(TAG, "Access token retrieved successfully (${accessToken.take(10)}...)")
-            val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+            executeSyncRequest(accessToken, _selectedEmail.value)
+        }
+    }
 
-            when (val result = gmailSyncRepository.syncGmail(accessToken, userId, selectedEmail = _selectedEmail.value)) {
-                is GmailSyncResult.Success -> {
-                    _state.value = GmailSyncState.Success(
-                        extractedCount = result.extractedCount,
-                        skippedCount = result.skippedCount,
-                        coupons = result.coupons
-                    )
-                }
-                is GmailSyncResult.Error -> {
-                    _state.value = GmailSyncState.Error(result.message)
-                }
+    private suspend fun executeSyncRequest(accessToken: String?, selectedEmail: String?) {
+        _state.value = GmailSyncState.Syncing
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+        
+        // Use an empty string if accessToken is null, as the backend will refresh it using the selectedEmail's token
+        val tokenToPass = accessToken ?: ""
+        
+        when (val result = gmailSyncRepository.syncGmail(tokenToPass, userId, selectedEmail)) {
+            is GmailSyncResult.Success -> {
+                _state.value = GmailSyncState.Success(
+                    extractedCount = result.extractedCount,
+                    skippedCount = result.skippedCount,
+                    coupons = result.coupons
+                )
+            }
+            is GmailSyncResult.Error -> {
+                _state.value = GmailSyncState.Error(result.message)
             }
         }
     }
