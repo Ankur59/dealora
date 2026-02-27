@@ -22,18 +22,27 @@ exports.syncCoupons = async (req, res) => {
             limit = 20
         } = req.body;
 
+        /* 
+           MODIFICATION: Made brands optional to allow dashboard to show all coupons 
+           even when no apps are linked yet. 
+           To revert, uncomment the validation block below.
+        */
+        /*
         if (!brands || !Array.isArray(brands) || brands.length === 0) {
             return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Please provide an array of brand names');
         }
+        */
 
-        logger.info(`Syncing private coupons for brands: ${brands.join(', ')}`);
+        logger.info(`Syncing private coupons for brands: ${brands?.join(', ') || 'ALL'}`);
 
         const query = {};
 
-        // Brand Filter (Required)
-        query.brandName = {
-            $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i'))
-        };
+        // Brand Filter (Now Optional)
+        if (brands && Array.isArray(brands) && brands.length > 0) {
+            query.brandName = {
+                $in: brands.map(b => new RegExp(`^${b.trim()}$`, 'i'))
+            };
+        }
 
         // Category Filter
         if (category && category !== 'All' && category !== 'See all') {
