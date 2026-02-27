@@ -319,9 +319,17 @@ fun CouponDetailsContent(
                             clipboardManager.setText(AnnotatedString(it))
                         }
                     },
-                    onCopyLink = {
-                        coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let {
+                    onLinkClick = {
+                        coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let {
                             clipboardManager.setText(AnnotatedString(it))
+                        }
+                        coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Log.e("CouponDetailsScreen", "Failed to open link: $it", e)
+                            }
                         }
                     })
             }
@@ -571,7 +579,6 @@ fun BrandHeader(
                 }
 
                 if (isStackable) {
-                    // 👇 force stackable to next line if already 2 chips present
                     if (chipCount >= 2) {
                         Spacer(modifier = Modifier.fillMaxWidth())
                     }
