@@ -27,7 +27,7 @@ fun CouponCodeCard(
     couponCode: Any?,
     couponLink: Any? = null,
     onCopyCode: () -> Unit,
-    onCopyLink: () -> Unit = {}
+    onLinkClick: () -> Unit = {}
 ) {
     val code = couponCode?.toString()?.takeIf { it.isNotBlank() }
     val link = couponLink?.toString()?.takeIf { it.isNotBlank() }
@@ -50,8 +50,8 @@ fun CouponCodeCard(
         if (link != null) {
             SingleActionCard(
                 text = link,
-                actionText = "🔗 Copy Link",
-                onClick = onCopyLink,
+                actionText = "🔗 Open Link & Copy Code",
+                onClick = onLinkClick,
                 isCode = false
             )
         }
