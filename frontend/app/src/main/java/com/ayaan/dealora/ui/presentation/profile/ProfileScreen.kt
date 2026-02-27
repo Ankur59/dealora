@@ -290,22 +290,22 @@ fun ProfileContent(
                 }
             )
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Sync Coupons Card
-        MenuCard(
-            icon = R.drawable.sync_coupons, text = "Sync coupons from other apps", onClick = {
-                navController.navigate(Route.SelectAppsScreen.path)
-            })
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // De-Sync Apps Card
-        MenuCard(
-            icon = R.drawable.desync_coupons,
-            text = "De-Sync Apps",
-            onClick = { navController.navigate(Route.DesyncApps.path) })
+//
+//        Spacer(modifier = Modifier.height(24.dp))
+//
+//        // Sync Coupons Card
+//        MenuCard(
+//            icon = R.drawable.sync_coupons, text = "Sync coupons from other apps", onClick = {
+//                navController.navigate(Route.SelectAppsScreen.path)
+//            })
+//
+//        Spacer(modifier = Modifier.height(12.dp))
+//
+//        // De-Sync Apps Card
+//        MenuCard(
+//            icon = R.drawable.desync_coupons,
+//            text = "De-Sync Apps",
+//            onClick = { navController.navigate(Route.DesyncApps.path) })
 
         Spacer(modifier = Modifier.height(24.dp))
 
