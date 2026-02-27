@@ -342,3 +342,126 @@ exports.getStatistics = async (req, res) => {
         return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'An error occurred while fetching statistics');
     }
 };
+
+/**
+ * Get unique categories for private coupons
+ * @route GET /api/private-coupons/categories
+ */
+exports.getPrivateCategories = async (req, res) => {
+    try {
+        const categories = await PrivateCoupon.distinct('category');
+        return successResponse(res, STATUS_CODES.OK, 'Categories fetched successfully', categories);
+    } catch (error) {
+        logger.error(`Error fetching private categories: ${error.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to fetch categories');
+    }
+};
+
+/**
+ * Get sort options for private coupons
+ * @route GET /api/private-coupons/sort-options
+ */
+exports.getPrivateSortOptions = async (req, res) => {
+    const sortOptions = [
+        { label: 'Newest First', value: 'newest_first' },
+        { label: 'Expiring Soon', value: 'expiring_soon' },
+        { label: 'Brand (A-Z)', value: 'a_to_z' },
+        { label: 'Brand (Z-A)', value: 'z_to_a' }
+    ];
+    return successResponse(res, STATUS_CODES.OK, 'Sort options fetched successfully', sortOptions);
+};
+
+/**
+ * Get filter options for private coupons
+ * @route GET /api/private-coupons/filter-options
+ */
+exports.getPrivateFilterOptions = async (req, res) => {
+    try {
+        const categories = await PrivateCoupon.distinct('category');
+        const brands = await PrivateCoupon.distinct('brandName');
+
+        const filters = {
+            categories,
+            brands,
+            discountTypes: ['percentage', 'flat', 'cashback', 'buy1get1', 'free_delivery']
+        };
+
+        return successResponse(res, STATUS_CODES.OK, 'Filter options fetched successfully', filters);
+    } catch (error) {
+        logger.error(`Error fetching filter options: ${error.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to fetch filter options');
+    }
+};
+
+/**
+ * Generic getter for private coupons with filters
+ * @route GET /api/private-coupons/
+ */
+exports.getPrivateCoupons = async (req, res) => {
+    try {
+        const {
+            status,
+            category,
+            brand,
+            search,
+            sortBy = 'newest_first',
+            page = 1,
+            limit = 20
+        } = req.query;
+
+        const query = {};
+
+        // Status Filter
+        if (status === 'active') {
+            query.redeemable = true;
+            query.expiryDate = { $gte: new Date() };
+        } else if (status === 'expired') {
+            query.expiryDate = { $lt: new Date() };
+        } else if (status === 'redeemed') {
+            query.redeemed = true;
+        }
+
+        if (category) query.category = category;
+        if (brand) query.brandName = new RegExp(`^${brand.trim()}$`, 'i');
+
+        if (search) {
+            const searchRegex = new RegExp(search, 'i');
+            query.$or = [
+                { couponTitle: searchRegex },
+                { brandName: searchRegex },
+                { description: searchRegex }
+            ];
+        }
+
+        let sortOptions = { createdAt: -1 };
+        if (sortBy === 'expiring_soon') sortOptions = { expiryDate: 1 };
+        else if (sortBy === 'a_to_z') sortOptions = { brandName: 1 };
+        else if (sortBy === 'z_to_a') sortOptions = { brandName: -1 };
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const total = await PrivateCoupon.countDocuments(query);
+        const coupons = await PrivateCoupon.find(query)
+            .sort(sortOptions)
+            .limit(parseInt(limit))
+            .skip(skip)
+            .lean();
+
+        return successResponse(res, STATUS_CODES.OK, 'Coupons fetched successfully', {
+            total,
+            page: parseInt(page),
+            coupons
+        });
+    } catch (error) {
+        logger.error(`Error fetching private coupons: ${error.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to fetch coupons');
+    }
+};
+
+/**
+ * Get all private coupons
+ * @route GET /api/private-coupons/all
+ */
+exports.getAllPrivateCoupons = async (req, res) => {
+    req.query.status = 'all';
+    return exports.getPrivateCoupons(req, res);
+};

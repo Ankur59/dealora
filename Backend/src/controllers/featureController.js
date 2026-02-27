@@ -23,7 +23,7 @@ exports.processScreenshot = async (req, res) => {
 
         // 1. Extract Data
         const extractedData = await aiExtractionService.extractFromOCR(image);
-
+ 
         // 2. Validate Confidence
         if (extractedData.confidence_score && extractedData.confidence_score < 0.70) {
             logger.warn(`Specific validation failed: Low confidence score (${extractedData.confidence_score})`);
