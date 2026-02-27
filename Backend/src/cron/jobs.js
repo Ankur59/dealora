@@ -112,6 +112,18 @@ const initCronJobs = () => {
         }
     });
 
+    // 5. Daily Gmail Sync at Midnight
+    cron.schedule('0 0 * * *', async () => {
+        logger.info('CRON: Starting daily Gmail sync...');
+        try {
+            const gmailSyncService = require('../services/gmailSyncService');
+            const result = await gmailSyncService.runDailySync();
+            logger.info(`CRON: Daily Gmail sync completed. Results: ${JSON.stringify(result)}`);
+        } catch (error) {
+            logger.error('CRON: Daily Gmail sync failed:', error);
+        }
+    });
+
     logger.info('Cron jobs initialized successfully');
 };
 
