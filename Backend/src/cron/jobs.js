@@ -124,7 +124,61 @@ const initCronJobs = () => {
         }
     });
 
+    // 6. Mark coupons as expired at 1 AM
+    cron.schedule('0 0 * * *', async () => {
+        logger.info('CRON: Starting daily coupon expiration check (1 AM)...');
+        try {
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+
+            // Update all active coupons that have passed their expiry date
+            const result = await Coupon.updateMany(
+                {
+                    expireBy: { $lt: today },
+                    status: 'active'
+                },
+                {
+                    $set: { status: 'expired' }
+                }
+            );
+
+            logger.info(`CRON: Expiration check completed. Marked ${result.modifiedCount} coupons as expired.`);
+        } catch (error) {
+            logger.error('CRON: Expiration check job failed:', error);
+        }
+    });
+
+    // 7. Update PrivateCoupon daysUntilExpiry at 1 AM
+    cron.schedule('0 1 * * *', async () => {
+        logger.info('CRON: Starting daily PrivateCoupon expiry update (1 AM)...');
+        try {
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+
+            const coupons = await PrivateCoupon.find({ expiryDate: { $ne: null } });
+
+            let updateCount = 0;
+            for (const coupon of coupons) {
+                const expiry = new Date(coupon.expiryDate);
+                expiry.setUTCHours(0, 0, 0, 0);
+
+                const diffTime = expiry.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (coupon.daysUntilExpiry !== diffDays) {
+                    coupon.daysUntilExpiry = diffDays;
+                    await coupon.save();
+                    updateCount++;
+                }
+            }
+
+            logger.info(`CRON: PrivateCoupon expiry update completed. Updated ${updateCount} coupons.`);
+        } catch (error) {
+            logger.error('CRON: PrivateCoupon expiry update failed:', error);
+        }
+    });
+
     logger.info('Cron jobs initialized successfully');
-};
+}
 
 module.exports = { initCronJobs };
