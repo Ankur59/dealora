@@ -34,8 +34,6 @@ class AddCouponViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AddCouponUiState())
     val uiState: StateFlow<AddCouponUiState> = _uiState.asStateFlow()
-    private val _couponImageBase64 = MutableStateFlow<String?>(null)
-    val couponImageBase64: StateFlow<String?> = _couponImageBase64.asStateFlow()
 
     fun onCouponNameChange(value: String) {
         _uiState.value = _uiState.value.copy(couponName = value)
@@ -109,6 +107,7 @@ class AddCouponViewModel @Inject constructor(
         return isValid
     }
 
+
     /**
      * Create coupon
      */
@@ -150,13 +149,6 @@ class AddCouponViewModel @Inject constructor(
 
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     Log.d(TAG, "Coupon created - coupon id: ${result.coupon.id}")
-                    val imageBase64 = result.couponImageBase64
-                    Log.d(TAG, "couponImageBase64 is null: ${imageBase64 == null}")
-                    Log.d(TAG, "couponImageBase64 is blank: ${imageBase64?.isBlank()}")
-                    Log.d(TAG, "couponImageBase64 length: ${imageBase64?.length ?: 0}")
-                    // Log first 100 chars to verify data (Base64 strings are too long for full log)
-                    Log.d(TAG, "couponImageBase64 preview: ${imageBase64?.take(100)}")
-                    _couponImageBase64.value = imageBase64
                     onSuccess()
                 }
                 is CouponResult.Error -> {
