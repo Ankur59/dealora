@@ -35,6 +35,9 @@ class AddCouponViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AddCouponUiState())
     val uiState: StateFlow<AddCouponUiState> = _uiState.asStateFlow()
 
+    private val _couponImageBase64 = MutableStateFlow<String?>(null)
+    val couponImageBase64: StateFlow<String?> = _couponImageBase64.asStateFlow()
+
     fun onCouponNameChange(value: String) {
         _uiState.value = _uiState.value.copy(couponName = value)
         Log.d(TAG, "Coupon name changed: $value")
@@ -168,6 +171,7 @@ class AddCouponViewModel @Inject constructor(
      */
     fun processOcr(imageBase64: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         val uid = firebaseAuth.currentUser?.uid
+        _couponImageBase64.value = imageBase64
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isOcrLoading = true, error = null)

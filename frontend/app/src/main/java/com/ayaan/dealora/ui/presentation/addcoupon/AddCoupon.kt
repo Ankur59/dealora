@@ -47,6 +47,11 @@ import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material3.Icon
 import com.ayaan.dealora.ui.theme.DealoraGray
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
+import android.util.Log
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.ImageBitmap
+import com.ayaan.dealora.utils.Base64ImageUtils
 
 
 @Composable
@@ -56,9 +61,9 @@ fun AddCoupons(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-<<<<<<< HEAD
+
     val couponImageBase64 by viewModel.couponImageBase64.collectAsState()
-    val couponImageBitmap: ImageBitmap= Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64 )
+    val couponImageBitmap: ImageBitmap = Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64)
     
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -114,7 +119,7 @@ fun AddCoupons(
                     )
                 )
             }
-<<<<<<< HEAD
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -195,9 +200,7 @@ fun AddCoupons(
                     lineHeight = 18.sp
                 )
             }
-=======
 
->>>>>>> main
             Column(
                 modifier = Modifier
                     .fillMaxSize()
