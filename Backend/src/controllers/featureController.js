@@ -163,6 +163,12 @@ exports.syncGmail = async (req, res) => {
 
                 accessToken = tokenResponse.data.access_token;
                 logger.info(`Access token refreshed successfully for ${selectedEmail}`);
+
+                // Update lastSynced for this email
+                await User.updateOne(
+                    { uid: userId, "connectedEmails.email": selectedEmail.toLowerCase().trim() },
+                    { $set: { "connectedEmails.$.lastSynced": new Date() } }
+                );
             } catch (tokenErr) {
                 logger.error('Failed to refresh access token:', tokenErr.response?.data || tokenErr.message);
                 return res.status(401).json({
@@ -348,6 +354,14 @@ exports.syncGmail = async (req, res) => {
  * @param {boolean} skipDuplicateError - If true, throws specific error object for duplicate, else throws normal error
  */
 async function processSingleEmailContent(emailContent, fetchedEmail, sender, userId, skipDuplicateError = false) {
+    // 1. Update lastSynced for this email if userId is provided
+    if (userId && fetchedEmail) {
+        await User.updateOne(
+            { uid: userId, "connectedEmails.email": fetchedEmail.toLowerCase().trim() },
+            { $set: { "connectedEmails.$.lastSynced": new Date() } }
+        );
+    }
+
     // 1. Extract Data
     const extractedData = await aiExtractionService.extractFromEmail(emailContent, sender);
 
