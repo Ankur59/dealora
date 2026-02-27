@@ -45,7 +45,7 @@ fun DealoraBottomBar(
     val items = listOf(
         BottomBarItem(R.drawable.dashboard_48, "Dashboard", {navController.navigate(Route.Dashboard.createRoute())}),
         BottomBarItem(R.drawable.add_coupon_48, "Add Coupon",{navController.navigate(Route.AddCoupon.path)}),
-        BottomBarItem(R.drawable.redeemed_coupon_48, "Redeemed\nCoupons",{navController.navigate(Route.RedeemedCoupons.path)})
+        BottomBarItem(R.drawable.sync_coupons, "Gmail Sync",{navController.navigate(Route.GmailSync.path)})
     )
 
     Box(

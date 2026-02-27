@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -74,6 +75,7 @@ import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncViewModel
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.LinkEmailState
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.LinkEmailViewModel
 import com.ayaan.dealora.ui.theme.DealoraPrimary
+import com.ayaan.dealora.ui.theme.DealoraStarYellow
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 
@@ -252,6 +254,32 @@ fun GmailSyncScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Last Synced Display ──────────────────────────────────────────
+            val selectedLinkedEmail = linkedEmails.find { it.email == selectedEmail }
+            if (selectedLinkedEmail?.lastSynced != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = DealoraStarYellow,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Last synced: ${formatLastSynced(selectedLinkedEmail.lastSynced!!)} UTC",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
             // ── Coupon Area (shows placeholder or sync UI) ─────────────────
             // Snapshot into a local val so Kotlin can smart-cast String? → String
@@ -809,5 +837,22 @@ private fun ExtractedCouponCard(coupon: GmailExtractedCoupon) {
                 Text(text = coupon.couponName, fontSize = 12.sp, color = Color.Gray)
             }
         }
+    }
+}
+
+/**
+ * Helper to format the ISO date string or timestamp from backend.
+ */
+private fun formatLastSynced(raw: String): String {
+    return try {
+        if (raw.contains("T")) {
+            val datePart = raw.split("T")[0].substring(5) // "MM-DD"
+            val timePart = raw.split("T")[1].substring(0, 5) // "HH:mm"
+            "$datePart, $timePart"
+        } else {
+            raw
+        }
+    } catch (e: Exception) {
+        raw
     }
 }

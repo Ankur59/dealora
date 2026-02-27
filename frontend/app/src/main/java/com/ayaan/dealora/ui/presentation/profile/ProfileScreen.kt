@@ -301,14 +301,6 @@ fun ProfileContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Gmail Sync Card
-        MenuCard(
-            icon = R.drawable.sync_coupons, text = "Scan Gmail for Coupons", onClick = {
-                navController.navigate(Route.GmailSync.path)
-            })
-
-        Spacer(modifier = Modifier.height(12.dp))
-
         // De-Sync Apps Card
         MenuCard(
             icon = R.drawable.desync_coupons,

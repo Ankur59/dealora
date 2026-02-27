@@ -91,6 +91,7 @@ const handleConnect = async (req, res) => {
                 email: gmailAddress,
                 refreshToken: refresh_token,
                 linkedAt: new Date(),
+                lastSynced: new Date(),
             });
         }
 
@@ -139,6 +140,7 @@ const handleAllEmails = async (req, res) => {
         const linkedEmails = user.connectedEmails.map(entry => ({
             email: entry.email,
             linkedAt: entry.linkedAt,
+            lastSynced: entry.lastSynced
         }));
 
         return res.status(200).json({

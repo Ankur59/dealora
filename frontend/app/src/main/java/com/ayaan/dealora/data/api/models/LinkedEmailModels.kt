@@ -9,7 +9,8 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class LinkedEmail(
     @Json(name = "email") val email: String,
-    @Json(name = "linkedAt") val linkedAt: String? = null
+    @Json(name = "linkedAt") val linkedAt: String? = null,
+    @Json(name = "lastSynced") val lastSynced: String? = null
 )
 
 /**
