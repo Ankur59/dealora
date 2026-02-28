@@ -115,7 +115,6 @@ class AiExtractionService {
                 }
 
                 Return ONLY the JSON object. No markdown.
-                Give confidence_score 0.7 if it seems to be invalid so i can reject it 
             `;
 
             const result = await model.generateContent(prompt);
