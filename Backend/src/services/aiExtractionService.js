@@ -54,23 +54,23 @@ class AiExtractionService {
 
             } catch (error) {
                 const errorMsg = error.message || String(error);
-                
+
                 // Check if it's a rate limit or model capability error
                 const isRateLimit = errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('Quota');
                 const isModelError = errorMsg.includes('modality') || errorMsg.includes('400');
-                
+
                 if ((isRateLimit || isModelError) && attempts < maxAttempts - 1) {
                     attempts++;
                     logger.warn(`OCR failed (attempt ${attempts}/${maxAttempts}). Trying alternative vision model...`);
-                    
+
                     const nextModel = await geminiService.getNextAvailableModel(geminiService.workingModelName, true);
                     if (!nextModel) {
                         throw new Error('All vision-capable models unavailable. Try again later.');
                     }
-                    
+
                     continue;
                 }
-                
+
                 logger.error('OCR Extraction Failed:', error.message);
                 throw error;
             }
@@ -103,6 +103,9 @@ class AiExtractionService {
                     "merchant": "Name of the brand",
                     "coupon_title": "Main offer title",
                     "coupon_code": "The coupon code (e.g. AMAZ200). Null if none.",
+                    "categoryLabel":"One on the following 'Food', 'Fashion', 'Grocery', 'Wallet Rewards', 'Beauty', 'Travel', 'Entertainment', 'Other'"
+                    "couponVisitingLink":"Link which can be used to reedem coupon give null if not available"
+                    "useCouponVia":"One of: 'Coupon Code', 'Coupon Visiting Link', 'Both', 'None' according to what method is available for redeeming coupon"
                     "discount_type": "One of: percentage, flat, cashback, unknown",
                     "discount_value": "Numeric value (e.g. 200)",
                     "minimum_order_value": "Minimum order amount (numeric)",
@@ -112,6 +115,7 @@ class AiExtractionService {
                 }
 
                 Return ONLY the JSON object. No markdown.
+                Give confidence_score 0.7 if it seems to be invalid so i can reject it 
             `;
 
             const result = await model.generateContent(prompt);
@@ -134,7 +138,7 @@ class AiExtractionService {
             let jsonString = text.trim();
             // Remove markdown code blocks
             jsonString = jsonString.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-            
+
             const firstBrace = jsonString.indexOf('{');
             const lastBrace = jsonString.lastIndexOf('}');
 
@@ -143,12 +147,12 @@ class AiExtractionService {
             }
 
             const parsed = JSON.parse(jsonString);
-            
+
             // Normalize numeric fields
             if (parsed.discount_value) parsed.discount_value = Number(parsed.discount_value) || 0;
             if (parsed.max_discount) parsed.max_discount = Number(parsed.max_discount) || 0;
             if (parsed.minimum_order_value) parsed.minimum_order_value = Number(parsed.minimum_order_value) || 0;
-            
+
             // Normalize dates
             if (parsed.expiry_date) {
                 // Ensure YYYY-MM-DD
