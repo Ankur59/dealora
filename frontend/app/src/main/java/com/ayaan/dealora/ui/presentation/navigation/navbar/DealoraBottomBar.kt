@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,8 +45,12 @@ fun DealoraBottomBar(
 ) {
     val items = listOf(
         BottomBarItem(R.drawable.dashboard_48, "Dashboard", {navController.navigate(Route.Dashboard.createRoute())}),
-        BottomBarItem(R.drawable.add_coupon_48, "Add Coupon",{navController.navigate(Route.AddCoupon.path)}),
+
+        BottomBarItem(R.drawable.add_coupon_48, "Add Coupon",{navController.navigate(Route.Camera.path)}),
         BottomBarItem(R.drawable.sync_coupons, "Gmail Sync",{navController.navigate(Route.GmailSync.path)})
+
+        // BottomBarItem(R.drawable.redeemed_coupon_48, "Redeemed\nCoupons",{navController.navigate(Route.RedeemedCoupons.path)})
+
     )
 
     Box(
@@ -109,8 +114,8 @@ fun BottomBarIcon(
                 )
             }else {
                 Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add",
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Scan Coupon",
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )

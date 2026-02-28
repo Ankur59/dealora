@@ -28,17 +28,21 @@ class AiExtractionService {
                     "merchant": "Name of the brand/merchant (e.g., Swiggy, Amazon)",
                     "coupon_title": "Main title of the offer (e.g., 20% OFF on Orders)",
                     "coupon_code": "The extracted coupon code if visible (e.g., SWIGGY20). Null if none.",
-                    "discount_type": "One of: percentage, flat, cashback, freebie, unknown",
+                    "categoryLabel": "One on the following 'Food', 'Fashion', 'Grocery', 'Wallet Rewards', 'Beauty', 'Travel', 'Entertainment', 'Other'"
+                    "couponVisitingLink": "Link which can be used to reedem coupon give null if not available"
+                    "useCouponVia": "One of: 'Coupon Code', 'Coupon Visiting Link', 'Both', 'None' according to what method is available for redeeming coupon"
+
+                    "discount_type": "One of: percentage, flat, cashback, unknown",
                     "discount_value": "Numeric value of discount (e.g., 20 for 20%)",
-                    "max_discount": "Maximum discount amount if specified (numeric)",
                     "minimum_order_value": "Minimum order amount required (numeric)",
+                    "description":"small description for this coupon (Minimum 10 words)"
                     "expiry_date": "Expiry date in YYYY-MM-DD format if visible, else null",
-                    "confidence_score": "A number between 0.0 and 1.0 indicating confidence in extraction"
+                    "confidence_score": "A number between 0.1 and 1.0 indicating confidence in extraction"
                 }
 
                 Return ONLY the JSON object. Do not include markdown formatting or explanations.
+                Give confidence score less than 0.7 if the coupon seems to be invalid but don't give 0
             `;
-
                 const imagePart = {
                     inlineData: {
                         data: cleanBase64,
@@ -118,7 +122,7 @@ class AiExtractionService {
             `;
 
             const result = await model.generateContent(prompt);
-            const response = await result.response;
+            const response = result.response;
             const text = response.text();
 
             return this.parseResponse(text);

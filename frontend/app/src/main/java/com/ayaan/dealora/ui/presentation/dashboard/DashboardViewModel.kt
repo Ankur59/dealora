@@ -112,7 +112,13 @@ class DashboardViewModel @Inject constructor(
                 _syncedBrands.value = allSyncedBrands
 
                 Log.d(TAG, "All synced brands: ${allSyncedBrands.joinToString()}")
-
+                
+                /* 
+                   MODIFICATION: Commented out early return to allow fetching all private coupons 
+                   from the backend even when no local brands are synced. 
+                   To revert, uncomment the block below.
+                */
+                /*
                 if (allSyncedBrands.isEmpty()) {
                     Log.d(TAG, "No synced apps found")
                     _uiState.value = DashboardUiState.Success
@@ -120,6 +126,7 @@ class DashboardViewModel @Inject constructor(
                     _filteredCoupons.value = emptyList()
                     return@launch
                 }
+                */
 
                 // Determine which brands to send to API
                 val filters = _currentFilters.value

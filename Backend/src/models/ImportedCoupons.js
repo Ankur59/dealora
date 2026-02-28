@@ -166,7 +166,7 @@ ImportedSchema.index({ brandName: 1, status: 1 });
 ImportedSchema.index({ expireBy: 1, status: 1 });
 ImportedSchema.index({ brandName: 1, couponCode: 1 }, { sparse: true });
 ImportedSchema.index({ categoryLabel: 1, status: 1 });
-ImportedSchema.index({ userId: 1, couponCode: 1, brandName: 1 }, { unique: true })
+ImportedSchema.index({ userId: 1, couponCode: 1, brandName: 1 }, { unique: true }, { sparse: true })
 
 
 const ImportedCoupons = mongoose.model("ImportedCoupon", ImportedSchema);
