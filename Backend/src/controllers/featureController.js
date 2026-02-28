@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 const { validationResult } = require('express-validator');
 const geminiService = require('../services/geminiExtractionService');
 const User = require('../models/User');
+const ImportedCoupons = require('../models/ImportedCoupons');
 
 /**
  * Handle OCR extraction and coupon creation
@@ -137,6 +138,8 @@ exports.syncGmail = async (req, res) => {
         if (!userDetails) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
+        // userId coming from frontend is uid in the collection so we are fetch the object id of that user here
+        const user_Id = userDetails._id
 
         // If a selectedEmail is provided, find the matching connectedEmail entry
         // and exchange its refreshToken for a fresh access token from Google
@@ -191,7 +194,7 @@ exports.syncGmail = async (req, res) => {
         // DEVELOPER NOTE: To change the date range:
         // Change the number below (e.g., -2 to -10 for last 10 days, -30 for last 30 days)
         const daysAgo = new Date();
-        daysAgo.setDate(daysAgo.getDate() - 2); //Made it 2 from 7 because of api issue
+        daysAgo.setDate(daysAgo.getDate() - 7); //Made it 2 from 7 because of api issue
         const dateString = daysAgo.toISOString().split('T')[0].replace(/-/g, '/'); // Format: YYYY/MM/DD
 
         // Gmail API query: promotional emails from specified date range
@@ -287,7 +290,8 @@ exports.syncGmail = async (req, res) => {
                         setTimeout(() => reject(new Error('AI extraction timed out after 30s')), 30000)
                     );
                     console.log("this is selected email", selectedEmail)
-                    const aiWork = processSingleEmailContent(fullContent, selectedEmail, sender, userId, true);
+                    // 
+                    const aiWork = processSingleEmailContent(fullContent, selectedEmail, sender, user_Id, true);
                     const couponResult = await Promise.race([aiWork, aiTimeout]);
                     processedCoupons.push(couponResult.data);
                     logger.info(`Successfully extracted coupon from email ${msg.id}`);
@@ -367,27 +371,30 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
 
     // 2. Map to Schema
     const newCouponData = {
-        userId: userId || 'system_email_user',
-        brandName: extractedData.merchant || 'Unknown',
+        userId: userId,
         couponName: extractedData.coupon_title || 'Email Coupon',
+        brandName: extractedData.merchant || 'Unknown',
         couponTitle: extractedData.coupon_title,
+        description: `From Email: ${sender}. ${extractedData.coupon_title}`,
+        expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        categoryLabel: extractedData.categoryLabel || 'Other',
         fetchedEmail: fetchedEmail,
-        couponCode: extractedData.coupon_code || "N/A",
+        useCouponVia: extractedData.useCouponVia,
         discountType: extractedData.discount_type?.toLowerCase() || 'unknown',
         discountValue: extractedData.discount_value,
         minimumOrder: extractedData.minimum_order_value,
-        expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        description: `From Email: ${sender}. ${extractedData.coupon_title}`,
-        categoryLabel: 'Other',
-        useCouponVia: extractedData.coupon_code ? 'Coupon Code' : 'None',
-        sourceWebsite: 'Email Parsing',
+        couponCode: extractedData.coupon_code || "N/A",
+        couponVisitingLink: extractedData.couponVisitingLink ? extractedData.couponVisitingLink : null,
+        source: 'email-parsing',
+        // Need to add terms here
         status: 'active',
         addedMethod: 'manual'
+
     };
 
     // 3. Validation & Duplicate Check
     if (newCouponData.couponCode) {
-        const existing = await Coupon.findOne({
+        const existing = await ImportedCoupons.findOne({
             couponCode: newCouponData.couponCode,
             brandName: newCouponData.brandName
         });
@@ -400,10 +407,10 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
     }
 
     // 4. Save
-    const coupon = new Coupon(newCouponData);
-    await coupon.save();
+    const Importedcoupon = new ImportedCoupons(newCouponData);
+    await Importedcoupon.save();
 
-    return { data: coupon, confidence: extractedData.confidence_score };
+    return { data: Importedcoupon, confidence: extractedData.confidence_score };
 }
 
 /**
