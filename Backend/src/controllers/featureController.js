@@ -22,7 +22,11 @@ exports.processScreenshot = async (req, res) => {
         if (!image) {
             return res.status(400).json({ success: false, message: 'Image data is required' });
         }
-
+        const userDetails = await User.findOne({ uid: userId })
+        if (!userDetails) {
+            res.status(400).json({ success: false, message: "Invalid user" })
+        }
+        const user_id = userDetails._id
         // 1. Extract Data
         const extractedData = await aiExtractionService.extractFromOCR(image);
 
@@ -30,15 +34,22 @@ exports.processScreenshot = async (req, res) => {
         if (extractedData.confidence_score && extractedData.confidence_score < 0.70) {
             logger.warn(`Specific validation failed: Low confidence score (${extractedData.confidence_score})`);
             // We can chose to reject or just flag. For now, we proceed but log it.
+            return res.status(400).json({
+                success: false,
+                message: "Invalid coupon"
+            })
             // Or return specific warning
         }
-
+        console.log(extractedData.confidence_score)
         // 3. Map to Schema
         // existing Schema fields: brandName, couponName, couponCode, discountType, discountValue, expireBy, etc.
         const newCouponData = {
-            userId: userId || req.user?.userId || 'system_ocr_user', // Fallback if no auth
-            brandName: extractedData.merchant || 'Unknown',
+            userId: user_id,         //|| req.user?.userId || 'system_ocr_user', // Fallback if no auth
+
             couponName: extractedData.coupon_title || 'OCR Coupon',
+
+            brandName: extractedData.merchant || 'Unknown',
+
             couponTitle: extractedData.coupon_title,
             couponCode: extractedData.coupon_code || null,
             discountType: extractedData.discount_type || 'unknown',
@@ -46,17 +57,34 @@ exports.processScreenshot = async (req, res) => {
             minimumOrder: extractedData.minimum_order_value,
             expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days if null
             description: extractedData.coupon_title + (extractedData.max_discount ? ` Max Discount: ${extractedData.max_discount}` : ''),
-            categoryLabel: 'Other', // Default
-            useCouponVia: extractedData.coupon_code ? 'Coupon Code' : 'None',
-            sourceWebsite: 'OCR Upload',
+
+            expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days if null
+
+            categoryLabel: extractedData.categoryLabel || 'Other', // Default
+
+            useCouponVia: extractedData.useCouponVia ? extractedData.useCouponVia : 'None',
+
+            discountType: extractedData.discount_type || 'unknown',
+
+            discountValue: extractedData.discount_value,
+
+            minimumOrder: extractedData.minimum_order_value,
+
+            couponCode: extractedData.coupon_code || null,
+
+            couponVisitingLink: extractedData.couponVisitingLink || null,
+
+            source: 'OCR',
+            description: extractedData.description,
             status: 'active',
+
             addedMethod: 'manual' // Since scraped/ocr specific enum isn't there
         };
 
         // 4. Schema Validations logic (simple check)
         // Check for duplicates
         if (newCouponData.couponCode) {
-            const existing = await Coupon.findOne({
+            const existing = await ImportedCoupons.findOne({
                 couponCode: newCouponData.couponCode,
                 brandName: newCouponData.brandName
             });
@@ -66,13 +94,13 @@ exports.processScreenshot = async (req, res) => {
         }
 
         // 5. Save
-        const coupon = new Coupon(newCouponData);
-        await coupon.save();
+        const Importedcoupon = new ImportedCoupons(newCouponData);
+        await Importedcoupon.save();
 
         res.status(201).json({
             success: true,
             message: 'Coupon processed from OCR successfully',
-            data: coupon,
+            data: Importedcoupon,
             confidence: extractedData.confidence_score
         });
 

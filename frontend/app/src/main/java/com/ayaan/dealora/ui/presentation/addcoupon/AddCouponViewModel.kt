@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.CouponResult
+import com.ayaan.dealora.data.repository.FeatureRepository
+import com.ayaan.dealora.data.repository.FeatureResult
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +22,11 @@ import javax.inject.Inject
 @HiltViewModel
 class AddCouponViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
+    private val featureRepository: FeatureRepository,
     private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
+
+
 
     companion object {
         private const val TAG = "AddCouponViewModel"
@@ -29,6 +34,9 @@ class AddCouponViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AddCouponUiState())
     val uiState: StateFlow<AddCouponUiState> = _uiState.asStateFlow()
+
+    private val _couponImageBase64 = MutableStateFlow<String?>(null)
+    val couponImageBase64: StateFlow<String?> = _couponImageBase64.asStateFlow()
 
     fun onCouponNameChange(value: String) {
         _uiState.value = _uiState.value.copy(couponName = value)
@@ -141,11 +149,13 @@ class AddCouponViewModel @Inject constructor(
 
             when (val result = couponRepository.createCoupon(request)) {
                 is CouponResult.Success -> {
+
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     Log.d(TAG, "Coupon created - coupon id: ${result.coupon.id}")
                     onSuccess()
                 }
                 is CouponResult.Error -> {
+
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = result.message
@@ -155,6 +165,50 @@ class AddCouponViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Process OCR from a Base64 image
+     */
+    fun processOcr(imageBase64: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val uid = firebaseAuth.currentUser?.uid
+        _couponImageBase64.value = imageBase64
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isOcrLoading = true, error = null)
+
+            when (val result = featureRepository.processOcr(imageBase64, uid)) {
+                is FeatureResult.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        isOcrLoading = false,
+                        createdCoupon = result.coupon,
+                        // Optionally pre-fill form fields from OCR data if needed
+                        // brandName/couponName map to couponName in UI for now
+                        couponName = result.coupon.brandName ?: result.coupon.couponName ?: "",
+                        couponCode = result.coupon.couponCode ?: "",
+                        description = result.coupon.description ?: ""
+                    )
+
+                    onSuccess()
+                }
+                is FeatureResult.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        isOcrLoading = false,
+                        error = result.message
+                    )
+
+                    onError(result.message)
+                }
+            }
+        }
+    }
+
+    /**
+     * Reset the created coupon state (e.g., after dismissing success modal)
+     */
+    fun resetCreatedCoupon() {
+        _uiState.value = _uiState.value.copy(createdCoupon = null)
+    }
+
 
     /**
      * Convert date string to ISO format
@@ -190,6 +244,9 @@ data class AddCouponUiState(
     val visitingLink: String = "",
     val couponDetails: String = "",
     val isLoading: Boolean = false,
-    val error: String? = null
+    val isOcrLoading: Boolean = false,
+    val error: String? = null,
+    val createdCoupon: com.ayaan.dealora.data.api.models.Coupon? = null
 )
+
 
