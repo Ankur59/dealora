@@ -28,6 +28,7 @@ class AiExtractionService {
                     "merchant": "Name of the brand/merchant (e.g., Swiggy, Amazon)",
                     "coupon_title": "Main title of the offer (e.g., 20% OFF on Orders)",
                     "coupon_code": "The extracted coupon code if visible (e.g., SWIGGY20). Null if none.",
+                    
                     "discount_type": "One of: percentage, flat, cashback, freebie, unknown",
                     "discount_value": "Numeric value of discount (e.g., 20 for 20%)",
                     "max_discount": "Maximum discount amount if specified (numeric)",

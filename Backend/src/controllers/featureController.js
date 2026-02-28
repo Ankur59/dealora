@@ -4,6 +4,7 @@ const Coupon = require('../models/Coupon');
 const logger = require('../utils/logger');
 const { validationResult } = require('express-validator');
 const geminiService = require('../services/geminiExtractionService');
+const User = require('../models/User');
 
 /**
  * Handle OCR extraction and coupon creation
@@ -20,10 +21,14 @@ exports.processScreenshot = async (req, res) => {
         if (!image) {
             return res.status(400).json({ success: false, message: 'Image data is required' });
         }
-
+        const userDetails = await User.findOne({ uid: userId })
+        if (!userDetails) {
+            res.status(400).json({ success: false, message: "Invalid user" })
+        }
+        const user_id = userDetails._id
         // 1. Extract Data
         const extractedData = await aiExtractionService.extractFromOCR(image);
- 
+
         // 2. Validate Confidence
         if (extractedData.confidence_score && extractedData.confidence_score < 0.70) {
             logger.warn(`Specific validation failed: Low confidence score (${extractedData.confidence_score})`);
@@ -38,7 +43,7 @@ exports.processScreenshot = async (req, res) => {
         // 3. Map to Schema
         // existing Schema fields: brandName, couponName, couponCode, discountType, discountValue, expireBy, etc.
         const newCouponData = {
-            userId: userId || req.user?.userId || 'system_ocr_user', // Fallback if no auth
+            userId: user_id,         //|| req.user?.userId || 'system_ocr_user', // Fallback if no auth
             brandName: extractedData.merchant || 'Unknown',
             couponName: extractedData.coupon_title || 'OCR Coupon',
             couponTitle: extractedData.coupon_title,
