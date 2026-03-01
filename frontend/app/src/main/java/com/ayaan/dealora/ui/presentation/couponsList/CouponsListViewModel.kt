@@ -378,10 +378,10 @@ class CouponsListViewModel @Inject constructor(
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
 
-                        // Filter out redeemed and expired coupons
+                        // Filter out redeemed and expired coupons using status field
                         val filteredCoupons = result.coupons.filter { coupon ->
-                            val isNotRedeemed = coupon.redeemed != true
-                            val isNotExpired = (coupon.daysUntilExpiry ?: 0) > 0
+                            val isNotRedeemed = coupon.status == "active"
+                            val isNotExpired = (coupon.daysUntilExpiry ?: 0) >= 0
                             isNotRedeemed && isNotExpired
                         }
 

@@ -45,6 +45,9 @@ data class CouponListItem(
     val category: String? = null,
 
     @Json(name = "daysUntilExpiry")
-    val daysUntilExpiry: Int? = null
+    val daysUntilExpiry: Int? = null,
+
+    @Json(name = "source")
+    val source: String? = null
 )
 

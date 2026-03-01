@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -68,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
+import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.data.api.models.LinkedEmail
 import com.ayaan.dealora.data.repository.RemoveEmailResult
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncState
@@ -273,7 +275,7 @@ fun GmailSyncScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Last synced: ${formatLastSynced(selectedLinkedEmail.lastSynced!!)} UTC",
+                        text = "Last synced: ${formatLastSynced(selectedLinkedEmail.lastSynced!!)} IST",
                         fontSize = 12.sp,
                         color = Color.Gray,
                         fontWeight = FontWeight.Medium
@@ -293,7 +295,8 @@ fun GmailSyncScreen(
                     state = state,
                     onScanAgain = { viewModel.syncWithExistingAccount() },
                     onDisconnect = { viewModel.removeLinkedEmail(currentEmail) },
-                    onRetry = { viewModel.resetState() }
+                    onRetry = { viewModel.resetState() },
+                    onGoToDashboard = { navController.navigate(Route.Dashboard.createRoute()) }
                 )
             }
         }
@@ -499,14 +502,16 @@ private fun SyncContent(
     state: GmailSyncState,
     onScanAgain: () -> Unit,
     onDisconnect: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onGoToDashboard: () -> Unit
 ) {
     when (val s = state) {
 
         is GmailSyncState.Idle -> {
             IdleContent(
                 onScanAgain = onScanAgain,
-                onDisconnect = onDisconnect
+                onDisconnect = onDisconnect,
+                onGoToDashboard = onGoToDashboard
             )
         }
 
@@ -526,7 +531,8 @@ private fun SyncContent(
                 skippedCount = s.skippedCount,
                 coupons = s.coupons,
                 onScanAgain = onScanAgain,
-                onDisconnect = onDisconnect
+                onDisconnect = onDisconnect,
+                onGoToDashboard = onGoToDashboard
             )
         }
 
@@ -544,9 +550,36 @@ private fun SyncContent(
 @Composable
 private fun IdleContent(
     onScanAgain: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onGoToDashboard: () -> Unit
 ) {
     Spacer(modifier = Modifier.height(8.dp))
+
+    // Go to Dashboard button
+    OutlinedButton(
+        onClick = onGoToDashboard,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, DealoraPrimary)
+    ) {
+        Icon(
+            imageVector = Icons.Default.Dashboard,
+            contentDescription = null,
+            tint = DealoraPrimary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Go to Dashboard",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = DealoraPrimary
+        )
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
 
     // Always show Scan for Coupons — email is already linked via the + button
     Button(
@@ -625,7 +658,8 @@ private fun SuccessContent(
     skippedCount: Int,
     coupons: List<GmailExtractedCoupon>,
     onScanAgain: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onGoToDashboard: () -> Unit
 ) {
     // Stats row
     Row(
@@ -688,6 +722,32 @@ private fun SuccessContent(
     } else {
         Spacer(modifier = Modifier.height(8.dp))
     }
+
+    // Go to Dashboard button
+    OutlinedButton(
+        onClick = onGoToDashboard,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, DealoraPrimary)
+    ) {
+        Icon(
+            imageVector = Icons.Default.Dashboard,
+            contentDescription = null,
+            tint = DealoraPrimary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Go to Dashboard",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = DealoraPrimary
+        )
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
 
     Button(
         onClick = onScanAgain,
@@ -841,14 +901,31 @@ private fun ExtractedCouponCard(coupon: GmailExtractedCoupon) {
 }
 
 /**
- * Helper to format the ISO date string or timestamp from backend.
+ * Helper to format an ISO UTC date string and convert it to IST (UTC+5:30).
  */
 private fun formatLastSynced(raw: String): String {
     return try {
         if (raw.contains("T")) {
-            val datePart = raw.split("T")[0].substring(5) // "MM-DD"
-            val timePart = raw.split("T")[1].substring(0, 5) // "HH:mm"
-            "$datePart, $timePart"
+            // Parse date and time parts from ISO-8601 (e.g. "2025-03-01T12:30:00.000Z")
+            val dateTimePart = raw.trimEnd('Z').split("T")
+            val dateParts = dateTimePart[0].split("-") // [YYYY, MM, DD]
+            val timeParts = dateTimePart[1].substring(0, 5).split(":") // [HH, mm]
+
+            var hours = timeParts[0].toInt()
+            var minutes = timeParts[1].toInt()
+            val year = dateParts[0].toInt()
+            val month = dateParts[1].toInt()
+            var day = dateParts[2].toInt()
+
+            // Add IST offset: +5 hours 30 minutes
+            minutes += 30
+            hours += 5
+            if (minutes >= 60) { minutes -= 60; hours++ }
+            if (hours >= 24) { hours -= 24; day++ }
+
+            val formattedDate = "%02d-%02d".format(month, day)  // MM-DD
+            val formattedTime = "%02d:%02d".format(hours, minutes)  // HH:mm
+            "$formattedDate, $formattedTime"
         } else {
             raw
         }

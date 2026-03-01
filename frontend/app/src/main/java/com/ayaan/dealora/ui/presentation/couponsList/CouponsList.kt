@@ -166,8 +166,9 @@ fun CouponsList(
                                         expiryDays = privateCoupon.daysUntilExpiry,
                                         couponCode = privateCoupon.couponCode ?: "",
                                         couponId = privateCoupon.id,
-                                        isRedeemed = privateCoupon.redeemed ?: false,
+                                        isRedeemed = privateCoupon.status == "redeemed",
                                         isSaved = savedCouponIds.contains(privateCoupon.id),
+                                        source = privateCoupon.source,
                                         onSave = { couponId ->
                                             viewModel.saveCouponFromModel(couponId, privateCoupon)
                                         },
@@ -335,6 +336,7 @@ fun CouponsList(
                                         isRedeemed = false,
                                         showActionButtons = false,
                                         isSaved = savedCouponIds.contains(coupon.id),
+                                        source = coupon.source,
                                         onSave = { couponId ->
                                             viewModel.saveCouponFromExclusiveCoupon(couponId, coupon)
                                         },

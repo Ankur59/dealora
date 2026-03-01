@@ -2,6 +2,7 @@ const PrivateCoupon = require('../models/PrivateCoupon');
 const { successResponse, errorResponse } = require('../utils/responseHandler');
 const { STATUS_CODES } = require('../config/constants');
 const logger = require('../utils/logger');
+const ImportedCoupons = require('../models/ImportedCoupons');
 
 /**
  * Sync private coupons based on selected brand names with filtering and sorting
@@ -18,6 +19,7 @@ exports.syncCoupons = async (req, res) => {
             minimumOrder,
             sortBy = 'newest_first',
             validity,
+            status,
             page = 1,
             limit = 20
         } = req.body;
@@ -46,7 +48,7 @@ exports.syncCoupons = async (req, res) => {
 
         // Category Filter
         if (category && category !== 'All' && category !== 'See all') {
-            query.category = category;
+            query.categoryLabel = category;
         }
 
         // Discount Type Filter
@@ -67,7 +69,7 @@ exports.syncCoupons = async (req, res) => {
             if (priceFilter === 'no_minimum') {
                 query.$or = [
                     { minimumOrderValue: null },
-                    { minimumOrderValue: '0' },
+                    { minimumOrderValue: 0 },//Had minimum order value in string in private coupon bun number in new one 
                     { minimumOrderValue: { $exists: false } }
                 ];
             } else if (priceFilter === 'below_300') {
@@ -144,6 +146,17 @@ exports.syncCoupons = async (req, res) => {
             }
         }
 
+        // Status Filter
+        if (status === 'active') {
+            query.status = "active";
+            query.expireBy = { $gte: new Date() };
+        } else if (status === 'expired') {
+            query.status = "expired";
+            query.expireBy = { $lt: new Date() };
+        } else if (status === 'redeemed') {
+            query.status = "redeemed";
+        }
+
         // Sorting
         let sortOptions = {};
         if (sortBy === 'newest_first') {
@@ -158,9 +171,9 @@ exports.syncCoupons = async (req, res) => {
 
         // Pagination
         const skip = (parseInt(page) - 1) * parseInt(limit);
-        const total = await PrivateCoupon.countDocuments(query);
+        const total = await ImportedCoupons.countDocuments(query);
 
-        const coupons = await PrivateCoupon.find(query)
+        const coupons = await ImportedCoupons.find(query)
             .sort(sortOptions)
             .limit(parseInt(limit))
             .skip(skip)
@@ -210,20 +223,20 @@ exports.redeemPrivateCoupon = async (req, res) => {
         const uid = req.uid || req.body.uid; // Get UID from auth or body (optional)
         const { brands } = req.body; // Optional: brands to recalculate statistics
 
-        const coupon = await PrivateCoupon.findById(id);
+        const coupon = await ImportedCoupons.findById(id);
 
         if (!coupon) {
             return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Private coupon not found');
         }
 
-        if (!coupon.redeemable) {
+        if (coupon.redeemedAt) {
             return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Coupon is already redeemed or not redeemable');
         }
 
         // Update coupon status
-        coupon.redeemable = false;
-        coupon.redeemed = true;
-        coupon.redeemedBy = uid || null; // Optional: store uid if available
+        coupon.status = "redeemed";
+        // coupon.redeemed = true;
+        // coupon.redeemedBy = uid || null; // Optional: store uid if available
         coupon.redeemedAt = new Date();
 
         await coupon.save();
@@ -238,8 +251,8 @@ exports.redeemPrivateCoupon = async (req, res) => {
             };
         }
 
-        const activeCouponsQuery = { ...query, redeemable: true };
-        const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1 }).lean();
+        const activeCouponsQuery = { ...query, status: "active" };
+        const activeCoupons = await ImportedCoupons.find(activeCouponsQuery, { couponTitle: 1 }).lean();
         const activeCouponsCount = activeCoupons.length;
 
         // Calculate total savings
@@ -247,20 +260,21 @@ exports.redeemPrivateCoupon = async (req, res) => {
 
         if (brands && Array.isArray(brands) && brands.length > 0) {
             activeCoupons.forEach(c => {
-                if (!c.couponTitle) return;
+                if (!c.discountValue) return;
 
-                const percentMatch = c.couponTitle.match(/(\d+)%/);
-                const amountMatch = c.couponTitle.match(/₹\s*(\d+)/);
 
-                if (percentMatch && amountMatch) {
-                    const percentage = parseInt(percentMatch[1], 10);
-                    const amount = parseInt(amountMatch[1], 10);
-
-                    if (!isNaN(percentage) && !isNaN(amount)) {
-                        const discount = Math.round((percentage / 100) * amount);
-                        totalSavings += discount;
-                    }
+                if (c.discountType === "flat") {
+                    let flatAmount = c.discountValue > 0 ? c.discountValue : 0
+                    totalSavings += flatAmount
                 }
+                // Commented because i don't thing we can calculate the disount if we don't know what it the spent amount 
+                // else if (c.discountType === "percentage") {
+                //     const amount = c.discountValue > 0 ? c.discountValue : 0
+                //     const percentage = parseInt(amount, 10);
+                //     const discount = Math.round((percentage / 100) * amount);
+                //     totalSavings += discount;
+
+                // }
             });
 
             if (totalSavings > 999) {
@@ -358,7 +372,7 @@ exports.getStatistics = async (req, res) => {
  */
 exports.getPrivateCategories = async (req, res) => {
     try {
-        const categories = await PrivateCoupon.distinct('category');
+        const categories = await ImportedCoupons.distinct('categoryLabel');
         return successResponse(res, STATUS_CODES.OK, 'Categories fetched successfully', categories);
     } catch (error) {
         logger.error(`Error fetching private categories: ${error.message}`);
@@ -386,8 +400,8 @@ exports.getPrivateSortOptions = async (req, res) => {
  */
 exports.getPrivateFilterOptions = async (req, res) => {
     try {
-        const categories = await PrivateCoupon.distinct('category');
-        const brands = await PrivateCoupon.distinct('brandName');
+        const categories = await ImportedCoupons.distinct('categoryLabel');
+        const brands = await ImportedCoupons.distinct('brandName');
 
         const filters = {
             categories,
@@ -422,12 +436,13 @@ exports.getPrivateCoupons = async (req, res) => {
 
         // Status Filter
         if (status === 'active') {
-            query.redeemable = true;
-            query.expiryDate = { $gte: new Date() };
+            query.status = "active";
+            query.expireBy = { $gte: new Date() };
         } else if (status === 'expired') {
-            query.expiryDate = { $lt: new Date() };
+            query.status = "expired"
+            query.expireBy = { $lt: new Date() };
         } else if (status === 'redeemed') {
-            query.redeemed = true;
+            query.status = "redeemed";
         }
 
         if (category) query.category = category;
@@ -448,8 +463,8 @@ exports.getPrivateCoupons = async (req, res) => {
         else if (sortBy === 'z_to_a') sortOptions = { brandName: -1 };
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
-        const total = await PrivateCoupon.countDocuments(query);
-        const coupons = await PrivateCoupon.find(query)
+        const total = await ImportedCoupons.countDocuments(query);
+        const coupons = await ImportedCoupons.find(query)
             .sort(sortOptions)
             .limit(parseInt(limit))
             .skip(skip)

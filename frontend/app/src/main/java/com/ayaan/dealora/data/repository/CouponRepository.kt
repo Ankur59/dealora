@@ -225,10 +225,11 @@ class CouponRepository @Inject constructor(
         validity: String? = null,
         sortBy: String? = null,
         page: Int? = null,
-        limit: Int? = null
+        limit: Int? = null,
+        status: String? = null
     ): PrivateCouponResult {
         return try {
-            Log.d(TAG, "Syncing private coupons for brands: $brands, search: $search, category: $category, sortBy: $sortBy")
+            Log.d(TAG, "Syncing private coupons for brands: $brands, status: $status, search: $search, category: $category, sortBy: $sortBy")
             val request = SyncPrivateCouponsRequest(
                 brands = brands,
                 category = category,
@@ -238,7 +239,8 @@ class CouponRepository @Inject constructor(
                 validity = validity,
                 sortBy = sortBy,
                 page = page,
-                limit = limit
+                limit = limit,
+                status = status
             )
             val response = couponApiService.syncPrivateCoupons(request)
 

@@ -107,10 +107,11 @@ fun CategoriesScreen(
                                 expiryDays = coupon.daysUntilExpiry,
                                 couponCode = privateCoupon?.couponCode ?: "",
                                 couponId = coupon.id,
-                                isRedeemed = privateCoupon?.redeemed ?: false,
+                                isRedeemed = privateCoupon?.status == "redeemed",
                                 couponLink = privateCoupon?.couponLink,
                                 minimumOrderValue = privateCoupon?.minimumOrderValue,
                                 isSaved = isSaved,
+                                source = coupon.source ?: privateCoupon?.source,
                                 showActionButtons = !uiState.isPublicMode,
                                 onDetailsClick = {
                                     navController.navigate(

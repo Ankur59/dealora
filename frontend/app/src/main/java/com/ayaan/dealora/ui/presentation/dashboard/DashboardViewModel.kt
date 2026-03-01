@@ -170,8 +170,9 @@ class DashboardViewModel @Inject constructor(
                     price = priceApi,
                     validity = validityApi,
                     sortBy = sortByApi,
-                    page = null, // Get all for now
-                    limit = null
+                    page = null,
+                    limit = null,
+                    status = if (_statusFilter.value != "saved") _statusFilter.value else "active"
                 )) {
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
@@ -216,87 +217,72 @@ class DashboardViewModel @Inject constructor(
         Log.d(TAG, "Status filter: $statusFilterValue")
         Log.d(TAG, "Saved coupon entities: ${savedEntities.size}")
 
-        val filtered = when (statusFilterValue) {
-            "saved" -> {
-                // Combine API coupons with those stored in DB
-                val combined = mutableListOf<PrivateCoupon>()
-                val addedIds = mutableSetOf<String>()
+        val filtered = if (statusFilterValue == "saved") {
+            // Combine API coupons with those stored in DB for the saved tab
+            val combined = mutableListOf<PrivateCoupon>()
+            val addedIds = mutableSetOf<String>()
 
-                // 1. Add API coupons if they are in saved IDs
-                allCouponsFromApi.filter { savedIds.contains(it.id) }.forEach {
+            // 1. Add API coupons if they are in saved IDs
+            allCouponsFromApi.filter { savedIds.contains(it.id) }.forEach {
+                combined.add(it)
+                addedIds.add(it.id)
+            }
+
+            // 2. Add coupons from DB that weren't in the API response
+            savedEntities.filter { !addedIds.contains(it.couponId) }.forEach { savedCoupon ->
+                val coupon = try {
+                    when (savedCoupon.couponType) {
+                        "private" -> {
+                            moshi.adapter(PrivateCoupon::class.java).fromJson(savedCoupon.couponJson)
+                        }
+                        "exclusive" -> {
+                            moshi.adapter(ExclusiveCoupon::class.java).fromJson(savedCoupon.couponJson)?.let { exclusive ->
+                                PrivateCoupon(
+                                    id = exclusive.id,
+                                    brandName = exclusive.brandName,
+                                    couponTitle = exclusive.couponName,
+                                    description = exclusive.description,
+                                    category = exclusive.category,
+                                    daysUntilExpiry = exclusive.daysUntilExpiry,
+                                    couponCode = exclusive.couponCode,
+                                    couponLink = exclusive.couponLink,
+                                    couponType = "exclusive",
+                                    redeemable = false,
+                                    redeemed = false
+                                )
+                            }
+                        }
+                        else -> {
+                            // Map public CouponListItem to PrivateCoupon
+                            moshi.adapter(CouponListItem::class.java).fromJson(savedCoupon.couponJson)?.let { listItem ->
+                                PrivateCoupon(
+                                    id = listItem.id,
+                                    brandName = listItem.brandName ?: "Dealora",
+                                    couponTitle = listItem.couponTitle ?: "Special Offer",
+                                    description = listItem.description,
+                                    category = listItem.category,
+                                    daysUntilExpiry = listItem.daysUntilExpiry,
+                                    redeemable = false,
+                                    redeemed = false,
+                                    couponType = "public"
+                                )
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing saved coupon JSON: ${savedCoupon.couponId}", e)
+                    null
+                }
+
+                coupon?.let {
                     combined.add(it)
                     addedIds.add(it.id)
                 }
-
-                // 2. Add coupons from DB that weren't in the API response
-                savedEntities.filter { !addedIds.contains(it.couponId) }.forEach { savedCoupon ->
-                    val coupon = try {
-                        when (savedCoupon.couponType) {
-                            "private" -> {
-                                moshi.adapter(PrivateCoupon::class.java).fromJson(savedCoupon.couponJson)
-                            }
-                            "exclusive" -> {
-                                moshi.adapter(ExclusiveCoupon::class.java).fromJson(savedCoupon.couponJson)?.let { exclusive ->
-                                    PrivateCoupon(
-                                        id = exclusive.id,
-                                        brandName = exclusive.brandName,
-                                        couponTitle = exclusive.couponName,
-                                        description = exclusive.description,
-                                        category = exclusive.category,
-                                        daysUntilExpiry = exclusive.daysUntilExpiry,
-                                        couponCode = exclusive.couponCode,
-                                        couponLink = exclusive.couponLink,
-                                        couponType = "exclusive",
-                                        redeemable = false,
-                                        redeemed = false
-                                    )
-                                }
-                            }
-                            else -> {
-                                // Map public CouponListItem to PrivateCoupon
-                                moshi.adapter(CouponListItem::class.java).fromJson(savedCoupon.couponJson)?.let { listItem ->
-                                    PrivateCoupon(
-                                        id = listItem.id,
-                                        brandName = listItem.brandName ?: "Dealora",
-                                        couponTitle = listItem.couponTitle ?: "Special Offer",
-                                        description = listItem.description,
-                                        category = listItem.category,
-                                        daysUntilExpiry = listItem.daysUntilExpiry,
-                                        redeemable = false,
-                                        redeemed = false,
-                                        couponType = "public"
-                                    )
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error parsing saved coupon JSON: ${savedCoupon.couponId}", e)
-                        null
-                    }
-
-
-                    coupon?.let {
-                        combined.add(it)
-                        addedIds.add(it.id)
-                    }
-                }
-                combined
             }
-            "redeemed" -> allCouponsFromApi.filter { it.redeemed == true }
-            "expired" -> {
-                allCouponsFromApi.filter { coupon ->
-                    val isExpired = (coupon.daysUntilExpiry ?: 0) < 0
-                    Log.d(TAG, "Checking expired for ${coupon.couponTitle}: daysUntilExpiry=${coupon.daysUntilExpiry}, isExpired=$isExpired")
-                    isExpired
-                }
-            }
-            "active" -> {
-                // Active: neither expired nor redeemed
-                allCouponsFromApi.filter { coupon ->
-                    (coupon.daysUntilExpiry ?: 0) >= 0 && coupon.redeemed != true
-                }
-            }
-            else -> allCouponsFromApi.filter { savedIds.contains(it.id) }
+            combined
+        } else {
+            // For active, redeemed, and expired - they are already filtered correctly by the backend
+            allCouponsFromApi
         }
 
         _filteredCoupons.value = filtered
@@ -335,8 +321,8 @@ class DashboardViewModel @Inject constructor(
 
     fun onStatusFilterChanged(status: String) {
         _statusFilter.value = status
-        // Status filter is client-side only, no need to reload from API
-        filterCouponsByStatus()
+        // Reload from API to get filtered results for the new status
+        loadPrivateCoupons()
     }
 
     fun saveCoupon(coupon: PrivateCoupon) {
