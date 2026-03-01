@@ -47,7 +47,10 @@ data class SyncPrivateCouponsRequest(
     val page: Int? = null,
 
     @Json(name = "limit")
-    val limit: Int? = null
+    val limit: Int? = null,
+
+    @Json(name = "status")
+    val status: String? = null
 )
 
 /**
@@ -150,6 +153,12 @@ data class PrivateCoupon(
 
     @Json(name = "terms")
     val terms: String? = null,
+
+    @Json(name = "source")
+    val source: String? = null,
+
+    @Json(name = "status")
+    val status: String? = null,
 
     @Json(name = "couponType")
     val couponType: String = "private"

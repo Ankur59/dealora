@@ -155,8 +155,8 @@ class RedeemedCouponsViewModel @Inject constructor(
                 )) {
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")
-                        // Filter to show only redeemed ones (client-side)
-                        val redeemedCoupons = result.coupons.filter { it.redeemed == true }
+                        // Filter to show only redeemed ones (client-side) using common status field
+                        val redeemedCoupons = result.coupons.filter { it.status == "redeemed" }
                         _allPrivateCoupons.value = redeemedCoupons
                         _filteredCoupons.value = redeemedCoupons
                         _uiState.value = RedeemedCouponsUiState.Success

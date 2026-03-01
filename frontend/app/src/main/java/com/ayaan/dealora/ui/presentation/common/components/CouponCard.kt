@@ -82,6 +82,7 @@ fun CouponCard(
     discountValue: String? = null,
     terms: String? = null,
     isSaved: Boolean = false,
+    source: String? = null,
     showGreenRedeemedButton: Boolean = false,
     showActionButtons: Boolean = true,
     onDetailsClick: () -> Unit = {},
@@ -107,11 +108,17 @@ fun CouponCard(
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Purple Header Section
+            // Header Section - Colored based on source
+            val headerColor = when (source?.lowercase()) {
+                "email-parsing" -> Color(0xFFFBC02D) // Yellow
+                "ocr" -> Color(0xFF4CAF50) // Green
+                else -> Color(0xFF5B3FD9) // Default Purple
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF5B3FD9))
+                    .background(headerColor)
                     .padding(12.dp)
             ) {
                 Row(

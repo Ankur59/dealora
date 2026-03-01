@@ -334,10 +334,10 @@ fun Dashboard(
                                     expiryDays = coupon.daysUntilExpiry,
                                     couponCode = coupon.couponCode ?: "",
                                     couponId = coupon.id,
-                                    isRedeemed = coupon.redeemed ?: false,
+                                    isRedeemed = coupon.status == "redeemed",
                                     isSaved = savedCouponIds.contains(coupon.id),
-                                    showActionButtons = coupon.couponType == "private" && (coupon.redeemable
-                                        ?: true), // Hide for public coupons
+                                    source = coupon.source,
+                                    showActionButtons = coupon.couponType == "private" && (coupon.status == "active"), // Hide for public or non-active coupons
                                     onRemoveSave = { couponId ->
                                         // Remove from saved but keep showing in list with unsaved state
                                         viewModel.removeSavedCoupon(couponId)

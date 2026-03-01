@@ -133,10 +133,10 @@ class CategoriesViewModel @Inject constructor(
                                 )
                                 
                                 if (result is PrivateCouponResult.Success && result.coupons.isNotEmpty()) {
-                                    // Filter out redeemed and expired coupons
+                                    // Filter out redeemed and expired coupons using status field
                                     val activeCoupons = result.coupons.filter { privateCoupon ->
-                                        val isNotRedeemed = privateCoupon.redeemed != true
-                                        val isNotExpired = (privateCoupon.daysUntilExpiry ?: 0) > 0
+                                        val isNotRedeemed = privateCoupon.status == "active"
+                                        val isNotExpired = (privateCoupon.daysUntilExpiry ?: 0) >= 0
                                         isNotRedeemed && isNotExpired
                                     }
 
@@ -152,6 +152,7 @@ class CategoriesViewModel @Inject constructor(
                                                 description = privateCoupon.description,
                                                 category = privateCoupon.category,
                                                 daysUntilExpiry = privateCoupon.daysUntilExpiry,
+                                                source = privateCoupon.source,
                                                 couponImageBase64 = null
                                             )
                                         }

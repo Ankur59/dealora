@@ -277,6 +277,7 @@ fun RedeemedCoupons(
                                     couponId = coupon.id,
                                     isRedeemed = true, // Always true since we're only showing redeemed ones
                                     isSaved = savedCouponIds.contains(coupon.id),
+                                    source = coupon.source,
                                     showGreenRedeemedButton = true, // Show green button in redeemed screen
                                     onSave = { viewModel.saveCoupon(coupon) },
                                     onRemoveSave = { viewModel.removeSavedCoupon(coupon.id) },
