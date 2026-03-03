@@ -328,7 +328,7 @@ fun Dashboard(
 
                                 CouponCard(
                                     brandName = coupon.brandName.uppercase().replace(" ", "\n"),
-                                    couponTitle = coupon.couponTitle,
+                                    couponTitle = coupon.couponTitle ?: coupon.brandName.uppercase()+" coupon",
                                     description = coupon.description ?: "",
                                     category = coupon.category,
                                     expiryDays = coupon.daysUntilExpiry,

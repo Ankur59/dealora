@@ -160,7 +160,7 @@ fun CouponsList(
                                     CouponCard(
                                         brandName = privateCoupon.brandName.uppercase()
                                             .replace(" ", "\n"),
-                                        couponTitle = privateCoupon.couponTitle,
+                                        couponTitle = privateCoupon.couponTitle ?:  privateCoupon.brandName.uppercase() + "coupon",
                                         description = privateCoupon.description ?: "",
                                         category = privateCoupon.category,
                                         expiryDays = privateCoupon.daysUntilExpiry,
