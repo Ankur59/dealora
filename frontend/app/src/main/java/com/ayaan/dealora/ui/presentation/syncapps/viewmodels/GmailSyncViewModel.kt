@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.BuildConfig
 import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
 import com.ayaan.dealora.data.api.models.LinkedEmail
+import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.ConnectEmailRepository
 import com.ayaan.dealora.data.repository.GmailSyncRepository
 import com.ayaan.dealora.data.repository.GmailSyncResult
@@ -29,9 +30,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import com.squareup.moshi.Moshi
 import javax.inject.Inject
 
 // Represents the state of the entire Gmail Sync feature screen
@@ -51,15 +54,13 @@ sealed class GmailSyncState {
 class GmailSyncViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val gmailSyncRepository: GmailSyncRepository,
-    private val connectEmailRepository: ConnectEmailRepository
+    private val connectEmailRepository: ConnectEmailRepository,
+    val moshi: Moshi
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "GmailSyncViewModel"
     }
-
-    private val _state = MutableStateFlow<GmailSyncState>(GmailSyncState.Idle)
-    val state: StateFlow<GmailSyncState> = _state.asStateFlow()
 
     private val _isSignedIn = MutableStateFlow(false)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
@@ -68,9 +69,12 @@ class GmailSyncViewModel @Inject constructor(
     private val _linkedEmails = MutableStateFlow<List<LinkedEmail>>(emptyList())
     val linkedEmails: StateFlow<List<LinkedEmail>> = _linkedEmails.asStateFlow()
 
-    /** The email the user has selected in the dropdown — null means nothing selected yet */
-    private val _selectedEmail = MutableStateFlow<String?>(null)
-    val selectedEmail: StateFlow<String?> = _selectedEmail.asStateFlow()
+    /**
+     * Per-email sync state map: each key is an email address, value is the
+     * current GmailSyncState for that card.  Missing key → Idle.
+     */
+    private val _perEmailState = MutableStateFlow<Map<String, GmailSyncState>>(emptyMap())
+    val perEmailState: StateFlow<Map<String, GmailSyncState>> = _perEmailState.asStateFlow()
 
     /** True while a remove-email backend call is in flight */
     private val _isRemovingEmail = MutableStateFlow(false)
@@ -103,6 +107,18 @@ class GmailSyncViewModel @Inject constructor(
         loadLinkedEmails()
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun setEmailState(email: String, state: GmailSyncState) {
+        _perEmailState.update { it + (email to state) }
+    }
+
+    /** Returns the current state for an email, defaulting to Idle. */
+    fun stateFor(email: String): GmailSyncState =
+        _perEmailState.value[email] ?: GmailSyncState.Idle
+
+    // ── Load linked emails ────────────────────────────────────────────────────
+
     /**
      * Fetches the list of linked Gmail accounts from the backend.
      */
@@ -123,129 +139,97 @@ class GmailSyncViewModel @Inject constructor(
         }
     }
 
+    // ── Per-card scanning ────────────────────────────────────────────────────
+
     /**
-     * Called when the user picks an email from the dropdown.
+     * Called when the user taps "Scan for Coupons" on a specific email card.
+     * Uses the backend's stored refresh token for that email — no local sign-in needed.
      */
-    fun selectEmail(email: String) {
-        // Reset sync state whenever a different email is picked so the
-        // results area returns to the initial "Scan for Coupons" view.
-        if (_selectedEmail.value != email) {
-            _state.value = GmailSyncState.Idle
+    fun syncForEmail(email: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "Syncing for email: $email (using backend refresh token)")
+            setEmailState(email, GmailSyncState.Syncing)
+            val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+            when (val result = gmailSyncRepository.syncGmail("", userId, email)) {
+                is GmailSyncResult.Success -> {
+                    setEmailState(
+                        email,
+                        GmailSyncState.Success(
+                            extractedCount = result.extractedCount,
+                            skippedCount = result.skippedCount,
+                            coupons = result.coupons
+                        )
+                    )
+                }
+                is GmailSyncResult.Error -> {
+                    setEmailState(email, GmailSyncState.Error(result.message))
+                }
+            }
         }
-        _selectedEmail.value = email
     }
 
     /**
+     * Resets a single email card back to Idle (e.g. after an error the user dismisses).
+     */
+    fun resetStateForEmail(email: String) {
+        setEmailState(email, GmailSyncState.Idle)
+    }
+
+    /**
+     * Serializes a [GmailExtractedCoupon] (which is already saved in the DB) as a [PrivateCoupon]
+     * JSON string. Pass this as `couponData` when navigating to CouponDetailsScreen so the details
+     * screen can display the coupon immediately without a brand-filtered API lookup.
+     */
+    fun couponDataJson(coupon: GmailExtractedCoupon): String? {
+        if (coupon.id == null) return null
+        return try {
+            val privateCoupon = PrivateCoupon(
+                id           = coupon.id,
+                brandName    = coupon.brandName ?: "Unknown",
+                couponTitle  = coupon.couponName ?: coupon.brandName,
+                couponCode   = coupon.couponCode,
+                description  = coupon.description,
+                discountType = coupon.discountType,
+                discountValue = coupon.discountValue,
+                expiryDate   = coupon.expireBy,
+                couponType   = "gmail"
+            )
+            moshi.adapter(PrivateCoupon::class.java).toJson(privateCoupon)
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to serialize coupon to JSON", e)
+            null
+        }
+    }
+
+    // ── Legacy sign-in flow (kept for handleSignInResult compat) ──────────────
+
+    /**
      * Called after the Google Sign-In Activity returns its result.
+     * NOTE: This path is no longer the primary scan path; it exists in case
+     * we ever need to re-authenticate for a specific account from the device.
      */
     fun handleSignInResult(account: GoogleSignInAccount?, errorCode: Int = -1) {
         if (account == null) {
             val reason = when (errorCode) {
-                10   -> "DEVELOPER_ERROR (code 10): SHA-1 fingerprint or Web Client ID mismatch. Check Cloud Console."
+                10    -> "DEVELOPER_ERROR (code 10): SHA-1 fingerprint or Web Client ID mismatch. Check Cloud Console."
                 12500 -> "Sign-in cancelled by user."
                 12501 -> "Sign-in cancelled (no account selected)."
-                7    -> "Network error. Check your internet connection."
-                else -> "Sign-in failed (code $errorCode). Check Logcat for details."
+                7     -> "Network error. Check your internet connection."
+                else  -> "Sign-in failed (code $errorCode). Check Logcat for details."
             }
             Log.e(TAG, "handleSignInResult failed: $reason")
-            _state.value = GmailSyncState.Error(reason)
             return
         }
         _isSignedIn.value = true
         Log.d(TAG, "Sign-in successful for: ${account.email}")
-        syncEmails(account)
-    }
-
-    /**
-     * Called when the user clicks "Scan for Coupons".
-     * If an email is selected in the dropdown, we sync using the backend's stored refresh token.
-     * If no email is selected (or we want to use the local account), we try a silent sign-in.
-     */
-    fun syncWithExistingAccount() {
-        viewModelScope.launch {
-            val email = _selectedEmail.value
-            if (email != null) {
-                // OPTIMIZATION: If we have a selected email, we don't need a local access token.
-                // The backend will use its stored refresh token for this specific email.
-                // This avoids "Session expired" errors from flaky device-side Google sessions.
-                Log.d(TAG, "Syncing for selected email: $email (bypassing local sign-in)")
-                executeSyncRequest(null, email)
-                return@launch
-            }
-
-            try {
-                _state.value = GmailSyncState.Syncing
-                // silently re-authenticate to get fresh tokens for the device's primary Google account
-                val account = googleSignInClient.silentSignIn().await()
-                syncEmails(account)
-            } catch (e: ApiException) {
-                Log.e(TAG, "Silent sign-in failed (code ${e.statusCode}), need explicit sign-in")
-                _isSignedIn.value = false
-                _state.value = GmailSyncState.Error("Session expired. Please sign in again.")
-            } catch (e: Exception) {
-                Log.e(TAG, "Sync error", e)
-                _state.value = GmailSyncState.Error(e.message ?: "Unknown error")
-            }
-        }
-    }
-
-    private fun syncEmails(account: GoogleSignInAccount) {
-        viewModelScope.launch {
-            _state.value = GmailSyncState.Syncing
-
-            // GoogleAuthUtil.getToken() is blocking — must run on IO dispatcher.
-            val accessToken = try {
-                withContext(Dispatchers.IO) {
-                    GoogleAuthUtil.getToken(
-                        context,
-                        account.account!!,
-                        "oauth2:https://www.googleapis.com/auth/gmail.readonly"
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to get Gmail access token", e)
-                _state.value = GmailSyncState.Error(
-                    "Failed to get Gmail access token: ${e.message}"
-                )
-                return@launch
-            }
-
-            executeSyncRequest(accessToken, _selectedEmail.value)
-        }
-    }
-
-    private suspend fun executeSyncRequest(accessToken: String?, selectedEmail: String?) {
-        _state.value = GmailSyncState.Syncing
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
-        
-        // Use an empty string if accessToken is null, as the backend will refresh it using the selectedEmail's token
-        val tokenToPass = accessToken ?: ""
-        
-        when (val result = gmailSyncRepository.syncGmail(tokenToPass, userId, selectedEmail)) {
-            is GmailSyncResult.Success -> {
-                _state.value = GmailSyncState.Success(
-                    extractedCount = result.extractedCount,
-                    skippedCount = result.skippedCount,
-                    coupons = result.coupons
-                )
-            }
-            is GmailSyncResult.Error -> {
-                _state.value = GmailSyncState.Error(result.message)
-            }
-        }
     }
 
     fun signOut() {
         viewModelScope.launch {
             googleSignInClient.signOut().await()
             _isSignedIn.value = false
-            _state.value = GmailSyncState.Idle
             Log.d(TAG, "Signed out from Gmail")
         }
-    }
-
-    fun resetState() {
-        _state.value = GmailSyncState.Idle
     }
 
     // ── Remove linked email ───────────────────────────────────────────────────
@@ -256,7 +240,7 @@ class GmailSyncViewModel @Inject constructor(
 
     /**
      * Removes [email] from the user's connected list on the backend.
-     * On success: clears selection, resets sync state, refreshes the dropdown.
+     * On success: removes it from the per-email state map and refreshes the list.
      */
     fun removeLinkedEmail(email: String) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
@@ -265,9 +249,9 @@ class GmailSyncViewModel @Inject constructor(
             when (val result = connectEmailRepository.removeEmail(userId, email)) {
                 is RemoveEmailResult.Success -> {
                     Log.d(TAG, "Removed linked email: $email")
-                    _selectedEmail.value = null           // clear picker selection
-                    _state.value = GmailSyncState.Idle   // reset scan area
-                    loadLinkedEmails()                     // refresh dropdown
+                    // Remove this email's state from the map
+                    _perEmailState.update { it - email }
+                    loadLinkedEmails()
                     _removeEmailEvent.emit(result)
                 }
                 is RemoveEmailResult.Error -> {

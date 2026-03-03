@@ -53,8 +53,15 @@ const isValidUrl = (url) => {
     }
 
     try {
-        const urlObj = new URL(url);
-        return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+        // If protocol is missing, prepend https://
+        const normalizedUrl = url.match(/^https?:\/\//)
+            ? url
+            : `https://${url}`;
+
+        const urlObj = new URL(normalizedUrl);
+
+        // Optional: ensure hostname exists
+        return Boolean(urlObj.hostname);
     } catch (error) {
         return false;
     }

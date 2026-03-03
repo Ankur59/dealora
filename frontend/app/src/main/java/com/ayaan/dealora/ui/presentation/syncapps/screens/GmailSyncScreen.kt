@@ -22,12 +22,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Schedule
@@ -37,8 +38,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -53,25 +52,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
-import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.data.api.models.LinkedEmail
 import com.ayaan.dealora.data.repository.RemoveEmailResult
+import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncState
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.GmailSyncViewModel
 import com.ayaan.dealora.ui.presentation.syncapps.viewmodels.LinkEmailState
@@ -81,6 +78,16 @@ import com.ayaan.dealora.ui.theme.DealoraStarYellow
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 
+// Vibrant card gradient palettes — each email card picks one by index
+private val cardGradients = listOf(
+    listOf(Color(0xFF6C63FF), Color(0xFF4834D4)),   // Indigo / Purple
+    listOf(Color(0xFF11998E), Color(0xFF38EF7D)),   // Teal / Mint
+    listOf(Color(0xFFFC4A1A), Color(0xFFF7B733)),   // Orange / Amber
+)
+
+private fun gradientForIndex(index: Int): List<Color> =
+    cardGradients[index % cardGradients.size]
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GmailSyncScreen(
@@ -88,18 +95,15 @@ fun GmailSyncScreen(
     viewModel: GmailSyncViewModel = hiltViewModel(),
     linkEmailViewModel: LinkEmailViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-    val isSignedIn by viewModel.isSignedIn.collectAsState()
     val linkedEmails by viewModel.linkedEmails.collectAsState()
-    val selectedEmail by viewModel.selectedEmail.collectAsState()
-    val isLoadingEmails by viewModel.isLoadingEmails.collectAsState()
+    val perEmailState by viewModel.perEmailState.collectAsState()
     val isRemovingEmail by viewModel.isRemovingEmail.collectAsState()
+    val isLoadingEmails by viewModel.isLoadingEmails.collectAsState()
     val linkEmailState by linkEmailViewModel.state.collectAsState()
 
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
-    // Toast when a remove-email call completes
+    // ── Toast when a remove-email call completes ──────────────────────────────
     LaunchedEffect(Unit) {
         viewModel.removeEmailEvent.collect { result ->
             when (result) {
@@ -119,17 +123,19 @@ fun GmailSyncScreen(
         }
     }
 
-    // Show a toast for every link-email outcome, then reset state
+    // ── Toast / reload for every link-email outcome ───────────────────────────
     LaunchedEffect(linkEmailState) {
         when (val s = linkEmailState) {
             is LinkEmailState.Success -> {
                 android.widget.Toast.makeText(
                     context,
-                    "✅ ${s.linkedEmail} linked successfully!",
+                    "✅ ${s.linkedEmail} linked! Scanning for coupons…",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
                 viewModel.loadLinkedEmails()
                 linkEmailViewModel.resetState()
+                // Auto-scan on first link for a great first-run UX
+                viewModel.syncForEmail(s.linkedEmail)
             }
             is LinkEmailState.Updated -> {
                 android.widget.Toast.makeText(
@@ -149,26 +155,11 @@ fun GmailSyncScreen(
                 android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
                 linkEmailViewModel.resetState()
             }
-            else -> Unit  // Idle / Linking — no toast needed
+            else -> Unit
         }
     }
 
-    // Launcher for the Gmail SCAN sign-in (GmailSyncViewModel)
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)
-            viewModel.handleSignInResult(account)
-        } catch (e: ApiException) {
-            android.util.Log.e("GmailSyncScreen", "Sign-in failed. Status code: ${e.statusCode}")
-            viewModel.handleSignInResult(null, errorCode = e.statusCode)
-        }
-    }
-
-    // Launcher for the LINK EMAIL sign-in (LinkEmailViewModel)
-    // Separate launcher so serverAuthCode goes to the correct ViewModel
+    // ── Launcher for the LINK EMAIL sign-in (LinkEmailViewModel) ─────────────
     val linkEmailLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -204,12 +195,9 @@ fun GmailSyncScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
-        // Floating Add Button — bottom-right
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    // Sign out first so Google shows the account picker fresh
-                    // (instead of silently reusing the last account)
                     linkEmailViewModel.googleSignInClient.signOut().addOnCompleteListener {
                         linkEmailLauncher.launch(linkEmailViewModel.googleSignInClient.signInIntent)
                     }
@@ -219,7 +207,6 @@ fun GmailSyncScreen(
                 contentColor = Color.White,
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
             ) {
-                // Show spinner while linking is in progress, otherwise show +
                 if (linkEmailState is LinkEmailState.Linking) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(22.dp),
@@ -235,74 +222,106 @@ fun GmailSyncScreen(
                 }
             }
         },
-        containerColor = Color.White
+        containerColor = Color(0xFFF4F6FA)
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // ── Email Account Dropdown ─────────────────────────────────────
-            EmailDropdown(
-                linkedEmails = linkedEmails,
-                selectedEmail = selectedEmail,
-                isLoading = isLoadingEmails,
-                onEmailSelected = { viewModel.selectEmail(it) }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ── Last Synced Display ──────────────────────────────────────────
-            val selectedLinkedEmail = linkedEmails.find { it.email == selectedEmail }
-            if (selectedLinkedEmail?.lastSynced != null) {
-                Row(
+        when {
+            isLoadingEmails -> {
+                // Full-screen loading while fetching emails for the first time
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Schedule,
-                        contentDescription = null,
-                        tint = DealoraStarYellow,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Last synced: ${formatLastSynced(selectedLinkedEmail.lastSynced!!)} IST",
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CircularProgressIndicator(color = DealoraPrimary)
+                        Text(text = "Loading linked accounts…", fontSize = 14.sp, color = Color.Gray)
+                    }
                 }
             }
 
-            // ── Coupon Area (shows placeholder or sync UI) ─────────────────
-            // Snapshot into a local val so Kotlin can smart-cast String? → String
-            val currentEmail = selectedEmail
-            if (currentEmail == null) {
-                // Nothing selected yet → placeholder box
-                NoEmailSelectedBox()
-            } else {
-                // Email selected → show the normal state-driven sync content
-                SyncContent(
-                    state = state,
-                    onScanAgain = { viewModel.syncWithExistingAccount() },
-                    onDisconnect = { viewModel.removeLinkedEmail(currentEmail) },
-                    onRetry = { viewModel.resetState() },
-                    onGoToDashboard = { navController.navigate(Route.Dashboard.createRoute()) }
-                )
+            linkedEmails.isEmpty() -> {
+                // Empty state — no linked accounts yet
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .background(Color(0xFFEEEEEE), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Email,
+                                contentDescription = null,
+                                tint = Color(0xFFBBBBBB),
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Text(
+                            text = "No Gmail Accounts Linked",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A1A1A)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Tap the + button to connect a Gmail account and start scanning for coupons.",
+                            fontSize = 14.sp,
+                            color = Color(0xFF888888),
+                            textAlign = TextAlign.Center,
+                            lineHeight = 22.sp
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        start = 20.dp, end = 20.dp, top = 20.dp, bottom = 96.dp
+                    )
+                ) {
+                    items(linkedEmails, key = { it.email }) { linkedEmail ->
+                        val cardIndex = linkedEmails.indexOf(linkedEmail)
+                        val cardState = perEmailState[linkedEmail.email] ?: GmailSyncState.Idle
+
+                        EmailSyncCard(
+                            linkedEmail = linkedEmail,
+                            cardIndex = cardIndex,
+                            cardState = cardState,
+                            navController = navController,
+                            onCouponData = { coupon -> viewModel.couponDataJson(coupon) },
+                            onScan = { viewModel.syncForEmail(linkedEmail.email) },
+                            onDisconnect = { viewModel.removeLinkedEmail(linkedEmail.email) },
+                            onRetry = { viewModel.resetStateForEmail(linkedEmail.email) },
+                            onGoToDashboard = {
+                                navController.navigate(Route.Dashboard.createRoute())
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 
-    // ── Full-screen loading overlay while disconnecting ───────────────────────
+    // ── Full-screen loading overlay while disconnecting ─────────────────────────
     if (isRemovingEmail) {
         Box(
             modifier = Modifier
@@ -329,490 +348,360 @@ fun GmailSyncScreen(
     }
 }
 
-// ── Email Dropdown ────────────────────────────────────────────────────────────
+// ── Email Sync Card ───────────────────────────────────────────────────────────
 
 @Composable
-private fun EmailDropdown(
-    linkedEmails: List<LinkedEmail>,
-    selectedEmail: String?,
-    isLoading: Boolean,
-    onEmailSelected: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        // Trigger row
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .border(
-                    width = 1.5.dp,
-                    color = if (selectedEmail != null) DealoraPrimary else Color(0xFFDDDDDD),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .background(Color(0xFFFAFAFA))
-                .clickable(enabled = !isLoading && linkedEmails.isNotEmpty()) {
-                    expanded = true
-                }
-                .padding(horizontal = 16.dp, vertical = 14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = null,
-                    tint = if (selectedEmail != null) DealoraPrimary else Color(0xFFAAAAAA),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-
-                when {
-                    isLoading -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = DealoraPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Loading accounts…",
-                                fontSize = 14.sp,
-                                color = Color(0xFFAAAAAA)
-                            )
-                        }
-                    }
-                    linkedEmails.isEmpty() -> {
-                        Text(
-                            text = "No linked accounts — tap + to add one",
-                            fontSize = 14.sp,
-                            color = Color(0xFFAAAAAA),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    else -> {
-                        Text(
-                            text = selectedEmail ?: "Select an email account",
-                            fontSize = 14.sp,
-                            color = if (selectedEmail != null) Color(0xFF1A1A1A) else Color(0xFF888888),
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = null,
-                            tint = Color(0xFF888888)
-                        )
-                    }
-                }
-            }
-        }
-
-        // Dropdown list
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .background(Color.White)
-        ) {
-            linkedEmails.forEach { entry ->
-                DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(
-                                text = entry.email,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF1A1A1A)
-                            )
-                        }
-                    },
-                    onClick = {
-                        onEmailSelected(entry.email)
-                        expanded = false
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = null,
-                            tint = DealoraPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                )
-            }
-        }
-    }
-}
-
-// ── No-email-selected placeholder ────────────────────────────────────────────
-
-@Composable
-private fun NoEmailSelectedBox() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 220.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .border(
-                width = 1.dp,
-                color = Color(0xFFE8E8E8),
-                shape = RoundedCornerShape(16.dp)
-            )
-            .background(Color(0xFFF9F9F9)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(Color(0xFFEEEEEE), RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = null,
-                    tint = Color(0xFFBBBBBB),
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Please select an email to see the scanned coupons",
-                fontSize = 14.sp,
-                color = Color(0xFF999999),
-                textAlign = TextAlign.Center,
-                lineHeight = 22.sp
-            )
-        }
-    }
-}
-
-// ── State-driven sync content (shown after email is selected) ─────────────────
-
-@Composable
-private fun SyncContent(
-    state: GmailSyncState,
-    onScanAgain: () -> Unit,
+private fun EmailSyncCard(
+    linkedEmail: LinkedEmail,
+    cardIndex: Int,
+    cardState: GmailSyncState,
+    navController: NavController,
+    onCouponData: (com.ayaan.dealora.data.api.models.GmailExtractedCoupon) -> String?,
+    onScan: () -> Unit,
     onDisconnect: () -> Unit,
     onRetry: () -> Unit,
     onGoToDashboard: () -> Unit
 ) {
-    when (val s = state) {
+    val gradientColors = gradientForIndex(cardIndex)
 
-        is GmailSyncState.Idle -> {
-            IdleContent(
-                onScanAgain = onScanAgain,
-                onDisconnect = onDisconnect,
-                onGoToDashboard = onGoToDashboard
-            )
-        }
-
-        is GmailSyncState.SigningIn,
-        is GmailSyncState.Syncing -> {
-            LoadingContent(
-                message = if (state is GmailSyncState.SigningIn)
-                    "Connecting to Gmail…"
-                else
-                    "Scanning your promo emails…"
-            )
-        }
-
-        is GmailSyncState.Success -> {
-            SuccessContent(
-                extractedCount = s.extractedCount,
-                skippedCount = s.skippedCount,
-                coupons = s.coupons,
-                onScanAgain = onScanAgain,
-                onDisconnect = onDisconnect,
-                onGoToDashboard = onGoToDashboard
-            )
-        }
-
-        is GmailSyncState.Error -> {
-            ErrorContent(
-                message = s.message,
-                onRetry = onRetry
-            )
-        }
-    }
-}
-
-// ── Sub-composables ──────────────────────────────────────────────────────────
-
-@Composable
-private fun IdleContent(
-    onScanAgain: () -> Unit,
-    onDisconnect: () -> Unit,
-    onGoToDashboard: () -> Unit
-) {
-    Spacer(modifier = Modifier.height(8.dp))
-
-    // Go to Dashboard button
-    OutlinedButton(
-        onClick = onGoToDashboard,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, DealoraPrimary)
-    ) {
-        Icon(
-            imageVector = Icons.Default.Dashboard,
-            contentDescription = null,
-            tint = DealoraPrimary,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = "Go to Dashboard",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DealoraPrimary
-        )
-    }
-
-    Spacer(modifier = Modifier.height(10.dp))
-
-    // Always show Scan for Coupons — email is already linked via the + button
-    Button(
-        onClick = onScanAgain,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Text(
-            text = "Scan for Coupons",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White
-        )
-    }
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    OutlinedButton(
-        onClick = onDisconnect,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Text(text = "Disconnect Gmail", color = Color.Gray)
-    }
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-    // Privacy note
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "🔒  Privacy & Safety",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "• Only promotional emails are scanned\n• No emails are stored on our servers\n• Access can be revoked at any time\n• We read only — never send or modify",
-                fontSize = 13.sp,
-                color = Color.Gray,
-                lineHeight = 20.sp
-            )
-        }
-    }
-}
+        Column {
 
-@Composable
-private fun LoadingContent(message: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        CircularProgressIndicator(color = DealoraPrimary, modifier = Modifier.size(52.dp))
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(text = message, fontSize = 15.sp, color = Color.Gray)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "This may take up to 30 seconds",
-            fontSize = 12.sp,
-            color = Color(0xFFBBBBBB)
-        )
-    }
-}
+            // ── Gradient Header ───────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.linearGradient(colors = gradientColors),
+                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                    )
+                    .padding(horizontal = 20.dp, vertical = 20.dp)
+            ) {
+                Column {
+                    // Email icon + address
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color.White.copy(alpha = 0.25f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Email,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = linkedEmail.email,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-@Composable
-private fun SuccessContent(
-    extractedCount: Int,
-    skippedCount: Int,
-    coupons: List<GmailExtractedCoupon>,
-    onScanAgain: () -> Unit,
-    onDisconnect: () -> Unit,
-    onGoToDashboard: () -> Unit
-) {
-    // Stats row
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        StatCard(
-            modifier = Modifier.weight(1f),
-            label = "Extracted",
-            value = extractedCount.toString(),
-            color = Color(0xFF2E7D32)
-        )
-        StatCard(
-            modifier = Modifier.weight(1f),
-            label = "Skipped",
-            value = skippedCount.toString(),
-            color = Color(0xFF757575)
-        )
-    }
+                    // Last synced row
+                    if (linkedEmail.lastSynced != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Last synced: ${formatLastSynced(linkedEmail.lastSynced!!)} IST",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
+                        }
+                    }
+                }
+            }
 
-    Spacer(modifier = Modifier.height(20.dp))
+            // ── Card Body ─────────────────────────────────────────────────────
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+                when (cardState) {
 
-    AnimatedVisibility(visible = coupons.isEmpty(), enter = fadeIn(), exit = fadeOut()) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = DealoraPrimary,
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "No new coupons found in your last 7 days of promotional emails.",
-                fontSize = 14.sp,
-                color = Color.Gray,
-                textAlign = TextAlign.Center,
-                lineHeight = 20.sp
-            )
-        }
-    }
+                    is GmailSyncState.Idle -> {
+                        CardActionButtons(
+                            onScan = onScan,
+                            onDisconnect = onDisconnect,
+                            onGoToDashboard = onGoToDashboard,
+                            gradientColors = gradientColors
+                        )
+                    }
 
-    if (coupons.isNotEmpty()) {
-        Text(
-            text = "Coupons Added to Your List",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 15.sp,
-            color = Color.Black,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 320.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(coupons) { coupon ->
-                ExtractedCouponCard(coupon = coupon)
+                    is GmailSyncState.SigningIn,
+                    is GmailSyncState.Syncing -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                color = gradientColors[0],
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "Scanning your promo emails…",
+                                fontSize = 14.sp,
+                                color = Color.Gray
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "This may take up to 30 seconds",
+                                fontSize = 12.sp,
+                                color = Color(0xFFBBBBBB)
+                            )
+                        }
+                    }
+
+                    is GmailSyncState.Success -> {
+                        // Stats row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f),
+                                label = "Extracted",
+                                value = cardState.extractedCount.toString(),
+                                color = Color(0xFF2E7D32)
+                            )
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f),
+                                label = "Skipped",
+                                value = cardState.skippedCount.toString(),
+                                color = Color(0xFF757575)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Coupon list or empty message
+                        if (cardState.coupons.isEmpty()) {
+                            AnimatedVisibility(visible = true, enter = fadeIn(), exit = fadeOut()) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = gradientColors[0],
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "No new coupons found in your last 7 days of promotional emails.",
+                                        fontSize = 13.sp,
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 20.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "Coupons Added to Your List",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1A1A1A)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            // Scrollable coupon list inside card (constrained height)
+                            Column(
+                                modifier = Modifier
+                                    .heightIn(max = 280.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                cardState.coupons.forEach { coupon ->
+                                    ExtractedCouponCard(
+                                        coupon = coupon,
+                                        accentColor = gradientColors[0],
+                                        onDetails = {
+                                            val json = onCouponData(coupon)
+                                            navController.navigate(
+                                                Route.CouponDetails.createRoute(
+                                                    couponId = coupon.id ?: return@ExtractedCouponCard,
+                                                    isPrivate = true,
+                                                    couponCode = coupon.couponCode,
+                                                    couponData = android.net.Uri.encode(json)
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Action buttons after success
+                        CardActionButtons(
+                            onScan = onScan,
+                            onDisconnect = onDisconnect,
+                            onGoToDashboard = onGoToDashboard,
+                            gradientColors = gradientColors,
+                            scanLabel = "Scan Again"
+                        )
+                    }
+
+                    is GmailSyncState.Error -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFEA4335),
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Something went wrong",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = cardState.message,
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = onRetry,
+                                colors = ButtonDefaults.buttonColors(containerColor = gradientColors[0]),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp)
+                            ) {
+                                Text("Try Again", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            }
+                        }
+                    }
+                }
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
-    } else {
-        Spacer(modifier = Modifier.height(8.dp))
     }
-
-    // Go to Dashboard button
-    OutlinedButton(
-        onClick = onGoToDashboard,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, DealoraPrimary)
-    ) {
-        Icon(
-            imageVector = Icons.Default.Dashboard,
-            contentDescription = null,
-            tint = DealoraPrimary,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = "Go to Dashboard",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DealoraPrimary
-        )
-    }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    Button(
-        onClick = onScanAgain,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Text("Scan Again", fontWeight = FontWeight.SemiBold)
-    }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    OutlinedButton(
-        onClick = onDisconnect,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Text("Disconnect Gmail", color = Color.Gray)
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
 }
 
+// ── Shared 3-button action row ────────────────────────────────────────────────
+
 @Composable
-private fun ErrorContent(message: String, onRetry: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = Icons.Default.Warning,
-            contentDescription = null,
-            tint = Color(0xFFEA4335),
-            modifier = Modifier.size(52.dp)
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "Something went wrong",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            color = Color.Black
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = message,
-            fontSize = 13.sp,
-            color = Color.Gray,
-            textAlign = TextAlign.Center,
-            lineHeight = 18.sp
-        )
-        Spacer(modifier = Modifier.height(24.dp))
+private fun CardActionButtons(
+    onScan: () -> Unit,
+    onDisconnect: () -> Unit,
+    onGoToDashboard: () -> Unit,
+    gradientColors: List<Color>,
+    scanLabel: String = "Scan for Coupons"
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
+        // Scan button — filled with card gradient
         Button(
-            onClick = onRetry,
-            colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
-            shape = RoundedCornerShape(12.dp),
+            onClick = onScan,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
         ) {
-            Text("Try Again", fontWeight = FontWeight.SemiBold)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.linearGradient(colors = gradientColors),
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = scanLabel,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+            }
+        }
+
+        // Dashboard + Disconnect side by side
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedButton(
+                onClick = onGoToDashboard,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, gradientColors[0])
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Dashboard,
+                    contentDescription = null,
+                    tint = gradientColors[0],
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Dashboard",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = gradientColors[0]
+                )
+            }
+
+            OutlinedButton(
+                onClick = onDisconnect,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFCCCCCC))
+            ) {
+                Text(
+                    text = "Disconnect",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF999999)
+                )
+            }
         }
     }
 }
 
+// ── Mini stat card inside email card ─────────────────────────────────────────
+
 @Composable
-private fun StatCard(
+private fun MiniStatCard(
     modifier: Modifier,
     label: String,
     value: String,
@@ -821,80 +710,137 @@ private fun StatCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = value, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = color)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = label, fontSize = 12.sp, color = Color.Gray)
+            Text(text = value, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = label, fontSize = 11.sp, color = Color.Gray)
         }
     }
 }
 
+// ── Extracted coupon mini card ────────────────────────────────────────────────
+
 @Composable
-private fun ExtractedCouponCard(coupon: GmailExtractedCoupon) {
+private fun ExtractedCouponCard(
+    coupon: GmailExtractedCoupon,
+    accentColor: Color,
+    onDetails: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (coupon.id != null) Modifier.clickable { onDetails() } else Modifier
+            ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = CardDefaults.outlinedCardBorder()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left accent stripe
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(48.dp)
+                    .background(accentColor, RoundedCornerShape(4.dp))
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = coupon.brandName ?: "Unknown Brand",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = Color.Black,
-                    modifier = Modifier.weight(1f)
+                    fontSize = 14.sp,
+                    color = Color(0xFF1A1A1A),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                if (!coupon.couponName.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = coupon.couponName,
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Right side: code + discount badge + details arrow
+            Column(horizontalAlignment = Alignment.End) {
+                if (!coupon.couponCode.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFF0F0F0), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = coupon.couponCode,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = Color(0xFF333333),
+                            letterSpacing = 1.sp,
+                            maxLines = 1
+
+                        )
+                    }
+                }
                 if (coupon.discountValue != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
                     val discountText = if (coupon.discountType == "percentage")
                         "${coupon.discountValue.toInt()}% OFF"
                     else
                         "₹${coupon.discountValue.toInt()} OFF"
                     Box(
                         modifier = Modifier
-                            .background(DealoraPrimary.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .background(accentColor.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = discountText,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = DealoraPrimary
+                            color = accentColor
                         )
                     }
                 }
-            }
-
-            if (!coupon.couponCode.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFFF0F0F0), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                ) {
-                    Text(
-                        text = coupon.couponCode,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF333333),
-                        letterSpacing = 1.sp
-                    )
+                // Details arrow — tapping anywhere on the card triggers navigation
+                if (coupon.id != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = "Details",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "View details",
+                            tint = accentColor,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
                 }
-            }
-
-            if (!coupon.couponName.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = coupon.couponName, fontSize = 12.sp, color = Color.Gray)
             }
         }
     }
@@ -906,25 +852,22 @@ private fun ExtractedCouponCard(coupon: GmailExtractedCoupon) {
 private fun formatLastSynced(raw: String): String {
     return try {
         if (raw.contains("T")) {
-            // Parse date and time parts from ISO-8601 (e.g. "2025-03-01T12:30:00.000Z")
             val dateTimePart = raw.trimEnd('Z').split("T")
-            val dateParts = dateTimePart[0].split("-") // [YYYY, MM, DD]
-            val timeParts = dateTimePart[1].substring(0, 5).split(":") // [HH, mm]
+            val dateParts = dateTimePart[0].split("-")
+            val timeParts = dateTimePart[1].substring(0, 5).split(":")
 
             var hours = timeParts[0].toInt()
             var minutes = timeParts[1].toInt()
-            val year = dateParts[0].toInt()
             val month = dateParts[1].toInt()
             var day = dateParts[2].toInt()
 
-            // Add IST offset: +5 hours 30 minutes
             minutes += 30
             hours += 5
             if (minutes >= 60) { minutes -= 60; hours++ }
             if (hours >= 24) { hours -= 24; day++ }
 
-            val formattedDate = "%02d-%02d".format(month, day)  // MM-DD
-            val formattedTime = "%02d:%02d".format(hours, minutes)  // HH:mm
+            val formattedDate = "%02d-%02d".format(month, day)
+            val formattedTime = "%02d:%02d".format(hours, minutes)
             "$formattedDate, $formattedTime"
         } else {
             raw
