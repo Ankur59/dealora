@@ -184,6 +184,10 @@ exports.syncCoupons = async (req, res) => {
         currentDate.setHours(0, 0, 0, 0); // Reset time to start of day for accurate day calculation
 
         const couponsWithDynamicExpiry = coupons.map(coupon => {
+            // Ensure couponTitle always has a value — fallback to couponName
+            // (OCR/email-parsed coupons may not have couponTitle set)
+            const couponTitle = coupon.couponTitle || coupon.couponName || 'Coupon';
+
             if (coupon.expiryDate) {
                 const expiryDate = new Date(coupon.expiryDate);
                 expiryDate.setHours(0, 0, 0, 0);
@@ -194,10 +198,11 @@ exports.syncCoupons = async (req, res) => {
 
                 return {
                     ...coupon,
+                    couponTitle,
                     daysUntilExpiry: daysDiff
                 };
             }
-            return coupon;
+            return { ...coupon, couponTitle };
         });
 
         return successResponse(res, STATUS_CODES.OK, 'Private coupons synced successfully', {

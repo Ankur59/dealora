@@ -50,14 +50,14 @@ exports.processScreenshot = async (req, res) => {
 
             brandName: extractedData.merchant || 'Unknown',
 
-            couponTitle: extractedData.coupon_title,
+            couponTitle: extractedData.coupon_title || extractedData.merchant || 'OCR Coupon',
             couponCode: extractedData.coupon_code || null,
             discountType: extractedData.discount_type || 'unknown',
             discountValue: extractedData.discount_value,
             minimumOrder: extractedData.minimum_order_value,
             expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days if null
             description: extractedData.coupon_title + (extractedData.max_discount ? ` Max Discount: ${extractedData.max_discount}` : ''),
-
+            terms: extractedData.terms || "",
             expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days if null
 
             categoryLabel: extractedData.categoryLabel || 'Other', // Default
@@ -396,13 +396,17 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
 
     // 1. Extract Data
     const extractedData = await aiExtractionService.extractFromEmail(emailContent, sender);
-
+    if (extractedData.confidence_score < 0.7) {
+        const err = new Error('Invalid Coupon');
+        err.status = 400;
+        throw err;
+    }
     // 2. Map to Schema
     const newCouponData = {
         userId: userId,
         couponName: extractedData.coupon_title || 'Email Coupon',
         brandName: extractedData.merchant || 'Unknown',
-        couponTitle: extractedData.coupon_title,
+        couponTitle: extractedData.coupon_title || extractedData.merchant || 'Email Coupon',
         description: `From Email: ${sender}. ${extractedData.coupon_title}`,
         expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         categoryLabel: extractedData.categoryLabel || 'Other',
