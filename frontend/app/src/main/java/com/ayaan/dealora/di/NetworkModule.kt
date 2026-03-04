@@ -25,7 +25,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL ="http://192.168.29.76:3001/"
+    private const val BASE_URL ="http://10.255.128.108:3001/"
     // "https://dealora-5zcp.onrender.com/" 
     // "http://192.168.29.76:3001/"
     // IF backend on locahost 3001 use: http://10.0.2.2:3001/

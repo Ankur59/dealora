@@ -401,6 +401,7 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
         err.status = 400;
         throw err;
     }
+    
     // 2. Map to Schema
     const newCouponData = {
         userId: userId,

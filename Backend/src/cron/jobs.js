@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const notificationService = require('../services/notificationService');
 const { syncSheet } = require('../controllers/exclusiveCouponController');
 const logger = require('../utils/logger');
+const ImportedCoupons = require('../models/ImportedCoupons');
 
 const initCronJobs = () => {
     // 1. Daily Scraping at 2:00 AM
@@ -112,8 +113,8 @@ const initCronJobs = () => {
         }
     });
 
-    // 5. Daily Gmail Sync at Midnight
-    cron.schedule('0 0 * * *', async () => {
+    // 5. weekly Gmail Sync at Midnight
+    cron.schedule('0 0 * * 0', async () => {
         logger.info('CRON: Starting daily Gmail sync...');
         try {
             const gmailSyncService = require('../services/gmailSyncService');
@@ -132,7 +133,7 @@ const initCronJobs = () => {
             today.setUTCHours(0, 0, 0, 0);
 
             // Update all active coupons that have passed their expiry date
-            const result = await Coupon.updateMany(
+            const result = await ImportedCoupons.updateMany(
                 {
                     expireBy: { $lt: today },
                     status: 'active'
@@ -149,34 +150,34 @@ const initCronJobs = () => {
     });
 
     // 7. Update PrivateCoupon daysUntilExpiry at 1 AM
-    cron.schedule('0 1 * * *', async () => {
-        logger.info('CRON: Starting daily PrivateCoupon expiry update (1 AM)...');
-        try {
-            const today = new Date();
-            today.setUTCHours(0, 0, 0, 0);
+    // cron.schedule('0 1 * * *', async () => {
+    //     logger.info('CRON: Starting daily PrivateCoupon expiry update (1 AM)...');
+    //     try {
+    //         const today = new Date();
+    //         today.setUTCHours(0, 0, 0, 0);
 
-            const coupons = await PrivateCoupon.find({ expiryDate: { $ne: null } });
+    //         const coupons = await PrivateCoupon.find({ expiryDate: { $ne: null } });
 
-            let updateCount = 0;
-            for (const coupon of coupons) {
-                const expiry = new Date(coupon.expiryDate);
-                expiry.setUTCHours(0, 0, 0, 0);
+    //         let updateCount = 0;
+    //         for (const coupon of coupons) {
+    //             const expiry = new Date(coupon.expiryDate);
+    //             expiry.setUTCHours(0, 0, 0, 0);
 
-                const diffTime = expiry.getTime() - today.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    //             const diffTime = expiry.getTime() - today.getTime();
+    //             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                if (coupon.daysUntilExpiry !== diffDays) {
-                    coupon.daysUntilExpiry = diffDays;
-                    await coupon.save();
-                    updateCount++;
-                }
-            }
+    //             if (coupon.daysUntilExpiry !== diffDays) {
+    //                 coupon.daysUntilExpiry = diffDays;
+    //                 await coupon.save();
+    //                 updateCount++;
+    //             }
+    //         }
 
-            logger.info(`CRON: PrivateCoupon expiry update completed. Updated ${updateCount} coupons.`);
-        } catch (error) {
-            logger.error('CRON: PrivateCoupon expiry update failed:', error);
-        }
-    });
+    //         logger.info(`CRON: PrivateCoupon expiry update completed. Updated ${updateCount} coupons.`);
+    //     } catch (error) {
+    //         logger.error('CRON: PrivateCoupon expiry update failed:', error);
+    //     }
+    // });
 
     logger.info('Cron jobs initialized successfully');
 }

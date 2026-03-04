@@ -243,7 +243,45 @@ class CouponDetailsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Calculates the number of days between today and an ISO-8601 expiry date string.
+     * Returns null if the string is blank / unparseable.
+     */
+    private fun computeDaysUntilExpiry(expiryDateStr: String?): Int? {
+        if (expiryDateStr.isNullOrBlank()) return null
+        return try {
+            // Handle ISO strings like "2025-04-30T00:00:00.000Z" or "2025-04-30"
+            val datePart = expiryDateStr.substringBefore("T").trim()
+            val parts = datePart.split("-")
+            if (parts.size < 3) return null
+            val year  = parts[0].toInt()
+            val month = parts[1].toInt()
+            val day   = parts[2].toInt()
+
+            val cal = java.util.Calendar.getInstance()
+            val todayYear  = cal.get(java.util.Calendar.YEAR)
+            val todayMonth = cal.get(java.util.Calendar.MONTH) + 1 // 0-indexed
+            val todayDay   = cal.get(java.util.Calendar.DAY_OF_MONTH)
+
+            val expiry = java.util.Calendar.getInstance().apply {
+                set(year, month - 1, day, 0, 0, 0); set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val today = java.util.Calendar.getInstance().apply {
+                set(todayYear, todayMonth - 1, todayDay, 0, 0, 0); set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val diffMs = expiry.timeInMillis - today.timeInMillis
+            (diffMs / (1000L * 60 * 60 * 24)).toInt()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not parse expiry date: $expiryDateStr", e)
+            null
+        }
+    }
+
     private fun convertPrivateCouponToCouponDetail(privateCoupon: PrivateCoupon): CouponDetail {
+        // For Gmail-imported coupons daysUntilExpiry is null; compute it from expiryDate instead.
+        val daysUntilExpiry = privateCoupon.daysUntilExpiry
+            ?: computeDaysUntilExpiry(privateCoupon.expiryDate?.toString())
+
         return CouponDetail(
             id = privateCoupon.id,
             userId = privateCoupon.userId ?: "private_user",
@@ -269,14 +307,14 @@ class CouponDetailsViewModel @Inject constructor(
             updatedAt = privateCoupon.updatedAt ?: System.currentTimeMillis().toString(),
             display = CouponDisplay(
                 initial = privateCoupon.brandName.firstOrNull()?.toString() ?: "?",
-                daysUntilExpiry = privateCoupon.daysUntilExpiry,
-                isExpiringSoon = (privateCoupon.daysUntilExpiry ?: 0) <= 7,
-                formattedExpiry = privateCoupon.daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
+                daysUntilExpiry = daysUntilExpiry,
+                isExpiringSoon = (daysUntilExpiry ?: Int.MAX_VALUE) <= 7,
+                formattedExpiry = daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
                 expiryStatusColor = when {
-                    privateCoupon.daysUntilExpiry == null -> "gray"
-                    privateCoupon.daysUntilExpiry <= 3 -> "red"
-                    privateCoupon.daysUntilExpiry <= 7 -> "orange"
-                    else -> "green"
+                    daysUntilExpiry == null -> "gray"
+                    daysUntilExpiry <= 3   -> "red"
+                    daysUntilExpiry <= 7   -> "orange"
+                    else                   -> "green"
                 },
                 badgeLabels = listOfNotNull(
                     privateCoupon.category,
