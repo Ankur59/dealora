@@ -26,17 +26,29 @@ class AiExtractionService {
                 Analyze this screenshot of a coupon/deal. Extract the following information into a strictly valid JSON object:
                 {
                     "merchant": "Name of the brand/merchant (e.g., Swiggy, Amazon) this field is required and don't leave this empty",
+
                     "coupon_title": "Main title of the offer (e.g., 20% OFF on Orders) this field is required don't keep this empty",
+
                     "coupon_code": "The extracted coupon code if visible (e.g., SWIGGY20). Null if none.",
+
                     "categoryLabel": "One on the following 'Food', 'Fashion', 'Grocery', 'Wallet Rewards', 'Beauty', 'Travel', 'Entertainment', 'Other'"
+
                     "couponVisitingLink": "Link which can be used to reedem coupon give null if not available"
+
                     "useCouponVia": "One of: 'Coupon Code', 'Coupon Visiting Link', 'Both', 'None' according to what method is available for redeeming coupon"
+
                     "terms":"terms and condition coupon has for redeeming it"
+
                     "discount_type": "One of: percentage, flat, cashback, unknown",
+
                     "discount_value": "Numeric value of discount (e.g., 20 for 20%)",
+
                     "minimum_order_value": "Minimum order amount required (numeric)",
+
                     "description":"small description for this coupon (Minimum 10 words)"
+
                     "expiry_date": "Expiry date in YYYY-MM-DD format if visible, else null",
+
                     "confidence_score": "A number between 0.1 and 1.0 indicating confidence in extraction"
                 }
 
@@ -104,17 +116,32 @@ class AiExtractionService {
                 
                 Expected JSON Format:
                 {
-                    "merchant": "Name of the brand",
-                    "coupon_title": "Main offer title",
-                    "coupon_code": "The coupon code (e.g. AMAZ200). Null if none.",
-                    "categoryLabel":"One on the following 'Food', 'Fashion', 'Grocery', 'Wallet Rewards', 'Beauty', 'Travel', 'Entertainment', 'Other'"
-                    "couponVisitingLink":"Link which can be used to reedem coupon give null if not available"
+                    "merchant": "Name of the brand/merchant (e.g., Swiggy, Amazon) this field is required and don't leave this empty",
+
+                    "coupon_title": "Main title of the offer (e.g., 20% OFF on Orders) this field is required don't keep this empty",
+
+                    "coupon_code": "The extracted coupon code if visible (e.g., SWIGGY20). Null if none.",
+
+                    "categoryLabel":"One on the following 'Food', 'Fashion',
+                    'Grocery', 'Wallet Rewards',
+                    'Beauty', 'Travel', 'Entertainment', 'Other'"
+
+                    "couponVisitingLink":"Link which can be used to reedem coupon give null if not available",
+
                     "useCouponVia":"One of: 'Coupon Code', 'Coupon Visiting Link', 'Both', 'None' according to what method is available for redeeming coupon"
+
+                    "terms":"terms and condition coupon has for redeeming it"
+
                     "discount_type": "One of: percentage, flat, cashback, unknown",
+
                     "discount_value": "Numeric value (e.g. 200)",
+
                     "minimum_order_value": "Minimum order amount (numeric)",
+
                     "expiry_date": "YYYY-MM-DD format or null",
+
                     "email_sender": "${sender}",
+
                     "confidence_score": "Number between 0.0 and 1.0"
                 }
                 give confidence_score less than 0.7 if coupon is seems to be invalid so i can reject it

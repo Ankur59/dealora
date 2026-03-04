@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Coupon = require('../models/Coupon');
 const aiExtractionService = require('../services/aiExtractionService');
 const logger = require('../utils/logger');
+const ImportedCoupons = require('../models/ImportedCoupons');
 
 /**
  * Run daily sync for all users with linked Gmail accounts
@@ -75,14 +76,14 @@ const syncIndividualEmail = async (userId, email, refreshToken) => {
         { $set: { "connectedEmails.$.lastSynced": new Date() } }
     );
 
-    // 3. Fetch Emails (last 1 day for cron)
+    // 3. Fetch Emails (last 7 day for cron)
     const listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
     const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setDate(yesterday.getDate() - 7);
     const dateString = yesterday.toISOString().split('T')[0].replace(/-/g, '/');
 
     const listParams = {
-        maxResults: 20,
+        maxResults: 20, //Maxium limit of email fetched per account
         q: `category:promotions after:${dateString}`
     };
 
@@ -129,39 +130,51 @@ const syncIndividualEmail = async (userId, email, refreshToken) => {
 
             // Extract using AI
             const extractedData = await aiExtractionService.extractFromEmail(fullContent, sender);
-
+            if (extractedData.confidence_score < 0.7) {
+                const err = new Error('Invalid Coupon');
+                err.status = 400;
+                throw err;
+            }
             // Map to Schema
             const newCouponData = {
                 userId: userId,
-                brandName: extractedData.merchant || 'Unknown',
                 couponName: extractedData.coupon_title || 'Email Coupon',
-                couponTitle: extractedData.coupon_title,
+                brandName: extractedData.merchant || 'Unknown',
+                couponTitle: extractedData.coupon_title || extractedData.merchant || 'Email Coupon',
+                description: `From Email: ${sender}. ${extractedData.coupon_title}`,
+                expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                categoryLabel: extractedData.categoryLabel || 'Other',
                 fetchedEmail: email,
-                couponCode: extractedData.coupon_code || "N/A",
+                useCouponVia: extractedData.useCouponVia,
                 discountType: extractedData.discount_type?.toLowerCase() || 'unknown',
                 discountValue: extractedData.discount_value,
                 minimumOrder: extractedData.minimum_order_value,
-                expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                description: `From Email: ${sender}. ${extractedData.coupon_title}`,
-                categoryLabel: 'Other',
-                useCouponVia: extractedData.coupon_code ? 'Coupon Code' : 'None',
-                sourceWebsite: 'Email Parsing',
+                couponCode: extractedData.coupon_code || "N/A",
+                couponVisitingLink: extractedData.couponVisitingLink ? extractedData.couponVisitingLink : null,
+                source: 'email-parsing',
+                // Need to add terms here
                 status: 'active',
                 addedMethod: 'manual'
             };
 
             // Duplicate Check
-            if (newCouponData.couponCode !== "N/A") {
-                const existing = await Coupon.findOne({
+            if (newCouponData.couponCode) {
+                const existing = await ImportedCoupons.findOne({
                     couponCode: newCouponData.couponCode,
                     brandName: newCouponData.brandName
                 });
-                if (existing) continue;
+                if (existing) {
+                    const err = new Error('Duplicate coupon');
+                    err.status = 409;
+                    err.existing = existing;
+                    throw err;
+                }
             }
 
             // Save
-            const coupon = new Coupon(newCouponData);
-            await coupon.save();
+            // 4. Save
+            const Importedcoupon = new ImportedCoupons(newCouponData);
+            await Importedcoupon.save();
             logger.info(`Saved coupon from ${email}: ${newCouponData.couponTitle}`);
 
         } catch (err) {

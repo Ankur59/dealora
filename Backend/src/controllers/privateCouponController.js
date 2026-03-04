@@ -188,8 +188,11 @@ exports.syncCoupons = async (req, res) => {
             // (OCR/email-parsed coupons may not have couponTitle set)
             const couponTitle = coupon.couponTitle || coupon.couponName || 'Coupon';
 
-            if (coupon.expiryDate) {
-                const expiryDate = new Date(coupon.expiryDate);
+            // NOTE: ImportedCoupons schema uses `expireBy` (not `expiryDate`)
+            const expiryField = coupon.expireBy || coupon.expiryDate;
+
+            if (expiryField) {
+                const expiryDate = new Date(expiryField);
                 expiryDate.setHours(0, 0, 0, 0);
 
                 // Calculate difference in days
