@@ -2,6 +2,8 @@
 
 const axios = require('axios');
 const User = require('../models/User');
+const TermsAcceptance = require('../models/TermsAcceptance');
+const { CURRENT_TERMS_VERSION } = require('./termsController');
 const logger = require('../utils/logger');
 
 /**
@@ -21,14 +23,26 @@ const handleConnect = async (req, res) => {
     }
 
     try {
-        // --- Step 1: Fetch user (limit check happens later, after we know the email) ---
-        const user = await User.findOne({ uid: userId });
-
+        // --- Step 0: Check terms acceptance before anything else ---
+        const user = await User.findOne({ uid: userId }).select('_id connectedEmails');
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        // --- Step 2: Exchange serverAuthCode with Google's token endpoint ---
+        const termsAccepted = await TermsAcceptance.exists({
+            userId: user._id,
+            termsVersion: CURRENT_TERMS_VERSION
+        });
+        if (!termsAccepted) {
+            return res.status(403).json({
+                success: false,
+                message: 'You must accept the Terms & Conditions before linking a Gmail account.',
+                code: 'TERMS_NOT_ACCEPTED'
+            });
+        }
+
+        // The user is already fetched above — skip the redundant findOne.
+        // (Keeping Step numbering aligned with original comments)
         // Google needs: your client credentials + the one-time code from the user's device
         const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
             code: serverAuthCode,
@@ -130,7 +144,7 @@ const handleAllEmails = async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ uid: userId }).select('connectedEmails');
+        const user = await User.findOne({ uid: userId }).select('_id connectedEmails');
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
@@ -143,10 +157,19 @@ const handleAllEmails = async (req, res) => {
             lastSynced: entry.lastSynced
         }));
 
+        // Check if the user has accepted the current terms version
+        const termsRecord = await TermsAcceptance.findOne({
+            userId: user._id,
+            termsVersion: CURRENT_TERMS_VERSION
+        }).select('acceptedAt').lean();
+
         return res.status(200).json({
             success: true,
             count: linkedEmails.length,
             data: linkedEmails,
+            termsAccepted: !!termsRecord,
+            termsVersion: CURRENT_TERMS_VERSION,
+            termsAcceptedAt: termsRecord?.acceptedAt ?? null,
         });
 
     } catch (error) {

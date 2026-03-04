@@ -13,6 +13,7 @@ import com.ayaan.dealora.data.repository.GmailSyncRepository
 import com.ayaan.dealora.data.repository.GmailSyncResult
 import com.ayaan.dealora.data.repository.LinkedEmailsResult
 import com.ayaan.dealora.data.repository.RemoveEmailResult
+import com.ayaan.dealora.data.repository.TermsRepository
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -55,7 +56,8 @@ class GmailSyncViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val gmailSyncRepository: GmailSyncRepository,
     private val connectEmailRepository: ConnectEmailRepository,
-    val moshi: Moshi
+    val moshi: Moshi,
+    private val termsRepository: TermsRepository
 ) : ViewModel() {
 
     companion object {
@@ -68,6 +70,14 @@ class GmailSyncViewModel @Inject constructor(
     /** List of emails the user has linked via the connect-email flow */
     private val _linkedEmails = MutableStateFlow<List<LinkedEmail>>(emptyList())
     val linkedEmails: StateFlow<List<LinkedEmail>> = _linkedEmails.asStateFlow()
+
+    /** Whether the current user has accepted the current Terms & Conditions version */
+    private val _termsAccepted = MutableStateFlow(false)
+    val termsAccepted: StateFlow<Boolean> = _termsAccepted.asStateFlow()
+
+    /** The terms version string returned by the server (e.g. "1.0") */
+    private val _termsVersion = MutableStateFlow("1.0")
+    val termsVersion: StateFlow<String> = _termsVersion.asStateFlow()
 
     /**
      * Per-email sync state map: each key is an email address, value is the
@@ -121,6 +131,7 @@ class GmailSyncViewModel @Inject constructor(
 
     /**
      * Fetches the list of linked Gmail accounts from the backend.
+     * Also updates [termsAccepted] from the response.
      */
     fun loadLinkedEmails() {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
@@ -129,13 +140,37 @@ class GmailSyncViewModel @Inject constructor(
             when (val result = connectEmailRepository.getLinkedEmails(userId)) {
                 is LinkedEmailsResult.Success -> {
                     _linkedEmails.value = result.emails
-                    Log.d(TAG, "Loaded ${result.emails.size} linked email(s)")
+                    _termsAccepted.value = result.termsAccepted
+                    result.termsVersion?.let { _termsVersion.value = it }
+                    Log.d(TAG, "Loaded ${result.emails.size} linked email(s), termsAccepted=${result.termsAccepted}")
                 }
                 is LinkedEmailsResult.Error -> {
                     Log.e(TAG, "Failed to load linked emails: ${result.message}")
                 }
             }
             _isLoadingEmails.value = false
+        }
+    }
+
+    /**
+     * Records terms acceptance for the current user.
+     * After success, reloads linked emails so [termsAccepted] flips to true.
+     */
+    fun acceptTerms(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        viewModelScope.launch {
+            val result = termsRepository.acceptTerms(userId, _termsVersion.value)
+            when (result) {
+                is com.ayaan.dealora.data.repository.TermsAcceptResult.Success -> {
+                    Log.d(TAG, "Terms accepted, reloading emails")
+                    loadLinkedEmails()
+                    onSuccess()
+                }
+                is com.ayaan.dealora.data.repository.TermsAcceptResult.Error -> {
+                    Log.e(TAG, "Failed to accept terms: ${result.message}")
+                    onError(result.message)
+                }
+            }
         }
     }
 

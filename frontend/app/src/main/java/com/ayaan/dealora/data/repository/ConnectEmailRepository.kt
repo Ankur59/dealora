@@ -8,7 +8,11 @@ import com.ayaan.dealora.data.api.models.RemoveEmailRequest
 import javax.inject.Inject
 
 sealed class LinkedEmailsResult {
-    data class Success(val emails: List<LinkedEmail>) : LinkedEmailsResult()
+    data class Success(
+        val emails: List<LinkedEmail>,
+        val termsAccepted: Boolean = false,
+        val termsVersion: String? = null
+    ) : LinkedEmailsResult()
     data class Error(val message: String) : LinkedEmailsResult()
 }
 
@@ -36,8 +40,12 @@ class ConnectEmailRepository @Inject constructor(
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.success == true) {
-                    Log.d(TAG, "Fetched ${body.count} linked email(s)")
-                    LinkedEmailsResult.Success(body.data)
+                    Log.d(TAG, "Fetched ${body.count} linked email(s), termsAccepted=${body.termsAccepted}")
+                    LinkedEmailsResult.Success(
+                        emails = body.data,
+                        termsAccepted = body.termsAccepted,
+                        termsVersion = body.termsVersion
+                    )
                 } else {
                     LinkedEmailsResult.Error("Failed to fetch linked emails")
                 }

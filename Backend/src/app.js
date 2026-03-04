@@ -17,6 +17,7 @@ const featureRoutes = require('./routes/featureRoutes');
 const exclusiveCouponRoutes = require('./routes/exclusiveCouponRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const connectEmailRoutes = require('./routes/connectEmailRoutes');
+const termsRoutes = require('./routes/termsRoutes');
 
 
 const app = express();
@@ -124,6 +125,7 @@ app.use('/api/features', featureRoutes);
 app.use('/api/exclusive-coupons', exclusiveCouponRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/connect-email', connectEmailRoutes);
+app.use('/api/terms', termsRoutes);
 
 app.get('/', (req, res) => {
     res.status(200).json({

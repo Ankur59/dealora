@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -37,6 +39,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -45,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -52,6 +57,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.GmailExtractedCoupon
@@ -100,6 +109,9 @@ fun GmailSyncScreen(
     val isRemovingEmail by viewModel.isRemovingEmail.collectAsState()
     val isLoadingEmails by viewModel.isLoadingEmails.collectAsState()
     val linkEmailState by linkEmailViewModel.state.collectAsState()
+    val termsAccepted by viewModel.termsAccepted.collectAsState()
+
+    var showTermsDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -198,8 +210,14 @@ fun GmailSyncScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    linkEmailViewModel.googleSignInClient.signOut().addOnCompleteListener {
-                        linkEmailLauncher.launch(linkEmailViewModel.googleSignInClient.signInIntent)
+                    if (!termsAccepted) {
+                        // Show T&C dialog — user must accept before linking
+                        showTermsDialog = true
+                    } else {
+                        // Terms already accepted — go straight to sign-in
+                        linkEmailViewModel.googleSignInClient.signOut().addOnCompleteListener {
+                            linkEmailLauncher.launch(linkEmailViewModel.googleSignInClient.signInIntent)
+                        }
                     }
                 },
                 shape = RoundedCornerShape(16.dp),
@@ -224,6 +242,31 @@ fun GmailSyncScreen(
         },
         containerColor = Color(0xFFF4F6FA)
     ) { paddingValues ->
+
+        // ── Terms & Conditions dialog (shown before first link) ───────────────
+        if (showTermsDialog) {
+            TermsAcceptanceDialog(
+                onDismiss = { showTermsDialog = false },
+                onAccept = {
+                    viewModel.acceptTerms(
+                        onSuccess = {
+                            showTermsDialog = false
+                            // terms now accepted — launch sign-in
+                            linkEmailViewModel.googleSignInClient.signOut().addOnCompleteListener {
+                                linkEmailLauncher.launch(linkEmailViewModel.googleSignInClient.signInIntent)
+                            }
+                        },
+                        onError = { msg ->
+                            android.widget.Toast.makeText(
+                                context,
+                                "❌ $msg",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    )
+                }
+            )
+        }
 
         when {
             isLoadingEmails -> {
@@ -874,5 +917,213 @@ private fun formatLastSynced(raw: String): String {
         }
     } catch (e: Exception) {
         raw
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Terms & Conditions Dialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+private val TERMS_TEXT = """
+Email Access — Consent Dialog
+Key Terms & Conditions
+Mandatory disclosures for in-app consent dialog | Based on Privacy Policy v.1.0 | 1 Feb 2026
+
+By tapping 'Allow Email Access', you grant Dealora read-only access to your Gmail account to find and save coupon codes on your behalf.
+
+1. What Dealora Will Access
+
+• Access type: Read Only — we can never send emails from your account
+• Emails read: Only promotional/marketing emails from brands and retailers
+• Permission used: Gmail read only (gmail.readonly) via OAuth 2.0
+• Data extracted: Coupon code, merchant name, discount value, expiry date only
+• Emails NOT read: Personal emails, banking OTPs, medical, government, or financial emails
+
+2. What We Do — and What We Never Do
+
+What We DO:
+• Scan promotional emails for coupon codes
+• Show discovered coupons on your Dealora dashboard
+• Send expiry alerts for high value coupons
+• Delete coupon data 7 days after expiry
+• Delete all your data within 30 days if you disconnect
+
+What We DON'T Do:
+• Read personal emails or conversations
+• Store your email password (we never see it)
+• Send any email from your account
+• Sell or share your data with advertisers
+• Access emails received before you opted in
+
+3. How Access Works (OAuth 2.0)
+
+Dealora uses Google's secure OAuth 2.0 login — you will be taken to Google's official login page. Dealora never sees or stores your Gmail password. Access is granted through a revocable token only.
+
+4. Your Rights — You Are Always in Control
+
+✓ Revoke access anytime: Settings > Email Parsing > Disconnect Gmail
+✓ Via Google: myaccount.google.com > Security > Third-party apps > Dealora > Remove Access
+✓ Request deletion of all extracted data: privacy@dealora.in
+✓ Disabling stops all scanning immediately; data deleted within 30 days
+✓ Alternative: Forward coupon emails manually to coupons@dealora.app (no OAuth needed)
+
+5. Data Retention — At a Glance
+
+• Active coupon data: Until expiry + 7 days, then auto deleted
+• Expired coupon data: Auto deleted 7 days after expiry date
+• Consent & activity logs: 3 years (regulatory compliance)
+• On access revocation: All coupon data deleted within 30 days
+• On account deletion: All data deleted within 30 days
+
+6. Security Commitments
+
+✓ All data in transit protected with TLS 1.3 encryption
+✓ All stored coupon data encrypted with AES 256
+✓ Your OAuth token stored in a hardware security module (HSM) — never logged
+✓ All data stored on AWS servers within India (ap-south-1)
+✓ Security breach notification within 72 hours if your data is ever affected
+
+7. Google API Compliance
+
+Dealora's use of Gmail data strictly follows the Google API Services User Data Policy (Limited Use). We use your Gmail data only to power the coupon discovery feature — for no other purpose.
+
+8. Age Restriction
+
+This feature is only available to users aged 18 and above. If we discover a minor has activated email parsing, access is immediately revoked and all data deleted.
+
+9. Governing Law
+
+This feature is governed by the Information Technology Act 2000 and the Digital Personal Data Protection Act 2023 (India). You have full rights to access, correct, export, and delete your data under the DPDP Act.
+
+10. Questions & Grievances
+
+• General queries: privacy@dealora.in
+• Data deletion requests: privacy@dealora.in with subject 'Data Deletion Request'
+• Grievance Officer: grievance@dealora.in
+• Response time: Acknowledgement within 24 hours, resolution within 30 days
+
+This is a summary for consent purposes. The full Privacy Policy and Terms of Use are available at dealora.in/legal
+""".trimIndent()
+
+@Composable
+fun TermsAcceptanceDialog(
+    onDismiss: () -> Unit,
+    onAccept: () -> Unit
+) {
+    var agreed by remember { mutableStateOf(false) }
+    var isAccepting by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                // Header
+                Text(
+                    text = "Gmail Sync",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DealoraPrimary
+                )
+                Text(
+                    text = "Terms & Conditions",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF555555)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Scrollable area: terms text + checkbox at the bottom
+                // User must scroll to reach the checkbox before they can accept
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(scrollState)
+                ) {
+                    Text(
+                        text = TERMS_TEXT,
+                        fontSize = 12.sp,
+                        lineHeight = 19.sp,
+                        color = Color(0xFF333333)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Checkbox — intentionally at bottom of scroll so user must read first
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { agreed = !agreed }
+                            .background(Color(0xFFF0F4FF), RoundedCornerShape(10.dp))
+                            .padding(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = agreed,
+                            onCheckedChange = { agreed = it },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = DealoraPrimary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "I have read and agree to the Terms & Conditions",
+                            fontSize = 13.sp,
+                            color = Color(0xFF333333)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel", color = Color(0xFF666666))
+                    }
+
+                    Button(
+                        onClick = {
+                            isAccepting = true
+                            onAccept()
+                        },
+                        enabled = agreed && !isAccepting,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DealoraPrimary,
+                            disabledContainerColor = Color(0xFFBBBBBB)
+                        )
+                    ) {
+                        if (isAccepting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Text("Continue", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

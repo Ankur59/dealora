@@ -20,7 +20,10 @@ data class LinkedEmail(
 data class LinkedEmailsResponse(
     @Json(name = "success") val success: Boolean,
     @Json(name = "count") val count: Int = 0,
-    @Json(name = "data") val data: List<LinkedEmail> = emptyList()
+    @Json(name = "data") val data: List<LinkedEmail> = emptyList(),
+    @Json(name = "termsAccepted") val termsAccepted: Boolean = false,
+    @Json(name = "termsVersion") val termsVersion: String? = null,
+    @Json(name = "termsAcceptedAt") val termsAcceptedAt: String? = null
 )
 
 /**

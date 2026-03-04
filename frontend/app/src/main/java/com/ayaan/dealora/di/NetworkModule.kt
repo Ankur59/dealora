@@ -6,8 +6,10 @@ import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.FeatureApiService
 import com.ayaan.dealora.data.api.ProfileApiService
+import com.ayaan.dealora.data.api.TermsApiService
 import com.ayaan.dealora.data.repository.ConnectEmailRepository
 import com.ayaan.dealora.data.repository.GmailSyncRepository
+import com.ayaan.dealora.data.repository.TermsRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -25,7 +27,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL ="http://10.255.128.108:3001/"
+    private const val BASE_URL ="https://dealora-5zcp.onrender.com/"
     // "https://dealora-5zcp.onrender.com/" 
     // "http://192.168.29.76:3001/"
     // IF backend on locahost 3001 use: http://10.0.2.2:3001/
@@ -120,6 +122,18 @@ object NetworkModule {
     @Singleton
     fun provideConnectEmailRepository(connectEmailApiService: ConnectEmailApiService): ConnectEmailRepository {
         return ConnectEmailRepository(connectEmailApiService)
+    }
+
+    @Provides
+    @Singleton
+    fun provideTermsApiService(retrofit: Retrofit): TermsApiService {
+        return retrofit.create(TermsApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideTermsRepository(termsApiService: TermsApiService): TermsRepository {
+        return TermsRepository(termsApiService)
     }
 }
 
