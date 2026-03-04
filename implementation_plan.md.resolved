@@ -1,0 +1,110 @@
+# Terms & Conditions Acceptance Gate for Gmail Linking
+
+Before a user can link their Gmail account, they must accept the Terms & Conditions **once**. The backend enforces this — [handleAllEmails](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/Backend/src/controllers/connectEmailController.js#124-157) returns a `termsAccepted` flag, and [handleConnect](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/Backend/src/controllers/connectEmailController.js#7-123) rejects the request if terms haven't been accepted. The Android UI shows a dialog gate if `termsAccepted = false`.
+
+## Proposed Changes
+
+---
+
+### Backend
+
+#### [NEW] `TermsAcceptance` model (`models/TermsAcceptance.js`)
+```js
+{
+  userId: ObjectId,        // ref to User._id (MongoDB ObjectId, NOT Firebase UID)
+  termsVersion: String,    // e.g. "1.0" — bump when T&C text changes
+  acceptedAt: Date,
+  updatedAt: Date          // auto via timestamps:true
+}
+```
+Indexed by `{ userId: 1, termsVersion: 1 }` (unique) so one document per user per version.
+
+#### [NEW] `controllers/termsController.js`
+- `POST /api/terms/accept` — `{ userId (Firebase UID), termsVersion }` — looks up `User._id` then upserts a `TermsAcceptance` record
+
+#### [NEW] `routes/termsRoutes.js`
+```js
+router.post("/accept", acceptTerms)
+```
+
+#### [MODIFY] [app.js](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/Backend/src/app.js)
+Add: `app.use('/api/terms', termsRoutes)`
+
+#### [MODIFY] [controllers/connectEmailController.js](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/Backend/src/controllers/connectEmailController.js)
+- [handleAllEmails](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/Backend/src/controllers/connectEmailController.js#124-157) — after fetching linked emails, also query `TermsAcceptance` for the user's `_id` and return `termsAccepted: true/false` + `termsVersion` in the response
+- [handleConnect](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/Backend/src/controllers/connectEmailController.js#7-123) — before linking, verify `TermsAcceptance` exists; if not, reject with `403` + `message: 'Terms not accepted'`
+
+---
+
+### Android — Data Layer
+
+#### [NEW] `data/api/TermsApiService.kt`
+Retrofit interface — single endpoint:
+```kotlin
+@POST("api/terms/accept")
+suspend fun acceptTerms(@Body request: TermsAcceptRequest): Response<TermsAcceptResponse>
+```
+
+#### [NEW] models in `data/api/models/TermsModels.kt`
+- `TermsAcceptRequest(userId: String, termsVersion: String)`
+- `TermsAcceptResponse(success: Boolean)`
+
+#### [MODIFY] `data/api/models/ConnectEmailModels.kt` (or wherever `LinkedEmailsResponse` lives)
+Add field: `termsAccepted: Boolean = false` to `LinkedEmailsResponse`
+
+#### [NEW] `data/repository/TermsRepository.kt`
+- `suspend fun acceptTerms(userId, version): Boolean`
+
+#### [MODIFY] Hilt DI module — inject `TermsApiService` and `TermsRepository`
+
+---
+
+### Android — ViewModel
+
+#### [MODIFY] [GmailSyncViewModel.kt](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/frontend/app/src/main/java/com/ayaan/dealora/ui/presentation/syncapps/viewmodels/GmailSyncViewModel.kt)
+Add `termsAccepted: StateFlow<Boolean>` derived from the [loadLinkedEmails()](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/frontend/app/src/main/java/com/ayaan/dealora/ui/presentation/syncapps/viewmodels/GmailSyncViewModel.kt#122-141) response.
+When [handleAllEmails](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/Backend/src/controllers/connectEmailController.js#124-157) response includes `termsAccepted = false`, set state so the screen knows to show the dialog.
+
+#### [MODIFY] [LinkEmailViewModel.kt](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/frontend/app/src/main/java/com/ayaan/dealora/ui/presentation/syncapps/viewmodels/LinkEmailViewModel.kt)
+Add `termsVersion = "1.0"` constant.
+Add `acceptTerms(userId)` function — calls `TermsRepository.acceptTerms()`. On success, the [GmailSyncViewModel](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/frontend/app/src/main/java/com/ayaan/dealora/ui/presentation/syncapps/viewmodels/GmailSyncViewModel.kt#53-266) will re-load emails (which re-checks terms), and flow resumes.
+
+---
+
+### Android — UI
+
+#### [MODIFY] [GmailSyncScreen.kt](file:///c:/Users/91700/OneDrive/Desktop/Bondub/dealora/frontend/app/src/main/java/com/ayaan/dealora/ui/presentation/syncapps/screens/GmailSyncScreen.kt)
+
+- Add `val termsAccepted by viewModel.termsAccepted.collectAsState()`
+- FAB `onClick`: if `!termsAccepted` → `showTermsDialog = true`, else launch sign-in as normal
+- After dialog acceptance, reload linked emails (which re-checks terms) then proceed
+
+#### [NEW ─ inline composable] `TermsAcceptanceDialog`
+```
+┌──────────────────────────────────┐
+│  Gmail Sync Terms & Conditions   │
+│  ─────────────────────────────── │
+│  [Scrollable T&C text box]       │
+│                                  │
+│  ☐  I have read and agree to     │
+│      the Terms & Conditions      │
+│                                  │
+│  [Cancel]        [Continue ▶]    │
+│                   (disabled until │
+│                    checkbox ✓)   │
+└──────────────────────────────────┘
+```
+- Checkbox drives `acceptEnabled` state
+- "Continue" calls `linkEmailViewModel.acceptTerms(uid)` → posts to backend → `viewModel.loadLinkedEmails()` → `termsAccepted` flips to `true` → dialog dismissed, FAB triggers sign-in
+
+---
+
+## Verification Plan
+
+### Manual
+1. First-time tap of "+" FAB → T&C dialog appears → Continue disabled → tick checkbox → Continue enabled → accept → sign-in proceeds normally
+2. Tap "+" again after accepting → **no dialog** — sign-in opens immediately
+3. Attempt to call `POST /api/connect-email/link-gmail` without prior terms acceptance → backend returns `403 Terms not accepted`
+
+### Terms version bump
+Increment `TERMS_VERSION` to `"1.1"` in the Kotlin constant — all existing users will be prompted again on next FAB tap.
