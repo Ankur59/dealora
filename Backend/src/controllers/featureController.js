@@ -222,7 +222,7 @@ exports.syncGmail = async (req, res) => {
         // DEVELOPER NOTE: To change the date range:
         // Change the number below (e.g., -2 to -10 for last 10 days, -30 for last 30 days)
         const daysAgo = new Date();
-        daysAgo.setDate(daysAgo.getDate() - 7); //Made it 2 from 7 because of api issue
+        daysAgo.setDate(daysAgo.getDate() - 15); //Made it 2 from 7 because of api issue
         const dateString = daysAgo.toISOString().split('T')[0].replace(/-/g, '/'); // Format: YYYY/MM/DD
 
         // Gmail API query: promotional emails from specified date range
@@ -315,7 +315,7 @@ exports.syncGmail = async (req, res) => {
                 // Call AI extraction with a 30-second timeout to prevent hanging
                 try {
                     const aiTimeout = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('AI extraction timed out after 30s')), 30000)
+                        setTimeout(() => reject(new Error('AI extraction timed out after 30s')), 100000)
                     );
                     console.log("this is selected email", selectedEmail)
                     // 
@@ -401,7 +401,7 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
         err.status = 400;
         throw err;
     }
-    
+
     // 2. Map to Schema
     const newCouponData = {
         userId: userId,
