@@ -322,7 +322,7 @@ fun RedeemedCoupons(
                                                 )
                                                 putExtra(
                                                     "EXTRA_MINIMUM_ORDER",
-                                                    coupon.minimumOrderValue?.takeIf { it.isNotEmpty() }
+                                                    coupon.minimumOrderValue?.toString()?.takeIf { it.isNotEmpty() }
                                                         ?: "No minimum")
                                                 putExtra(
                                                     "EXTRA_COUPON_LINK",

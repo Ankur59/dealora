@@ -289,7 +289,8 @@ fun CouponDetailsContent(
                     daysUntilExpiry = coupon.display?.daysUntilExpiry,
                     initial = coupon.display?.initial ?: coupon.brandName?.toString()?.firstOrNull()
                         ?.toString() ?: "?",
-                    isStackable = coupon.display?.isStackable ?: false
+                    isStackable = coupon.display?.isStackable ?: false,
+                    userType = coupon.userType?.toString()
                 )
             }
 
@@ -307,6 +308,27 @@ fun CouponDetailsContent(
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Minimum Order Chip
+            item {
+                val minOrderText = coupon.minimumOrder?.toString()?.trim()?.let { raw ->
+                    val num = raw.toDoubleOrNull()
+                    when {
+                        num == null || num <= 0.0 -> "No minimum spend"
+                        else -> "Min. spend \u20B9${num.toInt()}"
+                    }
+                } ?: "No minimum spend"
+
+                val isNoMin = minOrderText == "No minimum spend"
+                Chip(
+                    text = minOrderText,
+                    backgroundColor = if (isNoMin) Color(0xFFD1F5D3) else Color(0xFFFFE8C8)
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Coupon Code Card
@@ -517,7 +539,8 @@ fun BrandHeader(
     categoryLabel: String?,
     daysUntilExpiry: Int?,
     initial: String,
-    isStackable: Boolean = false
+    isStackable: Boolean = false,
+    userType: String? = null
 ) {
     val painter: Int = remember(brandName) {
         getBrandLogoResource(brandName.replace("\n", "").trim().lowercase())
@@ -577,6 +600,14 @@ fun BrandHeader(
                     Chip(text = expiryText, backgroundColor = Color(0xFFE8DCFF))
                     chipCount++
                 }
+
+                // User type chip
+                val userTypeLabel = when (userType?.lowercase()?.trim()) {
+                    "new" -> "New User"
+                    "existing" -> "Existing User"
+                    else -> "All Users"
+                }
+                Chip(text = userTypeLabel, backgroundColor = Color(0xFFE8DCFF))
 
                 if (isStackable) {
                     if (chipCount >= 2) {

@@ -109,7 +109,7 @@ fun CategoriesScreen(
                                 couponId = coupon.id,
                                 isRedeemed = privateCoupon?.status == "redeemed",
                                 couponLink = privateCoupon?.couponLink,
-                                minimumOrderValue = privateCoupon?.minimumOrderValue,
+                                minimumOrderValue = privateCoupon?.minimumOrderValue?.toString(),
                                 isSaved = isSaved,
                                 source = coupon.source ?: privateCoupon?.source,
                                 showActionButtons = !uiState.isPublicMode,
@@ -177,7 +177,7 @@ fun CategoriesScreen(
                                                 } ?: putExtra("EXTRA_EXPIRY_DATE", "Check app for expiry")
                                                 putExtra(
                                                     "EXTRA_MINIMUM_ORDER",
-                                                    privateCoupon.minimumOrderValue?.takeIf { it.isNotEmpty() }
+                                                    privateCoupon.minimumOrderValue?.toString()?.takeIf { it.isNotEmpty() }
                                                         ?: "No minimum"
                                                 )
                                                 putExtra(

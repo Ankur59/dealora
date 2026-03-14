@@ -71,6 +71,9 @@ data class CouponDetail(
     @Json(name = "addedMethod")
     val addedMethod: Any?=null,
 
+    @Json(name = "userType")
+    val userType: Any?=null,
+
     @Json(name = "base64ImageUrl")
     val base64ImageUrl: Any?=null,
 

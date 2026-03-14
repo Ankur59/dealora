@@ -124,8 +124,8 @@ data class PrivateCoupon(
     @Json(name = "redeemedAt")
     val redeemedAt: String? = null,
 
-    @Json(name = "minimumOrderValue")
-    val minimumOrderValue: String? = null,
+    @Json(name = "minimumOrder")
+    val minimumOrderValue: Any? = null,
 
     @Json(name = "couponLink")
     val couponLink: String? = null,
@@ -161,5 +161,8 @@ data class PrivateCoupon(
     val status: String? = null,
 
     @Json(name = "couponType")
-    val couponType: String = "private"
+    val couponType: String = "private",
+
+    @Json(name = "userType")
+    val userType: String? = null
 )

@@ -77,7 +77,7 @@ const ImportedSchema = new mongoose.Schema({
     },
     minimumOrder: {
         type: Number,
-        default: null,
+        default: 0,
         min: [0, 'Minimum order value cannot be negative'],
     },
     couponCode: {
@@ -133,6 +133,12 @@ const ImportedSchema = new mongoose.Schema({
         required: [true, "Fetched Method in required"],
         enum: ["system-cron", "manual"],
         default: "manual"
+    },
+    userType: {
+        type: String,
+        default: "both",
+        enum: ["new", "existing", "both"]
+
     },
     redeemedAt: {
         type: Date,
