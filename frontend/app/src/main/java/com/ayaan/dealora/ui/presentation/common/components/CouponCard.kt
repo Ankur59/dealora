@@ -77,7 +77,7 @@ fun CouponCard(
     couponId: String? = null,
     isRedeemed: Boolean = false,
     couponLink: String? = null,
-    minimumOrderValue: String? = null,
+    minimumOrderValue: Any? = null,
     discountType: String? = null,
     discountValue: String? = null,
     terms: String? = null,

@@ -78,7 +78,9 @@ exports.processScreenshot = async (req, res) => {
             description: extractedData.description,
             status: 'active',
 
-            addedMethod: 'manual' // Since scraped/ocr specific enum isn't there
+            addedMethod: 'manual', // Since scraped/ocr specific enum isn't there
+
+            userType: extractedData.user_type || "both"
         };
 
         // 4. Schema Validations logic (simple check)
@@ -421,8 +423,8 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
         source: 'email-parsing',
         // Need to add terms here
         status: 'active',
-        addedMethod: 'manual'
-
+        addedMethod: 'manual',
+        userType: extractedData.user_type || "both"
     };
 
     // 3. Validation & Duplicate Check
