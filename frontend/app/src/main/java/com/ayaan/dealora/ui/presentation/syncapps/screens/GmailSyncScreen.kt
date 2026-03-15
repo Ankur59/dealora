@@ -507,7 +507,7 @@ private fun EmailSyncCard(
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "This may take up to 30 seconds",
+                                text = "This may take up to 100 seconds",
                                 fontSize = 12.sp,
                                 color = Color(0xFFBBBBBB)
                             )

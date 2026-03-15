@@ -314,10 +314,10 @@ exports.syncGmail = async (req, res) => {
 
                 console.log(`🔍  PARSING: Sending to Gemini AI for coupon extraction...`);
 
-                // Call AI extraction with a 30-second timeout to prevent hanging
+                // Call AI extraction with a 100-second timeout to prevent hanging
                 try {
                     const aiTimeout = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('AI extraction timed out after 30s')), 100000)
+                        setTimeout(() => reject(new Error('AI extraction timed out after 100s')), 100000)
                     );
                     console.log("this is selected email", selectedEmail)
                     // 
