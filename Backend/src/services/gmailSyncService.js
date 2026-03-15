@@ -154,7 +154,8 @@ const syncIndividualEmail = async (userId, email, refreshToken) => {
                 source: 'email-parsing',
                 // Need to add terms here
                 status: 'active',
-                addedMethod: 'manual'
+                addedMethod: 'manual',
+                userType: extractedData.user_type || "both"
             };
 
             // Duplicate Check
