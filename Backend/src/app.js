@@ -90,8 +90,11 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-    req.setTimeout(30000);
-    res.setTimeout(30000);
+    // Default timeout: 120 s
+    // The Gmail coupon-sync route can take up to ~100 s, so we need
+    // the socket to stay open longer than that to avoid a 502.
+    req.setTimeout(120000);
+    res.setTimeout(120000);
     next();
 });
 
