@@ -122,6 +122,8 @@ class AiExtractionService {
                 {
                     "merchant": "Name of the brand/merchant (e.g., Swiggy, Amazon) this field is required and don't leave this empty",
 
+                    "description":"Generate a useful description about the coupon don't write anything other than description",
+
                     "coupon_title": "Main title of the offer (e.g., 20% OFF on Orders) this field is required don't keep this empty",
 
                     "coupon_code": "The extracted coupon code if visible (e.g., SWIGGY20). Null if none.",

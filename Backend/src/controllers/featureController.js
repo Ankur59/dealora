@@ -413,7 +413,7 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
         couponName: extractedData.coupon_title || 'Email Coupon',
         brandName: extractedData.merchant || 'Unknown',
         couponTitle: extractedData.coupon_title || extractedData.merchant || 'Email Coupon',
-        description: `From Email: ${sender}. ${extractedData.coupon_title}`,
+        description: extractedData.description || "No Description available",
         expireBy: extractedData.expiry_date ? new Date(extractedData.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         categoryLabel: extractedData.categoryLabel || 'Other',
         fetchedEmail: fetchedEmail,
