@@ -155,9 +155,9 @@ const syncIndividualEmail = async (userId, email, refreshToken) => {
                 // Need to add terms here
                 status: 'active',
                 addedMethod: 'manual',
-                userType: extractedData.user_type || "both"
-            };
-
+                userType: extractedData.user_type || "both",
+                websiteLink: extractedData.websitelink || ""
+            }
             // Duplicate Check
             if (newCouponData.couponCode) {
                 const existing = await ImportedCoupons.findOne({

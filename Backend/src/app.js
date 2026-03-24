@@ -90,11 +90,13 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-    // Default timeout: 120 s
-    // The Gmail coupon-sync route can take up to ~100 s, so we need
-    // the socket to stay open longer than that to avoid a 502.
-    req.setTimeout(120000);
-    res.setTimeout(120000);
+    // Default timeout: 180 s
+    // Gmail coupon-sync processes up to 20 emails sequentially through Gemini AI.
+    // Each email takes ~5-8 s on average → worst-case ~160 s.
+    // Per-email AI hard limit is 20 s, so absolute worst-case is 20 × 20 s = 400 s,
+    // but the 180 s socket window covers the vast majority of real scans comfortably.
+    req.setTimeout(300000);
+    res.setTimeout(300000);
     next();
 });
 

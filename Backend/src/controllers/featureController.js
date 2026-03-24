@@ -80,7 +80,8 @@ exports.processScreenshot = async (req, res) => {
 
             addedMethod: 'manual', // Since scraped/ocr specific enum isn't there
 
-            userType: extractedData.user_type || "both"
+            userType: extractedData.user_type || "both",
+            websiteLink: extractedData.websitelink || ""
         };
 
         // 4. Schema Validations logic (simple check)
@@ -314,10 +315,12 @@ exports.syncGmail = async (req, res) => {
 
                 console.log(`🔍  PARSING: Sending to Gemini AI for coupon extraction...`);
 
-                // Call AI extraction with a 100-second timeout to prevent hanging
+                // Call AI extraction with a 20-second timeout per email.
+                // 20 emails × 20 s = 400 s absolute worst-case, well under the
+                // global 180 s server timeout for typical workloads.
                 try {
                     const aiTimeout = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('AI extraction timed out after 100s')), 100000)
+                        setTimeout(() => reject(new Error('AI extraction timed out after 120s')), 120000)
                     );
                     console.log("this is selected email", selectedEmail)
                     // 
@@ -424,7 +427,8 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
         // Need to add terms here
         status: 'active',
         addedMethod: 'manual',
-        userType: extractedData.user_type || "both"
+        userType: extractedData.user_type || "both",
+        websiteLink: extractedData.websitelink || ""
     };
 
     // 3. Validation & Duplicate Check

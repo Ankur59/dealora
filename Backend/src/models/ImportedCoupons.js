@@ -47,6 +47,9 @@ const ImportedSchema = new mongoose.Schema({
             message: 'Category must be one of: Food, Fashion, Grocery, Wallet Rewards, Beauty, Travel, Entertainment, Other',
         },
     },
+    websiteLink: {
+        type: String
+    },
     fetchedEmail: {
         type: String,
         required: function () {

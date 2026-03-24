@@ -202,10 +202,11 @@ exports.syncCoupons = async (req, res) => {
                 return {
                     ...coupon,
                     couponTitle,
-                    daysUntilExpiry: daysDiff
+                    daysUntilExpiry: daysDiff,
+                    couponLink: coupon.websiteLink || null
                 };
             }
-            return { ...coupon, couponTitle };
+            return { ...coupon, couponTitle, couponLink: coupon.websiteLink || null };
         });
 
         return successResponse(res, STATUS_CODES.OK, 'Private coupons synced successfully', {

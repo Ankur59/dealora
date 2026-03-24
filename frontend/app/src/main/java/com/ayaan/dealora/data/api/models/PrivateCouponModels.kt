@@ -128,7 +128,10 @@ data class PrivateCoupon(
     val minimumOrderValue: Any? = null,
 
     @Json(name = "couponLink")
-    val couponLink: String? = null,
+    val couponLink: String? = null,      // brand homepage (websiteLink from DB)
+
+    @Json(name = "couponVisitingLink")
+    val couponVisitingLink: String? = null,  // coupon-specific redemption URL
 
     @Json(name = "createdAt")
     val createdAt: String? = null,
