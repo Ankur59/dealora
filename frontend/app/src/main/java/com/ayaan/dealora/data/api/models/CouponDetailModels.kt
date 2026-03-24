@@ -57,7 +57,10 @@ data class CouponDetail(
     val couponCode: Any?=null,
 
     @Json(name = "couponVisitingLink")
-    val couponVisitingLink: Any?=null,
+    val couponVisitingLink: Any?=null,       // coupon-specific redemption URL
+
+    @Json(name = "websiteLink")
+    val websiteLink: Any?=null,              // brand's homepage (for Discover button)
 
     @Json(name = "couponDetails")
     val couponDetails: Any?=null,

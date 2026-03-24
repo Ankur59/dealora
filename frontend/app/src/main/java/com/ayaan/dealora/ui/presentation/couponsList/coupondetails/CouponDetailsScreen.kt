@@ -204,69 +204,34 @@ fun CouponDetailsContent(
         // Only show bottom action buttons when in private mode and not an exclusive coupon
         if (isPrivateMode && coupon.addedMethod != "exclusive") {
 
-            BottomActionButtons(couponLink = coupon.couponVisitingLink?.toString(), onRedeemed = {
+            BottomActionButtons(couponLink = coupon.websiteLink?.toString(), onRedeemed = {
                 // Show confirmation dialog
                 showRedeemDialog = true
             }, onDiscoverClick = {
-                try {
-                    val intent = Intent().apply {
-                        action = "com.ayaan.couponviewer.SHOW_COUPON"
+                val websiteUrl = coupon.websiteLink?.toString()?.trim()
+                    ?.takeIf { it.isNotEmpty() }
 
-                        // Add coupon data as extras
-                        putExtra("EXTRA_COUPON_CODE", coupon.couponCode.toString())
-                        putExtra(
-                            "EXTRA_COUPON_TITLE",
-                            coupon.couponTitle?.toString() ?: "Special Offer"
-                        )
-                        putExtra("EXTRA_DESCRIPTION", coupon.description?.toString())
-                        putExtra(
-                            "EXTRA_BRAND_NAME",
-                            coupon.brandName?.toString() ?: "Brand"
-                        )
-                        putExtra("EXTRA_CATEGORY", coupon.categoryLabel?.toString())
-                        putExtra(
-                            "EXTRA_EXPIRY_DATE",
-                            coupon.display?.daysUntilExpiry?.toString()
-                        )
-                        putExtra("EXTRA_MINIMUM_ORDER", coupon.minimumOrder?.toString())
-                        putExtra("EXTRA_DISCOUNT_VALUE", coupon.discountValue?.toString())
-                        putExtra("EXTRA_DISCOUNT_TYPE", coupon.discountType?.toString())
-                        putExtra("EXTRA_TERMS", coupon.terms?.toString())
-                        putExtra("EXTRA_COUPON_LINK", coupon.couponVisitingLink?.toString())
-                        putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
-
-                        setPackage("com.ayaan.couponviewer")
-                        addCategory(Intent.CATEGORY_DEFAULT)
-                    }
-
-                    Log.d(
-                        "CouponDetailsScreen",
-                        "Launching CouponViewer with intent: $intent"
-                    )
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    Log.e(
-                        "CouponDetailsScreen",
-                        "Failed to open CouponViewer app: ${e.message}",
-                        e
-                    )
-
-                    // Fallback to Play Store
+                if (websiteUrl != null) {
                     try {
-                        val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                            data =
-                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                            setPackage("com.android.vending")
+                        // Android App Links: fire a plain https:// ACTION_VIEW intent.
+                        // If the brand app (e.g. Zomato, Swiggy) is installed and has
+                        // claimed this domain via App Links, Android routes straight to it.
+                        // Otherwise the system browser opens the URL as a fallback.
+                        val uri = Uri.parse(
+                            if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
+                                websiteUrl
+                            else
+                                "https://$websiteUrl"
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
-                        context.startActivity(playStoreIntent)
-                    } catch (e2: Exception) {
-                        // Last resort - open in browser
-                        val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                            data =
-                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                        }
-                        context.startActivity(browserIntent)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e("CouponDetailsScreen", "Could not open brand link: ${e.message}", e)
                     }
+                } else {
+                    Log.w("CouponDetailsScreen", "No website link available for this coupon")
                 }
             })
         }

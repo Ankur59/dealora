@@ -27,7 +27,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL ="https://dealora-5zcp.onrender.com/"
+    private const val BASE_URL ="http://10.0.2.2:3001/"
     // "https://dealora-5zcp.onrender.com/" 
     // "http://192.168.29.76:3001/"
     // IF backend on locahost 3001 use: http://10.0.2.2:3001/
@@ -58,9 +58,9 @@ object NetworkModule {
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(100, TimeUnit.SECONDS)
-            .readTimeout(100, TimeUnit.SECONDS)
-            .writeTimeout(100, TimeUnit.SECONDS)
+            .connectTimeout(300, TimeUnit.SECONDS)
+            .readTimeout(300, TimeUnit.SECONDS)
+            .writeTimeout(300, TimeUnit.SECONDS)
             .build()
     }
 

@@ -296,7 +296,8 @@ class CouponDetailsViewModel @Inject constructor(
             discountValue = privateCoupon.discountValue,
             minimumOrder = privateCoupon.minimumOrderValue,
             couponCode = privateCoupon.couponCode,
-            couponVisitingLink = privateCoupon.couponLink,
+            couponVisitingLink = privateCoupon.couponVisitingLink,  // coupon-specific URL
+            websiteLink = privateCoupon.couponLink,                 // brand homepage (for Discover)
             couponDetails = privateCoupon.couponDetails ?: (privateCoupon.description ?: "Visit the brand website to redeem this coupon."),
             terms = privateCoupon.terms ?: "• Check brand website for complete terms\n• Subject to availability\n• Cannot be combined with other offers",
             status = "active",

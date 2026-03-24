@@ -51,7 +51,9 @@ class AiExtractionService {
 
                     "confidence_score": "A number between 0.1 and 1.0 indicating confidence in extraction"
 
-                    "user_type":"for what type of user this coupon is valid for values can be in enum ["new","existing","both"] if nothing is mentioned in coupons give both by default"
+                    "user_type":"for what type of user this coupon is valid for values can be in enum ["new","existing","both"] if nothing is mentioned in coupons give both by default",
+
+                    "websitelink":"Give link for that website without any routes like the home page so user can visit the page (required)"
                 }
 
                 Return ONLY the JSON object. Do not include markdown formatting or explanations.
@@ -146,7 +148,9 @@ class AiExtractionService {
 
                     "confidence_score": "Number between 0.0 and 1.0"
 
-                    "user_type":"for what type of user this coupon is valid for values can be in enum ["new","existing","both"] if nothing is mentioned in coupons give both by default"
+                    "user_type":"for what type of user this coupon is valid for values can be in enum ["new","existing","both"] if nothing is mentioned in coupons give both by default",
+
+                    "websitelink":"Give link for that website without any routes like the home page so user can visit the page (required)"
                 }
                 give confidence_score less than 0.7 if coupon is seems to be invalid so i can reject it
                 Return ONLY the JSON object. No markdown.
