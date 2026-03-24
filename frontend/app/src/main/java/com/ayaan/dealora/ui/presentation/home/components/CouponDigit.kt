@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @Composable
-fun CouponDigit(digit: String) {
+fun CouponDigit(digit: String, fontSize: Int = 26) {
     Box(
         modifier = Modifier
             .aspectRatio(1f)
@@ -38,14 +38,14 @@ fun CouponDigit(digit: String) {
     ) {
         Text(
             text = digit,
-            fontSize = 26.sp,
+            fontSize = fontSize.sp,
             fontWeight = FontWeight.Bold,
             color = DealoraWhite
         )
     }
 }
 @Composable
-fun CouponDigitSaving(couponDigit: String){
+fun CouponDigitSaving(couponDigit: String, fontSize: Int = 26){
     Box(
         modifier = Modifier
             .size(40.dp)
@@ -62,7 +62,7 @@ fun CouponDigitSaving(couponDigit: String){
     ) {
         Text(
             text = couponDigit,
-            fontSize = 26.sp,
+            fontSize = fontSize.sp,
             fontWeight = FontWeight.Bold,
             color = DealoraWhite
         )

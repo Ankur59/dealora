@@ -24,6 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +50,7 @@ import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material3.Icon
 import com.ayaan.dealora.ui.theme.DealoraGray
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import android.util.Log
 import androidx.compose.ui.Alignment
@@ -65,19 +69,31 @@ fun AddCoupons(
     val couponImageBase64 by viewModel.couponImageBase64.collectAsState()
     val couponImageBitmap: ImageBitmap = Base64ImageUtils.decodeBase64ToImageBitmap(couponImageBase64)
     
+    // Track if this screen is still active in composition
+    var isScreenActive by remember { mutableStateOf(true) }
+    DisposableEffect(Unit) {
+        onDispose { isScreenActive = false }
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: android.net.Uri? ->
         uri?.let {
             val base64 = Base64ImageUtils.encodeUriToBase64(context, it)
             base64?.let { b64 ->
+                // Notify user they can freely navigate away
+                Toast.makeText(context, "Scanning coupon... you can browse away!", Toast.LENGTH_SHORT).show()
                 viewModel.processOcr(
                     imageBase64 = b64,
                     onSuccess = {
-                        Toast.makeText(context, "OCR processed successfully!", Toast.LENGTH_SHORT).show()
+                        // If user navigated away, modal won't show — use a toast instead
+                        if (!isScreenActive) {
+                            Toast.makeText(context, "✅ Coupon scanned & saved!", Toast.LENGTH_LONG).show()
+                        }
+                        // If still on screen, the modal is shown via uiState.createdCoupon (existing flow)
                     },
                     onError = { error ->
-                        Toast.makeText(context, "OCR failed: $error", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Scan failed: $error", Toast.LENGTH_LONG).show()
                     }
                 )
             }

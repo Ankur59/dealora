@@ -54,6 +54,12 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsState()
 
+    // Track if this screen is still active in composition
+    var isScreenActive by remember { mutableStateOf(true) }
+    DisposableEffect(Unit) {
+        onDispose { isScreenActive = false }
+    }
+
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -81,13 +87,19 @@ fun CameraScreen(
         uri?.let {
             val base64 = Base64ImageUtils.encodeUriToBase64(context, it)
             base64?.let { b64 ->
+                // Notify user they can freely navigate away
+                Toast.makeText(context, "Scanning coupon... you can browse away!", Toast.LENGTH_SHORT).show()
                 viewModel.processOcr(
                     imageBase64 = b64,
                     onSuccess = {
-                        Toast.makeText(context, "Coupon added successfully!", Toast.LENGTH_SHORT).show()
+                        // If user navigated away, modal won't show — use a toast instead
+                        if (!isScreenActive) {
+                            Toast.makeText(context, "✅ Coupon scanned & saved!", Toast.LENGTH_LONG).show()
+                        }
+                        // If still on screen, the modal is shown via uiState.createdCoupon (existing flow)
                     },
                     onError = { error ->
-                        Toast.makeText(context, "Failed: $error", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Scan failed: $error", Toast.LENGTH_LONG).show()
                     }
                 )
             }
@@ -112,13 +124,19 @@ fun CameraScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             CameraPreview(
                 onCapture = { base64 ->
+                    // Notify user they can freely navigate away
+                    Toast.makeText(context, "Scanning coupon... you can browse away!", Toast.LENGTH_SHORT).show()
                     viewModel.processOcr(
                         imageBase64 = base64,
                         onSuccess = {
-                            Toast.makeText(context, "Coupon added successfully!", Toast.LENGTH_SHORT).show()
+                            // If user navigated away, modal won't show — use a toast instead
+                            if (!isScreenActive) {
+                                Toast.makeText(context, "✅ Coupon scanned & saved!", Toast.LENGTH_LONG).show()
+                            }
+                            // If still on screen, the modal is shown via uiState.createdCoupon (existing flow)
                         },
                         onError = { error ->
-                            Toast.makeText(context, "Failed: $error", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Scan failed: $error", Toast.LENGTH_LONG).show()
                         }
                     )
                 }
