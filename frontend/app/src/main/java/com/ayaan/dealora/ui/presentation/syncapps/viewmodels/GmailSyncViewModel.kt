@@ -227,6 +227,8 @@ class GmailSyncViewModel @Inject constructor(
                 discountType = coupon.discountType,
                 discountValue = coupon.discountValue,
                 expiryDate   = coupon.expireBy,
+                couponLink   = coupon.websiteLink,
+                couponVisitingLink = coupon.couponVisitingLink,
                 couponType   = "gmail"
             )
             moshi.adapter(PrivateCoupon::class.java).toJson(privateCoupon)

@@ -46,7 +46,13 @@ data class GmailExtractedCoupon(
     val expireBy: String? = null,
 
     @Json(name = "description")
-    val description: String? = null
+    val description: String? = null,
+
+    @Json(name = "websiteLink")
+    val websiteLink: String? = null,
+
+    @Json(name = "couponVisitingLink")
+    val couponVisitingLink: String? = null
 )
 
 /**

@@ -571,8 +571,7 @@ private fun EmailSyncCard(
                             Spacer(modifier = Modifier.height(10.dp))
                             // Scrollable coupon list inside card (constrained height)
                             Column(
-                                modifier = Modifier
-                                    .heightIn(max = 280.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 cardState.coupons.forEach { coupon ->
