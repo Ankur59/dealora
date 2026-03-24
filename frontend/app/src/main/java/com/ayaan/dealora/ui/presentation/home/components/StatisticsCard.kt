@@ -89,17 +89,28 @@ fun StatisticsCard(
                 }
 
                 // DIGIT BOXES — Fixed size boxes
-                val couponStr = activeCouponsCount
-                    .toString()
-                    .padStart(2, '0')
+                val isMoreThan999 = activeCouponsCount > 999
+                val couponStr = if (isMoreThan999) "999+" else activeCouponsCount.toString().padStart(2, '0')
+                val couponFontSize = if (isMoreThan999) 20 else 26
 
                 Row(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     couponStr.forEachIndexed { index, char ->
-                        CouponDigitSaving(char.toString())
-                        if (index < couponStr.length - 1) {
+                        if (char == '+') {
+                            Text(
+                                text = "+",
+                                fontSize = couponFontSize.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DealoraWhite,
+                                modifier = Modifier.padding(start = 2.dp)
+                            )
+                        } else {
+                            CouponDigitSaving(char.toString(), fontSize = couponFontSize)
+                        }
+                        
+                        if (index < couponStr.length - 1 && char != '+') {
                             Spacer(modifier = Modifier.width(6.dp))
                         }
                     }
@@ -154,9 +165,9 @@ fun StatisticsCard(
                 }
 
                 // SAVINGS AMOUNT — ₹ symbol + digit boxes
-                val savingsStr = totalSavings
-                    .toString()
-                    .padStart(3, '0')
+                val isMoreThan9999 = totalSavings > 9999
+                val savingsStr = if (isMoreThan9999) "9999+" else totalSavings.toString().padStart(3, '0')
+                val savingsFontSize = if (isMoreThan9999) 18 else 22
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -166,7 +177,7 @@ fun StatisticsCard(
                     // Symbol — Fixed size
                     Text(
                         text = "₹",
-                        fontSize = 22.sp, // Fixed font size
+                        fontSize = if (isMoreThan9999) 18.sp else 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = DealoraWhite
                     )
@@ -175,15 +186,26 @@ fun StatisticsCard(
 
                     // Digit boxes
                     savingsStr.forEachIndexed { index, char ->
-                        if (savingsStr.length >= 3) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                CouponDigit(char.toString())
-                            }
+                        if (char == '+') {
+                            Text(
+                                text = "+",
+                                fontSize = savingsFontSize.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DealoraWhite,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
                         } else {
-                            CouponDigitSaving(char.toString())
+                            if (savingsStr.length >= 3) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    CouponDigit(char.toString(), fontSize = savingsFontSize)
+                                }
+                            } else {
+                                CouponDigitSaving(char.toString(), fontSize = savingsFontSize)
+                            }
                         }
-                        if (index < savingsStr.length - 1) {
-                            Spacer(modifier = Modifier.width(6.dp)) // Fixed spacing between boxes
+
+                        if (index < savingsStr.length - 1 && char != '+') {
+                            Spacer(modifier = Modifier.width(if (isMoreThan9999) 4.dp else 6.dp)) // Fixed spacing between boxes
                         }
                     }
                 }

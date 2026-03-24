@@ -322,13 +322,18 @@ class CouponsListViewModel @Inject constructor(
 
                 Log.d(TAG, "All synced brands: ${allSyncedBrands.joinToString()}")
 
-                // If no synced apps, don't make API call
+                /* 
+                   MODIFICATION: Commented out early return to allow fetching all private coupons 
+                   from the backend even when no local brands are synced. 
+                */
+                /*
                 if (allSyncedBrands.isEmpty()) {
                     Log.d(TAG, "No synced apps found, skipping private coupons sync")
                     _privateCoupons.value = emptyList()
                     _isLoadingPrivateCoupons.value = false
                     return@launch
                 }
+                */
 
                 // Determine which brands to send to API
                 val filters = _currentFilters.value
@@ -373,7 +378,8 @@ class CouponsListViewModel @Inject constructor(
                     validity = validityApi,
                     sortBy = sortByApi,
                     page = null,
-                    limit = null
+                    limit = null,
+                    status = "active"
                 )) {
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Private coupons loaded: ${result.coupons.size} coupons")

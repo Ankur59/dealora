@@ -327,7 +327,7 @@ exports.getStatistics = async (req, res) => {
         // Get active coupons (redeemable = true) to calculate count and potential savings
         const activeCouponsQuery = { ...query, redeemable: true };
         const activeCoupons = await PrivateCoupon.find(activeCouponsQuery, { couponTitle: 1, description: 1 }).lean();
-        const activeCouponsCount = activeCoupons.length;
+        let activeCouponsCount = activeCoupons.length;
 
         // Calculate total savings
         let totalSavings = 0;
@@ -358,10 +358,26 @@ exports.getStatistics = async (req, res) => {
             });
         }
 
-        // Cap total savings at 999 if it exceeds
-        if (totalSavings > 999) {
-            totalSavings = 999;
-        }
+
+        const importedCoupon = await ImportedCoupons.find({ status: "active" }).lean()
+
+        activeCouponsCount += importedCoupon.length
+        
+
+        let importedCouponSavings = 0
+
+        importedCoupon.forEach((coupon) => {
+            if (coupon.discountType === "flat") {
+                importedCouponSavings += coupon.discountValue
+            }
+            else if (coupon.discountType === "percentage" && parseInt(coupon.minimumOrder) > 0) {
+                importedCouponSavings += Math.round(((coupon.discountValue) / 100) * coupon.minimumOrder)
+            }
+        })
+
+
+        // Combine savings
+        totalSavings += importedCouponSavings
 
         logger.info(`Statistics fetched: ${activeCouponsCount} active coupons, ₹${totalSavings} total savings`);
 

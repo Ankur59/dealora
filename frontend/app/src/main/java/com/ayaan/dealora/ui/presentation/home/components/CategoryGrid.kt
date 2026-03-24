@@ -92,7 +92,7 @@ fun CategoryItemSeeAll(navController: NavController) {
         modifier = Modifier
             .width(80.dp)
             .clickable {
-                navController.navigate(Route.Categories.path)
+                navController.navigate(Route.Dashboard.createRoute())
             }
     ) {
         Box(
