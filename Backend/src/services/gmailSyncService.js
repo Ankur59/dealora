@@ -5,6 +5,7 @@ const aiExtractionService = require('../services/aiExtractionService');
 const logger = require('../utils/logger');
 const ImportedCoupons = require('../models/ImportedCoupons');
 
+
 /**
  * Run daily sync for all users with linked Gmail accounts
  */
@@ -156,7 +157,12 @@ const syncIndividualEmail = async (userId, email, refreshToken) => {
                 status: 'active',
                 addedMethod: 'manual',
                 userType: extractedData.user_type || "both",
-                websiteLink: extractedData.websitelink || ""
+                websiteLink: extractedData.websitelink || "",
+                // expiresIn: computeExpiresIn(
+                //     extractedData.expiry_date
+                //         ? new Date(extractedData.expiry_date)
+                //         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                // ),
             }
             // Duplicate Check
             if (newCouponData.couponCode) {

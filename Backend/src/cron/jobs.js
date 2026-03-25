@@ -179,6 +179,46 @@ const initCronJobs = () => {
     //     }
     // });
 
+    // 8. Update expiresIn for all ImportedCoupons daily at midnight
+    cron.schedule('0 0 * * *', async () => {
+        logger.info('CRON: Starting daily expiresIn update for ImportedCoupons...');
+        try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Fetch all coupons that have an expiry date
+            const coupons = await ImportedCoupons.find(
+                { expireBy: { $ne: null } },
+                { _id: 1, expireBy: 1 }
+            ).lean();
+
+            if (!coupons.length) {
+                logger.info('CRON: No ImportedCoupons with expiry dates found.');
+                return;
+            }
+
+            // Build bulk update operations
+            const bulkOps = coupons.map(coupon => {
+                const expireDate = new Date(coupon.expireBy);
+                expireDate.setHours(0, 0, 0, 0);
+                const diffTime = expireDate.getTime() - today.getTime();
+                const expiresIn = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                return {
+                    updateOne: {
+                        filter: { _id: coupon._id },
+                        update: { $set: { expiresIn } }
+                    }
+                };
+            });
+
+            const result = await ImportedCoupons.bulkWrite(bulkOps);
+            logger.info(`CRON: expiresIn update complete. Modified ${result.modifiedCount} out of ${coupons.length} coupons.`);
+        } catch (error) {
+            logger.error('CRON: expiresIn update job failed:', error);
+        }
+    });
+
     logger.info('Cron jobs initialized successfully');
 }
 
