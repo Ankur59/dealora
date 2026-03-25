@@ -114,11 +114,15 @@ fun CategoriesScreen(
                                 source = coupon.source ?: privateCoupon?.source,
                                 showActionButtons = !uiState.isPublicMode,
                                 onDetailsClick = {
+                                    val couponJson = privateCoupon?.let { 
+                                        viewModel.moshi.adapter(com.ayaan.dealora.data.api.models.PrivateCoupon::class.java).toJson(it)
+                                    }
                                     navController.navigate(
                                         Route.CouponDetails.createRoute(
                                             couponId = coupon.id,
                                             isPrivate = !uiState.isPublicMode,
-                                            couponCode = privateCoupon?.couponCode ?: "WELCOME100"
+                                            couponCode = privateCoupon?.couponCode ?: "WELCOME100",
+                                            couponData = couponJson?.let { Uri.encode(it) }
                                         )
                                     )
                                 },
