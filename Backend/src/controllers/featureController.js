@@ -430,11 +430,7 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
         addedMethod: 'manual',
         userType: extractedData.user_type || "both",
         websiteLink: extractedData.websitelink || "",
-        // expiresIn: computeExpiresIn(
-        //     extractedData.expiry_date
-        //         ? new Date(extractedData.expiry_date)
-        //         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        // ),
+       
     };
 
     // 3. Validation & Duplicate Check
