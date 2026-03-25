@@ -199,18 +199,53 @@ fun CouponsList(
                                                 })
                                         },
                                         onDetailsClick = {
+                                            val couponJson = viewModel.moshi.adapter(com.ayaan.dealora.data.api.models.PrivateCoupon::class.java).toJson(privateCoupon)
                                             navController.navigate(
                                                 Route.CouponDetails.createRoute(
                                                     couponId = privateCoupon.id,
                                                     isPrivate = true,
                                                     couponCode = privateCoupon.couponCode
-                                                        ?: "WELCOME100"
+                                                        ?: "WELCOME100",
+                                                    couponData = Uri.encode(couponJson)
                                                 )
                                             )
                                         },
                                         onDiscoverClick = {
-                                            // ...existing discover click code...
-                                        })
+                                            try {
+                                                val intent = Intent().apply {
+                                                    action = "com.ayaan.couponviewer.SHOW_COUPON"
+                                                    putExtra("EXTRA_COUPON_CODE", privateCoupon.couponCode?.takeIf { it.isNotEmpty() } ?: "NO CODE")
+                                                    putExtra("EXTRA_COUPON_TITLE", privateCoupon.couponTitle?.takeIf { it.isNotEmpty() } ?: "Special Offer")
+                                                    putExtra("EXTRA_DESCRIPTION", privateCoupon.description?.takeIf { it.isNotEmpty() } ?: "Check app for details")
+                                                    putExtra("EXTRA_BRAND_NAME", privateCoupon.brandName?.takeIf { it.isNotEmpty() } ?: "Dealora")
+                                                    putExtra("EXTRA_CATEGORY", privateCoupon.category?.takeIf { it.isNotEmpty() } ?: "General")
+                                                    privateCoupon.daysUntilExpiry?.let {
+                                                        putExtra("EXTRA_EXPIRY_DATE", "$it days")
+                                                    } ?: putExtra("EXTRA_EXPIRY_DATE", "Check app for expiry")
+                                                    putExtra("EXTRA_MINIMUM_ORDER", privateCoupon.minimumOrderValue?.toString()?.takeIf { it.isNotEmpty() } ?: "No minimum")
+                                                    putExtra("EXTRA_COUPON_LINK", privateCoupon.couponLink?.takeIf { it.isNotEmpty() } ?: "")
+                                                    putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
+                                                    setPackage("com.ayaan.couponviewer")
+                                                    addCategory(Intent.CATEGORY_DEFAULT)
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Log.e("CouponsList", "Failed to open CouponViewer: ${e.message}")
+                                                try {
+                                                    val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                        data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                        setPackage("com.android.vending")
+                                                    }
+                                                    context.startActivity(playStoreIntent)
+                                                } catch (e2: Exception) {
+                                                    val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                        data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                    }
+                                                    context.startActivity(browserIntent)
+                                                }
+                                            }
+                                        }
+                                    )
 
                                     // Success Dialog for this card
                                     if (showSuccessDialog) {
@@ -356,15 +391,37 @@ fun CouponsList(
                                         },
 
                                         onDiscoverClick = {
-                                            // Open coupon link in browser if available
-                                            if (!coupon.couponLink.isNullOrBlank()) {
+                                            try {
+                                                val intent = Intent().apply {
+                                                    action = "com.ayaan.couponviewer.SHOW_COUPON"
+                                                    putExtra("EXTRA_COUPON_CODE", coupon.couponCode?.takeIf { it.isNotEmpty() } ?: "NO CODE")
+                                                    putExtra("EXTRA_COUPON_TITLE", coupon.couponName?.takeIf { it.isNotEmpty() } ?: "Special Offer")
+                                                    putExtra("EXTRA_DESCRIPTION", coupon.description?.takeIf { it.isNotEmpty() } ?: "Check app for details")
+                                                    putExtra("EXTRA_BRAND_NAME", coupon.brandName?.takeIf { it.isNotEmpty() } ?: "Dealora")
+                                                    putExtra("EXTRA_CATEGORY", coupon.category?.takeIf { it.isNotEmpty() } ?: "General")
+                                                    coupon.daysUntilExpiry?.let {
+                                                        putExtra("EXTRA_EXPIRY_DATE", "$it days")
+                                                    } ?: putExtra("EXTRA_EXPIRY_DATE", "Check app for expiry")
+                                                    putExtra("EXTRA_MINIMUM_ORDER", "No minimum")
+                                                    putExtra("EXTRA_COUPON_LINK", coupon.couponLink?.takeIf { it.isNotEmpty() } ?: "")
+                                                    putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
+                                                    setPackage("com.ayaan.couponviewer")
+                                                    addCategory(Intent.CATEGORY_DEFAULT)
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Log.e("CouponsList", "Failed to open CouponViewer: ${e.message}")
                                                 try {
-                                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                        data = coupon.couponLink.toUri()
+                                                    val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                        data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                        setPackage("com.android.vending")
                                                     }
-                                                    context.startActivity(intent)
-                                                } catch (e: Exception) {
-                                                    Log.e("CouponsList", "Failed to open link: ${e.message}")
+                                                    context.startActivity(playStoreIntent)
+                                                } catch (e2: Exception) {
+                                                    val browserIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                        data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
+                                                    }
+                                                    context.startActivity(browserIntent)
                                                 }
                                             }
                                         }
