@@ -7,6 +7,7 @@ const geminiService = require('../services/geminiExtractionService');
 const User = require('../models/User');
 const ImportedCoupons = require('../models/ImportedCoupons');
 
+
 /**
  * Handle OCR extraction and coupon creation
  */
@@ -81,7 +82,12 @@ exports.processScreenshot = async (req, res) => {
             addedMethod: 'manual', // Since scraped/ocr specific enum isn't there
 
             userType: extractedData.user_type || "both",
-            websiteLink: extractedData.websitelink || ""
+            websiteLink: extractedData.websitelink || "",
+            expiresIn: computeExpiresIn(
+                extractedData.expiry_date
+                    ? new Date(extractedData.expiry_date)
+                    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            ),
         };
 
         // 4. Schema Validations logic (simple check)
@@ -428,7 +434,12 @@ async function processSingleEmailContent(emailContent, fetchedEmail, sender, use
         status: 'active',
         addedMethod: 'manual',
         userType: extractedData.user_type || "both",
-        websiteLink: extractedData.websitelink || ""
+        websiteLink: extractedData.websitelink || "",
+        // expiresIn: computeExpiresIn(
+        //     extractedData.expiry_date
+        //         ? new Date(extractedData.expiry_date)
+        //         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        // ),
     };
 
     // 3. Validation & Duplicate Check

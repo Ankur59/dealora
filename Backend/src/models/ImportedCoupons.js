@@ -147,6 +147,10 @@ const ImportedSchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+    expiresIn: {
+        type: Number,
+        default: null,
+    },
 }, { timestamps: true })
 
 
@@ -163,6 +167,10 @@ ImportedSchema.pre('save', function (next) {
         if (expireDate < today && this.status === 'active') {
             this.status = 'expired';
         }
+
+        // Compute expiresIn: number of days from today until expireBy
+        const diffTime = expireDate.getTime() - today.getTime();
+        this.expiresIn = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
     next();
