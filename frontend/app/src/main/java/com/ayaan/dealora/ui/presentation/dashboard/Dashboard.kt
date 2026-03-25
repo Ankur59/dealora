@@ -372,73 +372,24 @@ fun Dashboard(
                                     },
 
                                     onDiscoverClick = {
-                                        try {
-                                            val intent = Intent().apply {
-                                                action = "com.ayaan.couponviewer.SHOW_COUPON"
-                                                putExtra(
-                                                    "EXTRA_COUPON_CODE",
-                                                    coupon.couponCode?.takeIf { it.isNotEmpty() }
-                                                        ?: "NO CODE")
-                                                putExtra(
-                                                    "EXTRA_COUPON_TITLE",
-                                                    coupon.couponTitle?.takeIf { it.isNotEmpty() }
-                                                        ?: "Special Offer")
-                                                putExtra(
-                                                    "EXTRA_DESCRIPTION",
-                                                    coupon.description?.takeIf { it.isNotEmpty() }
-                                                        ?: "Check app for details")
-                                                putExtra(
-                                                    "EXTRA_BRAND_NAME",
-                                                    coupon.brandName?.takeIf { it.isNotEmpty() }
-                                                        ?: "Dealora")
-                                                putExtra(
-                                                    "EXTRA_CATEGORY",
-                                                    coupon.category?.takeIf { it.isNotEmpty() }
-                                                        ?: "General")
-                                                coupon.daysUntilExpiry?.let {
-                                                    putExtra("EXTRA_EXPIRY_DATE", "$it days")
-                                                } ?: putExtra(
-                                                    "EXTRA_EXPIRY_DATE",
-                                                    "Check app for expiry"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_MINIMUM_ORDER",
-                                                    coupon.minimumOrderValue?.toString()?.takeIf { it.isNotEmpty() }
-                                                        ?: "No minimum")
-                                                putExtra(
-                                                    "EXTRA_COUPON_LINK",
-                                                    coupon.couponLink?.takeIf { it.isNotEmpty() }
-                                                        ?: "")
-                                                putExtra(
-                                                    "EXTRA_SOURCE_PACKAGE",
-                                                    context.packageName
-                                                )
-                                                setPackage("com.ayaan.couponviewer")
-                                                addCategory(Intent.CATEGORY_DEFAULT)
-                                            }
-
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            Log.e(
-                                                "Dashboard",
-                                                "Failed to open CouponViewer: ${e.message}"
-                                            )
+                                        val websiteUrl = coupon.couponLink?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                                        if (websiteUrl != null) {
                                             try {
-                                                val playStoreIntent =
-                                                    Intent(Intent.ACTION_VIEW).apply {
-                                                        data =
-                                                            Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                        setPackage("com.android.vending")
-                                                    }
-                                                context.startActivity(playStoreIntent)
-                                            } catch (e2: Exception) {
-                                                val browserIntent =
-                                                    Intent(Intent.ACTION_VIEW).apply {
-                                                        data =
-                                                            Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                    }
-                                                context.startActivity(browserIntent)
+                                                val uri = Uri.parse(
+                                                    if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
+                                                        websiteUrl
+                                                    else
+                                                        "https://$websiteUrl"
+                                                )
+                                                val linkIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(linkIntent)
+                                            } catch (e: Exception) {
+                                                Log.e("Dashboard", "Could not open brand link: ${e.message}", e)
                                             }
+                                        } else {
+                                            Log.w("Dashboard", "No website link available for this coupon")
                                         }
                                     })
 

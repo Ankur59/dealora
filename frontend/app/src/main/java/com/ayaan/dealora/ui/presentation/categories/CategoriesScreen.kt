@@ -144,100 +144,28 @@ fun CategoriesScreen(
                                     )
                                 },
                                 onDiscoverClick = {
-                                    try {
-                                        // Create implicit intent with custom action
-                                        val intent = Intent().apply {
-                                            action = "com.ayaan.couponviewer.SHOW_COUPON"
+                                    val websiteUrl = privateCoupon?.couponLink?.trim()?.takeIf { it.isNotEmpty() }
+                                        ?: coupon.source?.trim()?.takeIf { it.isNotEmpty() }
 
-                                            if (privateCoupon != null) {
-                                                // For private coupons with full data
-                                                putExtra(
-                                                    "EXTRA_COUPON_CODE",
-                                                    privateCoupon.couponCode?.takeIf { it.isNotEmpty() }
-                                                        ?: "NO CODE"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_COUPON_TITLE",
-                                                    privateCoupon.couponTitle?.takeIf { it.isNotEmpty() }
-                                                        ?: "Special Offer"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_DESCRIPTION",
-                                                    privateCoupon.description?.takeIf { it.isNotEmpty() }
-                                                        ?: "Check app for details"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_BRAND_NAME",
-                                                    privateCoupon.brandName?.takeIf { it.isNotEmpty() }
-                                                        ?: "Dealora"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_CATEGORY",
-                                                    privateCoupon.category?.takeIf { it.isNotEmpty() }
-                                                        ?: "General"
-                                                )
-                                                privateCoupon.daysUntilExpiry?.let {
-                                                    putExtra("EXTRA_EXPIRY_DATE", "$it days")
-                                                } ?: putExtra("EXTRA_EXPIRY_DATE", "Check app for expiry")
-                                                putExtra(
-                                                    "EXTRA_MINIMUM_ORDER",
-                                                    privateCoupon.minimumOrderValue?.toString()?.takeIf { it.isNotEmpty() }
-                                                        ?: "No minimum"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_COUPON_LINK",
-                                                    privateCoupon.couponLink?.takeIf { it.isNotEmpty() }
-                                                        ?: ""
-                                                )
-                                            } else {
-                                                // For public coupons with limited data
-                                                putExtra(
-                                                    "EXTRA_COUPON_CODE",
-                                                    coupon.couponTitle ?: "DISCOVER"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_COUPON_TITLE",
-                                                    coupon.couponTitle ?: "Special Offer"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_DESCRIPTION",
-                                                    "View details in the app for more information"
-                                                )
-                                                putExtra(
-                                                    "EXTRA_BRAND_NAME",
-                                                    coupon.brandName ?: "Dealora"
-                                                )
-                                                putExtra("EXTRA_CATEGORY", "General")
-                                                putExtra("EXTRA_MINIMUM_ORDER", "No minimum")
-                                                putExtra("EXTRA_COUPON_LINK", "")
-                                            }
-
-                                            putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
-                                            setPackage("com.ayaan.couponviewer")
-                                            addCategory(Intent.CATEGORY_DEFAULT)
-                                        }
-
-                                        Log.d("CategoriesScreen", "Attempting to launch CouponViewer with intent: $intent")
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        Log.e("CategoriesScreen", "Failed to open CouponViewer app: ${e.message}", e)
-
-                                        // Fallback to Play Store
+                                    if (websiteUrl != null) {
                                         try {
-                                            val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                                setPackage("com.android.vending")
+                                            val uri = Uri.parse(
+                                                if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
+                                                    websiteUrl
+                                                else
+                                                    "https://$websiteUrl"
+                                            )
+                                            val linkIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                             }
-                                            context.startActivity(playStoreIntent)
-                                        } catch (e2: Exception) {
-                                            // Last resort - open in browser
-                                            val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                data = Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                            }
-                                            context.startActivity(browserIntent)
+                                            context.startActivity(linkIntent)
+                                        } catch (e: Exception) {
+                                            Log.e("CategoriesScreen", "Could not open brand link: ${e.message}", e)
                                         }
+                                    } else {
+                                        Log.w("CategoriesScreen", "No website link available for this coupon")
                                     }
-                                }
+                                },
                             )
 
                             // Success Dialog for this card
