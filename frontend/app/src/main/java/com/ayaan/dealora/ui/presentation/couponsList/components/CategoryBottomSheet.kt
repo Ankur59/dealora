@@ -51,7 +51,29 @@ fun CategoryBottomSheet(
     onCategorySelected: (String?) -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf(currentCategory) }
+    var isExpanded by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val allCategories = listOf(
+        "Food" to R.drawable.category_food,
+        "Fashion" to R.drawable.category_fashion,
+        "Grocery" to R.drawable.category_grocery,
+        "Wallet Rewards" to R.drawable.category_wallet,
+        "Beauty" to R.drawable.category_beauty,
+        "Travel" to R.drawable.category_travel,
+        "Entertainment" to R.drawable.category_entertainment,
+        "Other" to R.drawable.category,
+        "Electronics" to R.drawable.category,
+        "Health" to R.drawable.category,
+        "Home" to R.drawable.category,
+        "Education" to R.drawable.category
+    )
+
+    val displayItems = if (isExpanded) {
+        allCategories.map { it to false } + (("See Less" to 0) to true)
+    } else {
+        allCategories.take(7).map { it to false } + (("See All" to 0) to true)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -110,80 +132,36 @@ fun CategoryBottomSheet(
                     .padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // First Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    CategoryItem(
-                        name = "Food",
-                        imageRes = R.drawable.category_food,
-                        isSelected = selectedCategory == "Food",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "Food") null else "Food"
+                displayItems.chunked(4).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        rowItems.forEach { (item, isAction) ->
+                            val (name, imageRes) = item
+                            if (isAction) {
+                                CategoryItemAction(
+                                    text = name,
+                                    onClick = { isExpanded = !isExpanded }
+                                )
+                            } else {
+                                CategoryItem(
+                                    name = name,
+                                    imageRes = imageRes,
+                                    isSelected = selectedCategory == name,
+                                    onClick = {
+                                        selectedCategory = if (selectedCategory == name) null else name
+                                    }
+                                )
+                            }
                         }
-                    )
-                    CategoryItem(
-                        name = "Fashion",
-                        imageRes = R.drawable.category_fashion,
-                        isSelected = selectedCategory == "Fashion",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "Fashion") null else "Fashion"
+                        
+                        if (rowItems.size < 4) {
+                            repeat(4 - rowItems.size) {
+                                Spacer(modifier = Modifier.width(80.dp))
+                            }
                         }
-                    )
-                    CategoryItem(
-                        name = "Grocery",
-                        imageRes = R.drawable.category_grocery,
-                        isSelected = selectedCategory == "Grocery",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "Grocery") null else "Grocery"
-                        }
-                    )
-                    CategoryItem(
-                        name = "Wallet Rewards",
-                        imageRes = R.drawable.category_wallet,
-                        isSelected = selectedCategory == "Wallet Rewards",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "Wallet Rewards") null else "Wallet Rewards"
-                        }
-                    )
-                }
-
-                // Second Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    CategoryItem(
-                        name = "Beauty",
-                        imageRes = R.drawable.category_beauty,
-                        isSelected = selectedCategory == "Beauty",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "Beauty") null else "Beauty"
-                        }
-                    )
-                    CategoryItem(
-                        name = "Travel",
-                        imageRes = R.drawable.category_travel,
-                        isSelected = selectedCategory == "Travel",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "Travel") null else "Travel"
-                        }
-                    )
-                    CategoryItem(
-                        name = "Entertainment",
-                        imageRes = R.drawable.category_entertainment,
-                        isSelected = selectedCategory == "Entertainment",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "Entertainment") null else "Entertainment"
-                        }
-                    )
-                    CategoryItemSeeAll(
-                        isSelected = selectedCategory == "See All",
-                        onClick = {
-                            selectedCategory = if (selectedCategory == "See All") null else "See All"
-                        }
-                    )
+                    }
                 }
             }
 
@@ -267,26 +245,12 @@ private fun CategoryItem(
 }
 
 @Composable
-private fun CategoryItemSeeAll(
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
+private fun CategoryItemAction(text: String, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .width(80.dp)
             .clip(RoundedCornerShape(12.dp))
-            .then(
-                if (isSelected) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = Color(0xFF6C5CE7),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            )
             .clickable { onClick() }
             .padding(8.dp)
     ) {
@@ -298,7 +262,7 @@ private fun CategoryItemSeeAll(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "See All",
+                text = text,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DealoraWhite,
