@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,22 +37,50 @@ import com.ayaan.dealora.ui.theme.DealoraWhite
 
 @Composable
 fun CategoryGrid(navController: NavController) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    val allCategories = listOf(
+        "Food" to R.drawable.category_food,
+        "Fashion" to R.drawable.category_fashion,
+        "Grocery" to R.drawable.category_grocery,
+        "Wallet Rewards" to R.drawable.category_wallet,
+        "Beauty" to R.drawable.category_beauty,
+        "Travel" to R.drawable.category_travel,
+        "Entertainment" to R.drawable.category_entertainment,
+        "Other" to R.drawable.category,
+        "Electronics" to R.drawable.category,
+        "Health" to R.drawable.category,
+        "Home" to R.drawable.category,
+        "Education" to R.drawable.category
+    )
+
+    val displayItems = if (isExpanded) {
+        allCategories.map { it to false } + (("See Less" to 0) to true)
+    } else {
+        allCategories.take(7).map { it to false } + (("See All" to 0) to true)
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            CategoryItem("Food", R.drawable.category_food, navController)
-            CategoryItem("Fashion", R.drawable.category_fashion, navController)
-            CategoryItem("Grocery", R.drawable.category_grocery, navController)
-            CategoryItem("Wallet Rewards", R.drawable.category_wallet, navController)
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            CategoryItem("Beauty", R.drawable.category_beauty, navController)
-            CategoryItem("Travel", R.drawable.category_travel, navController)
-            CategoryItem("Entertainment", R.drawable.category_entertainment, navController)
-            CategoryItemSeeAll(navController)
+        displayItems.chunked(4).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                rowItems.forEach { (item, isAction) ->
+                    val (name, imageRes) = item
+                    if (isAction) {
+                        CategoryItemAction(name, onClick = { isExpanded = !isExpanded })
+                    } else {
+                        CategoryItem(name, imageRes, navController)
+                    }
+                }
+                
+                if (rowItems.size < 4) {
+                    repeat(4 - rowItems.size) {
+                        Spacer(modifier = Modifier.width(80.dp))
+                    }
+                }
+            }
         }
     }
 }
@@ -86,14 +118,12 @@ fun CategoryItem(
 }
 
 @Composable
-fun CategoryItemSeeAll(navController: NavController) {
+fun CategoryItemAction(text: String, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .width(80.dp)
-            .clickable {
-                navController.navigate(Route.Dashboard.createRoute())
-            }
+            .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
@@ -103,7 +133,7 @@ fun CategoryItemSeeAll(navController: NavController) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "See All",
+                text = text,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DealoraWhite,

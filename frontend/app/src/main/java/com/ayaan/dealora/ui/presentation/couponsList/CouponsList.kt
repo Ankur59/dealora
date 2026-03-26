@@ -76,6 +76,19 @@ fun CouponsList(
     // Get isPublic parameter from navigation
     val isPublicParam = navController.currentBackStackEntry?.arguments?.getBoolean("isPublic") ?: false
 
+    // Get sortBy parameter from navigation
+    val sortByParam = navController.currentBackStackEntry?.arguments?.getString("sortBy")
+
+    // Apply sort filter on launch if provided
+    LaunchedEffect(sortByParam) {
+        if (!sortByParam.isNullOrEmpty()) {
+            val sortOption = com.ayaan.dealora.ui.presentation.couponsList.components.SortOption.entries.find { it.apiValue == sortByParam }
+            if (sortOption != null) {
+                viewModel.onSortOptionChanged(sortOption)
+            }
+        }
+    }
+
     // Set public mode on launch if parameter is true
     LaunchedEffect(isPublicParam) {
         if (isPublicParam) {

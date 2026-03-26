@@ -243,7 +243,7 @@ fun HomeScreen(
                     color = DealoraPrimary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier.clickable(onClick = {
-                        navController.navigate(Route.ExploreCoupons.createRoute())
+                        navController.navigate(Route.ExploreCoupons.createRoute(sortBy = "expiring_soon"))
                     })
                 )
             }

@@ -167,6 +167,11 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
                 navArgument("isPublic") {
                     type = NavType.BoolType
                     defaultValue = false
+                },
+                navArgument("sortBy") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 }
             )
         ) {
