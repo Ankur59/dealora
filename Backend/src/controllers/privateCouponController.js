@@ -116,33 +116,33 @@ exports.syncCoupons = async (req, res) => {
 
             if (validity === 'valid_today' || validity === 'Valid Today') {
                 // Coupons that are currently valid (not expired)
-                query.expiryDate = { $gte: now };
+                query.expireBy = { $gte: now };
             } else if (validity === 'valid_this_week' || validity === 'Valid This Week') {
                 // Coupons that are currently valid (not expired)
-                query.expiryDate = { $gte: now };
+                query.expireBy = { $gte: now };
             } else if (validity === 'valid_this_month' || validity === 'Valid This Month') {
                 // Coupons that are currently valid (not expired)
-                query.expiryDate = { $gte: now };
+                query.expireBy = { $gte: now };
             } else if (validity === 'expiring_today' || validity === 'Expiring Today') {
                 // Coupons that expire today specifically
-                query.expiryDate = { $gte: now, $lte: todayEnd };
+                query.expireBy = { $gte: now, $lte: todayEnd };
             } else if (validity === 'expiring_this_week' || validity === 'Expiring This Week') {
                 // Coupons that expire within this week
-                query.expiryDate = { $gte: now, $lte: weekEnd };
+                query.expireBy = { $gte: now, $lte: weekEnd };
             } else if (validity === 'expiring_this_month' || validity === 'Expiring This Month') {
                 // Coupons that expire within this month
-                query.expiryDate = { $gte: now, $lte: monthEnd };
+                query.expireBy = { $gte: now, $lte: monthEnd };
             } else if (validity === 'expired' || validity === 'Expired') {
-                query.expiryDate = { $lt: now };
+                query.expireBy = { $lt: now };
             } else if (validity === 'today') {
                 // Legacy support
-                query.expiryDate = { $gte: now, $lte: todayEnd };
+                query.expireBy = { $gte: now, $lte: todayEnd };
             } else if (validity === 'week') {
                 // Legacy support
-                query.expiryDate = { $gte: now, $lte: weekEnd };
+                query.expireBy = { $gte: now, $lte: weekEnd };
             } else if (validity === 'month') {
                 // Legacy support
-                query.expiryDate = { $gte: now, $lte: monthEnd };
+                query.expireBy = { $gte: now, $lte: monthEnd };
             }
         }
 
@@ -162,7 +162,7 @@ exports.syncCoupons = async (req, res) => {
         if (sortBy === 'newest_first') {
             sortOptions = { createdAt: -1 };
         } else if (sortBy === 'expiring_soon') {
-            sortOptions = { expiryDate: 1 };
+            sortOptions = { expireBy: 1 };
         } else if (sortBy === 'a_to_z') {
             sortOptions = { brandName: 1 };
         } else if (sortBy === 'z_to_a') {
@@ -483,7 +483,7 @@ exports.getPrivateCoupons = async (req, res) => {
         }
 
         let sortOptions = { createdAt: -1 };
-        if (sortBy === 'expiring_soon') sortOptions = { expiryDate: 1 };
+        if (sortBy === 'expiring_soon') sortOptions = { expireBy: 1 };
         else if (sortBy === 'a_to_z') sortOptions = { brandName: 1 };
         else if (sortBy === 'z_to_a') sortOptions = { brandName: -1 };
 
