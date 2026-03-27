@@ -62,11 +62,11 @@ fun CategoryBottomSheet(
         "Beauty" to R.drawable.category_beauty,
         "Travel" to R.drawable.category_travel,
         "Entertainment" to R.drawable.category_entertainment,
-        "Other" to R.drawable.category,
-        "Electronics" to R.drawable.category,
-        "Health" to R.drawable.category,
-        "Home" to R.drawable.category,
-        "Education" to R.drawable.category
+        "Other" to R.drawable.category_other,
+        "Electronics" to R.drawable.category_electronics,
+        "Health" to R.drawable.category_health,
+        "Home" to R.drawable.category_home,
+        "Education" to R.drawable.category_education
     )
 
     val displayItems = if (isExpanded) {
@@ -226,7 +226,9 @@ private fun CategoryItem(
             Image(
                 painter = painterResource(id = imageRes),
                 contentDescription = name,
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
             )
         }
 

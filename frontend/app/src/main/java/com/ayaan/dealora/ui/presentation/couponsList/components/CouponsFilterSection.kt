@@ -72,7 +72,7 @@ fun CouponsFilterSection(
             FilterButton(
                 icon = {
                     Icon(
-                        painter = painterResource(R.drawable.category),
+                        painter = painterResource(R.drawable.category_other),
                         contentDescription = "Category",
                         modifier = Modifier.size(16.dp),
                     )
