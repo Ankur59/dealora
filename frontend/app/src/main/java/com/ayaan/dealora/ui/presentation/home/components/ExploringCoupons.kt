@@ -42,11 +42,14 @@ fun ExploringCoupons(
     savedCouponIds: Set<String>,
     viewModel: HomeViewModel
 ) {
-    Log.d("ExploringCoupons", coupons.toString())
-    // Filter out redeemed coupons
+    Log.d("ExploringCoupons", "Redrawing with ${coupons.size} coupons")
+    
+    // Filter out redeemed coupons and ensure we only show active ones
     val activeCoupons = coupons.filter { coupon ->
-        coupon.redeemed != true
+        coupon.redeemed != true && (coupon.status == "active" || coupon.status == null)
     }
+    
+    Log.d("ExploringCoupons", "Active coupons after filter: ${activeCoupons.size}")
 
     when {
         isLoading -> {
@@ -85,16 +88,17 @@ fun ExploringCoupons(
                     ) {
                         CouponCard(
                             brandName = coupon.brandName.uppercase().replace(" ", "\n"),
-                            couponTitle = coupon.couponTitle ?: coupon.brandName.uppercase().replace(" ", "\n")+" coupon",
+                            couponTitle = coupon.couponTitle ?: coupon.brandName.uppercase() + " coupon",
                             description = coupon.description ?: "",
                             category = coupon.category,
                             expiryDays = coupon.daysUntilExpiry,
                             couponCode = coupon.couponCode ?: "",
                             couponId = coupon.id,
-                            isRedeemed = coupon.redeemed ?: false,
+                            isRedeemed = coupon.status == "redeemed",
                             couponLink = coupon.couponLink,
                             minimumOrderValue = coupon.minimumOrderValue,
                             isSaved = savedCouponIds.contains(coupon.id),
+                            source = coupon.source,
                             showActionButtons = true,
                             onSave = { couponId ->
                                 viewModel.saveCoupon(coupon)
@@ -115,81 +119,24 @@ fun ExploringCoupons(
                             },
 
                             onDiscoverClick = {
-                                try {
-                                    // Create implicit intent with custom action
-                                    val intent = Intent().apply {
-                                        action = "com.ayaan.couponviewer.SHOW_COUPON"
-
-                                        // Add coupon data as extras with defaults for null/empty values
-                                        putExtra(
-                                            "EXTRA_COUPON_CODE",
-                                            coupon.couponCode?.takeIf { it.isNotEmpty() }
-                                                ?: "NO CODE")
-                                        putExtra(
-                                            "EXTRA_COUPON_TITLE",
-                                            coupon.couponTitle?.takeIf { it.isNotEmpty() }
-                                                ?: "Special Offer")
-                                        putExtra(
-                                            "EXTRA_DESCRIPTION",
-                                            coupon.description?.takeIf { it.isNotEmpty() }
-                                                ?: "Check app for details")
-                                        putExtra(
-                                            "EXTRA_BRAND_NAME",
-                                            coupon.brandName?.takeIf { it.isNotEmpty() }
-                                                ?: "Dealora")
-                                        putExtra(
-                                            "EXTRA_CATEGORY",
-                                            coupon.category?.takeIf { it.isNotEmpty() }
-                                                ?: "General")
-                                        coupon.daysUntilExpiry?.let {
-                                            putExtra("EXTRA_EXPIRY_DATE", "$it days")
-                                        }
-                                        putExtra(
-                                            "EXTRA_MINIMUM_ORDER",
-                                            coupon.minimumOrderValue?.toString()?.takeIf { it.isNotEmpty() }
-                                                ?: "No minimum")
-                                        putExtra(
-                                            "EXTRA_COUPON_LINK",
-                                            coupon.couponLink?.takeIf { it.isNotEmpty() } ?: "")
-                                        putExtra("EXTRA_SOURCE_PACKAGE", context.packageName)
-
-                                        // Set package to ensure it opens the right app
-                                        setPackage("com.ayaan.couponviewer")
-
-                                        // Add category to help Android find the intent handler
-                                        addCategory(Intent.CATEGORY_DEFAULT)
-                                    }
-
-                                    Log.d(
-                                        "ExploringCoupons",
-                                        "Attempting to launch CouponViewer with intent: $intent"
-                                    )
-                                    Log.d("ExploringCoupons", "Coupon Title: ${coupon.couponTitle}")
-
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Log.e(
-                                        "ExploringCoupons",
-                                        "Failed to open CouponViewer app: ${e.message}",
-                                        e
-                                    )
-
-                                    // Fallback to Play Store
+                                val websiteUrl = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
+                                if (websiteUrl != null) {
                                     try {
-                                        val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            data =
-                                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                            setPackage("com.android.vending")
+                                        val uri = Uri.parse(
+                                            if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
+                                                websiteUrl
+                                            else
+                                                "https://$websiteUrl"
+                                        )
+                                        val linkIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
-                                        context.startActivity(playStoreIntent)
-                                    } catch (e2: Exception) {
-                                        // Last resort - open in browser
-                                        val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-                                            data =
-                                                Uri.parse("https://play.google.com/store/apps/details?id=com.ayaan.couponviewer")
-                                        }
-                                        context.startActivity(browserIntent)
+                                        context.startActivity(linkIntent)
+                                    } catch (e: Exception) {
+                                        Log.e("ExploringCoupons", "Could not open brand link: ${e.message}", e)
                                     }
+                                } else {
+                                    Log.w("ExploringCoupons", "No website link available for this coupon")
                                 }
                             },
                             onRedeem = { couponId ->

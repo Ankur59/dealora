@@ -151,6 +151,10 @@ const ImportedSchema = new mongoose.Schema({
         type: Number,
         default: null,
     },
+    redeemed: {
+        type: Boolean,
+        default: false,
+    },
 }, { timestamps: true })
 
 
