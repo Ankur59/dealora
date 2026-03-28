@@ -4,11 +4,11 @@ const privateCouponController = require('../controllers/privateCouponController'
 const authenticate = require('../middlewares/authenticate');
 
 
-router.post('/sync', privateCouponController.syncCoupons);
-router.post('/statistics', privateCouponController.getStatistics);
-
-
 router.use(authenticate);
+router.post('/statistics', privateCouponController.getStatistics);
+router.post('/sync', privateCouponController.syncCoupons);
+
+
 
 // Discovery Routes
 router.get('/categories', privateCouponController.getPrivateCategories);
