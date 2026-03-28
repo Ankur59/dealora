@@ -97,7 +97,7 @@ data class PrivateCoupon(
     @Json(name = "couponTitle")
     val couponTitle: String?,
 
-    @Json(name = "category")
+    @Json(name = "categoryLabel")
     val category: String? = null,
 
     @Json(name = "expiryDate")

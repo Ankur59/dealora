@@ -190,24 +190,21 @@ class HomeViewModel @Inject constructor(
     fun fetchExploreCoupons() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "fetchExploreCoupons: Fetching explore coupons with filters")
+                Log.d(TAG, "fetchExploreCoupons: Fetching all active explore coupons sorted by expiry")
                 _uiState.update { it.copy(isLoadingCoupons = true) }
 
-                // Use hardcoded brands: Amazon, Blinkit, Cred, Nykaa
-                val brands = listOf("Amazon", "Blinkit", "Cred", "Nykaa")
-                Log.d(TAG, "Using hardcoded brands: ${brands.joinToString()}")
-
-                // Call sync endpoint with specified filters
+                // Call sync endpoint with empty brands list to get all brands
                 when (val result = couponRepository.syncPrivateCoupons(
-                    brands = brands,
+                    brands = emptyList(), // No brand filter as requested
                     category = null,
                     search = null,
                     discountType = null,
-                    price = "above_1500",
+                    price = null, // Relaxed price filter to show more coupons
                     validity = "valid_this_week",
-                    sortBy = null,
+                    sortBy = "expiring_soon", // Sort by expiring soon
                     page = null,
-                    limit = 5 // Limit to 5 coupons for home screen
+                    limit = 5, // Limit to 5 coupons for home screen
+                    status = "active" // Only fetch active coupons
                 )) {
                     is PrivateCouponResult.Success -> {
                         Log.d(TAG, "Explore coupons loaded: ${result.coupons.size} coupons")

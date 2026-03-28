@@ -73,13 +73,13 @@ exports.syncCoupons = async (req, res) => {
                     { minimumOrderValue: { $exists: false } }
                 ];
             } else if (priceFilter === 'below_300') {
-                query.minimumOrderValue = { $lt: 300 };
+                query.minimumOrder = { $lt: 300 };
             } else if (priceFilter === '300_700') {
-                query.minimumOrderValue = { $gte: 300, $lte: 700 };
+                query.minimumOrder = { $gte: 300, $lte: 700 };
             } else if (priceFilter === '700_1500') {
-                query.minimumOrderValue = { $gte: 700, $lte: 1500 };
+                query.minimumOrder = { $gte: 700, $lte: 1500 };
             } else if (priceFilter === 'above_1500') {
-                query.minimumOrderValue = { $gt: 1500 };
+                query.minimumOrder = { $gt: 1500 };
             }
         }
 
@@ -244,7 +244,7 @@ exports.redeemPrivateCoupon = async (req, res) => {
 
         // Update coupon status
         coupon.status = "redeemed";
-        // coupon.redeemed = true;
+        coupon.redeemed = true;
         // coupon.redeemedBy = uid || null; // Optional: store uid if available
         coupon.redeemedAt = new Date();
 
