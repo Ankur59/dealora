@@ -34,7 +34,7 @@ const notificationSchema = new mongoose.Schema(
         },
         couponModel: {
             type: String,
-            enum: ['Coupon', 'PrivateCoupon', 'ExclusiveCoupon'],
+            enum: ['Coupon', 'PrivateCoupon', 'ExclusiveCoupon', 'ImportedCoupon'],
             default: null,
         },
         // Notification status

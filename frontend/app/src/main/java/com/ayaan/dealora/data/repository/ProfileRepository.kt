@@ -3,6 +3,7 @@ package com.ayaan.dealora.data.repository
 import android.util.Log
 import com.ayaan.dealora.data.api.BackendResult
 import com.ayaan.dealora.data.api.ProfileApiService
+import com.ayaan.dealora.data.util.NetworkErrorMapper
 import javax.inject.Inject
 
 /**
@@ -50,7 +51,7 @@ class ProfileRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "getProfile: Exception occurred", e)
             BackendResult.Error(
-                message = "Network error: ${e.localizedMessage ?: "Unknown error"}",
+                message = NetworkErrorMapper.from(e),
                 throwable = e
             )
         }
@@ -93,7 +94,7 @@ class ProfileRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "updateProfile: Exception occurred", e)
             BackendResult.Error(
-                message = "Network error: ${e.localizedMessage ?: "Unknown error"}",
+                message = NetworkErrorMapper.from(e),
                 throwable = e
             )
         }

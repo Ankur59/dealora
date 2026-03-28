@@ -98,6 +98,73 @@ const initCronJobs = () => {
         }
     });
 
+
+    // 3.5 Imported Coupon Expiry Notifications Every 24 Hours
+    cron.schedule('0 0 * * *', async () => {
+        logger.info('CRON: Starting imported coupon notification job...');
+        try {
+            const now = new Date();
+            const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+            // 1. Fetch users with valid FCM tokens
+            const users = await User.find({ fcmToken: { $ne: null, $exists: true } }, '_id fcmToken');
+
+            if (!users.length) {
+                logger.info('CRON: No users with FCM tokens found.');
+                return;
+            }
+
+            let totalNotificationsSent = 0;
+
+            // 2. Loop on the list of these users
+            for (const user of users) {
+                // 3. For each user query the imported coupon schema
+                const expiringCoupons = await ImportedCoupons.find({
+                    userId: user._id,
+                    expireBy: { $gte: now, $lte: tomorrow },
+                    status: 'active'
+                });
+
+                // 4. For each coupon generate the notification and store in DB
+                for (const coupon of expiringCoupons) {
+                    const title = `Coupon Expiring Soon: ${coupon.couponName}`;
+                    const body = `Your ${coupon.brandName} coupon is about to expire. Use it before it's gone!`;
+                    const data = {
+                        couponId: coupon._id.toString(),
+                        type: 'expiry_alert',
+                        couponModel: 'ImportedCoupon'
+                    };
+
+                    try {
+                        // Send push notification to this specific user
+                        await notificationService.sendMulticastNotification([user.fcmToken], title, body, data);
+
+                        // Save notification data in the DB
+                        await Notification.create({
+                            userId: [user._id],
+                            title,
+                            body,
+                            type: 'expiry_alert',
+                            data,
+                            couponId: coupon._id,
+                            couponModel: 'ImportedCoupon',
+                            priority: 'high',
+                            isSent: true,
+                            sentAt: new Date(),
+                        });
+
+                        totalNotificationsSent++;
+                    } catch (err) {
+                        logger.error(`CRON: Failed to send/save notification for user ${user._id} and coupon ${coupon._id}:`, err);
+                    }
+                }
+            }
+
+            logger.info(`CRON: Imported coupon notification job completed. Sent ${totalNotificationsSent} notifications.`);
+        } catch (error) {
+            logger.error('CRON: Imported coupon notification job failed:', error);
+        }
+    });
     // 4. Google Sheet sync at 3 AM
     cron.schedule('16 3 * * *', async () => {
         logger.info('CRON: Starting Google Sheet sync...');

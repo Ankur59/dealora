@@ -15,6 +15,7 @@ import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
 import com.ayaan.dealora.data.paging.CouponPagingSource
+import com.ayaan.dealora.data.util.NetworkErrorMapper
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
@@ -177,7 +178,7 @@ class CouponRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Create coupon exception", e)
-            CouponResult.Error(e.message ?: "Network error occurred")
+            CouponResult.Error(NetworkErrorMapper.from(e))
         }
     }
 
@@ -209,7 +210,7 @@ class CouponRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Fetch coupon details exception", e)
-            CouponDetailResult.Error(e.message ?: "Network error occurred")
+            CouponDetailResult.Error(NetworkErrorMapper.from(e))
         }
     }
 
@@ -264,7 +265,7 @@ class CouponRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Sync private coupons exception", e)
-            PrivateCouponResult.Error(e.message ?: "Network error occurred")
+            PrivateCouponResult.Error(NetworkErrorMapper.from(e))
         }
     }
 
@@ -367,7 +368,7 @@ class CouponRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Fetch statistics exception", e)
-            PrivateCouponStatisticsResult.Error(e.message ?: "Network error occurred")
+            PrivateCouponStatisticsResult.Error(NetworkErrorMapper.from(e))
         }
     }
 
@@ -424,7 +425,7 @@ class CouponRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Fetch exclusive coupons exception", e)
-            ExclusiveCouponResult.Error(e.message ?: "Network error occurred")
+            ExclusiveCouponResult.Error(NetworkErrorMapper.from(e))
         }
     }
 
@@ -459,7 +460,7 @@ class CouponRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Fetch exclusive coupon exception", e)
-            ExclusiveCouponDetailResult.Error(e.message ?: "Network error occurred")
+            ExclusiveCouponDetailResult.Error(NetworkErrorMapper.from(e))
         }
     }
 

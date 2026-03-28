@@ -7,6 +7,7 @@ import com.ayaan.dealora.data.api.models.DeleteFcmTokenRequest
 import com.ayaan.dealora.data.api.models.FcmTokenRequest
 import com.ayaan.dealora.data.api.models.LoginRequest
 import com.ayaan.dealora.data.api.models.SignupRequest
+import com.ayaan.dealora.data.util.NetworkErrorMapper
 import javax.inject.Inject
 
 /**
@@ -57,7 +58,7 @@ class BackendAuthRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "signup: Exception occurred", e)
             BackendResult.Error(
-                message = "Network error: ${e.localizedMessage ?: "Unknown error"}",
+                message = NetworkErrorMapper.from(e),
                 throwable = e
             )
         }
@@ -95,7 +96,7 @@ class BackendAuthRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "login: Exception occurred", e)
             BackendResult.Error(
-                message = "Network error: ${e.localizedMessage ?: "Unknown error"}",
+                message = NetworkErrorMapper.from(e),
                 throwable = e
             )
         }
