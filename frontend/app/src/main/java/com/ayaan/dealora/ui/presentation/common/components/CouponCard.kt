@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.common.components
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -101,6 +102,7 @@ fun CouponCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 180.dp) // Maintain consistent height
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -118,6 +120,7 @@ fun CouponCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 74.dp) // Standardize header height
                     .background(headerColor)
                     .padding(12.dp)
             ) {
@@ -225,8 +228,10 @@ fun CouponCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 106.dp) // Standardize footer height
                     .background(Color(0xFFE8E8E8))
-                    .padding(12.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.SpaceBetween // Keep buttons at the bottom
             ) {
                 Text(
                     text = description,

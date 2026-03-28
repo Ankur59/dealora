@@ -16,6 +16,9 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import com.google.android.gms.tasks.Tasks
+import com.google.firebase.auth.FirebaseAuth
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -27,7 +30,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL ="https://dealora-5zcp.onrender.com/"
+    private const val BASE_URL ="http://10.0.2.2:3001/"
     // "https://dealora-5zcp.onrender.com/" 
     // "http://192.168.29.76:3001/"
     // IF backend on locahost 3001 use: http://10.0.2.2:3001/
@@ -51,13 +54,38 @@ object NetworkModule {
     }
 
     @Provides
-
     @Singleton
     fun provideOkHttpClient(
-        loggingInterceptor: HttpLoggingInterceptor
+        loggingInterceptor: HttpLoggingInterceptor,
+        firebaseAuth: FirebaseAuth
     ): OkHttpClient {
+        val authInterceptor = Interceptor { chain ->
+            val requestBuilder = chain.request().newBuilder()
+            
+            try {
+                // Get the current user synchronously on the network thread
+                val user = firebaseAuth.currentUser
+                if (user != null) {
+                    val task = user.getIdToken(false)
+                    // Synchronously wait for the token task to complete
+                    val tokenResult = Tasks.await(task)
+                    val token = tokenResult.token
+                    
+                    if (!token.isNullOrEmpty()) {
+                        requestBuilder.addHeader("Authorization", "Bearer $token")
+                    }
+                }
+            } catch (e: Exception) {
+                // If token fetching fails, we proceed with the original request
+                // Logging could be added here if needed
+            }
+            
+            chain.proceed(requestBuilder.build())
+        }
+
         return OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
+            .addInterceptor(authInterceptor)
             .connectTimeout(300, TimeUnit.SECONDS)
             .readTimeout(300, TimeUnit.SECONDS)
             .writeTimeout(300, TimeUnit.SECONDS)

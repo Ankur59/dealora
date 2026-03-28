@@ -20,7 +20,7 @@ const authenticate = async (req, res, next) => {
             if (!user) {
                 throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
             }
-
+            console.log("this is user data found in middleware", user)
             req.user = user;
             req.uid = testUid;
             return next();
