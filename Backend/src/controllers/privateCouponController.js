@@ -37,7 +37,7 @@ exports.syncCoupons = async (req, res) => {
 
         logger.info(`Syncing private coupons for brands: ${brands?.join(', ') || 'ALL'}`);
 
-        const query = {};
+        const query = { userId: req.user._id };
 
         // Brand Filter (Now Optional)
         if (brands && Array.isArray(brands) && brands.length > 0) {
@@ -232,8 +232,8 @@ exports.redeemPrivateCoupon = async (req, res) => {
         const uid = req.uid || req.body.uid; // Get UID from auth or body (optional)
         const { brands } = req.body; // Optional: brands to recalculate statistics
 
-        const coupon = await ImportedCoupons.findById(id);
-
+        const coupon = await ImportedCoupons.findOne({ _id: id, userId: req.user._id });
+        console.log(req.user._id)
         if (!coupon) {
             return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Private coupon not found');
         }
@@ -359,10 +359,10 @@ exports.getStatistics = async (req, res) => {
         }
 
 
-        const importedCoupon = await ImportedCoupons.find({ status: "active" }).lean()
+        const importedCoupon = await ImportedCoupons.find({ userId: req.user._id, status: "active" }).lean()
 
         activeCouponsCount += importedCoupon.length
-        
+
 
         let importedCouponSavings = 0
 
@@ -418,7 +418,6 @@ exports.getPrivateSortOptions = async (req, res) => {
     ];
     return successResponse(res, STATUS_CODES.OK, 'Sort options fetched successfully', sortOptions);
 };
-
 /**
  * Get filter options for private coupons
  * @route GET /api/private-coupons/filter-options
@@ -457,8 +456,7 @@ exports.getPrivateCoupons = async (req, res) => {
             limit = 20
         } = req.query;
 
-        const query = {};
-
+        const query = { userId: req.user._id };
         // Status Filter
         if (status === 'active') {
             query.status = "active";
