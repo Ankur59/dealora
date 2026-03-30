@@ -165,6 +165,7 @@ const initCronJobs = () => {
             logger.error('CRON: Imported coupon notification job failed:', error);
         }
     });
+    
     // 4. Google Sheet sync at 3 AM
     cron.schedule('16 3 * * *', async () => {
         logger.info('CRON: Starting Google Sheet sync...');

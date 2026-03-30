@@ -226,21 +226,20 @@ exports.syncGmail = async (req, res) => {
         // DEVELOPER NOTE: To change the date range:
         // Change the number below (e.g., -2 to -10 for last 10 days, -30 for last 30 days)
         const daysAgo = new Date();
-        daysAgo.setDate(daysAgo.getDate() - 15); //Made it 2 from 7 because of api issue
+        daysAgo.setDate(daysAgo.getDate() - 15);
         const dateString = daysAgo.toISOString().split('T')[0].replace(/-/g, '/'); // Format: YYYY/MM/DD
 
         // Gmail API query: promotional emails from specified date range
         const listParams = {
-            maxResults: 20, // DEMO MODE: increased from 20 to 50 for demo purposes
+            maxResults: 20,
             q: `category:promotions after:${dateString}` // Fetches promotional emails after the calculated date
         };
 
-        console.log('\n' + '='.repeat(60));
-        console.log('🔍  DEALORA EMAIL PARSING — DEMO MODE ACTIVE');
-        console.log('='.repeat(60));
-        console.log(`📅  Scanning promotional emails from last 7 days`);
-        console.log(`🔑  Access Token: ${accessToken ? accessToken.substring(0, 15) + '...' : 'N/A'}`);
-        console.log('='.repeat(60) + '\n');
+        // console.log('\n' + '='.repeat(60));
+        // console.log('='.repeat(60));
+        // console.log(`📅  Scanning promotional emails from last 7 days`);
+        // console.log(`🔑  Access Token: ${accessToken ? accessToken.substring(0, 15) + '...' : 'N/A'}`);
+        // console.log('='.repeat(60) + '\n');
 
         const listResponse = await axios.get(listUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },

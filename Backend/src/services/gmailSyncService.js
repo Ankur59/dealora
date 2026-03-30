@@ -80,7 +80,7 @@ const syncIndividualEmail = async (userId, email, refreshToken) => {
     // 3. Fetch Emails (last 7 day for cron)
     const listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
     const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 7);
+    yesterday.setDate(yesterday.getDate() - 15);
     const dateString = yesterday.toISOString().split('T')[0].replace(/-/g, '/');
 
     const listParams = {
