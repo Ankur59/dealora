@@ -2,32 +2,30 @@ import mongoose, { model, Mongoose, Schema } from "mongoose";
 import campaign from "./campaign.model";
 
 const couponSchema = new Schema({
-    id: {
+    partner: {
         type: String,
-        required: true,
-        unique: [true, "coupon id should be unique"]
+        required: true
     },
+
+    couponId: {
+        type: String,
+        required: true
+    },
+
     code: {
-        type: String,
+        type: String
     },
+
     description: {
         type: String
+    }, 
+    type: {
+        type: String,
+        enum: ["generic", "exclusive", "one_time"]
     },
     status: {
         type: String,
         enum: ["active", "pending", "expired"]
-    },
-    type: {
-        type: String,
-        enum: ["generic", "exclusive", "expired"]
-    },
-    campaignName: {
-        type: String
-    },
-    campaignId: {
-        type: Number,
-        required: true,
-        index: true
     },
     start: {
         type: Date
@@ -35,11 +33,14 @@ const couponSchema = new Schema({
     end: {
         type: Date
     },
-    created: {
+    verifiedOn: {
         type: Date
+    },
+    meta: {
+        type: Schema.Types.Mixed
     }
-}, { timestamps: true })
 
+}, { timestamps: true });
 
 
 const coupon = model("partnercoupon", couponSchema)
