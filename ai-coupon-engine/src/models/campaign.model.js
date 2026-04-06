@@ -1,6 +1,10 @@
-import { model, Schema } from "mongoose";
+import mongoose, { model, Schema } from "mongoose";
 
 const campaignSchema = new Schema({
+    partner: {
+        type: String,
+        required: true,
+    },
     campaignId: {
         type: Number,
         require: true,
@@ -9,13 +13,6 @@ const campaignSchema = new Schema({
     title: {
         type: String,
         require: true,
-    },
-
-    currency: {
-        type: String,
-    },
-    model: {
-        type: String
     },
     categories: {
         type: [String],
@@ -26,9 +23,18 @@ const campaignSchema = new Schema({
     },
     countries: {
         type: [String],
+    },
+    meta: {
+        type: mongoose.Schema.Types.Mixed
     }
 
 }, { timestamps: true })
+
+
+campaignSchema.index(
+    { partner: 1, campaignId: 1 },
+    { unique: true }
+);
 
 const campaign = new model("campaign", campaignSchema)
 
