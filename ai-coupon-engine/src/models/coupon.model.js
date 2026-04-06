@@ -18,7 +18,7 @@ const couponSchema = new Schema({
 
     description: {
         type: String
-    }, 
+    },
     type: {
         type: String,
         enum: ["generic", "exclusive", "one_time"]
@@ -36,6 +36,10 @@ const couponSchema = new Schema({
     verifiedOn: {
         type: Date
     },
+    campaignId: {
+        type: String,
+        index: true
+    },
     meta: {
         type: Schema.Types.Mixed
     }
@@ -43,7 +47,13 @@ const couponSchema = new Schema({
 }, { timestamps: true });
 
 
+couponSchema.index(
+    { partner: 1, couponId: 1 },
+    { unique: true })
+
 const coupon = model("partnercoupon", couponSchema)
+
+
 
 
 export default coupon
