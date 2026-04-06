@@ -5,17 +5,26 @@ import { getAllCampaigns } from "../../providers/trackier.js"
 export const syncCampaignVCom = async () => {
     const campaigns = await getAllCampaigns();
 
-    const operations = campaigns.map(camp => ({
+    const operations = campaigns.map((camp) => ({
         updateOne: {
-            filter: { campaignId: camp.id },
+            filter: {
+                partner: "vcommission",
+                campaignId: String(camp.id)
+            },
             update: {
                 $setOnInsert: {
+                    partner: "vcommission",
+                    campaignId: String(camp.id),
                     title: camp.title,
-                    currency: camp.currency,
-                    model: camp.model,
-                    categories: camp.categories,
+                    categories: camp.categories || [],
+                    countries: camp.countries || [],
                     trackingLink: camp.tracking_link,
-                    countries: camp.countries
+
+                    // move extra fields here
+                    meta: {
+                        currency: camp.currency,
+                        model: camp.model
+                    }
                 }
             },
             upsert: true
