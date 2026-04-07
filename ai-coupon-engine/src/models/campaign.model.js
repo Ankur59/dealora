@@ -24,6 +24,12 @@ const campaignSchema = new Schema({
     countries: {
         type: [String],
     },
+    score: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
     meta: {
         type: mongoose.Schema.Types.Mixed
     }
