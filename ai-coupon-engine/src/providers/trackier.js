@@ -1,11 +1,16 @@
 import axios from "axios"
 import dotenv from "dotenv"
+import limitedGet from "../config/axios"
+import campaign from "../models/campaign.model"
+import fetchCouponByID from "./helpers/fetchCoupons"
+import pLimit from "p-limit"
+import fetchCouponsByCampaign from "./helpers/fetchCoupons"
 
 dotenv.config()
 
 export const getAllCategory = async () => {
     console.log(process.env.V_COMMISSION_API_KEY)
-    const response = await axios.get("https://api.trackier.com/v2/publishers/categories", {
+    const response = await limitedGet("https://api.trackier.com/v2/publishers/categories", {
         params: {
             apikey: process.env.V_COMMISSION_API_KEY
         }
@@ -19,7 +24,7 @@ export const getAllCampaigns = async (categories = [], limit) => {
     let allCampaigns = [];
 
     while (true) {
-        const response = await axios.get(
+        const response = await limitedGet(
             "https://api.trackier.com/v2/publisher/campaigns",
             {
                 params: {
@@ -30,7 +35,6 @@ export const getAllCampaigns = async (categories = [], limit) => {
                 },
             }
         );
-
         const campaigns = response?.data?.data.campaigns;
 
         if (!campaigns || campaigns.length === 0) {
@@ -45,7 +49,27 @@ export const getAllCampaigns = async (categories = [], limit) => {
 
         page++;
     }
-    // console.log(allCampaigns.length, "aslkdjasd")
     return allCampaigns;
 };
 
+
+// Note: We just need to call this function and coupons will be sent to db using batch write 
+export const getAllCouponsVcom = async (campaignId) => {
+    if (campaignId) {
+        return await fetchCouponsByCampaign(campaignId)
+    }
+    else {
+        const campaigns = await campaign.find({ partner: "vcommission" }).lean()
+
+        const limit = pLimit(5); // control concurrency
+
+        const results = await Promise.all(
+            campaigns.map(camp =>
+                limit(() => fetchCouponsByCampaign(camp.campaignId))
+            )
+        );
+
+        return results.flat();
+
+    }
+}

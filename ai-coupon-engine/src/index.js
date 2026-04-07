@@ -3,7 +3,6 @@ import { connectDB } from "./db/connectDB.js"
 import { getAllCampaigns } from "./providers/trackier.js";
 import { syncCampaignVCom } from "./services/vcommission/campaign.service.js";
 
-import { syncCategories } from "./services/vcommission/category.service.js";
 
 connectDB(process.env.MONGODB_URI)
     .then(

@@ -1,5 +1,5 @@
 import mongoose, { model, Mongoose, Schema } from "mongoose";
-import campaign from "./campaign.model";
+
 
 const couponSchema = new Schema({
     partner: {
@@ -9,11 +9,10 @@ const couponSchema = new Schema({
 
     couponId: {
         type: String,
-        required: true
     },
 
     code: {
-        type: String
+        type: String,
     },
 
     description: {
@@ -36,6 +35,10 @@ const couponSchema = new Schema({
     verifiedOn: {
         type: Date
     },
+    isVerified: {
+        type: Boolean,
+        default: false
+    },
     campaignId: {
         type: String,
         index: true
@@ -49,11 +52,26 @@ const couponSchema = new Schema({
 
 couponSchema.index(
     { partner: 1, couponId: 1 },
-    { unique: true })
+    {
+        unique: true,
+        partialFilterExpression: {
+            couponId: { $exists: true, $ne: null }
+        }
+    }
+);
+
+
+couponSchema.index(
+    { code: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            code: { $exists: true, $ne: null }
+        }
+    }
+);
 
 const coupon = model("partnercoupon", couponSchema)
-
-
 
 
 export default coupon
