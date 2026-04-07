@@ -19,6 +19,7 @@ export const syncCampaignVCom = async () => {
                     categories: camp.categories || [],
                     countries: camp.countries || [],
                     trackingLink: camp.tracking_link,
+                    score: camp.score || 0,
 
                     // move extra fields here
                     meta: {
