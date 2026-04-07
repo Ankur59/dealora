@@ -1,4 +1,4 @@
-import { syncCouponsVCom } from "../../services/vcommission/coupon.service";
+import { syncCouponsVCom } from "../../services/vcommission/coupon.service.js";
 
 const BATCH_SIZE = 100;
 
