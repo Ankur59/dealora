@@ -34,3 +34,6 @@ const normalizeCoupon = (c) => {
 
     return obj;
 };
+
+
+export default normalizeCoupon
