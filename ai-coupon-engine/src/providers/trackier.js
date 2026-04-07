@@ -1,10 +1,9 @@
-import axios from "axios"
+
 import dotenv from "dotenv"
-import limitedGet from "../config/axios"
-import campaign from "../models/campaign.model"
-import fetchCouponByID from "./helpers/fetchCoupons"
+import limitedGet from "../config/axios.js"
+import campaign from "../models/campaign.model.js"
 import pLimit from "p-limit"
-import fetchCouponsByCampaign from "./helpers/fetchCoupons"
+import fetchCouponsByCampaign from "./helpers/fetchCoupons.js"
 
 dotenv.config()
 
