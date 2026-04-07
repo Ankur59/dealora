@@ -1,4 +1,5 @@
 import coupon from "../../models/coupon.model.js";
+import normalizeCoupon from "../../utils/helper.js";
 
 export const syncCouponsVCom = async (coupons) => {
 
