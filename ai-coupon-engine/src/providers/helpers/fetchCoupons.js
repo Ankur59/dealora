@@ -1,3 +1,4 @@
+import limitedGet from "../../config/axios.js";
 import { syncCouponsVCom } from "../../services/vcommission/coupon.service.js";
 
 const BATCH_SIZE = 100;
@@ -14,7 +15,7 @@ async function fetchCouponsByCampaign(campaignId) {
             ...(pageToken && { pageToken }),
         };
 
-        const response = await limitedGet(url, { params });
+        const response = await limitedGet("https://api.trackier.com/v2/publishers/coupons", { params });
 
         const coupons = response.data?.coupons || [];
 
