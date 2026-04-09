@@ -3,6 +3,9 @@ import dotenv from "dotenv"
 import cookieParser from "cookie-parser"
 import morgan from "morgan"
 import cors from "cors"
+
+import partnerRouter from "./routes/partner.route.js"
+
 dotenv.config()
 
 const app = express()
@@ -18,5 +21,8 @@ app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(cookieParser());
 app.use(morgan("dev"))
+
+// Routes
+app.use("/api/v1/partners", partnerRouter)
 
 export default app
