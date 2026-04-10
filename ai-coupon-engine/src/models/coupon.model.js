@@ -45,31 +45,39 @@ const couponSchema = new Schema({
     },
     meta: {
         type: Schema.Types.Mixed
+    },
+    countries: {
+        type: [String],
+        default: []
+    },
+    categories: {
+        type: [String],
+        default: []
     }
 
 }, { timestamps: true });
 
 
-couponSchema.index(
-    { partner: 1, couponId: 1 },
-    {
-        unique: true,
-        partialFilterExpression: {
-            couponId: { $exists: true, $ne: null }
-        }
-    }
-);
+// couponSchema.index(
+//     { partner: 1, couponId: 1 },
+//     {
+//         unique: true,
+//         partialFilterExpression: {
+//             couponId: { $exists: true }
+//         }
+//     }
+// );
 
 
-couponSchema.index(
-    { code: 1 },
-    {
-        unique: true,
-        partialFilterExpression: {
-            code: { $exists: true, $ne: null }
-        }
-    }
-);
+// couponSchema.index(
+//     { code: 1 },
+//     {
+//         unique: true,
+//         partialFilterExpression: {
+//             code: { $exists: true }
+//         }
+//     }
+// );
 
 const coupon = model("partnercoupon", couponSchema)
 

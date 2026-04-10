@@ -3,6 +3,8 @@ import Partner from '../models/partners.model.js';
 import Campaign from '../models/campaign.model.js';
 import Coupon from '../models/coupon.model.js';
 import { Category } from '../models/category.model.js';
+import { getAllCampaigns, getAllCouponsVcom } from '../providers/trackier.js';
+import campaign from '../models/campaign.model.js';
 
 // Helper to get nested properties by string path (e.g. "data.items")
 const getNestedValue = (obj, path) => {
@@ -31,13 +33,13 @@ const castValue = (value, type) => {
  */
 export const normalizeData = (partnerItem, apiDiff) => {
     const normalizedItem = {};
-    
+
     apiDiff.forEach(rule => {
         const { standardField, partnerField, defaultValue, castTo } = rule;
-        
+
         // Extract value from the partner item using the partnerField path
         let rawValue = getNestedValue(partnerItem, partnerField);
-        
+
         // Fallback to default value if undefined or null
         if (rawValue == null && defaultValue !== undefined) {
             rawValue = defaultValue;
@@ -45,7 +47,7 @@ export const normalizeData = (partnerItem, apiDiff) => {
 
         // Apply casting if a type is specified and value exists
         const finalValue = rawValue != null ? castValue(rawValue, castTo) : null;
-        
+
         // Assign to the standard field
         normalizedItem[standardField] = finalValue;
     });
@@ -53,6 +55,19 @@ export const normalizeData = (partnerItem, apiDiff) => {
     return normalizedItem;
 };
 
+
+// Future changes: can also add handlers for revalidation to run the api we discussed about and diff changes
+const handlerMap = {
+    vcommission: {
+        coupons: getAllCouponsVcom,
+        campaigns: getAllCampaigns,
+    },
+    // When adding new partner add new key here like this 
+    // coupomated: {
+    //     coupons: "some function to fetch coupons"
+    //     campaigns:"some other functio"
+    // }
+}
 /**
  * Fetches data from a partner API and normalizes it
  * @param {String} partnerName 
@@ -60,82 +75,14 @@ export const normalizeData = (partnerItem, apiDiff) => {
  */
 export const fetchAndNormalizePartnerData = async (partnerName, targetSchema) => {
     try {
-        const partner = await Partner.findOne({ partnerName, status: 'active' });
-        if (!partner) throw new Error(`Partner ${partnerName} not found or inactive`);
+        const handler = handlerMap?.[partnerName]?.[targetSchema];
 
-        // Find the matching API configuration for the requested target schema
-        const apiConfig = partner.partnerApis.find(api => api.targetSchema === targetSchema);
-        if (!apiConfig) throw new Error(`No active API configuration found for schema: ${targetSchema}`);
-
-        const { apiUrl, apiType, apiParams, responseItemPath, apiDiff } = apiConfig;
-
-        // Make the API request
-        const requestOptions = {
-            method: apiType,
-            url: apiUrl,
-            [apiType === 'GET' ? 'params' : 'data']: apiParams
-        };
-
-        const response = await axios(requestOptions);
-        
-        // Get the list of items from the response
-        const items = responseItemPath ? getNestedValue(response.data, responseItemPath) : response.data;
-        
-        if (!Array.isArray(items)) {
-            throw new Error(`Expected array of items at path '${responseItemPath}', got ${typeof items}`);
+        if (!handler) {
+            throw new Error(`No handler for ${partnerName} - ${targetSchema}`);
         }
-
-        // Normalize each item
-        const normalizedItems = items.map(item => normalizeData(item, apiDiff));
-        
-        // Save to DB depending on target schema
-        if (normalizedItems.length > 0) {
-            switch (targetSchema) {
-                case 'campaign':
-                    // Add partner field for reference
-                    normalizedItems.forEach(i => i.partner = partnerName);
-                    // Insert or update based on your logic (using insertMany or bulkWrite)
-                    // For simplicity, we can do insertMany ignoring duplicates if handled, or loop and upsert
-                    await Promise.all(normalizedItems.map(item => 
-                        Campaign.findOneAndUpdate(
-                            { partner: partnerName, campaignId: item.campaignId }, 
-                            { $set: item }, 
-                            { upsert: true, new: true }
-                        )
-                    ));
-                    break;
-                case 'coupon':
-                    normalizedItems.forEach(i => i.partner = partnerName);
-                    await Promise.all(normalizedItems.map(item => 
-                        Coupon.findOneAndUpdate(
-                            { partner: partnerName, couponId: item.couponId }, 
-                            { $set: item }, 
-                            { upsert: true, new: true }
-                        )
-                    ));
-                    break;
-                case 'category':
-                    await Promise.all(normalizedItems.map(item => 
-                        Category.findOneAndUpdate(
-                            { apiId: item.apiId }, 
-                            { $set: item }, 
-                            { upsert: true, new: true }
-                        )
-                    ));
-                    break;
-            }
-        }
-
-        return {
-            success: true,
-            partner: partnerName,
-            targetSchema,
-            count: normalizedItems.length,
-            data: normalizedItems
-        };
-
-    } catch (error) {
-        console.error(`Normalization Error [${partnerName} -> ${targetSchema}]:`, error.message);
-        throw error;
+        return await handler();
+    }
+    catch {
+        console.log("something went wrong")
     }
 };
