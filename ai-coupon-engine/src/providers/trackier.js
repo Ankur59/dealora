@@ -64,11 +64,10 @@ export const getAllCouponsVcom = async (campaignId) => {
 
         const results = await Promise.all(
             campaigns.map(camp =>
-                limit(() => fetchCouponsByCampaign(camp.campaignId))
+                limit(() => fetchCouponsByCampaign(camp.campaignId, camp.countries || [], camp.categories || []))
             )
         );
 
         return results.flat();
-
     }
 }

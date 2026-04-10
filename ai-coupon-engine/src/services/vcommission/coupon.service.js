@@ -1,14 +1,24 @@
 import coupon from "../../models/coupon.model.js";
 import normalizeCoupon from "../../utils/helper.js";
 
-export const syncCouponsVCom = async (coupons) => {
+export const syncCouponsVCom = async (coupons, countries = [], categories = []) => {
 
     const ops = coupons.map(c => {
-        const normalized = normalizeCoupon(c);
-
+        let normalized = normalizeCoupon(c);
+        normalized.countries = countries
+        normalized.categories = categories
         return {
-            insertOne: {
-                document: normalized
+            updateOne: {
+                filter: {
+                    partner: normalized.partner,
+                    ...(normalized.couponId
+                        ? { couponId: normalized.couponId }
+                        : { code: normalized.code })
+                },
+                update: {
+                    $set: normalized
+                },
+                upsert: true
             }
         };
     });
