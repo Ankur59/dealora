@@ -58,26 +58,26 @@ const couponSchema = new Schema({
 }, { timestamps: true });
 
 
-// couponSchema.index(
-//     { partner: 1, couponId: 1 },
-//     {
-//         unique: true,
-//         partialFilterExpression: {
-//             couponId: { $exists: true }
-//         }
-//     }
-// );
+couponSchema.index(
+    { partner: 1, couponId: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            couponId: { $exists: true }
+        }
+    }
+);
 
 
-// couponSchema.index(
-//     { code: 1 },
-//     {
-//         unique: true,
-//         partialFilterExpression: {
-//             code: { $exists: true }
-//         }
-//     }
-// );
+couponSchema.index(
+    { code: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            code: { $exists: true }
+        }
+    }
+);
 
 const coupon = model("partnercoupon", couponSchema)
 
