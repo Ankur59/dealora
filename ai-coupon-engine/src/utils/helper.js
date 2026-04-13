@@ -3,12 +3,12 @@ const normalizeCoupon = (c) => {
         id,
         code,
         description,
-        type,
         status,
+        type,
+        campaign_id,
         start,
         end,
-        campaign_id,
-        ...rest 
+        ...rest
     } = c;
 
     const obj = {
@@ -16,7 +16,7 @@ const normalizeCoupon = (c) => {
 
         description: description || null,
         type: type || null,
-        status: status || "pending",
+        status: status,
 
         start: start ? new Date(start) : null,
         end: end ? new Date(end) : null,
