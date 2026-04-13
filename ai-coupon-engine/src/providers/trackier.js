@@ -58,16 +58,21 @@ export const getAllCouponsVcom = async (campaignId) => {
         return await fetchCouponsByCampaign(campaignId)
     }
     else {
-        const campaigns = await campaign.find({ partner: "vcommission" }).lean()
+        try {
+            const campaigns = await campaign.find({ partner: "vcommission" }).lean()
 
-        const limit = pLimit(5); // control concurrency
+            const limit = pLimit(5); // control concurrency
 
-        const results = await Promise.all(
-            campaigns.map(camp =>
-                limit(() => fetchCouponsByCampaign(camp.campaignId, camp.countries || [], camp.categories || []))
-            )
-        );
+            const results = await Promise.all(
+                campaigns.map(camp =>
+                    limit(() => fetchCouponsByCampaign(camp.campaignId, camp.countries || [], camp.categories || []))
+                )
+            );
 
-        return results.flat();
+            return results.flat();
+        } catch (error) {
+            console.log(error)
+        }
+
     }
 }

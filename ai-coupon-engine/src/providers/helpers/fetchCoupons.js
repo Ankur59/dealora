@@ -9,9 +9,9 @@ async function fetchCouponsByCampaign(campaignId, countries = [], catogries = []
     let prevPageToken = null;
     let count = 0
     while (true) {
-        console.log("fetching for campaign", campaignId)
+       
         const params = {
-            campaignId,
+            campaign_id:campaignId,
             apikey: process.env.V_COMMISSION_API_KEY,
             ...(pageToken && { pageToken }),
         };
