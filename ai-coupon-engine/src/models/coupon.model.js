@@ -45,6 +45,14 @@ const couponSchema = new Schema({
     },
     meta: {
         type: Schema.Types.Mixed
+    },
+    countries: {
+        type: [String],
+        default: []
+    },
+    categories: {
+        type: [String],
+        default: []
     }
 
 }, { timestamps: true });
@@ -55,7 +63,7 @@ couponSchema.index(
     {
         unique: true,
         partialFilterExpression: {
-            couponId: { $exists: true, $ne: null }
+            couponId: { $exists: true }
         }
     }
 );
@@ -66,7 +74,7 @@ couponSchema.index(
     {
         unique: true,
         partialFilterExpression: {
-            code: { $exists: true, $ne: null }
+            code: { $exists: true }
         }
     }
 );
