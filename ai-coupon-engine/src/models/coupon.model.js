@@ -32,6 +32,13 @@ const couponSchema = new Schema({
     end: {
         type: Date
     },
+    trackingLink: {
+        type: String,
+    },
+    brandName: {
+        type: String,
+        required: true
+    },
     verifiedOn: {
         type: Date
     },

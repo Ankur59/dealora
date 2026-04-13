@@ -31,5 +31,8 @@ export const syncCouponsVCom = async (coupons, countries = [], categories = []) 
         if (err.code !== 11000) {
             console.error("Bulk insert error:", err);
         }
+        else{
+            console.log(err)
+        }
     }
 };

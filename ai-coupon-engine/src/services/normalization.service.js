@@ -82,7 +82,7 @@ export const fetchAndNormalizePartnerData = async (partnerName, targetSchema) =>
         }
         return await handler();
     }
-    catch {
-        console.log("something went wrong")
+    catch (err) {
+        console.log(err)
     }
 };
