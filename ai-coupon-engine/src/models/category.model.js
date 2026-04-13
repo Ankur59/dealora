@@ -1,8 +1,11 @@
 import mongoose from "mongoose";
 
 const { Schema } = mongoose;
-
 const categorySchema = new Schema({
+    partner: {
+        type: String,
+        required: true,
+    },
     apiId: {
         type: String,
         required: true,
@@ -13,9 +16,21 @@ const categorySchema = new Schema({
     },
     apiCreatedAt: {
         type: Date,
+        required: function () {
+            return this.partner === "vcommission";
+        }
     },
     apiUpdatedAt: {
         type: Date,
+        required: function () {
+            return this.partner === "vcommission";
+        }
+    },
+    parentId: {
+        type: String,
+        required: function () {
+            return this.partner === "coupomated";
+        }
     }
 
 }, {
