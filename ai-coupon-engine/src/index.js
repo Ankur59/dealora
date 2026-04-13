@@ -5,8 +5,8 @@ import { fetchAndNormalizePartnerData } from "./services/normalization.service.j
 
 connectDB(process.env.MONGODB_URI)
     .then(
-        app.listen(process.env.PORT || 8000, () => { console.log("Server started at port: ", process.env.PORT || 8000) }),
-        // fetchAndNormalizePartnerData("vcommission", "coupons"))
+        app.listen(process.env.PORT || 8000, () => { console.log("Server started at port: ", process.env.PORT || 8000) })
+    )
     .catch((err) => {
         console.log("MONGO db connection failed !!! ", err);
     });
