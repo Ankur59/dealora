@@ -6,15 +6,13 @@ const couponSchema = new Schema({
         type: String,
         required: true
     },
-
     couponId: {
         type: String,
+        required: true
     },
-
     code: {
         type: String,
     },
-
     description: {
         type: String
     },
@@ -61,9 +59,15 @@ const couponSchema = new Schema({
         type: [String],
         default: []
     },
-    categories_id: {
+    categoriesId: {
         type: [String],
         default: []
+    },
+    couponVisitingLink: {
+        type: String,
+    },
+    discount: {
+        type: String,
     }
 
 }, { timestamps: true });
@@ -85,7 +89,7 @@ couponSchema.index(
     {
         unique: true,
         partialFilterExpression: {
-            code: { $exists: true }
+            code: { $type: "string" }
         }
     }
 );

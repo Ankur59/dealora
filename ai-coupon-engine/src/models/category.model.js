@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import coupon from "./coupon.model";
+
 
 const { Schema } = mongoose;
 const categorySchema = new Schema({
