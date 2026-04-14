@@ -60,6 +60,10 @@ const couponSchema = new Schema({
     categories: {
         type: [String],
         default: []
+    },
+    categories_id: {
+        type: [String],
+        default: []
     }
 
 }, { timestamps: true });
