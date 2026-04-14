@@ -56,3 +56,21 @@ export const getUpdatedCoupons = async () => {
         throw error;
     }
 };
+
+/**
+ * Fetches expired coupons from Coupomated API
+ * @returns {Promise<Object>} API response data
+ */
+export const getExpiredCoupons = async () => {
+    try {
+        const response = await limitedGet("https://api.coupomated.com/coupons/expired", {
+            params: {
+                apikey: process.env.COUPO_MATED_API_KEY
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching expired coupons from Coupomated:", error.message);
+        throw error;
+    }
+};
