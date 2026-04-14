@@ -38,3 +38,21 @@ export const getAllCoupons = async () => {
         throw error;
     }
 };
+
+/**
+ * Fetches recently updated coupons from Coupomated API
+ * @returns {Promise<Object>} API response data
+ */
+export const getUpdatedCoupons = async () => {
+    try {
+        const response = await limitedGet("https://api.coupomated.com/coupons/updated", {
+            params: {
+                apikey: process.env.COUPO_MATED_API_KEY
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching updated coupons from Coupomated:", error.message);
+        throw error;
+    }
+};

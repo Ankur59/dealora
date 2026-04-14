@@ -1,4 +1,4 @@
-import { getAllCoupons } from "../../providers/coupomated.js"
+import { getAllCoupons, getUpdatedCoupons } from "../../providers/coupomated.js"
 import normalizeCoupomatedCoupon from "./helpers/normalize.js"
 import coupon from "../../models/coupon.model.js"
 
@@ -32,5 +32,34 @@ export const syncAllCoupons = async () => {
         } else {
             console.log("Coupomated: duplicate key skipped during sync.", err);
         }
+    }
+};
+
+export const syncUpdatedCoupons = async () => {
+    const updatedCoupons = await getUpdatedCoupons();
+    console.log(updatedCoupons.length, "length of updated coupons")
+    const ops = updatedCoupons.map((item) => {
+        const normalized = normalizeCoupomatedCoupon(item);
+        return {
+            updateOne: {
+                filter: {
+                    partner: normalized.partner,
+                    couponId: normalized.couponId
+                },
+                update: {
+                    $set: normalized
+                },
+                upsert: false
+            }
+        };
+    });
+
+    if (ops.length === 0) return;
+
+    try {
+        await coupon.bulkWrite(ops, { ordered: false });
+        console.log(`Coupomated: ${ops.length} coupons updated successfully.`);
+    } catch (err) {
+        console.error("Coupomated bulkWrite error (update):", err);
     }
 };
