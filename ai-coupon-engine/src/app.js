@@ -5,6 +5,7 @@ import morgan from "morgan"
 import cors from "cors"
 
 import partnerRouter from "./routes/partner.route.js"
+import validatorRouter from "./routes/validator.route.js"
 
 dotenv.config()
 
@@ -24,5 +25,6 @@ app.use(morgan("dev"))
 
 // Routes
 app.use("/api/v1/partners", partnerRouter)
+app.use("/api/v1/validator", validatorRouter)
 
 export default app
