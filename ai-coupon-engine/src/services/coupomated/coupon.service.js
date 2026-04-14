@@ -1,4 +1,4 @@
-import { getAllCoupons, getUpdatedCoupons } from "../../providers/coupomated.js"
+import { getAllCoupons, getUpdatedCoupons, getExpiredCoupons } from "../../providers/coupomated.js"
 import normalizeCoupomatedCoupon from "./helpers/normalize.js"
 import coupon from "../../models/coupon.model.js"
 
@@ -61,5 +61,25 @@ export const syncUpdatedCoupons = async () => {
         console.log(`Coupomated: ${ops.length} coupons updated successfully.`);
     } catch (err) {
         console.error("Coupomated bulkWrite error (update):", err);
+    }
+};
+
+export const deleteExpiredCoupons = async () => {
+    const expiredCoupons = await getExpiredCoupons();
+    console.log(expiredCoupons.length, "length of expired coupons to delete");
+
+    if (expiredCoupons.length === 0) return;
+
+    // Build { partner, couponId } pairs from the API response
+    const filters = expiredCoupons.map((item) => ({
+        partner: "coupomated",
+        couponId: String(item.coupon_id)
+    }));
+
+    try {
+        const result = await coupon.deleteMany({ $or: filters });
+        console.log(`Coupomated: ${result.deletedCount} expired coupons deleted.`);
+    } catch (err) {
+        console.error("Coupomated deleteMany error (expired):", err);
     }
 };
