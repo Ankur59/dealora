@@ -5,6 +5,8 @@ import Coupon from '../models/coupon.model.js';
 import { Category } from '../models/category.model.js';
 import { getAllCampaigns, getAllCouponsVcom } from '../providers/trackier.js';
 import campaign from '../models/campaign.model.js';
+import { syncCategories as syncVcomCategories } from './vcommission/category.service.js';
+import { syncCategories as syncCoupomatedCategories } from './coupomated/category.service.js';
 
 // Helper to get nested properties by string path (e.g. "data.items")
 const getNestedValue = (obj, path) => {
@@ -61,12 +63,11 @@ const handlerMap = {
     vcommission: {
         coupons: getAllCouponsVcom,
         campaigns: getAllCampaigns,
+        category: syncVcomCategories
     },
-    // When adding new partner add new key here like this 
-    // coupomated: {
-    //     coupons: "some function to fetch coupons"
-    //     campaigns:"some other functio"
-    // }
+    coupomated: {
+        category: syncCoupomatedCategories
+    }
 }
 /**
  * Fetches data from a partner API and normalizes it

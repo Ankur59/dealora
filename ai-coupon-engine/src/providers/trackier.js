@@ -1,11 +1,8 @@
-
-import dotenv from "dotenv"
+// API calls for v-commission
 import limitedGet from "../config/axios.js"
 import campaign from "../models/campaign.model.js"
 import pLimit from "p-limit"
 import fetchCouponsByCampaign from "./helpers/fetchCoupons.js"
-
-dotenv.config()
 
 export const getAllCategory = async () => {
     console.log(process.env.V_COMMISSION_API_KEY)

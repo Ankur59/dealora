@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import coupon from "./coupon.model";
 
 const { Schema } = mongoose;
 const categorySchema = new Schema({
@@ -28,13 +29,12 @@ const categorySchema = new Schema({
     },
     parentId: {
         type: String,
-        required: function () {
-            return this.partner === "coupomated";
-        }
     }
 
 }, {
     timestamps: true
 });
+
+categorySchema.index({ partner: 1, apiId: 1, }, { unique: true })
 
 export const Category = mongoose.model("Category", categorySchema);
