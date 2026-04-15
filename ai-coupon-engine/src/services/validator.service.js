@@ -149,7 +149,7 @@ export const runValidation = async () => {
                         logsArr.push(`Going to login: ${credentials.loginUrl}`);
                         await page.goto(credentials.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
                     }
-                    const loginGoal = `We need to log in to the site. ${credentials.loginUrl ? 'You are on the login page.' : 'First, find and click the "Log In" or "Sign In" link/button.'} Log in using username "${credentials.username}" and password "${credentials.password}". After successfully logging in (the page shows a dashboard, homepage, or account page), declare done. If you are already logged in, declare done.`;
+                    const loginGoal = `We need to log in to the site. ${credentials.loginUrl ? 'You are on the login page.' : 'First, find and click the "Log In" or "Sign In" link/button.'} Log in using username "${credentials.username}" and password "${credentials.password}". Note: The login might be a single step (both fields on one page) or a two-step process (enter email/username, click next/continue, then enter password on the next page). Handle whichever fields are currently visible. After successfully logging in (the page shows a dashboard, homepage, or account page), declare done. If you are already logged in, declare done.`;
                     const loginRes = await performAgentAction(page, loginGoal, logsArr);
                     totalSteps += loginRes.steps;
                     if (!loginRes.success) throw new Error("Login failed");
