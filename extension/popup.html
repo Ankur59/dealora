@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dealora Cookie Sync</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+    <!-- ── Header ── -->
+    <header class="header">
+        <div class="header-logo">
+            <div class="logo-ring">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+            </div>
+            <span class="logo-text">Dealora <span class="logo-accent">Sync</span></span>
+        </div>
+        <div id="statusDot" class="status-dot idle" title="Idle"></div>
+    </header>
+
+    <!-- ── Main Content ── -->
+    <main class="main">
+
+        <!-- Step 1: Site Info + Sync trigger -->
+        <section id="stepSync" class="step active">
+            <div class="site-card">
+                <div class="site-icon-wrap">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="2" y1="12" x2="22" y2="12"/>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                </div>
+                <div class="site-info">
+                    <p class="site-label">Active Site</p>
+                    <p id="siteUrl" class="site-url">Loading…</p>
+                </div>
+            </div>
+
+            <p class="hint-text">
+                Log in to the merchant site first, then click <strong>Sync Cookies</strong> to capture the session.
+            </p>
+
+            <button id="btnSync" class="btn btn-primary">
+                <span class="btn-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                </span>
+                Sync Cookies
+            </button>
+        </section>
+
+        <!-- Step 2: Cookie preview + provider input + save -->
+        <section id="stepSave" class="step">
+
+            <!-- Cookie count badge -->
+            <div class="result-header">
+                <div class="count-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10"/>
+                        <path d="M12 8v4l3 3"/>
+                    </svg>
+                    <span id="cookieCount">0</span> cookies fetched
+                </div>
+                <button id="btnBack" class="btn-ghost">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    Back
+                </button>
+            </div>
+
+            <!-- Scrollable cookie table -->
+            <div class="cookie-table-wrap">
+                <table class="cookie-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Value</th>
+                            <th>Domain</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cookieTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Provider name input -->
+            <div class="field-group">
+                <label for="providerName" class="field-label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                        <line x1="9" y1="21" x2="9" y2="9"/>
+                    </svg>
+                    Provider / Merchant Name
+                </label>
+                <input
+                    id="providerName"
+                    type="text"
+                    class="field-input"
+                    placeholder="e.g. Amazon India, Flipkart…"
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <p class="field-hint">This label will be saved alongside the cookies on the server.</p>
+            </div>
+
+            <button id="btnSave" class="btn btn-success">
+                <span class="btn-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                </span>
+                Save to Server
+            </button>
+        </section>
+
+    </main>
+
+    <!-- ── Toast notification ── -->
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
