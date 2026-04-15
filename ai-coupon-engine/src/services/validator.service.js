@@ -5,6 +5,7 @@ import ValidatorCredential from "../models/validatorCredential.model.js";
 import ValidatorOffer from "../models/validatorOffer.model.js";
 import ValidationResult from "../models/validationResult.model.js";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
 
@@ -15,15 +16,17 @@ async function getInteractables(page) {
         'a, button, input, textarea, select, [role="button"]',
         els => els.map((el, index) => {
             const rect = el.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) return null;
-            let label = el.innerText || el.value || el.placeholder || el.name || el.id || el.getAttribute('aria-label') || '';
+            if (el.tagName.toLowerCase() === 'input' && el.type === 'hidden') return null;
+            let label = el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || '';
             label = label.trim().replace(/\s+/g, ' ').substring(0, 60);
-            if (!label) return null;
+            if (!label && !el.name && !el.id) return null;
             return {
                 index: index,
                 tag: el.tagName.toLowerCase(),
                 type: el.type || '',
-                label: label
+                text: label,
+                name: el.name || '',
+                id: el.id || ''
             };
         }).filter(Boolean)
     );
@@ -39,6 +42,12 @@ async function performAgentAction(page, goal, logsArr) {
         const pageTitle = await page.title();
         const currentUrl = page.url();
 
+        const html = await page.content();
+        fs.writeFileSync(`debug-step-${step}.html`, html);
+        await page.screenshot({ path: `debug-step-${step}.png` });
+        console.log(`  [DEBUG] Extracted ${interactables.length} interactable elements. Page title: "${pageTitle}"`);
+        fs.writeFileSync(`debug-interactables-step-${step}.json`, JSON.stringify(interactables, null, 2));
+
         const prompt = [
             "You are a web automation agent. Your current goal is:",
             goal,
@@ -47,7 +56,7 @@ async function performAgentAction(page, goal, logsArr) {
             "Page URL: " + currentUrl,
             "",
             "Here are the visible interactive elements on the page (each has an 'index' you can reference):",
-            JSON.stringify(interactables.slice(0, 120)),
+            JSON.stringify(interactables),
             "",
             "Pick the single best next action. Respond with ONLY a JSON object:",
             '{ "action": "click" or "type" or "done" or "fail", "index": <element index from the list>, "text": "<text to type, only if action is type>", "reason": "<brief explanation>" }',
@@ -57,7 +66,7 @@ async function performAgentAction(page, goal, logsArr) {
 
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
                     temperature: 0.1,
@@ -92,6 +101,7 @@ async function performAgentAction(page, goal, logsArr) {
         } catch (err) {
             console.log("  Agent step error:", err.message);
             logsArr.push("Agent step error: " + err.message);
+            await new Promise(r => setTimeout(r, 5000));
         }
     }
     logsArr.push("Hit max steps without finishing.");
@@ -116,89 +126,89 @@ export const runValidation = async () => {
     let totalProcessed = 0;
 
     try {
-    browser = await chromium.launch({ headless: true });
+        browser = await chromium.launch({ headless: true });
 
-    for (const partner of partners) {
-        console.log(`\nPartner: ${partner.partnerName}`);
-        const credentials = await ValidatorCredential.findOne({ partnerName: partner.partnerName });
-        const offers = await ValidatorOffer.find({ partnerName: partner.partnerName, isActive: true });
+        for (const partner of partners) {
+            console.log(`\nPartner: ${partner.partnerName}`);
+            const credentials = await ValidatorCredential.findOne({ partnerName: partner.partnerName });
+            const offers = await ValidatorOffer.find({ partnerName: partner.partnerName, isActive: true });
 
-        if (!offers.length) {
-            console.log("  No active offers found for this partner, skipping.");
-            continue;
-        }
-
-        const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            viewport: { width: 1280, height: 800 }
-        });
-        const page = await context.newPage();
-
-        for (const offer of offers) {
-            console.log(`\n  Testing coupon: ${offer.offerCode} ("${offer.offerTermsAndConditions}")`);
-            let logsArr = [];
-            let totalSteps = 0;
-            let status = "ERROR";
-
-            try {
-                logsArr.push(`Navigated to ${offer.offerUrl}`);
-                await page.goto(offer.offerUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-                if (credentials) {
-                    if (credentials.loginUrl) {
-                        logsArr.push(`Going to login: ${credentials.loginUrl}`);
-                        await page.goto(credentials.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                    }
-                    const loginGoal = `We need to log in to the site. ${credentials.loginUrl ? 'You are on the login page.' : 'First, find and click the "Log In" or "Sign In" link/button.'} Log in using username "${credentials.username}" and password "${credentials.password}". Note: The login might be a single step (both fields on one page) or a two-step process (enter email/username, click next/continue, then enter password on the next page). Handle whichever fields are currently visible. After successfully logging in (the page shows a dashboard, homepage, or account page), declare done. If you are already logged in, declare done.`;
-                    const loginRes = await performAgentAction(page, loginGoal, logsArr);
-                    totalSteps += loginRes.steps;
-                    if (!loginRes.success) throw new Error("Login failed");
-
-                    logsArr.push(`Back to ${offer.offerUrl}`);
-                    await page.goto(offer.offerUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                }
-
-                const cartGoal = `Browse the store items. Find a product that matches these conditions: "${offer.offerTermsAndConditions}". Add it to the shopping cart. Then navigate to the cart or checkout page where a promo/coupon code can be entered. Once you see a coupon code input field, declare done.`;
-                const cartRes = await performAgentAction(page, cartGoal, logsArr);
-                totalSteps += cartRes.steps;
-
-                if (!cartRes.success) throw new Error("Could not reach checkout");
-
-                const couponGoal = `Find the promo code or coupon code input field on this checkout page. Type the code "${offer.offerCode}" into that field and click the Apply button. After applying, check if the page shows a success message (like a discount applied or price reduced). If so, declare done. If the page shows an error like "invalid code" or "expired", declare fail.`;
-                const couponRes = await performAgentAction(page, couponGoal, logsArr);
-                totalSteps += couponRes.steps;
-
-                status = couponRes.success ? "VALID" : "INVALID";
-
-            } catch (err) {
-                console.log(`  Error: ${err.message}`);
-                logsArr.push(`Error: ${err.message}`);
+            if (!offers.length) {
+                console.log("  No active offers found for this partner, skipping.");
+                continue;
             }
 
-            totalProcessed++;
-
-            await ValidationResult.create({
-                offerId: offer._id,
-                partnerName: partner.partnerName,
-                merchantLink: partner.merchantLink,
-                offerCode: offer.offerCode,
-                offerTermsAndConditions: offer.offerTermsAndConditions,
-                status,
-                aiResponse: logsArr.join("\n"),
-                stepsTaken: totalSteps,
-                errorMessage: status === "ERROR" ? logsArr[logsArr.length - 1] : ""
+            const context = await browser.newContext({
+                userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                viewport: { width: 1280, height: 800 }
             });
+            const page = await context.newPage();
 
-            offer.lastStatus = status;
-            offer.lastValidated = new Date();
-            await offer.save();
+            for (const offer of offers) {
+                console.log(`\n  Testing coupon: ${offer.offerCode} ("${offer.offerTermsAndConditions}")`);
+                let logsArr = [];
+                let totalSteps = 0;
+                let status = "ERROR";
 
-            await context.clearCookies();
+                try {
+                    logsArr.push(`Navigated to ${offer.offerUrl}`);
+                    await page.goto(offer.offerUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+                    if (credentials) {
+                        if (credentials.loginUrl) {
+                            logsArr.push(`Going to login: ${credentials.loginUrl}`);
+                            await page.goto(credentials.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                        }
+                        const loginGoal = `We need to log in to the site. ${credentials.loginUrl ? 'You are on the login page.' : 'If not on the login page, find and click any link/button typical for login (e.g., "Sign In", "Log In", "Hello, Sign in", "Account").'} Log in using username "${credentials.username}" and password "${credentials.password}". Important site variations: Fields may be labeled differently (e.g. Email, Mobile number). Login may be single-step or multi-step (enter username -> click next/continue -> enter password). Look at the fields (ids, names, types, labels) carefully. If you see an email/username field, "type" the username! DO NOT declare fail just because the password field is missing—it's likely on the next page. Take action on whatever fields you see. After successfully logging in, declare done. If already logged in, declare done.`;
+                        const loginRes = await performAgentAction(page, loginGoal, logsArr);
+                        totalSteps += loginRes.steps;
+                        if (!loginRes.success) throw new Error("Login failed");
+
+                        logsArr.push(`Back to ${offer.offerUrl}`);
+                        await page.goto(offer.offerUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                    }
+
+                    const cartGoal = `Browse the store items. Find a product that matches these conditions: "${offer.offerTermsAndConditions}". Add it to the shopping cart. Then navigate to the cart or checkout page where a promo/coupon code can be entered. Once you see a coupon code input field, declare done.`;
+                    const cartRes = await performAgentAction(page, cartGoal, logsArr);
+                    totalSteps += cartRes.steps;
+
+                    if (!cartRes.success) throw new Error("Could not reach checkout");
+
+                    const couponGoal = `Find the promo code or coupon code input field on this checkout page. Type the code "${offer.offerCode}" into that field and click the Apply button. After applying, check if the page shows a success message (like a discount applied or price reduced). If so, declare done. If the page shows an error like "invalid code" or "expired", declare fail.`;
+                    const couponRes = await performAgentAction(page, couponGoal, logsArr);
+                    totalSteps += couponRes.steps;
+
+                    status = couponRes.success ? "VALID" : "INVALID";
+
+                } catch (err) {
+                    console.log(`  Error: ${err.message}`);
+                    logsArr.push(`Error: ${err.message}`);
+                }
+
+                totalProcessed++;
+
+                await ValidationResult.create({
+                    offerId: offer._id,
+                    partnerName: partner.partnerName,
+                    merchantLink: partner.merchantLink,
+                    offerCode: offer.offerCode,
+                    offerTermsAndConditions: offer.offerTermsAndConditions,
+                    status,
+                    aiResponse: logsArr.join("\n"),
+                    stepsTaken: totalSteps,
+                    errorMessage: status === "ERROR" ? logsArr[logsArr.length - 1] : ""
+                });
+
+                offer.lastStatus = status;
+                offer.lastValidated = new Date();
+                await offer.save();
+
+                await context.clearCookies();
+            }
+
+            await page.close();
+            await context.close();
         }
-
-        await page.close();
-        await context.close();
-    }
 
     } catch (err) {
         console.error("Validation run error:", err.message);
