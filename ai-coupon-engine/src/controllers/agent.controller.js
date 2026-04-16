@@ -56,7 +56,7 @@ export const submitTaskResult = async (req, res) => {
                 status: status === "valid" ? "active" : status,
                 verificationReason: reason || "Verified by AI Agent"
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!updatedCoupon) {
