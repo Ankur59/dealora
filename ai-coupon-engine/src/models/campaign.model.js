@@ -21,6 +21,15 @@ const campaignSchema = new Schema({
     trackingLink: {
         type: String
     },
+    domain: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    loginUrl: {
+        type: String,
+        trim: true
+    },
     countries: {
         type: [String],
     },
