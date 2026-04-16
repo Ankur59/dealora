@@ -7,11 +7,90 @@ const { GEMINI_API_KEY, MODEL_NAME, BACKEND_URL } = CONFIG;
 // State
 let isRunning = false;
 let currentTasks = [];
-let merchantStatuses = {}; // e.g., { 'amazon.in': { isLoggedIn: true, cookies: [...] } }
+let merchantStatuses = {}; // e.g., { 'amazon.in': { isLoggedIn: true, lastChecked: ... } }
+// Known merchant domains we should automatically track cookies for
+let knownMerchantDomains = {}; // { 'amazon.in': 'Amazon India', ... }
+let cookieSyncTimers = {}; // debounce timers per domain
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log('[Dealora AI Agent] Installed.');
     chrome.storage.local.set({ isRunning: false, currentTasks: [], merchantStatuses: {} });
+    bootstrapMerchantSessions();
+});
+
+// Also bootstrap on service worker wake-up (not just install)
+bootstrapMerchantSessions();
+
+/**
+ * On startup, fetch campaigns from DB to build the map of known merchant domains,
+ * then check if we already have stored cookie sessions for them.
+ */
+async function bootstrapMerchantSessions() {
+    try {
+        // 1. Fetch campaigns to know which domains to track
+        const campaignRes = await fetch(`${BACKEND_URL}/campaigns`);
+        if (campaignRes.ok) {
+            const data = await campaignRes.json();
+            const campaigns = (data.campaigns || []).filter(c => c.domain);
+            knownMerchantDomains = {};
+            campaigns.forEach(c => {
+                knownMerchantDomains[c.domain] = c.title || c.domain;
+            });
+            console.log(`[Dealora AI Agent] Tracking ${Object.keys(knownMerchantDomains).length} merchant domains`);
+        }
+
+        // 2. Fetch existing cookie sessions from DB to pre-populate merchantStatuses
+        const cookieRes = await fetch(`${BACKEND_URL}/merchant-cookies`);
+        if (cookieRes.ok) {
+            const data = await cookieRes.json();
+            const records = data.data || [];
+            records.forEach(r => {
+                // Extract domain from merchantUrl
+                try {
+                    const domain = new URL(r.merchantUrl).hostname.replace(/^www\./, '');
+                    if (r.cookiesCount > 0) {
+                        merchantStatuses[domain] = { isLoggedIn: true, lastChecked: new Date(r.syncedAt).getTime() };
+                    }
+                } catch(e) { /* skip invalid URLs */ }
+            });
+            chrome.storage.local.set({ merchantStatuses });
+            console.log(`[Dealora AI Agent] Restored ${Object.keys(merchantStatuses).length} merchant sessions from DB`);
+        }
+    } catch(err) {
+        console.error('[Dealora AI Agent] bootstrapMerchantSessions error:', err);
+    }
+}
+
+/**
+ * Automatic cookie change listener.
+ * Fires whenever any cookie is set/removed. If the domain matches a known merchant,
+ * debounce and auto-sync all cookies for that domain to the backend.
+ */
+chrome.cookies.onChanged.addListener((changeInfo) => {
+    const cookieDomain = (changeInfo.cookie.domain || '').replace(/^\./, '');
+    
+    // Check if this domain (or a parent) matches any known merchant
+    const matchedDomain = Object.keys(knownMerchantDomains).find(d =>
+        cookieDomain === d || cookieDomain.endsWith('.' + d) || d.endsWith('.' + cookieDomain)
+    );
+    if (!matchedDomain) return;
+
+    // Debounce: wait 3s after the last cookie change before syncing
+    // (login flows set many cookies in quick succession)
+    clearTimeout(cookieSyncTimers[matchedDomain]);
+    cookieSyncTimers[matchedDomain] = setTimeout(() => {
+        const merchantName = knownMerchantDomains[matchedDomain];
+        console.log(`[Dealora AI Agent] Auto-syncing cookies for ${matchedDomain} (${merchantName})`);
+        
+        merchantStatuses[matchedDomain] = { isLoggedIn: true, lastChecked: Date.now() };
+        chrome.storage.local.set({ merchantStatuses });
+
+        captureAndSyncCookies(matchedDomain, merchantName).then(result => {
+            console.log(`[Dealora AI Agent] Auto cookie sync done for ${matchedDomain}:`, result);
+        }).catch(err => {
+            console.error(`[Dealora AI Agent] Auto cookie sync failed for ${matchedDomain}:`, err);
+        });
+    }, 3000);
 });
 
 // Listener for messages from popup
@@ -28,8 +107,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.type === 'GET_STATE') {
         sendResponse({ isRunning, currentTasks, merchantStatuses });
     } else if (request.type === 'UPDATE_MERCHANT_LOGIN') {
-        merchantStatuses[request.domain] = { isLoggedIn: true, lastChecked: Date.now() };
+        const { domain, merchantName } = request;
+        merchantStatuses[domain] = { isLoggedIn: true, lastChecked: Date.now() };
         chrome.storage.local.set({ merchantStatuses });
+        // Automatically capture and sync cookies to the backend DB
+        captureAndSyncCookies(domain, merchantName || domain)
+            .then(result => {
+                console.log(`[Dealora AI Agent] Cookie sync complete for ${domain}:`, result);
+            })
+            .catch(err => {
+                console.error(`[Dealora AI Agent] Cookie sync failed for ${domain}:`, err);
+            });
         sendResponse({ status: 'updated' });
     } else if (request.type === 'SUBMIT_OTP') {
         const { taskId, otp } = request;
@@ -44,6 +132,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
         }
         sendResponse({ status: 'resumed' });
+    } else if (request.type === 'TRIGGER_VERIFY') {
+        // Manual verify: fetch the specific coupon from backend and queue it
+        const { couponId } = request;
+        triggerSingleVerification(couponId)
+            .then(() => sendResponse({ status: 'queued' }))
+            .catch(err => {
+                console.error('[Dealora AI Agent] Manual verify failed:', err);
+                sendResponse({ status: 'error', message: err.message });
+            });
     }
     return true;
 });
@@ -279,5 +376,95 @@ async function reportResultToBackend(taskId, status, reason) {
         });
     } catch (err) {
         console.error('[Dealora AI Agent] Error reporting result:', err);
+    }
+}
+
+/**
+ * Capture all cookies for a domain using the chrome.cookies API
+ * and POST them to the backend so the AI agent can reuse the session.
+ */
+async function captureAndSyncCookies(domain, merchantName) {
+    try {
+        // Strip leading dot/www for broader matching
+        const cleanDomain = domain.replace(/^www\./, '');
+
+        // chrome.cookies.getAll returns every cookie the browser holds for this domain
+        const cookies = await chrome.cookies.getAll({ domain: cleanDomain });
+
+        if (!cookies || cookies.length === 0) {
+            console.warn(`[Dealora AI Agent] No cookies found for domain: ${cleanDomain}`);
+            return { synced: false, reason: 'no_cookies' };
+        }
+
+        console.log(`[Dealora AI Agent] Captured ${cookies.length} cookies for ${cleanDomain}`);
+
+        const payload = {
+            providerName: merchantName,
+            merchantUrl: `https://${domain}/`,
+            cookiesCount: cookies.length,
+            cookies: cookies,
+            syncedAt: new Date().toISOString()
+        };
+
+        const res = await fetch(`${BACKEND_URL}/merchant-cookies`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            console.error('[Dealora AI Agent] Backend rejected cookie sync:', errBody);
+            return { synced: false, reason: 'backend_error', detail: errBody };
+        }
+
+        const data = await res.json();
+        return { synced: true, id: data.data?.id, cookiesCount: cookies.length };
+    } catch (err) {
+        console.error('[Dealora AI Agent] captureAndSyncCookies error:', err);
+        return { synced: false, reason: 'exception', detail: err.message };
+    }
+}
+
+/**
+ * Manually trigger AI verification for a single coupon by its ID.
+ * Fetches the coupon details from the backend, then creates a task and runs verifyCoupon.
+ */
+async function triggerSingleVerification(couponId) {
+    try {
+        const res = await fetch(`${BACKEND_URL}/coupons/${couponId}`);
+        if (!res.ok) throw new Error('Failed to fetch coupon');
+
+        const { data: coupon } = await res.json();
+        const url = coupon.couponVisitingLink || coupon.trackingLink;
+
+        if (!url) {
+            console.warn(`[Dealora AI Agent] Coupon ${couponId} has no visiting/tracking link. Cannot verify.`);
+            return;
+        }
+
+        const task = {
+            id: coupon._id,
+            url,
+            code: coupon.code,
+            conditions: coupon.description || `Verify if the coupon code ${coupon.code} works on checkout.`,
+            brand: coupon.brandName,
+            status: 'running',
+            message: 'Manual trigger — initializing…'
+        };
+
+        currentTasks.push(task);
+        chrome.storage.local.set({ currentTasks });
+
+        verifyCoupon(task).catch(err => {
+            console.error(`[Dealora AI Agent] Manual verification failed for ${couponId}:`, err);
+        }).finally(() => {
+            currentTasks = currentTasks.filter(t => t.id !== couponId);
+            chrome.storage.local.set({ currentTasks });
+        });
+
+        console.log(`[Dealora AI Agent] Manual verification started for coupon ${couponId}`);
+    } catch (err) {
+        console.error('[Dealora AI Agent] triggerSingleVerification error:', err);
     }
 }

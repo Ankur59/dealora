@@ -8,6 +8,7 @@ import partnerRouter from "./routes/partner.route.js"
 import merchantCookieRouter from "./routes/merchantCookie.route.js"
 import agentRouter from "./routes/agent.route.js"
 import campaignRouter from "./routes/campaign.route.js"
+import couponRouter from "./routes/coupon.route.js"
 
 dotenv.config()
 
@@ -41,5 +42,6 @@ app.use("/api/v1/partners", partnerRouter)
 app.use("/api/v1/merchant-cookies", merchantCookieRouter)
 app.use("/api/v1/agent", agentRouter)
 app.use("/api/v1/campaigns", campaignRouter)
+app.use("/api/v1/coupons", couponRouter)
 
 export default app
