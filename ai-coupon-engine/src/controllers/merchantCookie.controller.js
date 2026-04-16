@@ -31,13 +31,18 @@ export const saveMerchantCookies = async (req, res) => {
             });
         }
 
-        const record = await MerchantCookie.create({
-            merchantName: providerName.trim(),
-            merchantUrl: merchantUrl || "",
-            cookiesCount: cookiesCount ?? cookies.length,
-            cookies,
-            syncedAt: syncedAt ? new Date(syncedAt) : new Date(),
-        });
+        // Upsert: update existing record for this merchant, or create a new one
+        const record = await MerchantCookie.findOneAndUpdate(
+            { merchantName: providerName.trim() },
+            {
+                merchantName: providerName.trim(),
+                merchantUrl: merchantUrl || "",
+                cookiesCount: cookiesCount ?? cookies.length,
+                cookies,
+                syncedAt: syncedAt ? new Date(syncedAt) : new Date(),
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
 
         return res.status(201).json({
             success: true,
