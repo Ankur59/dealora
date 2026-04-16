@@ -19,7 +19,7 @@ export const syncCategories = async () => {
                     apiUpdatedAt: cat.modified
                 }
             },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
     }
 };

@@ -41,7 +41,7 @@ export const saveMerchantCookies = async (req, res) => {
                 cookies,
                 syncedAt: syncedAt ? new Date(syncedAt) : new Date(),
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
 
         return res.status(201).json({
