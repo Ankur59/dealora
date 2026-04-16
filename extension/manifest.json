@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Dealora Cookie Sync",
-    "version": "1.0.0",
-    "description": "Internal tool — sync merchant session cookies to the Dealora backend.",
+    "name": "Dealora AI Verification Agent",
+    "version": "2.0.0",
+    "description": "Admin-only extension for autonomous AI coupon verification across merchants.",
 
     "action": {
         "default_popup": "popup.html",
@@ -11,18 +11,30 @@
             "48":  "icons/icon48.png",
             "128": "icons/icon128.png"
         },
-        "default_title": "Dealora Cookie Sync"
+        "default_title": "Dealora AI Agent"
     },
 
     "background": {
-        "service_worker": "background.js"
+        "service_worker": "background.js",
+        "type": "module"
     },
+
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        }
+    ],
 
     "permissions": [
         "cookies",
         "activeTab",
         "storage",
-        "tabs"
+        "tabs",
+        "alarms",
+        "scripting",
+        "windows"
     ],
 
     "host_permissions": [

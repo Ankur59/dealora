@@ -22,7 +22,7 @@ const couponSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ["active", "pending", "expired"]
+        enum: ["active", "pending", "expired", "invalid", "valid"]
     },
     start: {
         type: Date
@@ -43,6 +43,9 @@ const couponSchema = new Schema({
     isVerified: {
         type: Boolean,
         default: false
+    },
+    verificationReason: {
+        type: String
     },
     campaignId: {
         type: String,
