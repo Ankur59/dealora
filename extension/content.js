@@ -30,41 +30,44 @@ function getSimplifiedDOM() {
 
     // An alternative approach: just get the visible text and input elements of the actual document.
     const actionableElements = [];
-    document.querySelectorAll('a, button, input, select, textarea, [role="button"]').forEach(el => {
+    document.querySelectorAll('a, button, input, select, textarea, [role="button"], [onclick]').forEach(el => {
         const rect = el.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0 || el.style.display === 'none' || el.style.visibility === 'hidden') {
+        const style = window.getComputedStyle(el);
+        
+        // Skip hidden elements
+        if (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
             return;
         }
+
+        // Also include things that LOOK like buttons (cursor: pointer)
+        const isClickable = el.tagName === 'A' || el.tagName === 'BUTTON' || style.cursor === 'pointer' || el.getAttribute('role') === 'button';
+        
+        if (!isClickable && el.tagName !== 'INPUT' && el.tagName !== 'SELECT' && el.tagName !== 'TEXTAREA') return;
         
         // Build a unique CSS selector for the AI
         let selector = el.tagName.toLowerCase();
         if (el.id) {
-            selector += `#${el.id}`;
+            selector += `#${CSS.escape(el.id)}`;
         } else if (el.className && typeof el.className === 'string') {
-            selector += `.${el.className.split(' ').join('.')}`;
-        } else if (el.name) {
-            selector += `[name="${el.name}"]`;
-        } else if (el.type) {
-            selector += `[type="${el.type}"]`;
+            const classes = el.className.split(/\s+/).filter(c => c && !c.includes(':')).slice(0, 3);
+            if (classes.length > 0) selector += `.${classes.map(c => CSS.escape(c)).join('.')}`;
         }
 
-        let text = el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || '';
+        let text = el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || el.title || '';
         text = text.replace(/\s+/g, ' ').trim();
         
-        if (text || el.tagName.toLowerCase() === 'input') {
-            actionableElements.push({
-                tag: el.tagName.toLowerCase(),
-                type: el.type || undefined,
-                text: text.substring(0, 100),
-                selector: selector
-            });
-        }
+        actionableElements.push({
+            tag: el.tagName.toLowerCase(),
+            type: el.type || undefined,
+            text: text.substring(0, 100),
+            selector: selector
+        });
     });
 
     return {
         url: window.location.href,
         title: document.title,
-        actionableElements: actionableElements.slice(0, 150) // limit to avoid token bloat
+        actionableElements: actionableElements.slice(0, 250) // Increased limit for complex sites
     };
 }
 
@@ -74,10 +77,9 @@ async function typeText(element, text) {
     element.value = ''; // Clear existing
     for (let char of text) {
         element.value += char;
-        // Dispatch input event so JS frameworks (React/Vue) register the change
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
-        await delay(Math.random() * 50 + 50); // 50-100ms per char
+        await delay(Math.random() * 40 + 30); 
     }
 }
 
@@ -86,15 +88,16 @@ async function clickElement(element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await delay(300);
     
-    ['mouseover', 'mousedown', 'mouseup', 'click'].forEach(eventType => {
-        const event = new MouseEvent(eventType, {
-            view: window,
-            bubbles: true,
-            cancelable: true,
-            buttons: 1
-        });
-        element.dispatchEvent(event);
-    });
+    // Dispatch a comprehensive sequence of events to trigger modern JS listeners
+    const eventOptions = { view: window, bubbles: true, cancelable: true, buttons: 1 };
+    
+    element.focus();
+    element.dispatchEvent(new PointerEvent('pointerover', eventOptions));
+    element.dispatchEvent(new PointerEvent('pointerdown', eventOptions));
+    element.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+    element.dispatchEvent(new PointerEvent('pointerup', eventOptions));
+    element.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+    element.dispatchEvent(new MouseEvent('click', eventOptions));
 }
 
 // Message listener from background

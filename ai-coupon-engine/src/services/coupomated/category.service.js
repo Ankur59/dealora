@@ -27,7 +27,7 @@ export const syncCategories = async () => {
                         partner: "coupomated"
                     }
                 },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: 'after' }
             );
         }
         catch (error) {
