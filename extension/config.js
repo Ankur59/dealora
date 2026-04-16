@@ -6,15 +6,6 @@ export const CONFIG = {
     // Array of Google Gemini API Keys — the system will rotate through them
     // if one hits a rate limit or fails.
     GEMINI_API_KEYS: [
-        "AIzaSyBS5L8tGj0UeO2JGimW-NirLCIzbFfCznA",
-        "AIzaSyCRvbTz1zxfIh4xgOcRCriXxIeMNPh49ag",
-        "AIzaSyANl9VUDVNLGM7Jkbbs8xha_JBQP-u4rCU",
-        "AIzaSyC9YRWGz2gMR-HMPIpimsV_jT6fq36gIpk",
-        "AIzaSyB350gxebvn-axiI6dOzg29sWlaQj_bS_I",
-        "AIzaSyBZS-DUuevUf7h07SV0hwX8LSQyBVptabc"
-        // Add more keys here for fallback:
-        // "AIzaSy...",
-        // "AIzaSy...",
     ],
 
     // The Gemini Model to use
