@@ -1,6 +1,7 @@
 import { getAllCoupons, getUpdatedCoupons, getExpiredCoupons } from "../../providers/coupomated.js"
 import normalizeCoupomatedCoupon from "./helpers/normalize.js"
 import coupon from "../../models/coupon.model.js"
+import Merchant from "../../models/merchant.model.js"
 
 export const syncAllCoupons = async () => {
     const allCoupons = await getAllCoupons();
@@ -23,9 +24,39 @@ export const syncAllCoupons = async () => {
 
     if (ops.length === 0) return;
 
+    // Extract unique merchants from coupon data
+    const merchantMap = new Map();
+    allCoupons.forEach(item => {
+        const name = item.merchant_name;
+        if (name && !merchantMap.has(name)) {
+            merchantMap.set(name, item.plain_link || "");
+        }
+    });
+
+    const merchantOps = [...merchantMap.entries()].map(([name, url]) => ({
+        updateOne: {
+            filter: { merchantName: name },
+            update: {
+                $setOnInsert: {
+                    merchantName: name,
+                    merchantUrl: url,
+                    partnerName: "coupomated",
+                    score: 0,
+                    isActive: true
+                }
+            },
+            upsert: true
+        }
+    }));
+
     try {
         await coupon.bulkWrite(ops, { ordered: false });
         console.log(`Coupomated: ${ops.length} coupons synced successfully.`);
+
+        if (merchantOps.length > 0) {
+            await Merchant.bulkWrite(merchantOps, { ordered: false });
+            console.log(`Coupomated: ${merchantOps.length} merchants upserted.`);
+        }
     } catch (err) {
         if (err.code !== 11000) {
             console.error("Coupomated bulkWrite error:", err);

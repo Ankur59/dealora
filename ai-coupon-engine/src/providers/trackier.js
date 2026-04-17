@@ -16,6 +16,7 @@ export const getAllCategory = async () => {
 }
 
 export const getAllCampaigns = async (categories = [], limit) => {
+    console.log("called")
     let page = 1;
     let allCampaigns = [];
 

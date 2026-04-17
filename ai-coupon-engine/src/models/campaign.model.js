@@ -8,7 +8,6 @@ const campaignSchema = new Schema({
     campaignId: {
         type: Number,
         require: true,
-        index: true
     },
     title: {
         type: String,

@@ -31,12 +31,12 @@ function log(level, ...args) {
 // ─── Bootstrap ───────────────────────────────────────────────
 async function bootstrapMerchantSessions() {
     try {
-        const campaignRes = await fetch(`${BACKEND_URL}/campaigns`);
-        if (campaignRes.ok) {
-            const data = await campaignRes.json();
-            const campaigns = (data.campaigns || []).filter(c => c.domain);
+        const merchantRes = await fetch(`${BACKEND_URL}/merchants`);
+        if (merchantRes.ok) {
+            const data = await merchantRes.json();
+            const merchants = (data.data || []).filter(m => m.domain);
             knownMerchantDomains = {};
-            campaigns.forEach(c => { knownMerchantDomains[c.domain] = c.title || c.domain; });
+            merchants.forEach(m => { knownMerchantDomains[m.domain] = m.merchantName; });
             log('INFO', `Tracking ${Object.keys(knownMerchantDomains).length} merchant domains`);
         }
         const cookieRes = await fetch(`${BACKEND_URL}/merchant-cookies`);
@@ -90,10 +90,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ isRunning, currentTasks, merchantStatuses });
     } else if (request.type === 'UPDATE_MERCHANT_LOGIN') {
         const { domain, merchantName } = request;
-        merchantStatuses[domain] = { isLoggedIn: true, lastChecked: Date.now() };
-        chrome.storage.local.set({ merchantStatuses });
-        captureAndSyncCookies(domain, merchantName || domain);
-        sendResponse({ status: 'updated' });
+        captureAndSyncCookies(domain, merchantName || domain)
+            .then(result => {
+                if (result.status === 'updated') {
+                    // Only mark as logged in if we actually got cookies
+                    merchantStatuses[domain] = { isLoggedIn: true, lastChecked: Date.now() };
+                } else {
+                    // Clear any stale logged-in status if no cookies found
+                    merchantStatuses[domain] = { isLoggedIn: false, lastChecked: Date.now() };
+                }
+                chrome.storage.local.set({ merchantStatuses });
+                sendResponse(result);
+            })
+            .catch(() => sendResponse({ status: 'error', message: 'Sync failed' }));
     } else if (request.type === 'SUBMIT_OTP') {
         const task = currentTasks.find(t => t.id === request.taskId);
         if (task && task.status === 'waiting_for_otp') {
@@ -475,13 +484,41 @@ async function reportResultToBackend(taskId, status, reason) {
     });
 }
 
-async function captureAndSyncCookies(domain, merchantName) {
+async function captureAndSyncCookies(rawDomain, merchantName) {
+    // Sanitize: strip protocol, www., trailing slashes and paths
+    let domain = rawDomain.trim();
     try {
-        const cookies = await chrome.cookies.getAll({ domain: domain.replace(/^www\./, '') });
+        // If it looks like a URL, parse it
+        if (domain.includes('://')) domain = new URL(domain).hostname;
+    } catch(e) {}
+    domain = domain.replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
+
+    log('INFO', `Syncing cookies for domain: "${domain}" (raw: "${rawDomain}")`);
+
+    try {
+        const cookies = await chrome.cookies.getAll({ domain });
+
+        if (!cookies || cookies.length === 0) {
+            log('WARN', `Sync for ${merchantName}: no cookies found for domain "${domain}"`);
+            return { status: 'error', message: `No cookies found in browser for "${domain}"` };
+        }
+
         await fetch(`${BACKEND_URL}/merchant-cookies`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ providerName: merchantName, merchantUrl: `https://${domain}/`, cookiesCount: cookies.length, cookies, syncedAt: new Date().toISOString() })
+            body: JSON.stringify({
+                providerName: merchantName,
+                merchantUrl: `https://${domain}/`,
+                cookiesCount: cookies.length,
+                cookies,
+                syncedAt: new Date().toISOString()
+            })
         });
-    } catch (e) {}
+
+        log('INFO', `Synced ${cookies.length} cookies for ${merchantName} (${domain})`);
+        return { status: 'updated', cookiesCount: cookies.length };
+    } catch (e) {
+        log('ERROR', `captureAndSyncCookies error for ${domain}:`, e);
+        return { status: 'error', message: e.message };
+    }
 }
