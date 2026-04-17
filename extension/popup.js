@@ -563,28 +563,54 @@ async function updateDashboardState() {
         const status = statuses[m.domain];
         const isLogged = status && status.isLoggedIn;
         
+        // Get map status
+        const mapStatus = await new Promise(resolve => {
+            chrome.runtime.sendMessage({ type: 'GET_MAP_STATUS', domain: m.domain }, (resp) => {
+                resolve(resp?.status || 'unknown');
+            });
+        });
+
         const el = document.createElement('div');
         el.className = 'merchant-item';
         el.innerHTML = `
-            <div>
+            <div style="flex: 1;">
                 <div class="merchant-name">${m.title}</div>
-                <div class="merchant-status ${isLogged ? 'logged-in' : ''}">
-                    ${isLogged ? 'Session Active ✓' : 'Requires Login'}
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="merchant-status ${isLogged ? 'logged-in' : ''}">
+                        ${isLogged ? 'Session Active ✓' : 'Requires Login'}
+                    </div>
+                    <div class="map-badge ${mapStatus === 'mapped' ? 'mapped' : ''}" title="${mapStatus === 'mapped' ? 'Deterministic map available' : 'No map found, will use AI'}">
+                        ${mapStatus === 'mapped' ? '⚡ Mapped' : '🤖 AI Mode'}
+                    </div>
                 </div>
             </div>
             <div style="display: flex; gap: 4px;">
-                ${!isLogged ? `<button class="btn-open" data-url="${m.loginUrl || m.trackingLink}" data-domain="${m.domain}" data-title="${m.title}">Open</button>` : ''}
+                <button class="btn-force-auth" data-url="${m.loginUrl || m.trackingLink}" data-domain="${m.domain}" data-brand="${m.title}" style="background: #fef3c7; color: #92400e; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #f59e0b; cursor: pointer;">${mapStatus === 'mapped' ? 'Re-Map' : 'Map Site'}</button>
                 <button class="btn-sync-session" data-domain="${m.domain}" data-title="${m.title}" style="background: #dbeafe; color: #1d4ed8; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer;">Sync</button>
             </div>
         `;
         merchantList.appendChild(el);
     }
     
-    // Open buttons
-    document.querySelectorAll('.btn-open').forEach(btn => {
+    // Force Auth buttons
+    document.querySelectorAll('.btn-force-auth').forEach(btn => {
         btn.addEventListener('click', (e) => {
+            const domain = e.target.getAttribute('data-domain');
             const url = e.target.getAttribute('data-url');
-            chrome.tabs.create({ url });
+            const brand = e.target.getAttribute('data-brand');
+            
+            e.target.textContent = 'Queuing...';
+            e.target.disabled = true;
+
+            chrome.runtime.sendMessage({ type: 'TRIGGER_AUTH', domain, url, brand }, (resp) => {
+                if (resp.status === 'queued') {
+                    e.target.textContent = 'Running...';
+                } else {
+                    alert('Error: ' + resp.message);
+                    e.target.textContent = 'Failed';
+                    e.target.disabled = false;
+                }
+            });
         });
     });
 
