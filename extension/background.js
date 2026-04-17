@@ -103,13 +103,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (task._resumeResolver) task._resumeResolver();
         }
         sendResponse({ status: 'resumed' });
-    } else if (request.type === 'TRIGGER_VERIFY') {
-        triggerSingleVerification(request.couponId)
+    } else if (request.type === 'TRIGGER_AUTH') {
+        triggerAuthFlow(request.domain, request.url, request.brand)
             .then(() => sendResponse({ status: 'queued' }))
+            .catch(err => sendResponse({ status: 'error', message: err.message }));
+    } else if (request.type === 'GET_MAP_STATUS') {
+        checkMapStatus(request.domain)
+            .then(status => sendResponse({ status }))
             .catch(err => sendResponse({ status: 'error', message: err.message }));
     }
     return true; 
 });
+
+async function triggerAuthFlow(domain, url, brand) {
+    if (currentTasks.some(t => t.type === 'auth' && t.domain === domain)) {
+        throw new Error('Auth task already in progress for this domain');
+    }
+    const authTask = { 
+        id: `auth_${domain}_${Date.now()}`, 
+        type: 'auth', 
+        domain, 
+        url, 
+        brand, 
+        status: 'running', 
+        message: 'Manual Authenticating...' 
+    };
+    currentTasks.push(authTask);
+    chrome.storage.local.set({ currentTasks });
+    runAgentSequence(authTask).finally(() => {
+        currentTasks = currentTasks.filter(t => t.id !== authTask.id);
+        chrome.storage.local.set({ currentTasks });
+    });
+}
+
+async function checkMapStatus(domain) {
+    try {
+        const res = await fetch(`${BACKEND_URL}/agent/automation-map/${domain}/login`);
+        if (res.ok) {
+            const data = await res.json();
+            return data.map ? 'mapped' : 'unmapped';
+        }
+    } catch (e) {}
+    return 'unknown';
+}
 
 async function startAgentLoop() {
     chrome.alarms.create('agentLoop', { periodInMinutes: 1 });
@@ -126,12 +162,27 @@ async function fetchAndQueueTasks() {
         const newTasks = data.coupons || [];
         for (let task of newTasks) {
             if (currentTasks.length >= 5) break;
-            const domain = new URL(task.url).hostname;
-            if (!merchantStatuses[domain]?.isLoggedIn) continue;
+            const domain = new URL(task.url).hostname.replace(/^www\./, '');
+            
+            // If not logged in, queue an AUTH task instead
+            if (!merchantStatuses[domain]?.isLoggedIn) {
+                if (!currentTasks.some(t => t.type === 'auth' && t.domain === domain)) {
+                    const authTask = { id: `auth_${domain}_${Date.now()}`, type: 'auth', domain, url: task.url, code: 'LOGIN_FLOW', brand: knownMerchantDomains[domain] || domain, status: 'running', message: 'Authenticating...' };
+                    currentTasks.push(authTask);
+                    chrome.storage.local.set({ currentTasks });
+                    runAgentSequence(authTask).finally(() => {
+                        currentTasks = currentTasks.filter(t => t.id !== authTask.id);
+                        chrome.storage.local.set({ currentTasks });
+                    });
+                }
+                continue;
+            }
+
+            task.type = 'verify';
             task.status = 'running';
             currentTasks.push(task);
             chrome.storage.local.set({ currentTasks });
-            verifyCoupon(task).finally(() => {
+            runAgentSequence(task).finally(() => {
                 currentTasks = currentTasks.filter(t => t.id !== task.id);
                 chrome.storage.local.set({ currentTasks });
             });
@@ -144,18 +195,18 @@ async function triggerSingleVerification(couponId) {
     const { data: coupon } = await res.json();
     const url = coupon.couponVisitingLink || coupon.trackingLink;
     if (!url) throw new Error('No URL');
-    const task = { id: coupon._id, url, code: coupon.code, brand: coupon.brandName, status: 'running', message: 'Starting...' };
+    const task = { id: coupon._id, url, code: coupon.code, brand: coupon.brandName, status: 'running', type: 'verify', message: 'Starting...' };
     currentTasks.push(task);
     chrome.storage.local.set({ currentTasks });
-    verifyCoupon(task).finally(() => {
+    runAgentSequence(task).finally(() => {
         currentTasks = currentTasks.filter(t => t.id !== task.id);
         chrome.storage.local.set({ currentTasks });
     });
 }
 
-// ─── Verification Logic ──────────────────────────────────────
-async function verifyCoupon(task) {
-    log('INFO', '🔍 STARTING VERIFICATION:', task.code, 'on', task.url);
+// ─── Verification & Auto-Login Logic ─────────────────────────────
+async function runAgentSequence(task) {
+    log('INFO', `🔍 STARTING ${task.type.toUpperCase()}:`, task.code, 'on', task.url);
     let windowInfo;
     try {
         windowInfo = await chrome.windows.create({ url: task.url, state: 'normal', width: 1280, height: 900, focused: false });
@@ -178,6 +229,32 @@ async function verifyCoupon(task) {
     log('INFO', 'Content script ready.');
 
     let isComplete = false, attempts = 0, actionHistory = [], consecutiveErrors = 0;
+    
+    // Check if we have deterministic maps
+    let mappedSequence = null;
+    let credentials = null;
+    let fallbackToAI = false;
+    
+    if (task.type === 'auth') {
+        try {
+            const mapRes = await fetch(`${BACKEND_URL}/agent/automation-map/${task.domain}/login`);
+            if (mapRes.ok) {
+                const mapData = await mapRes.json();
+                if (mapData.map && mapData.map.steps && mapData.map.steps.length > 0) {
+                    mappedSequence = mapData.map.steps;
+                    log('INFO', 'Found deterministic sequence for login. Proceeding with fast-path.');
+                }
+            }
+            const credRes = await fetch(`${BACKEND_URL}/agent/credentials/${task.domain}`);
+            if (credRes.ok) {
+                const credData = await credRes.json();
+                if (credData.credentials) {
+                    credentials = credData.credentials;
+                }
+            }
+        } catch(e) { log('WARN', 'Failed fetching auth map', e.message); }
+    }
+
     while (!isComplete && attempts < 20) {
         attempts++;
         log('INFO', `────── Step ${attempts}/20 ──────`);
@@ -222,29 +299,57 @@ async function verifyCoupon(task) {
             }
         }
 
-        // Call Gemini
-        log('INFO', 'Calling Gemini...');
-        const prompt = buildPrompt(task, domState, actionHistory, stuckWarning);
-        const aiResponse = await callGemini(prompt);
-        if (!aiResponse) {
-            log('ERROR', 'Gemini returned nothing. Aborting.');
-            break;
+        // Call Gemini (or use deterministic map skip)
+        let cmd = null;
+        
+        if (mappedSequence && mappedSequence.length > 0 && !fallbackToAI) {
+            cmd = mappedSequence.shift(); // take next step
+            cmd._isDeterministic = true; // flag for self-healing logic
+            log('INFO', `⚡ Fast-Path Step: ${cmd.action} on ${cmd.selector || cmd.url}`);
+            
+            // Variable substitution
+            if (cmd.value === '<USERNAME>') {
+                cmd.value = credentials?.username || '';
+                cmd.valuePlaceholder = '<USERNAME>';
+            }
+            if (cmd.value === '<PASSWORD>') {
+                cmd.value = credentials?.password || '';
+                cmd.valuePlaceholder = '<PASSWORD>';
+            }
+            
+        } else {
+            log('INFO', 'Calling Gemini...');
+            const prompt = buildPrompt(task, domState, actionHistory, stuckWarning);
+            const aiResponse = await callGemini(prompt);
+            if (!aiResponse) {
+                log('ERROR', 'Gemini returned nothing. Aborting.');
+                break;
+            }
+
+            // Parse response
+            try {
+                cmd = parseGeminiJSON(aiResponse);
+            } catch (e) {
+                log('ERROR', 'Failed to parse Gemini JSON:', aiResponse.substring(0, 200));
+                consecutiveErrors++;
+                if (consecutiveErrors >= 3) break;
+                continue;
+            }
         }
 
-        // Parse response
-        let cmd;
-        try {
-            cmd = parseGeminiJSON(aiResponse);
-        } catch (e) {
-            log('ERROR', 'Failed to parse Gemini JSON:', aiResponse.substring(0, 200));
-            consecutiveErrors++;
-            if (consecutiveErrors >= 3) break;
-            continue;
-        }
+        log('INFO', `🤖 Agent choice: ${JSON.stringify(cmd)}`);
+        // If cmd was typed by AI for credentials
+        if (cmd.value === credentials?.username && credentials?.username) { cmd.valuePlaceholder = '<USERNAME>'; }
+        if (cmd.value === credentials?.password && credentials?.password) { cmd.valuePlaceholder = '<PASSWORD>'; }
 
-        log('INFO', `🤖 Gemini decided: ${JSON.stringify(cmd)}`);
-        actionHistory.push({ step: attempts, action: cmd.action, selector: cmd.selector || cmd.url || 'N/A', url: domState.url });
-        if (actionHistory.length > 5) actionHistory.shift();
+        actionHistory.push({ 
+            step: attempts, 
+            action: cmd.action, 
+            selector: cmd.selector || cmd.url || 'N/A', 
+            url: domState.url,
+            valuePlaceholder: cmd.valuePlaceholder // track placeholder to save in map
+        });
+        if (actionHistory.length > 10) actionHistory.shift();
 
         // Execute
         if (cmd.action === 'evaluate') {
@@ -259,11 +364,24 @@ async function verifyCoupon(task) {
             log('INFO', `👆 Clicking: ${cmd.selector}`);
             const result = await executeActionOnTab(tabId, cmd);
             log('INFO', `   Click result: ${result?.status} — ${result?.message || ''}`);
+            if (result?.status === 'error' && cmd._isDeterministic) {
+                log('WARN', 'Deterministic step failed. Falling back to AI for healing.');
+                fallbackToAI = true;
+                // Add the error to the prompt for context
+                task._healingContext = `The deterministic step "${cmd.action} on ${cmd.selector}" failed with error: ${result?.message}. Please solve this step manually and proceed.`;
+                continue; // retry this step with AI
+            }
             await new Promise(r => setTimeout(r, 4000));
         } else if (cmd.action === 'type') {
-            log('INFO', `⌨️  Typing "${cmd.value}" into ${cmd.selector}`);
+            log('INFO', `⌨️  Typing ${cmd.valuePlaceholder ? cmd.valuePlaceholder : '...'} into ${cmd.selector}`);
             const result = await executeActionOnTab(tabId, cmd);
             log('INFO', `   Type result: ${result?.status} — ${result?.message || ''}`);
+            if (result?.status === 'error' && cmd._isDeterministic) {
+                log('WARN', 'Deterministic step failed. Falling back to AI for healing.');
+                fallbackToAI = true;
+                task._healingContext = `The deterministic step "${cmd.action} on ${cmd.selector}" failed with error: ${result?.message}. Please solve this step manually and proceed.`;
+                continue; // retry this step with AI
+            }
             await new Promise(r => setTimeout(r, 2000));
         } else if (cmd.action === 'navigate') {
             log('INFO', `🧭 Navigating to: ${cmd.url}`);
@@ -279,20 +397,58 @@ async function verifyCoupon(task) {
         }
     }
 
-    if (!isComplete) {
+    if (!isComplete && task.type === 'verify') {
         log('WARN', `Verification did not complete. Marking as invalid.`);
         await reportResultToBackend(task.id, 'invalid', 'Verification timed out or could not complete.');
+    } else if (isComplete && task.type === 'auth') {
+        // If auth completed successfully and we were in AI mode, save the map
+        log('INFO', `Auth completed. Saving map to DB for ${task.domain}`);
+        try {
+            const stepsToSave = actionHistory.map((h, i) => ({
+                step: i+1,
+                action: h.action,
+                selector: ['navigate'].includes(h.action) ? null : h.selector,
+                url: h.action === 'navigate' ? h.selector : h.url,
+                value: h.valuePlaceholder || null
+            })).filter(h => h.action !== 'evaluate'); // filter out the evaluate finale
+
+            await fetch(`${BACKEND_URL}/agent/automation-map`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ domain: task.domain, flowType: 'login', steps: stepsToSave })
+            });
+
+            // Mark session active
+            captureAndSyncCookies(task.domain, task.brand);
+        } catch(e) {}
     }
 
     if (windowInfo?.id) {
         try { await chrome.windows.remove(windowInfo.id); } catch(e) {}
     }
-    log('INFO', `🔍 Verification finished for ${task.code}`);
+    log('INFO', `🔍 ${task.type.toUpperCase()} task finished for ${task.code}`);
 }
 
 function buildPrompt(task, dom, history, warn) {
     const histLines = history.map(h => `- Step ${h.step}: ${h.action} on ${h.selector}`).join('\n');
-    return `You are an AI browser agent verifying coupon "${task.code}" for ${task.brand}.
+    
+    let objectiveStr = `You are an AI browser agent verifying coupon "${task.code}" for ${task.brand}.
+DECIDE:
+1. Click/Type/Navigate to reach the coupon entry step.
+2. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
+3. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".`;
+
+    if (task.type === 'auth') {
+        objectiveStr = `You are an AI browser agent tasked with logging into the website for ${task.brand}.
+${task._healingContext ? `HEALING CONTEXT: ${task._healingContext}\n` : ''}
+DECIDE:
+1. Click login buttons or Navigate to the login page.
+2. Type the username and password (you can guess them if standard flow, they will be replaced dynamically but for now output dummy values).
+3. Check for OTP requirements. If OTP is requested by the site, use {"action":"request_otp","message":"Enter the OTP sent to email/phone"}.
+4. If you have successfully logged in (dashboard visible, logout button visible, or "My Account"), use {"action":"evaluate","status":"valid","reason":"Logged in successfully"}.`;
+    }
+
+    return `${objectiveStr}
 URL: ${dom.url}
 HISTORY:
 ${histLines || 'None'}
@@ -300,11 +456,6 @@ ${warn ? `\nSTUCK WARNING: ${warn}\n` : ''}
 
 Actionable Elements (showing top 80 of ${dom.actionableElements.length}):
 ${JSON.stringify(dom.actionableElements.slice(0, 80), null, 2)}
-
-DECIDE:
-1. Click/Type/Navigate to reach the coupon entry step.
-2. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
-3. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".
 
 Respond only with raw JSON: {"action":"click"|"type"|"evaluate"|"wait"|"navigate"|"request_otp","selector":"...","value":"...","status":"...","reason":"..."}`;
 }
