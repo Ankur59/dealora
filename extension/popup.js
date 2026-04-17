@@ -3,7 +3,8 @@ import { CONFIG } from './config.js';
 
 let isLoggedIn = false;
 let isAgentRunning = false;
-let dbMerchants = [];
+let dbMerchants = [];     // Admin tab — campaigns from /campaigns
+let dbSyncMerchants = []; // AI Agent tab — merchants from /merchants
 let dbPartners = [];
 let dbCoupons = [];
 
@@ -58,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (authData.adminToken) {
         showDashboard();
     }
-    
+
     // UI Listeners
     document.getElementById('btnLogin').addEventListener('click', handleLogin);
     document.getElementById('btnLogout').addEventListener('click', handleLogout);
@@ -118,7 +119,7 @@ function setSubTab(activeBtn, inactiveBtnId, showSectionId, hideSectionId) {
 function handleLogin() {
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
-    
+
     if (user && pass) {
         chrome.storage.local.set({ adminToken: 'dummy-jwt-token' });
         showDashboard();
@@ -138,13 +139,17 @@ function handleLogout() {
 async function showDashboard() {
     document.getElementById('stepLogin').classList.remove('active');
     document.getElementById('stepDashboard').classList.add('active');
-    
+
     await fetchAdminData();
+    await fetchSyncMerchants();
     await fetchCoupons();
     await updateDashboardState();
-    
+
     // Poll state every 3 seconds
-    setInterval(updateDashboardState, 3000);
+    setInterval(async () => {
+        await fetchSyncMerchants();
+        updateDashboardState();
+    }, 3000);
 }
 
 // ─── Data Fetching ───────────────────────────────────────────
@@ -154,14 +159,14 @@ async function fetchAdminData() {
             fetch(`${CONFIG.BACKEND_URL}/partners`),
             fetch(`${CONFIG.BACKEND_URL}/campaigns`)
         ]);
-        
+
         if (partnersRes.ok) {
             const data = await partnersRes.json();
             dbPartners = data.data || data.partners || [];
             populatePartnerSelect();
             renderDbPartners();
         }
-        
+
         if (merchantsRes.ok) {
             const data = await merchantsRes.json();
             dbMerchants = (data.campaigns || []).filter(c => c.domain);
@@ -172,6 +177,19 @@ async function fetchAdminData() {
     }
 }
 
+// ─── Merchant Sessions Fetcher (AI Agent tab) ─────────────────
+async function fetchSyncMerchants() {
+    try {
+        const res = await fetch(`${CONFIG.BACKEND_URL}/merchants`);
+        if (res.ok) {
+            const data = await res.json();
+            dbSyncMerchants = (data.data || []).filter(m => m.domain);
+        }
+    } catch (err) {
+        console.error("Error fetching sync merchants:", err);
+    }
+}
+
 async function fetchCoupons() {
     try {
         const res = await fetch(`${CONFIG.BACKEND_URL}/agent/pending-tasks`);
@@ -179,7 +197,7 @@ async function fetchCoupons() {
         const data = await res.json();
         // pending-tasks only returns unverified — also get all coupons if we have a generic endpoint
         // For now we'll use a dedicated coupon list fetch
-    } catch(err) {
+    } catch (err) {
         console.error("Error fetching coupons:", err);
     }
 
@@ -191,7 +209,7 @@ async function fetchCoupons() {
             dbCoupons = data.data || data.coupons || [];
             renderCoupons();
         }
-    } catch(err) {
+    } catch (err) {
         console.error("Error fetching all coupons:", err);
     }
 }
@@ -221,12 +239,12 @@ function populatePartnerSelect() {
 function renderDbMerchants() {
     const container = document.getElementById('dbMerchantList');
     container.innerHTML = '';
-    
+
     if (dbMerchants.length === 0) {
         container.innerHTML = '<p class="small-text">No merchants found. Add one above.</p>';
         return;
     }
-    
+
     dbMerchants.forEach(m => {
         const div = document.createElement('div');
         div.className = 'merchant-item';
@@ -239,7 +257,7 @@ function renderDbMerchants() {
         `;
         container.appendChild(div);
     });
-    
+
     document.querySelectorAll('.btn-delete-merchant').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             if (confirm('Delete this campaign?')) {
@@ -247,7 +265,7 @@ function renderDbMerchants() {
                 try {
                     const res = await fetch(`${CONFIG.BACKEND_URL}/campaigns/${id}`, { method: 'DELETE' });
                     if (res.ok) await fetchAdminData();
-                } catch(err) { console.error(err); }
+                } catch (err) { console.error(err); }
             }
         });
     });
@@ -257,12 +275,12 @@ function renderDbMerchants() {
 function renderDbPartners() {
     const container = document.getElementById('dbPartnerList');
     container.innerHTML = '';
-    
+
     if (dbPartners.length === 0) {
         container.innerHTML = '<p class="small-text">No partners found. Add one above.</p>';
         return;
     }
-    
+
     dbPartners.forEach(p => {
         const div = document.createElement('div');
         div.className = 'merchant-item';
@@ -276,7 +294,7 @@ function renderDbPartners() {
         `;
         container.appendChild(div);
     });
-    
+
     document.querySelectorAll('.btn-delete-partner').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             if (confirm('Delete this partner?')) {
@@ -284,7 +302,7 @@ function renderDbPartners() {
                 try {
                     const res = await fetch(`${CONFIG.BACKEND_URL}/partners/${id}`, { method: 'DELETE' });
                     if (res.ok) await fetchAdminData();
-                } catch(err) { console.error(err); }
+                } catch (err) { console.error(err); }
             }
         });
     });
@@ -364,7 +382,7 @@ function renderCoupons() {
                 try {
                     const res = await fetch(`${CONFIG.BACKEND_URL}/coupons/${couponId}`, { method: 'DELETE' });
                     if (res.ok) await fetchCoupons();
-                } catch(err) { console.error(err); }
+                } catch (err) { console.error(err); }
             }
         });
     });
@@ -384,7 +402,7 @@ async function triggerManualVerification(couponId) {
         chrome.runtime.sendMessage({ type: 'TRIGGER_VERIFY', couponId }, (resp) => {
             console.log('[Popup] Manual verify triggered:', resp);
         });
-    } catch(err) {
+    } catch (err) {
         console.error('Error triggering manual verification:', err);
         alert('Failed to queue verification');
     }
@@ -442,7 +460,7 @@ async function handleSaveCoupon() {
             const err = await res.json();
             alert(err.message || 'Failed to save coupon');
         }
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         alert('Network error');
     }
@@ -454,18 +472,18 @@ async function handleAddMerchant() {
     const title = document.getElementById('newMerchantName').value;
     const domain = document.getElementById('newMerchantDomain').value;
     const loginUrl = document.getElementById('newMerchantUrl').value;
-    
+
     if (!partner || !title || !domain || !loginUrl) {
         return alert("Please fill all fields");
     }
-    
+
     try {
         const res = await fetch(`${CONFIG.BACKEND_URL}/campaigns`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ partner, title, domain, loginUrl, trackingLink: loginUrl })
         });
-        
+
         if (res.ok) {
             ['newMerchantName', 'newMerchantDomain', 'newMerchantUrl'].forEach(id => {
                 document.getElementById(id).value = '';
@@ -476,7 +494,7 @@ async function handleAddMerchant() {
             const err = await res.json();
             alert(err.message || 'Failed to add campaign');
         }
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         alert('Network error');
     }
@@ -486,18 +504,18 @@ async function handleAddMerchant() {
 async function handleAddPartner() {
     const partnerName = document.getElementById('newPartnerName').value;
     const status = document.getElementById('newPartnerStatus').value;
-    
+
     if (!partnerName) {
         return alert("Please enter a Partner Name");
     }
-    
+
     try {
         const res = await fetch(`${CONFIG.BACKEND_URL}/partners`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ partnerName, status, partnerApis: [] })
         });
-        
+
         if (res.ok) {
             document.getElementById('newPartnerName').value = '';
             saveFormState();
@@ -506,7 +524,7 @@ async function handleAddPartner() {
             const err = await res.json();
             alert(err.message || 'Failed to add partner');
         }
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         alert('Network error');
     }
@@ -517,13 +535,13 @@ async function updateDashboardState() {
     const response = await new Promise(resolve => {
         chrome.runtime.sendMessage({ type: 'GET_STATE' }, resolve);
     });
-    
+
     if (!response) return;
-    
+
     isAgentRunning = response.isRunning;
     const tasks = response.currentTasks || [];
     const statuses = response.merchantStatuses || {};
-    
+
     // Update Agent button
     const btnToggle = document.getElementById('btnToggleAgent');
     const statusDot = document.getElementById('statusDot');
@@ -536,10 +554,10 @@ async function updateDashboardState() {
         btnToggle.className = 'btn btn-success';
         statusDot.style.background = '#ef4444';
     }
-    
+
     // Update queue stats
     document.getElementById('activeTasks').textContent = tasks.length;
-    
+
     // OTP
     const taskNeedingOtp = tasks.find(t => t.status === 'waiting_for_otp');
     const otpContainer = document.getElementById('otpContainer');
@@ -550,65 +568,72 @@ async function updateDashboardState() {
     } else {
         otpContainer.style.display = 'none';
     }
-    
-    // Merchant list
+
+    // Merchant Sessions list — reads from /merchants collection
     const merchantList = document.getElementById('merchantList');
     merchantList.innerHTML = '';
-    
-    if (dbMerchants.length === 0) {
-        merchantList.innerHTML = '<p class="small-text">No merchants configured. Add them in the Admin tab.</p>';
+
+    if (dbSyncMerchants.length === 0) {
+        merchantList.innerHTML = '<p class="small-text">No merchants found. Sync coupons or add merchants via Admin tab.</p>';
     }
-    
-    for (let m of dbMerchants) {
+
+    for (let m of dbSyncMerchants) {
         const status = statuses[m.domain];
         const isLogged = status && status.isLoggedIn;
-        
+
         const el = document.createElement('div');
         el.className = 'merchant-item';
         el.innerHTML = `
             <div>
-                <div class="merchant-name">${m.title}</div>
+                <div class="merchant-name">${m.merchantName}</div>
                 <div class="merchant-status ${isLogged ? 'logged-in' : ''}">
                     ${isLogged ? 'Session Active ✓' : 'Requires Login'}
                 </div>
             </div>
             <div style="display: flex; gap: 4px;">
-                ${!isLogged ? `<button class="btn-open" data-url="${m.loginUrl || m.trackingLink}" data-domain="${m.domain}" data-title="${m.title}">Open</button>` : ''}
-                <button class="btn-sync-session" data-domain="${m.domain}" data-title="${m.title}" style="background: #dbeafe; color: #1d4ed8; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer;">Sync</button>
+                ${!isLogged && m.merchantUrl ? `<button data-action="open" data-url="${m.merchantUrl}" class="btn-open">Open</button>` : ''}
+                <button data-action="sync" data-domain="${m.domain}" data-title="${m.merchantName}" style="background: #dbeafe; color: #1d4ed8; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer;">Sync</button>
             </div>
         `;
         merchantList.appendChild(el);
     }
-    
-    // Open buttons
-    document.querySelectorAll('.btn-open').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const url = e.target.getAttribute('data-url');
-            chrome.tabs.create({ url });
-        });
-    });
 
-    // Sync buttons
-    document.querySelectorAll('.btn-sync-session').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const domain = e.target.getAttribute('data-domain');
-            const merchantName = e.target.getAttribute('data-title');
-            
-            e.target.textContent = '…';
-            e.target.disabled = true;
+    // Event delegation — one listener on the container, cleared each render by innerHTML reset
+    merchantList.onclick = async (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+
+        if (btn.getAttribute('data-action') === 'open') {
+            const url = btn.getAttribute('data-url');
+            if (url) chrome.tabs.create({ url });
+        }
+
+        if (btn.getAttribute('data-action') === 'sync') {
+            const domain = btn.getAttribute('data-domain');
+            const merchantName = btn.getAttribute('data-title');
+
+            btn.textContent = '…';
+            btn.disabled = true;
 
             chrome.runtime.sendMessage(
                 { type: 'UPDATE_MERCHANT_LOGIN', domain, merchantName },
                 (resp) => {
-                    e.target.textContent = 'Synced ✓';
-                    e.target.style.background = '#d1fae5';
-                    e.target.style.color = '#065f46';
-                    e.target.style.borderColor = '#6ee7b7';
-                    updateDashboardState();
+                    if (resp && resp.status === 'error') {
+                        btn.textContent = '✕ No cookies';
+                        btn.style.background = '#fee2e2';
+                        btn.style.color = '#991b1b';
+                        btn.style.borderColor = '#fca5a5';
+                    } else {
+                        btn.textContent = 'Synced ✓';
+                        btn.style.background = '#d1fae5';
+                        btn.style.color = '#065f46';
+                        btn.style.borderColor = '#6ee7b7';
+                    }
+                    btn.disabled = false;
                 }
             );
-        });
-    });
+        }
+    };
 }
 
 // ─── Agent Toggle ─────────────────────────────────────────────
@@ -628,12 +653,12 @@ function submitOtp() {
     const otpInput = document.getElementById('otpInput');
     const otp = otpInput.value.trim();
     const taskId = document.getElementById('otpContainer').getAttribute('data-task-id');
-    
+
     if (!otp) {
         alert('Please enter an OTP');
         return;
     }
-    
+
     chrome.runtime.sendMessage({ type: 'SUBMIT_OTP', taskId, otp }, () => {
         otpInput.value = '';
         document.getElementById('otpContainer').style.display = 'none';

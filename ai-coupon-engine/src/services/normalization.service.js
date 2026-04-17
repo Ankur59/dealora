@@ -7,6 +7,8 @@ import { getAllCampaigns, getAllCouponsVcom } from '../providers/trackier.js';
 import campaign from '../models/campaign.model.js';
 import { syncCategories as syncVcomCategories } from './vcommission/category.service.js';
 import { syncCategories as syncCoupomatedCategories } from './coupomated/category.service.js';
+import { deleteExpiredCoupons, syncAllCoupons, syncUpdatedCoupons } from './coupomated/coupon.service.js';
+import { syncCampaignVCom } from './vcommission/campaign.service.js';
 
 // Helper to get nested properties by string path (e.g. "data.items")
 const getNestedValue = (obj, path) => {
@@ -62,11 +64,14 @@ export const normalizeData = (partnerItem, apiDiff) => {
 const handlerMap = {
     vcommission: {
         coupons: getAllCouponsVcom,
-        campaigns: getAllCampaigns,
+        campaigns: syncCampaignVCom,
         category: syncVcomCategories
     },
     coupomated: {
-        category: syncCoupomatedCategories
+        coupons: syncAllCoupons,
+        category: syncCoupomatedCategories,
+        update: syncUpdatedCoupons,
+        delete: deleteExpiredCoupons
     }
 }
 /**

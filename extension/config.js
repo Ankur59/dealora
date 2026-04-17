@@ -6,6 +6,7 @@ export const CONFIG = {
     // Array of Google Gemini API Keys — the system will rotate through them
     // if one hits a rate limit or fails.
     GEMINI_API_KEYS: [
+        ...
     ],
 
     // The Gemini Model to use

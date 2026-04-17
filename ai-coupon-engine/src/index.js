@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import connectDB from "./db/connectDB.js";
 import app from "./app.js";
+import { fetchAndNormalizePartnerData } from "./services/normalization.service.js";
 
 dotenv.config();
 
@@ -10,6 +11,7 @@ connectDB()
     .then(() => {
         app.listen(PORT, () => {
             console.log(`Server is running at port : ${PORT}`);
+            fetchAndNormalizePartnerData("vcommission", "campaigns")
         });
     })
     .catch((err) => {
