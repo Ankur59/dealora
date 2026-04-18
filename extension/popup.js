@@ -142,14 +142,25 @@ async function showDashboard() {
 
     await fetchAdminData();
     await fetchSyncMerchants();
+    await renderMerchantList();   // full render once on load
     await fetchCoupons();
-    await updateDashboardState();
+    await updateDashboardState(); // set button/OTP state once on load
 
-    // Poll state every 3 seconds
+    // Poll agent state every 3s — only lightweight DOM patches, never a full rebuild
     setInterval(async () => {
-        await fetchSyncMerchants();
         updateDashboardState();
     }, 3000);
+
+    // Refresh merchant data (from /merchants) every 15s and re-render list only if changed
+    setInterval(async () => {
+        const prevCount = dbSyncMerchants.length;
+        const prevKeys  = dbSyncMerchants.map(m => m.domain).join(',');
+        await fetchSyncMerchants();
+        const newKeys = dbSyncMerchants.map(m => m.domain).join(',');
+        if (dbSyncMerchants.length !== prevCount || newKeys !== prevKeys) {
+            await renderMerchantList();
+        }
+    }, 15000);
 }
 
 // ─── Data Fetching ───────────────────────────────────────────
@@ -530,75 +541,75 @@ async function handleAddPartner() {
     }
 }
 
-// ─── Dashboard State Polling ─────────────────────────────────
-async function updateDashboardState() {
-    const response = await new Promise(resolve => {
-        chrome.runtime.sendMessage({ type: 'GET_STATE' }, resolve);
-    });
-
-    if (!response) return;
-
-    isAgentRunning = response.isRunning;
-    const tasks = response.currentTasks || [];
-    const statuses = response.merchantStatuses || {};
-
-    // Update Agent button
-    const btnToggle = document.getElementById('btnToggleAgent');
-    const statusDot = document.getElementById('statusDot');
-    if (isAgentRunning) {
-        btnToggle.textContent = 'Stop AI Agent';
-        btnToggle.className = 'btn btn-danger';
-        statusDot.style.background = '#10b981';
-    } else {
-        btnToggle.textContent = 'Start AI Agent';
-        btnToggle.className = 'btn btn-success';
-        statusDot.style.background = '#ef4444';
-    }
-
-    // Update queue stats
-    document.getElementById('activeTasks').textContent = tasks.length;
-
-    // OTP
-    const taskNeedingOtp = tasks.find(t => t.status === 'waiting_for_otp');
-    const otpContainer = document.getElementById('otpContainer');
-    if (taskNeedingOtp) {
-        otpContainer.style.display = 'block';
-        document.getElementById('otpMessage').textContent = `Task ${taskNeedingOtp.id}: ${taskNeedingOtp.message || 'OTP needed'}`;
-        otpContainer.setAttribute('data-task-id', taskNeedingOtp.id);
-    } else {
-        otpContainer.style.display = 'none';
-    }
-
-    // Merchant Sessions list — reads from /merchants collection
+// ─── Merchant List — Full Render (called once on load / on data change) ─────
+async function renderMerchantList() {
     const merchantList = document.getElementById('merchantList');
     merchantList.innerHTML = '';
 
     if (dbSyncMerchants.length === 0) {
         merchantList.innerHTML = '<p class="small-text">No merchants found. Sync coupons or add merchants via Admin tab.</p>';
+        return;
     }
 
     for (let m of dbSyncMerchants) {
-        const status = statuses[m.domain];
-        const isLogged = status && status.isLoggedIn;
+        // Get map status once at render time
+        const mapStatus = await new Promise(resolve => {
+            chrome.runtime.sendMessage({ type: 'GET_MAP_STATUS', domain: m.domain }, (resp) => {
+                resolve(resp?.status || 'unknown');
+            });
+        });
 
         const el = document.createElement('div');
         el.className = 'merchant-item';
+        // Give each row a stable ID so the poll can patch status in-place
+        el.setAttribute('data-merchant-domain', m.domain);
         el.innerHTML = `
-            <div>
-                <div class="merchant-name">${m.merchantName}</div>
-                <div class="merchant-status ${isLogged ? 'logged-in' : ''}">
-                    ${isLogged ? 'Session Active ✓' : 'Requires Login'}
+            <div style="flex: 1; min-width: 0; overflow: hidden;">
+                <div class="merchant-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${m.merchantName || m.title || m.domain}">
+                    ${m.merchantName || m.title || m.domain}
+                    <span style="font-size: 10px; color: #6b7280;">(${(m.domain || '').length > 22 ? m.domain.slice(0, 22) + '\u2026' : m.domain})</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+                    <div class="merchant-status" data-status-for="${m.domain}">
+                        Requires Login
+                    </div>
+                    <div class="map-badge ${mapStatus === 'mapped' ? 'mapped' : ''}" title="${mapStatus === 'mapped' ? 'Deterministic map available' : 'No map found, will use AI'}">
+                        ${mapStatus === 'mapped' ? '\u26a1 Mapped' : '\ud83e\udd16 AI'}
+                    </div>
                 </div>
             </div>
-            <div style="display: flex; gap: 4px;">
-                ${!isLogged && m.merchantUrl ? `<button data-action="open" data-url="${m.merchantUrl}" class="btn-open">Open</button>` : ''}
-                <button data-action="sync" data-domain="${m.domain}" data-title="${m.merchantName}" style="background: #dbeafe; color: #1d4ed8; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer;">Sync</button>
+            <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; margin-left: 6px;">
+                ${m.merchantUrl ? `<button data-action="open" data-url="${m.merchantUrl}" class="btn-open" data-open-for="${m.domain}">Open</button>` : ''}
+                <button class="btn-force-auth" data-url="${m.merchantUrl || m.loginUrl || m.trackingLink}" data-domain="${m.domain}" data-brand="${m.merchantName || m.title}" style="background: #fef3c7; color: #92400e; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #f59e0b; cursor: pointer; white-space: nowrap;">${mapStatus === 'mapped' ? 'Re-Map' : 'Map'}</button>
+                <button data-action="sync" data-domain="${m.domain}" data-title="${m.merchantName || m.title}" style="background: #dbeafe; color: #1d4ed8; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer; white-space: nowrap;">Sync</button>
             </div>
         `;
         merchantList.appendChild(el);
     }
 
-    // Event delegation — one listener on the container, cleared each render by innerHTML reset
+    // Force Auth — attach once, survives polling
+    merchantList.querySelectorAll('.btn-force-auth').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const domain = e.target.getAttribute('data-domain');
+            const url    = e.target.getAttribute('data-url');
+            const brand  = e.target.getAttribute('data-brand');
+
+            e.target.textContent = 'Queuing...';
+            e.target.disabled = true;
+
+            chrome.runtime.sendMessage({ type: 'TRIGGER_AUTH', domain, url, brand }, (resp) => {
+                if (resp && resp.status === 'queued') {
+                    e.target.textContent = 'Running...';
+                } else {
+                    alert('Error: ' + (resp?.message || 'Unknown'));
+                    e.target.textContent = 'Failed';
+                    e.target.disabled = false;
+                }
+            });
+        });
+    });
+
+    // Event delegation for Open + Sync — attached once to container
     merchantList.onclick = async (e) => {
         const btn = e.target.closest('[data-action]');
         if (!btn) return;
@@ -609,7 +620,7 @@ async function updateDashboardState() {
         }
 
         if (btn.getAttribute('data-action') === 'sync') {
-            const domain = btn.getAttribute('data-domain');
+            const domain       = btn.getAttribute('data-domain');
             const merchantName = btn.getAttribute('data-title');
 
             btn.textContent = '…';
@@ -634,6 +645,63 @@ async function updateDashboardState() {
             );
         }
     };
+}
+
+// ─── Dashboard State Polling — lightweight, never rebuilds merchant DOM ───────
+async function updateDashboardState() {
+    const response = await new Promise(resolve => {
+        chrome.runtime.sendMessage({ type: 'GET_STATE' }, resolve);
+    });
+
+    if (!response) return;
+
+    isAgentRunning = response.isRunning;
+    const tasks    = response.currentTasks || [];
+    const statuses = response.merchantStatuses || {};
+
+    // Update Agent button
+    const btnToggle = document.getElementById('btnToggleAgent');
+    const statusDot = document.getElementById('statusDot');
+    if (isAgentRunning) {
+        btnToggle.textContent = 'Stop AI Agent';
+        btnToggle.className   = 'btn btn-danger';
+        statusDot.style.background = '#10b981';
+    } else {
+        btnToggle.textContent = 'Start AI Agent';
+        btnToggle.className   = 'btn btn-success';
+        statusDot.style.background = '#ef4444';
+    }
+
+    // Update queue stats
+    document.getElementById('activeTasks').textContent = tasks.length;
+
+    // OTP
+    const taskNeedingOtp = tasks.find(t => t.status === 'waiting_for_otp');
+    const otpContainer = document.getElementById('otpContainer');
+    if (taskNeedingOtp) {
+        otpContainer.style.display = 'block';
+        document.getElementById('otpMessage').textContent =
+            `Task ${taskNeedingOtp.id}: ${taskNeedingOtp.message || 'OTP needed'}`;
+        otpContainer.setAttribute('data-task-id', taskNeedingOtp.id);
+    } else {
+        otpContainer.style.display = 'none';
+    }
+
+    // Patch merchant status badges IN-PLACE — no DOM teardown, no scroll reset
+    for (const m of dbSyncMerchants) {
+        const isLogged = statuses[m.domain]?.isLoggedIn;
+
+        // Update status text + class
+        const badge = document.querySelector(`[data-status-for="${m.domain}"]`);
+        if (badge) {
+            badge.textContent = isLogged ? 'Session Active ✓' : 'Requires Login';
+            badge.className   = `merchant-status${isLogged ? ' logged-in' : ''}`;
+        }
+
+        // Show/hide the Open button based on session state
+        const openBtn = document.querySelector(`[data-open-for="${m.domain}"]`);
+        if (openBtn) openBtn.style.display = isLogged ? 'none' : '';
+    }
 }
 
 // ─── Agent Toggle ─────────────────────────────────────────────
