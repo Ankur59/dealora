@@ -1,3 +1,5 @@
+// @deprecated — Logic migrated to src/adapters/coupomated.adapter.js
+// Kept for git history. Do not use in new code.
 // API calls for coupomated
 import limitedGet from "../config/axios.js";
 

@@ -1,3 +1,5 @@
+// @deprecated — Logic migrated to src/adapters/vcommission.adapter.js
+// Kept for git history. Do not use in new code.
 // API calls for v-commission
 import limitedGet from "../config/axios.js"
 import campaign from "../models/campaign.model.js"

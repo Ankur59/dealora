@@ -1,94 +1,77 @@
-import axios from 'axios';
-import Partner from '../models/partners.model.js';
-import Campaign from '../models/campaign.model.js';
-import Coupon from '../models/coupon.model.js';
-import { Category } from '../models/category.model.js';
-import { getAllCampaigns, getAllCouponsVcom } from '../providers/trackier.js';
-import campaign from '../models/campaign.model.js';
-import { syncCategories as syncVcomCategories } from './vcommission/category.service.js';
-import { syncCategories as syncCoupomatedCategories } from './coupomated/category.service.js';
-import { getAllCampaigns as getAllAdmitadCampaigns, getAllCoupons as getAllAdmitadCoupons } from '../providers/admitad.js';
+import { adapters } from '../adapters/index.js';
+import { getNestedValue } from '../shared/utils.js';
 
-// Helper to get nested properties by string path (e.g. "data.items")
-const getNestedValue = (obj, path) => {
-    if (!path || !obj) return obj;
-    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-};
+// ── Type casting utility (kept for partner controller's schema-diff flow) ─────
 
-// Apply type casting
 const castValue = (value, type) => {
     if (value == null) return null;
     switch (type) {
-        case 'String': return String(value);
-        case 'Number': return Number(value);
-        case 'Date': return new Date(value);
+        case 'String':  return String(value);
+        case 'Number':  return Number(value);
+        case 'Date':    return new Date(value);
         case 'Boolean': return Boolean(value);
-        case 'Array': return Array.isArray(value) ? value : [value];
-        default: return value;
+        case 'Array':   return Array.isArray(value) ? value : [value];
+        default:        return value;
     }
 };
 
 /**
- * Normalizes an item from a partner's API response based on the defined apiDiff mappings
- * @param {Object} partnerItem - The raw item from the partner API
- * @param {Array} apiDiff - Array of apiDiffSchema rules
- * @returns {Object} Normalized object matching standard schema
+ * Normalizes a raw item using the partner's apiDiff field-mapping rules.
+ * Used by the partner controller's schema-diff / manual mapping flow.
+ *
+ * @param {Object} partnerItem - Raw item from partner API
+ * @param {Array}  apiDiff     - Array of { standardField, partnerField, defaultValue, castTo }
+ * @returns {Object} Normalized object
  */
 export const normalizeData = (partnerItem, apiDiff) => {
-    const normalizedItem = {};
-
-    apiDiff.forEach(rule => {
-        const { standardField, partnerField, defaultValue, castTo } = rule;
-
-        // Extract value from the partner item using the partnerField path
-        let rawValue = getNestedValue(partnerItem, partnerField);
-
-        // Fallback to default value if undefined or null
-        if (rawValue == null && defaultValue !== undefined) {
-            rawValue = defaultValue;
-        }
-
-        // Apply casting if a type is specified and value exists
-        const finalValue = rawValue != null ? castValue(rawValue, castTo) : null;
-
-        // Assign to the standard field
-        normalizedItem[standardField] = finalValue;
-    });
-
-    return normalizedItem;
+    const result = {};
+    for (const { standardField, partnerField, defaultValue, castTo } of apiDiff) {
+        let raw = getNestedValue(partnerItem, partnerField);
+        if (raw == null && defaultValue !== undefined) raw = defaultValue;
+        result[standardField] = raw != null ? castValue(raw, castTo) : null;
+    }
+    return result;
 };
 
-
-// Future changes: can also add handlers for revalidation to run the api we discussed about and diff changes
-const handlerMap = {
-    vcommission: {
-        coupons:   getAllCouponsVcom,
-        campaigns: getAllCampaigns,
-        category:  syncVcomCategories
-    },
-    coupomated: {
-        category: syncCoupomatedCategories
-    },
-    admitad: {
-        campaigns: getAllAdmitadCampaigns,
-        coupons:   getAllAdmitadCoupons,
-    }
-}
 /**
- * Fetches data from a partner API and normalizes it
- * @param {String} partnerName 
- * @param {String} targetSchema - 'campaign', 'coupon', or 'category'
+ * Routes a sync request to the correct adapter method.
+ *
+ * Supported targetSchema values per adapter:
+ *   'campaigns'  → adapter.syncCampaigns()
+ *   'coupons'    → adapter.syncCoupons()
+ *   'categories' → adapter.syncCategories()
+ *
+ * Adding a new partner: create adapter + add to src/adapters/index.js.
+ * No changes needed here.
+ *
+ * @param {string} partnerName   - e.g. 'admitad', 'coupomated', 'vcommission'
+ * @param {string} targetSchema  - e.g. 'campaigns', 'coupons', 'categories'
  */
 export const fetchAndNormalizePartnerData = async (partnerName, targetSchema) => {
-    try {
-        const handler = handlerMap?.[partnerName]?.[targetSchema];
-
-        if (!handler) {
-            throw new Error(`No handler for ${partnerName} - ${targetSchema}`);
-        }
-        return await handler();
+    const adapter = adapters[partnerName];
+    if (!adapter) {
+        throw new Error(`[Normalization] No adapter registered for partner: "${partnerName}"`);
     }
-    catch (err) {
-        console.log(err)
+
+    // Map targetSchema → adapter method name
+    // Accepts both singular ('coupon') and plural ('coupons') for convenience
+    const schema     = targetSchema.endsWith('s') ? targetSchema : targetSchema + 's';
+    const methodName = `sync${schema.charAt(0).toUpperCase()}${schema.slice(1)}`;
+
+    const method = adapter[methodName];
+    if (typeof method !== 'function') {
+        throw new Error(
+            `[Normalization] Adapter "${partnerName}" has no method "${methodName}". ` +
+            `Available: ${Object.getOwnPropertyNames(adapter).filter(k => k.startsWith('sync')).join(', ')}`
+        );
+    }
+
+    try {
+        console.log(`[Normalization] Starting ${partnerName}.${methodName}()`);
+        await method.call(adapter);
+        console.log(`[Normalization] Completed ${partnerName}.${methodName}()`);
+    } catch (err) {
+        console.error(`[Normalization] ${partnerName}.${methodName}() failed:`, err.message);
+        throw err;
     }
 };
