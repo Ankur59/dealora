@@ -7,6 +7,7 @@ import { getAllCampaigns, getAllCouponsVcom } from '../providers/trackier.js';
 import campaign from '../models/campaign.model.js';
 import { syncCategories as syncVcomCategories } from './vcommission/category.service.js';
 import { syncCategories as syncCoupomatedCategories } from './coupomated/category.service.js';
+import { getAllCampaigns as getAllAdmitadCampaigns, getAllCoupons as getAllAdmitadCoupons } from '../providers/admitad.js';
 
 // Helper to get nested properties by string path (e.g. "data.items")
 const getNestedValue = (obj, path) => {
@@ -61,12 +62,16 @@ export const normalizeData = (partnerItem, apiDiff) => {
 // Future changes: can also add handlers for revalidation to run the api we discussed about and diff changes
 const handlerMap = {
     vcommission: {
-        coupons: getAllCouponsVcom,
+        coupons:   getAllCouponsVcom,
         campaigns: getAllCampaigns,
-        category: syncVcomCategories
+        category:  syncVcomCategories
     },
     coupomated: {
         category: syncCoupomatedCategories
+    },
+    admitad: {
+        campaigns: getAllAdmitadCampaigns,
+        coupons:   getAllAdmitadCoupons,
     }
 }
 /**
