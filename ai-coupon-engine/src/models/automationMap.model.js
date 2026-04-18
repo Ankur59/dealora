@@ -21,7 +21,7 @@ const automationMapSchema = new Schema({
         step: { type: Number },
         action: { type: String, required: true }, // 'click', 'type', 'navigate', 'request_otp', 'evaluate'
         selector: { type: String },
-        value: { type: String },  // Could be literal or variable `<USERNAME>`, `<PASSWORD>`
+        value: { type: String },  // Could be literal or variable <USERNAME>, <PASSWORD>
         url: { type: String },    // Used for 'navigate' context or just reference context
         ms: { type: Number }      // for 'wait'
     }]
@@ -30,5 +30,5 @@ const automationMapSchema = new Schema({
 // Ensure unique mapping per domain per flow type
 automationMapSchema.index({ domain: 1, flowType: 1 }, { unique: true });
 
-const AutomationMap = new model('automationMap', automationMapSchema);
+const AutomationMap = model('automationMap', automationMapSchema);
 export default AutomationMap;

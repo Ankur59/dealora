@@ -7,30 +7,46 @@ console.log('[Dealora AI Agent] Content script loaded on', window.location.href)
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Helper to simplify the DOM into a token-efficient format for Gemini
-function getSimplifiedDOM() {
-    const clone = document.body.cloneNode(true);
-    
-    // Remove unwanted elements
-    const removeSelectors = ['script', 'style', 'noscript', 'iframe', 'svg', 'path', 'meta', 'link'];
-    removeSelectors.forEach(selector => {
-        clone.querySelectorAll(selector).forEach(el => el.remove());
-    });
+let recentTransients = [];
+let monitorTimer = null;
 
-    // We want to create a structured list of actionable items (buttons, inputs, links)
-    // and visible text context, preserving basic hierarchy if possible.
-    const interactables = [];
-    const elements = clone.querySelectorAll('button, a, input, select, textarea, [role="button"]');
+function startStatusMonitoring(duration = 5000) {
+    if (monitorTimer) clearTimeout(monitorTimer);
+    
+    const startTime = Date.now();
+    const keywords = ['saved', 'discount', 'coupon', 'invalid', 'expired', 'claimed', 'yay', 'sorry', 'applied', 'code', 'off', 'limit', 'success', 'error'];
+    
+    const poll = () => {
+        const now = Date.now();
+        if (now - startTime > duration) return;
+
+        // Look for any new text matching keywords
+        document.querySelectorAll('div, span, p, h1, h2, h3, h4, li, .toast, .alert, .modal').forEach(el => {
+            if (el.children.length > 5) return; // ignore large containers
+            const text = (el.innerText || '').trim();
+            if (!text || text.length > 200) return;
+
+            const lowerText = text.toLowerCase();
+            if (keywords.some(kw => lowerText.includes(kw))) {
+                if (!recentTransients.includes(text)) {
+                    recentTransients.push(text);
+                }
+            }
+        });
+
+        monitorTimer = setTimeout(poll, 500);
+    };
+    poll();
+}
+
+function getSimplifiedDOM() {
+    // Clear any previous IDs first (to avoid stale ones)
+    document.querySelectorAll('[data-dl-id]').forEach(el => el.removeAttribute('data-dl-id'));
+
+    const actionableElements = [];
+    const elements = document.querySelectorAll('a, button, input, select, textarea, [role="button"], [onclick]');
     
     elements.forEach((el, index) => {
-        // Assign a unique attribute for our own tracking in case CSS selectors are complex
-        const uniqueId = `dl-ai-${index}`;
-        // we can't easily modify the original DOM from the clone and map it back 
-        // without finding the original element.
-    });
-
-    // An alternative approach: just get the visible text and input elements of the actual document.
-    const actionableElements = [];
-    document.querySelectorAll('a, button, input, select, textarea, [role="button"], [onclick]').forEach(el => {
         const rect = el.getBoundingClientRect();
         const style = window.getComputedStyle(el);
         
@@ -44,13 +60,17 @@ function getSimplifiedDOM() {
         
         if (!isClickable && el.tagName !== 'INPUT' && el.tagName !== 'SELECT' && el.tagName !== 'TEXTAREA') return;
         
-        // Build a unique CSS selector for the AI
-        let selector = el.tagName.toLowerCase();
+        // Assign a unique ID for precise targeting
+        const dlId = `dl-${index}`;
+        el.setAttribute('data-dl-id', dlId);
+
+        // Build a backup CSS selector
+        let backupSelector = el.tagName.toLowerCase();
         if (el.id) {
-            selector += `#${CSS.escape(el.id)}`;
+            backupSelector += `#${CSS.escape(el.id)}`;
         } else if (el.className && typeof el.className === 'string') {
             const classes = el.className.split(/\s+/).filter(c => c && !c.includes(':')).slice(0, 3);
-            if (classes.length > 0) selector += `.${classes.map(c => CSS.escape(c)).join('.')}`;
+            if (classes.length > 0) backupSelector += `.${classes.map(c => CSS.escape(c)).join('.')}`;
         }
 
         let text = el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || el.title || '';
@@ -60,14 +80,34 @@ function getSimplifiedDOM() {
             tag: el.tagName.toLowerCase(),
             type: el.type || undefined,
             text: text.substring(0, 100),
-            selector: selector
+            selector: `[data-dl-id="${dlId}"]`, // AI should use this
+            backupSelector: backupSelector
         });
     });
+
+    // Capture persistent status messages (sidebar/banners)
+    const statusMessages = [...recentTransients];
+    const keywords = ['saved', 'discount', 'coupon', 'invalid', 'expired', 'claimed', 'yay', 'sorry', 'applied', 'code', 'off', 'limit', 'success', 'error'];
+    
+    document.querySelectorAll('div, span, p, h1, h2, h3, h4, li').forEach(el => {
+        if (el.children.length > 0) return; // leaf nodes only for context
+        const text = (el.innerText || '').trim();
+        if (text.length > 5 && text.length < 200) {
+            const lowerText = text.toLowerCase();
+            if (keywords.some(kw => lowerText.includes(kw))) {
+                if (!statusMessages.includes(text)) statusMessages.push(text);
+            }
+        }
+    });
+
+    // Reset transients after they've been reported once to avoid stale info later
+    recentTransients = [];
 
     return {
         url: window.location.href,
         title: document.title,
-        actionableElements: actionableElements.slice(0, 250) // Increased limit for complex sites
+        actionableElements: actionableElements.slice(0, 250),
+        statusMessages: statusMessages.slice(0, 15) // Top 15 messages for context
     };
 }
 
@@ -100,6 +140,30 @@ async function clickElement(element) {
     element.dispatchEvent(new MouseEvent('click', eventOptions));
 }
 
+// Advanced query selector that handles :contains() and fallback
+function findElement(selector) {
+    if (!selector) return null;
+
+    // Handle :contains() fallback natively
+    if (selector.includes(':contains(')) {
+        const match = selector.match(/(.*):contains\(['"](.*)['"]\)/);
+        if (match) {
+            const [_, baseSelector, text] = match;
+            const candidates = document.querySelectorAll(baseSelector || '*');
+            return Array.from(candidates).find(el => 
+                (el.innerText || el.textContent || '').toLowerCase().includes(text.toLowerCase())
+            );
+        }
+    }
+
+    try {
+        return document.querySelector(selector);
+    } catch (e) {
+        console.error('[Dealora AI Agent] Invalid selector:', selector, e);
+        return null;
+    }
+}
+
 // Message listener from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PING') {
@@ -123,15 +187,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const { action } = request;
                 
                 if (action.action === 'click') {
-                    const el = document.querySelector(action.selector);
+                    const el = findElement(action.selector);
                     if (!el) throw new Error(`Element not found: ${action.selector}`);
                     await clickElement(el);
+                    startStatusMonitoring(5000); // Start monitoring for changes
                     sendResponse({ status: 'success', message: `Clicked ${action.selector}` });
                 } 
                 else if (action.action === 'type') {
-                    const el = document.querySelector(action.selector);
+                    const el = findElement(action.selector);
                     if (!el) throw new Error(`Element not found: ${action.selector}`);
                     await typeText(el, action.value);
+                    startStatusMonitoring(5000); // Start monitoring for changes
                     sendResponse({ status: 'success', message: `Typed into ${action.selector}` });
                 }
                 else if (action.action === 'wait') {

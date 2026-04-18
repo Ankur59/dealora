@@ -449,7 +449,9 @@ function buildPrompt(task, dom, history, warn) {
 DECIDE:
 1. Click/Type/Navigate to reach the coupon entry step.
 2. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
-3. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".`;
+3. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".
+4. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below. These are unique IDs prefixed with "[data-dl-id=...]".
+5. APPLY BUTTON: If multiple "Apply" buttons exist, always select the one that is physically closest to the input field where you typed the coupon code.`;
 
     if (task.type === 'auth') {
         objectiveStr = `You are an AI browser agent tasked with logging into the website for ${task.brand}.
@@ -458,7 +460,8 @@ DECIDE:
 1. Click login buttons or Navigate to the login page.
 2. Type the username and password (you can guess them if standard flow, they will be replaced dynamically but for now output dummy values).
 3. Check for OTP requirements. If OTP is requested by the site, use {"action":"request_otp","message":"Enter the OTP sent to email/phone"}.
-4. If you have successfully logged in (dashboard visible, logout button visible, or "My Account"), use {"action":"evaluate","status":"valid","reason":"Logged in successfully"}.`;
+4. If you have successfully logged in (dashboard visible, logout button visible, or "My Account"), use {"action":"evaluate","status":"valid","reason":"Logged in successfully"}.
+5. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below (e.g. "[data-dl-id='...']").`;
     }
 
     return `${objectiveStr}
@@ -467,8 +470,11 @@ HISTORY:
 ${histLines || 'None'}
 ${warn ? `\nSTUCK WARNING: ${warn}\n` : ''}
 
-Actionable Elements (showing top 80 of ${dom.actionableElements.length}):
-${JSON.stringify(dom.actionableElements.slice(0, 80), null, 2)}
+Detected Status Messages (Success/Error signals):
+${dom.statusMessages && dom.statusMessages.length > 0 ? dom.statusMessages.map(m => `- ${m}`).join('\n') : 'No recent status messages detected.'}
+
+Actionable Elements (showing top 100 of ${dom.actionableElements.length}):
+${JSON.stringify(dom.actionableElements.slice(0, 100), null, 2)}
 
 Respond only with raw JSON: {"action":"click"|"type"|"evaluate"|"wait"|"navigate"|"request_otp","selector":"...","value":"...","status":"...","reason":"..."}`;
 }
