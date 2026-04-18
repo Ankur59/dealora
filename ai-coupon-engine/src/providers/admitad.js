@@ -1,3 +1,5 @@
+// @deprecated — Logic migrated to src/adapters/admitad.adapter.js
+// Kept for git history. Do not use in new code.
 // providers/admitad.js
 // Handles Admitad OAuth (client_credentials + refresh) and API calls.
 
