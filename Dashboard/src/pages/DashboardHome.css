@@ -1,0 +1,51 @@
+.dash-shell {
+  min-height: 100svh;
+  text-align: left;
+  padding: 24px;
+  box-sizing: border-box;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.dash-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+}
+
+.dash-header h1 {
+  margin: 0 0 6px;
+  font-size: 28px;
+}
+
+.dash-meta {
+  margin: 0;
+  color: var(--text);
+}
+
+.dash-signout {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  padding: 8px 12px;
+}
+
+.dash-main p {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.dash-main code {
+  font-family: var(--mono);
+  font-size: 15px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--code-bg);
+}
