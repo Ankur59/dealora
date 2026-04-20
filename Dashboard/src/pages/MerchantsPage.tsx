@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { apiGet, apiPostJson, apiPutJson } from '../lib/api'
 import { MERCHANT_FIELDS } from '../config/merchantFields'
-import type { Merchant, MerchantField } from '../types/merchant'
+import type {
+  Merchant,
+  MerchantCredentialType,
+  MerchantField,
+} from '../types/merchant'
 import './MerchantsPage.css'
 
 const RECENT_SYNC_HOURS = 24
@@ -35,6 +39,34 @@ function coercePayload(values: Record<string, string>, fields: MerchantField[]) 
   return payload
 }
 
+function buildCredentialDrafts(merchants: Merchant[]) {
+  const drafts: Record<string, Record<'email' | 'phone', { login: string; password: string }>> =
+    {}
+  for (const merchant of merchants) {
+    const email = (merchant.credentials ?? []).find(
+      (c) => c.credentialType === 'email_password',
+    )
+    const phone = (merchant.credentials ?? []).find(
+      (c) => c.credentialType === 'phone_password',
+    )
+    drafts[merchant._id] = {
+      email: {
+        login: email?.login ?? '',
+        password: email?.password ?? '',
+      },
+      phone: {
+        login: phone?.login ?? '',
+        password: phone?.password ?? '',
+      },
+    }
+  }
+  return drafts
+}
+
+function credentialTypeLabel(type: MerchantCredentialType) {
+  return type === 'email_password' ? 'Email + Password' : 'Phone + Password'
+}
+
 export function MerchantsPage() {
   const [fields] = useState<MerchantField[]>(MERCHANT_FIELDS)
   const [merchants, setMerchants] = useState<Merchant[]>([])
@@ -55,12 +87,18 @@ export function MerchantsPage() {
   const [editError, setEditError] = useState<string | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<string | null>(null)
+  const [credentialDrafts, setCredentialDrafts] = useState<
+    Record<string, Record<'email' | 'phone', { login: string; password: string }>>
+  >({})
+  const [credentialSavingKey, setCredentialSavingKey] = useState<string | null>(null)
 
   const loadMerchants = useCallback(async () => {
     setListError(null)
     try {
       const data = await apiGet<Merchant[]>('/api/v1/merchants')
-      setMerchants(Array.isArray(data) ? data : [])
+      const rows = Array.isArray(data) ? data : []
+      setMerchants(rows)
+      setCredentialDrafts(buildCredentialDrafts(rows))
     } catch (e) {
       setListError(e instanceof Error ? e.message : 'Failed to load merchants')
       setMerchants([])
@@ -76,7 +114,9 @@ export function MerchantsPage() {
         const listRes = await apiGet<Merchant[]>('/api/v1/merchants')
         if (cancelled) return
         setFormValues(buildInitialValues(fields))
-        setMerchants(Array.isArray(listRes) ? listRes : [])
+        const rows = Array.isArray(listRes) ? listRes : []
+        setMerchants(rows)
+        setCredentialDrafts(buildCredentialDrafts(rows))
       } catch (e) {
         if (!cancelled) {
           setListError(
@@ -218,6 +258,35 @@ export function MerchantsPage() {
       )
     } finally {
       setStatusChangingId(null)
+    }
+  }
+
+  async function saveCredential(
+    merchantId: string,
+    type: MerchantCredentialType,
+    login: string,
+    password: string,
+  ) {
+    const trimmedLogin = login.trim()
+    const trimmedPassword = password.trim()
+    if (!trimmedLogin || !trimmedPassword) {
+      setListError('Credential login and password are required')
+      return
+    }
+
+    const key = `${merchantId}:${type}`
+    setCredentialSavingKey(key)
+    setListError(null)
+    try {
+      await apiPutJson(`/api/v1/merchants/${merchantId}/credentials/${type}`, {
+        login: trimmedLogin,
+        password: trimmedPassword,
+      })
+      await loadMerchants()
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : 'Failed to save credential')
+    } finally {
+      setCredentialSavingKey(null)
     }
   }
 
@@ -486,6 +555,202 @@ export function MerchantsPage() {
                     <p className="merchant-card-meta">
                       Updated {formatDate(merchant.updatedAt)}
                     </p>
+                    <div className="merchant-credentials">
+                      <p className="merchant-credentials-title">Credentials</p>
+                      <div className="merchant-credential-block">
+                        <p className="merchant-credential-type">
+                          {credentialTypeLabel('email_password')}
+                        </p>
+                        <div className="merchant-credential-inputs">
+                          <input
+                            className="merchants-input"
+                            placeholder="Email"
+                            value={credentialDrafts[merchant._id]?.email.login ?? ''}
+                            onChange={(e) =>
+                              setCredentialDrafts((prev) => ({
+                                ...prev,
+                                [merchant._id]: {
+                                  ...(prev[merchant._id] ?? {
+                                    email: { login: '', password: '' },
+                                    phone: { login: '', password: '' },
+                                  }),
+                                  email: {
+                                    ...(prev[merchant._id]?.email ?? {
+                                      login: '',
+                                      password: '',
+                                    }),
+                                    login: e.target.value,
+                                  },
+                                },
+                              }))
+                            }
+                          />
+                          <input
+                            className="merchants-input"
+                            placeholder="Password"
+                            value={credentialDrafts[merchant._id]?.email.password ?? ''}
+                            onChange={(e) =>
+                              setCredentialDrafts((prev) => ({
+                                ...prev,
+                                [merchant._id]: {
+                                  ...(prev[merchant._id] ?? {
+                                    email: { login: '', password: '' },
+                                    phone: { login: '', password: '' },
+                                  }),
+                                  email: {
+                                    ...(prev[merchant._id]?.email ?? {
+                                      login: '',
+                                      password: '',
+                                    }),
+                                    password: e.target.value,
+                                  },
+                                },
+                              }))
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="merchants-submit"
+                            disabled={credentialSavingKey === `${merchant._id}:email_password`}
+                            onClick={() =>
+                              void saveCredential(
+                                merchant._id,
+                                'email_password',
+                                credentialDrafts[merchant._id]?.email.login ?? '',
+                                credentialDrafts[merchant._id]?.email.password ?? '',
+                              )
+                            }
+                          >
+                            {credentialSavingKey === `${merchant._id}:email_password`
+                              ? 'Saving...'
+                              : 'Save'}
+                          </button>
+                        </div>
+                        {merchant.credentials?.find(
+                          (c) => c.credentialType === 'email_password',
+                        ) ? (
+                          <p className="merchant-credential-meta">
+                            Saved:{' '}
+                            {merchant.credentials?.find(
+                              (c) => c.credentialType === 'email_password',
+                            )?.login}{' '}
+                            /{' '}
+                            {
+                              merchant.credentials?.find(
+                                (c) => c.credentialType === 'email_password',
+                              )?.password
+                            }{' '}
+                            · updated{' '}
+                            {formatDate(
+                              merchant.credentials?.find(
+                                (c) => c.credentialType === 'email_password',
+                              )?.updatedAt ?? undefined,
+                            )}
+                          </p>
+                        ) : (
+                          <p className="merchant-credential-meta">
+                            Not saved yet
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="merchant-credential-block">
+                        <p className="merchant-credential-type">
+                          {credentialTypeLabel('phone_password')}
+                        </p>
+                        <div className="merchant-credential-inputs">
+                          <input
+                            className="merchants-input"
+                            placeholder="Phone"
+                            value={credentialDrafts[merchant._id]?.phone.login ?? ''}
+                            onChange={(e) =>
+                              setCredentialDrafts((prev) => ({
+                                ...prev,
+                                [merchant._id]: {
+                                  ...(prev[merchant._id] ?? {
+                                    email: { login: '', password: '' },
+                                    phone: { login: '', password: '' },
+                                  }),
+                                  phone: {
+                                    ...(prev[merchant._id]?.phone ?? {
+                                      login: '',
+                                      password: '',
+                                    }),
+                                    login: e.target.value,
+                                  },
+                                },
+                              }))
+                            }
+                          />
+                          <input
+                            className="merchants-input"
+                            placeholder="Password"
+                            value={credentialDrafts[merchant._id]?.phone.password ?? ''}
+                            onChange={(e) =>
+                              setCredentialDrafts((prev) => ({
+                                ...prev,
+                                [merchant._id]: {
+                                  ...(prev[merchant._id] ?? {
+                                    email: { login: '', password: '' },
+                                    phone: { login: '', password: '' },
+                                  }),
+                                  phone: {
+                                    ...(prev[merchant._id]?.phone ?? {
+                                      login: '',
+                                      password: '',
+                                    }),
+                                    password: e.target.value,
+                                  },
+                                },
+                              }))
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="merchants-submit"
+                            disabled={credentialSavingKey === `${merchant._id}:phone_password`}
+                            onClick={() =>
+                              void saveCredential(
+                                merchant._id,
+                                'phone_password',
+                                credentialDrafts[merchant._id]?.phone.login ?? '',
+                                credentialDrafts[merchant._id]?.phone.password ?? '',
+                              )
+                            }
+                          >
+                            {credentialSavingKey === `${merchant._id}:phone_password`
+                              ? 'Saving...'
+                              : 'Save'}
+                          </button>
+                        </div>
+                        {merchant.credentials?.find(
+                          (c) => c.credentialType === 'phone_password',
+                        ) ? (
+                          <p className="merchant-credential-meta">
+                            Saved:{' '}
+                            {merchant.credentials?.find(
+                              (c) => c.credentialType === 'phone_password',
+                            )?.login}{' '}
+                            /{' '}
+                            {
+                              merchant.credentials?.find(
+                                (c) => c.credentialType === 'phone_password',
+                              )?.password
+                            }{' '}
+                            · updated{' '}
+                            {formatDate(
+                              merchant.credentials?.find(
+                                (c) => c.credentialType === 'phone_password',
+                              )?.updatedAt ?? undefined,
+                            )}
+                          </p>
+                        ) : (
+                          <p className="merchant-credential-meta">
+                            Not saved yet
+                          </p>
+                        )}
+                      </div>
+                    </div>
                     <div className="merchant-card-actions">
                       <button
                         type="button"
