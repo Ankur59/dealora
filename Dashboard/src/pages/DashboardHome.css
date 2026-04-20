@@ -5,7 +5,7 @@
 }
 
 .dash-home-lead {
-  margin: 0;
+  margin: 14px 0 0;
   max-width: 62ch;
   color: var(--text);
   line-height: 1.5;
@@ -18,4 +18,212 @@
   border-radius: 4px;
   background: var(--code-bg);
   color: var(--text-h);
+}
+
+.dash-overview-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px 16px;
+  margin: 14px 0 18px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--code-bg);
+}
+
+.dash-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.dash-field--search {
+  grid-column: 1 / -1;
+}
+
+.dash-input {
+  font: inherit;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.dash-input:focus {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 1px;
+}
+
+.dash-overview-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 14px;
+  margin: 0 0 14px;
+}
+
+.dash-summary-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.dash-summary-kpi {
+  font-size: 22px;
+  font-weight: 650;
+  color: var(--text-h);
+  margin-bottom: 2px;
+}
+
+.dash-summary-kpi--good {
+  color: #15803d;
+}
+
+.dash-summary-label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.dash-error {
+  color: #b91c1c;
+  margin: 0 0 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dash-error {
+    color: #fca5a5;
+  }
+  .dash-summary-kpi--good {
+    color: #22c55e;
+  }
+}
+
+.dash-loading,
+.dash-empty {
+  margin: 10px 0 0;
+  color: var(--text);
+}
+
+.dash-loading-more {
+  margin: 12px 0 0;
+  color: var(--text);
+  text-align: center;
+  font-size: 14px;
+}
+
+.dash-overview-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dash-coupon-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.dash-coupon-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.dash-coupon-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dash-coupon-brand {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.dash-verify-pill {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.dash-verify-pill--yes {
+  border-color: rgba(21, 128, 61, 0.35);
+  background: rgba(21, 128, 61, 0.08);
+}
+
+.dash-provider-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.dash-provider-label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.dash-provider-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.dash-coupon-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.dash-coupon-code {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.dash-coupon-code code {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--code-bg);
+}
+
+.dash-coupon-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dash-sentinel {
+  height: 1px;
 }

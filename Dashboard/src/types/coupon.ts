@@ -9,6 +9,7 @@ export type PartnerCouponRow = {
   type: string | null
   isVerified: boolean
   verifiedOn: string | null
+  verifiedAt: string | null
   countries: string[]
   trackingLink: string | null
   updatedAt: string | null

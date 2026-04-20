@@ -15,6 +15,9 @@ export function Sidebar() {
         <NavLink to="/partners" className={navClass}>
           Partners
         </NavLink>
+        <NavLink to="/merchants" className={navClass}>
+          Merchants
+        </NavLink>
         <NavLink to="/coupons" className={navClass}>
           Coupons
         </NavLink>
