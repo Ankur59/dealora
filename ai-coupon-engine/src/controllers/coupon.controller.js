@@ -99,6 +99,7 @@ export const listCoupons = async (req, res) => {
       type: doc.type ?? null,
       isVerified: Boolean(doc.isVerified),
       verifiedOn: doc.verifiedOn ?? null,
+      verifiedAt: doc.verifiedAt ?? null,
       countries: Array.isArray(doc.countries) ? doc.countries : [],
       trackingLink: doc.trackingLink ?? null,
       updatedAt: doc.updatedAt ?? null,
@@ -116,5 +117,80 @@ export const listCoupons = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getCouponOverviewCounts = async (req, res) => {
+  try {
+    const filter = {};
+    const partnerQ =
+      typeof req.query.partner === "string" ? req.query.partner.trim() : "";
+    if (partnerQ) {
+      filter.partner = new RegExp(escapeRegex(partnerQ), "i");
+    }
+
+    const now = new Date();
+    const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+
+    const [total, verified] = await Promise.all([
+      Coupon.countDocuments(filter),
+      Coupon.countDocuments({
+        ...filter,
+        verifiedAt: { $gte: twelveHoursAgo, $lte: now },
+      }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total,
+        verified,
+        pending: Math.max(total - verified, 0),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateCouponProvider = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const partner =
+      typeof req.body?.partner === "string" ? req.body.partner.trim() : "";
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: "Missing coupon id" });
+    }
+    if (!partner) {
+      return res
+        .status(400)
+        .json({ success: false, message: "partner is required" });
+    }
+
+    const updated = await Coupon.findByIdAndUpdate(
+      id,
+      { $set: { partner } },
+      { new: true, runValidators: true },
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: updated._id.toString(),
+        partner: updated.partner,
+      },
+    });
+  } catch (error) {
+    // Likely duplicate key if partner+couponId uniqueness is violated
+    const message =
+      error?.code === 11000
+        ? "Provider change would create a duplicate (partner + couponId)"
+        : error.message;
+    res.status(500).json({ success: false, message });
   }
 };

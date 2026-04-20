@@ -52,6 +52,17 @@ export function apiPostJson<T>(path: string, payload: unknown): Promise<T> {
   })
 }
 
+export function apiPutJson<T>(path: string, payload: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function apiGet<T>(path: string): Promise<T> {
   return apiFetch<T>(path, { method: 'GET' })
+}
+
+export function apiDelete<T>(path: string): Promise<T> {
+  return apiFetch<T>(path, { method: 'DELETE' })
 }

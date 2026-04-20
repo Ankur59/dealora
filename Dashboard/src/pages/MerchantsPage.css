@@ -1,0 +1,213 @@
+.merchants-page-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  color: var(--text-h);
+}
+
+.merchants-page-lead {
+  margin: 0 0 20px;
+  max-width: 72ch;
+  color: var(--text);
+}
+
+.merchants-page-lead code {
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--code-bg);
+}
+
+.merchants-form-section,
+.merchants-list-section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--bg);
+  margin-bottom: 16px;
+}
+
+.merchants-section-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: var(--text-h);
+}
+
+.merchants-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  max-width: 460px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.merchants-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.merchants-filter-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.merchants-chip {
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.merchants-chip--active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.merchants-form,
+.merchant-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px 14px;
+}
+
+.merchants-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.merchants-input,
+.merchants-textarea {
+  font: inherit;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.merchants-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.merchants-req {
+  color: #b91c1c;
+}
+
+.merchants-msg {
+  margin: 0;
+  font-size: 14px;
+}
+
+.merchants-msg--error {
+  color: #b91c1c;
+}
+
+.merchants-msg--ok {
+  color: #15803d;
+}
+
+.merchants-submit {
+  justify-self: start;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.merchants-submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.merchants-submit--ghost {
+  background: transparent;
+}
+
+.merchants-submit--danger {
+  border-color: rgba(185, 28, 28, 0.5);
+  color: #b91c1c;
+}
+
+.merchants-muted {
+  margin: 0;
+  color: var(--text);
+}
+
+.merchants-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.merchant-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--code-bg);
+}
+
+.merchant-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.merchant-card-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.merchant-card-status {
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  text-transform: capitalize;
+}
+
+.merchant-card-status--active {
+  border-color: rgba(21, 128, 61, 0.35);
+  background: rgba(21, 128, 61, 0.08);
+}
+
+.merchant-card-desc,
+.merchant-card-notes,
+.merchant-card-meta {
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.merchant-card-link {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.merchant-card-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}

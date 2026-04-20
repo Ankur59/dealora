@@ -40,6 +40,9 @@ const couponSchema = new Schema({
     verifiedOn: {
         type: Date
     },
+    verifiedAt: {
+        type: Date
+    },
     isVerified: {
         type: Boolean,
         default: false

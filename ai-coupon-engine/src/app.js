@@ -7,6 +7,7 @@ import helmet from "helmet"
 
 import partnerRouter from "./routes/partner.route.js"
 import couponRouter from "./routes/coupon.route.js"
+import merchantRouter from "./routes/merchant.route.js"
 import authRouter from "./routes/auth.route.js"
 import { requireDashboardAuth } from "./middleware/requireDashboardAuth.middleware.js"
 
@@ -52,5 +53,6 @@ app.use(morgan("dev"))
 app.use("/api/v1/auth", authRouter)
 app.use("/api/v1/partners", requireDashboardAuth, partnerRouter)
 app.use("/api/v1/coupons", requireDashboardAuth, couponRouter)
+app.use("/api/v1/merchants", requireDashboardAuth, merchantRouter)
 
 export default app
