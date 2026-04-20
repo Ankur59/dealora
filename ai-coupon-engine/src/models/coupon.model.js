@@ -94,6 +94,9 @@ couponSchema.index(
     }
 );
 
+couponSchema.index({ partner: 1, isVerified: 1, verifiedOn: -1 });
+couponSchema.index({ verifiedOn: -1, updatedAt: -1 });
+
 const coupon = model("partnercoupon", couponSchema)
 
 

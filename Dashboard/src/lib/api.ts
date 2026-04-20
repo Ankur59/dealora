@@ -51,3 +51,7 @@ export function apiPostJson<T>(path: string, payload: unknown): Promise<T> {
     body: JSON.stringify(payload),
   })
 }
+
+export function apiGet<T>(path: string): Promise<T> {
+  return apiFetch<T>(path, { method: 'GET' })
+}

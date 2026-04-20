@@ -1,6 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
+import { DashboardLayout } from './layouts/DashboardLayout'
 import { DashboardHome } from './pages/DashboardHome'
+import { PartnersPage } from './pages/PartnersPage'
+import { CouponsPage } from './pages/CouponsPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import './App.css'
@@ -12,13 +15,16 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
-            path="/"
             element={
               <ProtectedRoute>
-                <DashboardHome />
+                <DashboardLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<DashboardHome />} />
+            <Route path="partners" element={<PartnersPage />} />
+            <Route path="coupons" element={<CouponsPage />} />
+          </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
