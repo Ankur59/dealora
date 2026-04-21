@@ -132,6 +132,13 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/connect-email', connectEmailRoutes);
 app.use('/api/terms', termsRoutes);
 
+// ── Dev-only scraper routes (not mounted in production) ──────────────────────
+if (process.env.NODE_ENV === 'development') {
+    const devScraperRoutes = require('./routes/devScraperRoutes');
+    app.use('/api/dev/scraper', devScraperRoutes);
+    logger.info('DEV: /api/dev/scraper routes mounted');
+}
+
 app.get('/', (req, res) => {
     res.status(200).json({
         success: true,
