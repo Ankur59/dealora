@@ -29,19 +29,19 @@ class GrabOnAdapter extends GenericAdapter {
             { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
             { brand: 'Paytm', path: '/paytm-coupons/', category: 'Wallet Rewards' },
             { brand: 'Cred', path: '/cred-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Dhani', path: '/dhani-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Dhani', path: '/dhani-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
             
-            // Grocery & Daily Needs
-            { brand: 'Blinkit', path: '/blinkit-coupons/', category: 'Grocery' },
-            { brand: 'BigBasket', path: '/bigbasket-coupons/', category: 'Grocery' },
+            // // Grocery & Daily Needs
+            // { brand: 'Blinkit', path: '/blinkit-coupons/', category: 'Grocery' },
+            // { brand: 'BigBasket', path: '/bigbasket-coupons/', category: 'Grocery' },
             
-            // Beauty & Fashion
-            { brand: 'Nykaa', path: '/nykaa-coupons/', category: 'Beauty' },
-            { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
+            // // Beauty & Fashion
+            // { brand: 'Nykaa', path: '/nykaa-coupons/', category: 'Beauty' },
+            // { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
             
-            // Travel
-            { brand: 'MakeMyTrip', path: '/makemytrip-coupons/', category: 'Travel' },
+            // // Travel
+            // { brand: 'MakeMyTrip', path: '/makemytrip-coupons/', category: 'Travel' },
             
             // ===== COMMENTED OUT - Not needed currently =====
             // { brand: 'TWID', path: '/twid-coupons/', category: 'Wallet Rewards' },

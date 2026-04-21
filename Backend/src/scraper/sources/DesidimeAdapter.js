@@ -118,59 +118,146 @@ class DesidimeAdapter extends GenericAdapter {
 
                     await browserPage.waitForSelector('div.coupon-item', { timeout: 20000 });
 
-                    const renderedCoupons = await browserPage.evaluate((brand, category, maxItems) => {
+                    // Step 1: Collect all card metadata (title, usedBy, verified) without clicking
+                    const couponMeta = await browserPage.evaluate((brand, category, maxItems) => {
                       const cards = Array.from(document.querySelectorAll('div.coupon-item'));
-                      return cards.map(card => {
-                        const text = (card.textContent || '').replace(/\\s+/g, ' ').trim();
+                      return cards.map((card, idx) => {
+                        const text = (card.textContent || '').replace(/\s+/g, ' ').trim();
                         const lowerText = text.toLowerCase();
 
-                        // Hard-coupon filter:
-                        // Keep only cards that show coupon intent (code / get coupon / reveal / copy).
+                        // Hard-coupon filter: keep only cards with coupon intent
                         const hardCouponSignals = [
-                          'get coupon',
-                          'coupon code',
-                          'reveal',
-                          'copy code',
-                          'show code',
-                          'code'
+                          'get coupon', 'coupon code', 'reveal',
+                          'copy code', 'show code', 'code', 'coupon is live'
                         ];
-                        const hasHardCouponSignal = hardCouponSignals.some(signal => lowerText.includes(signal));
+                        const hasHardCouponSignal = hardCouponSignals.some(s => lowerText.includes(s));
                         if (!hasHardCouponSignal) return null;
 
                         const titleEl =
-                          card.querySelector('[class*=\"break-words\"]') ||
-                          card.querySelector('[class*=\"long-title\"]') ||
+                          card.querySelector('[class*="break-words"]') ||
+                          card.querySelector('[class*="long-title"]') ||
                           card.querySelector('h2, h3, h4');
                         const title = (titleEl?.textContent || text.split('  ')[0] || '').trim();
+                        if (!title || title.length < 3) return null;
 
-                        const usedMatch = text.match(/(\\d[\\d,]*)\\s*used\\b/i);
+                        const usedMatch = text.match(/(\d[\d,]*)\s*used\b/i);
                         const usedBy = usedMatch ? Number(usedMatch[1].replace(/,/g, '')) : null;
 
-                        const verified = /\\bverified\\b/i.test(text) ? true : null;
+                        const verifiedEl = card.querySelector('.verified, [class*="verified"], .badge-verified, .v-badge, .verified-tag');
+                        const verified = verifiedEl ? true : (/\bverified\b/i.test(text) ? true : null);
 
-                        return {
-                          brandName: brand,
-                          couponTitle: title || 'Exciting Offer',
-                          description: title || 'Exciting Offer',
-                          couponCode: null,
-                          discountType: 'unknown',
-                          discountValue: null,
-                          category,
-                          couponLink: null, // will be overwritten by adapter normalization brand URL
-                          trustscore: null,
-                          usedBy,
-                          verified,
-                        };
+                        // Check if this card has the "COUPON IS LIVE" reveal button
+                        const codeSpan = card.querySelector('[class*="coupon-code-copy"]');
+                        const hasRevealButton = !!codeSpan;
+
+                        return { idx, title, usedBy, verified, hasRevealButton };
                       }).filter(Boolean).slice(0, maxItems);
                     }, page.brand, page.category, this.maxCouponsPerBrand);
 
+                    logger.info(`DesidimeAdapter: Found ${couponMeta.length} coupon cards for ${page.brand}. Attempting code reveal...`);
+
+                    // Step 2: For each card that has a reveal button — click it and read the code
+                    const MAX_CODE_REVEALS = 15; // limit clicks to keep scraping time reasonable
+                    let revealsAttempted = 0;
+
+                    for (const meta of couponMeta) {
+                      if (!meta.hasRevealButton || revealsAttempted >= MAX_CODE_REVEALS) {
+                        meta.couponCode = null;
+                        continue;
+                      }
+
+                      try {
+                        // Get the clickable reveal area (the div wrapping the copy SVG + span)
+                        const revealed = await browserPage.evaluate((cardIdx) => {
+                          const cards = Array.from(document.querySelectorAll('div.coupon-item'));
+                          const card = cards[cardIdx];
+                          if (!card) return null;
+
+                          // Find the "COUPON IS LIVE" span — parent div is what we click
+                          const copyEl = card.querySelector('[data-copied-text="Copied!"], .coupon-code-copy');
+                          if (!copyEl) return null;
+
+                          const clickTarget = copyEl.closest('div') || copyEl.parentElement;
+                          if (clickTarget) clickTarget.click();
+
+                          // Read code span text immediately after click (may already be set)
+                          const spans = card.querySelectorAll('span');
+                          for (const span of spans) {
+                            const t = span.textContent.trim();
+                            if (t && t !== 'COUPON IS LIVE' && t.length >= 3 && t.length <= 25 &&
+                                /^[A-Z0-9]+$/i.test(t.replace(/\s/g, ''))) {
+                              return t.toUpperCase();
+                            }
+                          }
+                          return '__CLICKED__'; // clicked but code not yet in DOM
+                        }, meta.idx);
+
+                        if (revealed && revealed !== '__CLICKED__') {
+                          meta.couponCode = revealed;
+                          logger.info(`DesidimeAdapter: Revealed code for "${meta.title.substring(0, 40)}": ${revealed}`);
+                        } else if (revealed === '__CLICKED__') {
+                          // Wait for DOM to update with the actual code after XHR
+                          await new Promise(r => setTimeout(r, 1800));
+
+                          const code = await browserPage.evaluate((cardIdx) => {
+                            const cards = Array.from(document.querySelectorAll('div.coupon-item'));
+                            const card = cards[cardIdx];
+                            if (!card) return null;
+                            const spans = card.querySelectorAll('span');
+                            for (const span of spans) {
+                              const t = span.textContent.trim();
+                              if (t && t !== 'COUPON IS LIVE' && t.length >= 3 && t.length <= 25 &&
+                                  /^[A-Z0-9]+$/i.test(t.replace(/\s/g, ''))) {
+                                return t.toUpperCase();
+                              }
+                            }
+                            return null;
+                          }, meta.idx);
+
+                          meta.couponCode = code;
+                          if (code) {
+                            logger.info(`DesidimeAdapter: Revealed code (after wait) for "${meta.title.substring(0, 40)}": ${code}`);
+                          } else {
+                            logger.warn(`DesidimeAdapter: Click-reveal returned no code for "${meta.title.substring(0, 40)}" (likely needs login)`);
+                          }
+                        } else {
+                          meta.couponCode = null;
+                        }
+
+                        revealsAttempted++;
+                        // Rate limit between reveals to not trigger anti-bot
+                        await new Promise(r => setTimeout(r, 500));
+
+                      } catch (revealErr) {
+                        meta.couponCode = null;
+                        logger.warn(`DesidimeAdapter: Reveal error for card ${meta.idx}: ${revealErr.message}`);
+                      }
+                    }
+
+                    // Step 3: Build final coupon objects — only include if code was successfully revealed
                     const brandUrl = this.getBrandUrl(page.brand) || 'https://www.example.com';
-                    renderedCoupons.forEach(c => {
-                      c.couponLink = brandUrl;
-                      allCoupons.push(c);
+                    let skipped = 0;
+                    couponMeta.forEach(meta => {
+                      if (!meta.couponCode) {
+                        skipped++;
+                        return; // skip coupons with no code — avoids null-code entries in DB
+                      }
+                      allCoupons.push({
+                        brandName: meta.brandName ?? page.brand,
+                        couponTitle: meta.title,
+                        description: meta.title,
+                        couponCode: meta.couponCode,
+                        discountType: 'unknown',
+                        discountValue: null,
+                        category: page.category,
+                        couponLink: brandUrl,
+                        trustscore: null,
+                        usedBy: meta.usedBy,
+                        verified: meta.verified,
+                      });
                     });
 
-                    logger.info(`DesidimeAdapter: Rendered ${renderedCoupons.length} coupon cards for ${page.brand}`);
+                    logger.info(`DesidimeAdapter: ${page.brand} — saved=${couponMeta.length - skipped} skipped(no-code)=${skipped} reveals=${revealsAttempted}`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     continue; // skip static parsing for this brand
                   } catch (error) {

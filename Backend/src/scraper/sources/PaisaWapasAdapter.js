@@ -155,14 +155,19 @@ class PaisaWapasAdapter extends GenericAdapter {
                                     row.querySelector('.discount, .off, [class*="discount"], [class*="off"], .ups');
                                 const discount = (discountEl?.textContent || '').trim();
 
-                                const usedEl = row.querySelector('.user-count .count, .user-count .count-text, .user-count');
+                                const usedEl = row.querySelector('.user-count .count, .user-count .count-text, .user-count, [class*="user-count"], [class*="times-used"]');
                                 const usedByText = (usedEl?.textContent || '').trim();
 
-                                const verificationText = (row.querySelector('.verification, .verified')?.textContent || '').trim();
-                                const verified = /verified/i.test(verificationText) ? true : null;
-
-                                const usedMatch = usedByText.match(/(\d[\d,]*)/);
+                                // PaisaWapas shows patterns like "123 Times Used" or "123 used"
+                                const usedMatch = usedByText.match(/(\d[\d,]*)\s*(times?\s*used|used)/i) ||
+                                                  usedByText.match(/(\d[\d,]*)/);
                                 const usedBy = usedMatch ? Number(usedMatch[1].replace(/,/g, '')) : null;
+
+                                // Verified: check DOM badge first, then text
+                                const verifiedEl =
+                                  row.querySelector('.verification, .verified, .verified-badge, .verified-image, [class*="verified"]');
+                                const verificationText = (verifiedEl?.textContent || '').trim();
+                                const verified = /verified/i.test(verificationText) ? true : null;
 
                                 return {
                                     brandName: brand,

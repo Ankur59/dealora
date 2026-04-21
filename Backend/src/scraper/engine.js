@@ -1,4 +1,5 @@
 const Coupon = require('../models/Coupon');
+const RawScrapedCoupon = require('../models/RawScrapedCoupon');
 const logger = require('../utils/logger');
 const { generateCouponImage } = require('../services/couponImageService');
 const { addDisplayFields } = require('../utils/couponHelpers');
@@ -26,7 +27,13 @@ class ScraperEngine {
                     logger.warn(`   - Website requires JavaScript (dynamic content)`);
                 } else {
                     logger.info(`${adapter.sourceName} found ${coupons.length} coupons to process`);
-                    
+
+                    // Fire-and-forget: persist raw adapter output to RawScrapedCoupon collection
+                    // This runs non-blocking so it doesn't slow down the normalization pipeline
+                    this.saveRawCoupons(adapter.sourceName, coupons).catch(err =>
+                        logger.error(`Failed to save raw coupons for ${adapter.sourceName}: ${err.message}`)
+                    );
+
                     // Group coupons by brand for batch processing
                     const couponsByBrand = {};
                     coupons.forEach(coupon => {
@@ -120,6 +127,78 @@ class ScraperEngine {
             logger.error(`Error removing expired coupons:`, error.message);
             return 0;
         }
+    }
+
+    /**
+     * Persist raw adapter output to the RawScrapedCoupon collection.
+     * Uses upsert on (sourceAdapter + brandName + couponTitle) so that
+     * re-scraping the same coupon always refreshes the signal fields
+     * (usedBy, verified, trustscore) with the latest values.
+     *
+     * @param {string} sourceName - Adapter name (e.g. "GrabOn")
+     * @param {object[]} coupons  - Raw coupon objects from adapter.scrape()
+     */
+    async saveRawCoupons(sourceName, coupons) {
+        if (!coupons || coupons.length === 0) return;
+
+        const now = new Date();
+        let saved = 0;
+        let errors = 0;
+
+        for (const coupon of coupons) {
+            try {
+                const filter = {
+                    sourceAdapter: sourceName,
+                    brandName: coupon.brandName || 'Unknown',
+                    couponTitle: (coupon.couponTitle || '').substring(0, 200) || 'Untitled',
+                };
+
+                const update = {
+                    $set: {
+                        sourceAdapter: sourceName,
+                        scrapedAt: now,
+                        brandName: coupon.brandName || 'Unknown',
+                        couponTitle: (coupon.couponTitle || '').substring(0, 200) || 'Untitled',
+                        description: coupon.description || null,
+                        couponCode: coupon.couponCode || null,
+                        discountType: coupon.discountType || 'unknown',
+                        discountValue: coupon.discountValue || null,
+                        category: coupon.category || null,
+                        couponLink: coupon.couponLink || null,
+                        terms: coupon.terms || null,
+                        minimumOrder: coupon.minimumOrder || null,
+                        // Signal fields — preserve null if not available from source
+                        usedBy: Number.isFinite(coupon.usedBy) ? coupon.usedBy : null,
+                        verified: typeof coupon.verified === 'boolean' ? coupon.verified : null,
+                        trustscore: Number.isFinite(coupon.trustscore) ? coupon.trustscore : null,
+                    },
+                    // Only set aiValidationStatus to 'pending' on first insert;
+                    // don't reset it if the AI engine has already processed this coupon
+                    $setOnInsert: {
+                        aiValidationStatus: 'pending',
+                        aiValidationScore: null,
+                        aiValidationNotes: null,
+                        processedAt: null,
+                        validatedCouponId: null,
+                    },
+                };
+
+                await RawScrapedCoupon.findOneAndUpdate(filter, update, {
+                    upsert: true,
+                    new: true,
+                    setDefaultsOnInsert: true,
+                });
+                saved++;
+            } catch (err) {
+                // Don't let individual failures kill the batch
+                errors++;
+                if (process.env.LOG_LEVEL === 'debug') {
+                    logger.debug(`saveRawCoupons: failed for "${coupon.couponTitle}" - ${err.message}`);
+                }
+            }
+        }
+
+        logger.info(`saveRawCoupons [${sourceName}]: upserted=${saved} errors=${errors} total=${coupons.length}`);
     }
 
     async saveOrUpdate(data) {
