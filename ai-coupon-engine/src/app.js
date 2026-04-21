@@ -1,5 +1,7 @@
-import express from "express"
 import dotenv from "dotenv"
+dotenv.config()
+
+import express from "express"
 import cookieParser from "cookie-parser"
 import morgan from "morgan"
 import cors from "cors"
@@ -11,8 +13,6 @@ import merchantRouter from "./routes/merchant.route.js"
 import authRouter from "./routes/auth.route.js"
 import automationRouter from "./routes/automation.route.js"
 import { requireDashboardAuth } from "./middleware/requireDashboardAuth.middleware.js"
-
-dotenv.config()
 
 const app = express()
 

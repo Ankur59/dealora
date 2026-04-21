@@ -10,11 +10,12 @@ export class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY;
     // Use gemini-2.0-flash (stable vision model for computer use)
-    this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
   }
 
   async analyzePage(screenshotBase64, prompt) {
-    if (!this.apiKey) {
+    const key = this.apiKey || process.env.GEMINI_API_KEY;
+    if (!key) {
       throw new Error('GEMINI_API_KEY is not configured in .env');
     }
 
@@ -39,7 +40,7 @@ export class GeminiService {
     };
 
     try {
-      const response = await axios.post(`${this.apiUrl}?key=${this.apiKey}`, payload, {
+      const response = await axios.post(`${this.apiUrl}?key=${key}`, payload, {
         timeout: 30000,
       });
       const text = response.data.candidates[0].content.parts[0].text;
@@ -76,7 +77,8 @@ RULES:
 8. If the page shows an OTP/2FA/verification code input BEFORE we have the OTP → action "otp_needed"
 9. If you detect a CAPTCHA that cannot be solved automatically → action "failed", reason "CAPTCHA detected"
 10. If the goal is impossible on this site → action "failed"
-11. If a page is still loading → action "wait"
+11. If you need to create an account or login but are not on the registration/login page, look for 'Login', 'Sign In', 'Register', 'Sign Up', or account icons/menus to find the entry point.
+12. If a page is still loading or content is missing → action "wait"
 
 Return ONLY a valid JSON object (no markdown):
 {
