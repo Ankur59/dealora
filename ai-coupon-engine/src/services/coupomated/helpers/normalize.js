@@ -27,8 +27,6 @@ const normalizeCoupomatedCoupon = (coupon) => {
         trackingLink: coupon.affiliate_link,
         couponVisitingLink: coupon.plain_link ?? null,
         brandName: coupon.merchant_name,
-        verifiedOn: parseDate(coupon.verified_at),
-        isVerified: !!coupon.verified_at,
         categories: coupon.category_names ?? [],
         categoriesId: (coupon.category_ids ?? []).map(String),
         meta: {
