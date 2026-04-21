@@ -124,7 +124,16 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     await browserService.emitLog(merchantId, `Starting automation for ${merchant.merchantName}…`);
     await browserService.emitLog(merchantId, `Goal: ${finalGoal}`, 'info');
 
-    await page.goto(merchant.website, { waitUntil: 'networkidle' });
+    const targetUrl = merchant.website || merchant.merchantUrl || merchant.domain;
+    if (!targetUrl) {
+      throw new Error(`Merchant ${merchant.merchantName} has no website URL configured.`);
+    }
+
+    try {
+      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    } catch (err) {
+      await browserService.emitLog(merchantId, `⚠️ Initial navigation took too long, proceeding anyway: ${err.message}`, 'warning');
+    }
 
     // 1. Try to execute Macro if we have one
     if (merchant.automationMacros.has(mode)) {

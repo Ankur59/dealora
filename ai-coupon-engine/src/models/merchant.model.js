@@ -29,6 +29,16 @@ const merchantSchema = new Schema(
       maxlength: 500,
       default: "",
     },
+    domain: {
+      type: String,
+      maxlength: 500,
+      default: "",
+    },
+    merchantUrl: {
+      type: String,
+      maxlength: 500,
+      default: "",
+    },
     notes: {
       type: String,
       maxlength: 4000,
