@@ -122,6 +122,10 @@ class CashkaroAdapter extends GenericAdapter {
                     const desc = $el.find('.coupon-description, .description, .details, [class*="desc"]').text().trim() ||
                                $el.find('p').text().trim();
 
+                    const trustscoreText = $el.find('.trustscore, .trust-score, [class*="trust"], [class*="like"], [class*="vote"]').first().text().trim();
+                    const usedByText = $el.find('.used-by, .users-used, [class*="used"], [class*="redeem"], [class*="user"]').first().text().trim();
+                    const verifiedText = $el.find('.verified, [class*="verified"], [class*="authentic"]').first().text().trim();
+
                     // Try multiple selectors for link
                     const link = $el.find('a.get-deal, a.coupon-link, a').attr('href') || 
                                $el.attr('href') ||
@@ -140,6 +144,9 @@ class CashkaroAdapter extends GenericAdapter {
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
                             couponLink: brandUrl,
+                            trustscore: this.parseCountFromText(trustscoreText),
+                            usedBy: this.parseCountFromText(usedByText),
+                            verified: this.parseVerifiedFlag(verifiedText),
                         });
                         brandCoupons++;
                     }

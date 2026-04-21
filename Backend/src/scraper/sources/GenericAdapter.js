@@ -109,6 +109,9 @@ class GenericAdapter {
                 couponDetails: finalCouponDetails,
                 terms: finalTerms,
                 minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
+                trustscore: Number.isFinite(extractedData.trustscore) ? extractedData.trustscore : (Number.isFinite(rawData.trustscore) ? rawData.trustscore : null),
+                usedBy: Number.isFinite(extractedData.usedBy) ? extractedData.usedBy : (Number.isFinite(rawData.usedBy) ? rawData.usedBy : null),
+                verified: typeof extractedData.verified === 'boolean' ? extractedData.verified : (typeof rawData.verified === 'boolean' ? rawData.verified : null),
             };
 
             logger.info(`Successfully normalized coupon: ${normalized.couponName} (Code: ${normalized.couponCode || 'N/A'}, Link: ${normalized.couponVisitingLink ? 'Yes' : 'No'})`);
@@ -143,6 +146,9 @@ class GenericAdapter {
                 status: 'active',
                 couponDetails: rawData.terms || null,
                 terms: rawData.terms || null, // Add terms field in fallback too
+                trustscore: Number.isFinite(rawData.trustscore) ? rawData.trustscore : null,
+                usedBy: Number.isFinite(rawData.usedBy) ? rawData.usedBy : null,
+                verified: typeof rawData.verified === 'boolean' ? rawData.verified : null,
             };
         }
     }
@@ -187,6 +193,35 @@ class GenericAdapter {
         const validCategories = ['Food', 'Fashion', 'Grocery', 'Wallet Rewards', 'Beauty', 'Travel', 'Entertainment', 'Other'];
         const found = validCategories.find(c => c.toLowerCase() === category?.toLowerCase());
         return found || 'Other';
+    }
+
+    parseCountFromText(value) {
+        if (value === null || value === undefined) return null;
+        const text = String(value).trim().toLowerCase();
+        if (!text) return null;
+
+        const compactMatch = text.match(/(\d+(?:\.\d+)?)\s*([km])/i);
+        if (compactMatch) {
+            const base = Number(compactMatch[1]);
+            if (!Number.isFinite(base)) return null;
+            const suffix = compactMatch[2].toLowerCase();
+            return suffix === 'm' ? Math.round(base * 1000000) : Math.round(base * 1000);
+        }
+
+        const numberMatch = text.match(/(\d[\d,]*)/);
+        if (!numberMatch) return null;
+        const parsed = Number(numberMatch[1].replace(/,/g, ''));
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    parseVerifiedFlag(value) {
+        if (typeof value === 'boolean') return value;
+        if (value === null || value === undefined) return null;
+        const text = String(value).toLowerCase().trim();
+        if (!text) return null;
+        if (/(not\s+verified|unverified|not\s+valid|invalid|expired)/i.test(text)) return false;
+        if (/(verified|trusted|authentic)/i.test(text)) return true;
+        return null;
     }
 
     getDefaultExpiry() {

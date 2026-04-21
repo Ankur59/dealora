@@ -85,6 +85,9 @@ class PaisaWapasAdapter extends GenericAdapter {
                     const title = $(el).find('h3, h4, h5, .title, [class*="title"]').first().text().trim();
                     const discount = $(el).find('.discount, .off, [class*="discount"], [class*="off"]').text().trim();
                     const desc = $(el).find('p, .description, [class*="desc"]').text().trim();
+                    const trustscoreText = $(el).find('.trustscore, .trust-score, [class*="trust"], [class*="like"], [class*="vote"]').first().text().trim();
+                    const usedByText = $(el).find('.used-by, .users-used, [class*="used"], [class*="redeem"], [class*="user"]').first().text().trim();
+                    const verifiedText = $(el).find('.verified, [class*="verified"], [class*="authentic"]').first().text().trim();
 
                     if (title) {
                         // Get the actual brand website URL instead of source website
@@ -99,6 +102,9 @@ class PaisaWapasAdapter extends GenericAdapter {
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
                             couponLink: brandUrl,
+                            trustscore: this.parseCountFromText(trustscoreText),
+                            usedBy: this.parseCountFromText(usedByText),
+                            verified: this.parseVerifiedFlag(verifiedText),
                         });
                         brandCoupons++;
                     }
