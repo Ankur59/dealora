@@ -122,9 +122,17 @@ class CashkaroAdapter extends GenericAdapter {
                     const desc = $el.find('.coupon-description, .description, .details, [class*="desc"]').text().trim() ||
                                $el.find('p').text().trim();
 
-                    const trustscoreText = $el.find('.trustscore, .trust-score, [class*="trust"], [class*="like"], [class*="vote"]').first().text().trim();
-                    const usedByText = $el.find('.used-by, .users-used, [class*="used"], [class*="redeem"], [class*="user"]').first().text().trim();
-                    const verifiedText = $el.find('.verified, [class*="verified"], [class*="authentic"]').first().text().trim();
+                    // Cashkaro signal field extraction:
+                    // - trustscore: NOT available in coupon listing cards — always null
+                    // - usedBy: NOT exposed in listing HTML — always null  
+                    // - verified: try specific badge selectors; generic [class*="verified"] hits too many false positives
+                    const trustscoreText = null; // Cashkaro does not expose vote/trust counts on listing cards
+                    const usedByText = null;     // Cashkaro does not expose usage counts on listing cards
+                    const verifiedEl = $el.find(
+                        '.verified-tag, .valid-tag, .badge-verified, .coupon-verified, ' +
+                        '.card-verified, [class="verified"], [class="valid"]'
+                    ).first();
+                    const verifiedText = verifiedEl.length > 0 ? verifiedEl.text().trim() : null;
 
                     // Try multiple selectors for link
                     const link = $el.find('a.get-deal, a.coupon-link, a').attr('href') || 

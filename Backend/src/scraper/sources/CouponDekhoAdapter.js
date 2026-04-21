@@ -103,9 +103,17 @@ class CouponDekhoAdapter extends GenericAdapter {
           // CouponDekho card doesn't expose a "used by count" metric in these cards
           const usedByText = null;
 
-          // "Checked on <date>" implies validated/verified listing freshness
+          // Verified: check card-level verified badges first (most reliable),
+          // then fall back to "(checked on <date>)" text in description
+          const verifiedBadgeEl =
+            $(el).find('.verified-tag, .verified-badge, [class*="verified"], .tick-verified, .icon-verified').first();
+          const hasVerifiedBadge = verifiedBadgeEl.length > 0;
           const isChecked = /\(checked on/i.test(desc || '');
-          const verifiedText = isChecked ? 'verified' : null;
+          const verifiedText = hasVerifiedBadge
+            ? verifiedBadgeEl.text().trim()
+            : isChecked
+            ? 'verified'
+            : null;
 
           if (title) {
             // Get the actual brand website URL instead of source website
