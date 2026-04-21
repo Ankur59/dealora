@@ -85,6 +85,23 @@ const couponSchema = new mongoose.Schema(
             min: [0, 'Minimum order value cannot be negative'],
         },
 
+        trustscore: {
+            type: Number,
+            default: null,
+            min: [0, 'Trustscore cannot be negative'],
+        },
+
+        usedBy: {
+            type: Number,
+            default: null,
+            min: [0, 'Used by count cannot be negative'],
+        },
+
+        verified: {
+            type: Boolean,
+            default: null,
+        },
+
         couponCode: {
             type: String,
             trim: true,

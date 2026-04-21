@@ -88,6 +88,9 @@ class DealsMagnetAdapter extends GenericAdapter {
                                 $(el).find('input').val() ||
                                 null;
                     const desc = $(el).find('p, .description, [class*="desc"]').text().trim();
+                    const trustscoreText = $(el).find('.trustscore, .trust-score, [class*="trust"], [class*="like"], [class*="vote"]').first().text().trim();
+                    const usedByText = $(el).find('.used-by, .users-used, [class*="used"], [class*="redeem"], [class*="user"]').first().text().trim();
+                    const verifiedText = $(el).find('.verified, [class*="verified"], [class*="authentic"]').first().text().trim();
                     
                     // Try to extract expiry from "Valid Till" or similar
                     const validTill = $(el).find('[class*="valid"], [class*="expiry"], [class*="till"]').text().trim();
@@ -105,6 +108,9 @@ class DealsMagnetAdapter extends GenericAdapter {
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
                             couponLink: brandUrl,
+                            trustscore: this.parseCountFromText(trustscoreText),
+                            usedBy: this.parseCountFromText(usedByText),
+                            verified: this.parseVerifiedFlag(verifiedText),
                         });
                         brandCoupons++;
                     }

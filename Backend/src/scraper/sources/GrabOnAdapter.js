@@ -114,8 +114,19 @@ class GrabOnAdapter extends GenericAdapter {
                         couponCode = null;
                     }
 
-                    const verified = $(el).find('.verified').text().trim();
-                    const usesToday = $(el).find('.usr .bold-me').text().trim();
+                    // GrabOn: verified + uses are exposed via data-type attributes (stable)
+                    // Example:
+                    //   <span data-type="verified">Verified</span>
+                    //   <span data-type="views" data-uses="33">33 Uses Today</span>
+                    const verifiedText = $(el).find('span[data-type="verified"]').first().text().trim();
+                    const isVerifiedPresent = $(el).find('span[data-type="verified"]').length > 0;
+
+                    const usesEl = $(el).find('span[data-type="views"]').first();
+                    const usesAttr = usesEl.attr('data-uses');
+                    const usesText = usesEl.text().trim();
+
+                    // GrabOn currently doesn't expose a reliable "trustscore/likes" field on listing cards
+                    const trustscoreValue = null;
 
                     // Get the actual brand website URL instead of source website
                     const brandUrl = this.getBrandUrl(page.brand) || 'https://www.example.com'; // Fallback if brand not found
@@ -130,13 +141,16 @@ class GrabOnAdapter extends GenericAdapter {
                         category: page.category,
                         couponLink: brandUrl,
                         terms: null, // Will be populated by deep scraping
+                        trustscore: trustscoreValue,
+                        usedBy: this.parseCountFromText(usesAttr ?? usesText),
+                        verified: isVerifiedPresent ? (this.parseVerifiedFlag(verifiedText) ?? true) : null,
                         dataCid: dataCid,
                         likelyHasCode: dataType === 'cc_c' // cc_c = coupon code, dl = deal
                     });
                 });
 
                 logger.info(`GrabOnAdapter: Found ${couponDataList.length} coupons for ${page.brand}`);
-
+          
                 // Deep scraping: Visit detail pages to get codes and terms
                 if (this.enableDeepScraping && couponDataList.length > 0) {
                     const detailsToFetch = couponDataList
@@ -178,7 +192,7 @@ class GrabOnAdapter extends GenericAdapter {
                         }
                     }
                 }
-
+console.log(couponDataList);
                 // Remove temporary fields and add to results
                 couponDataList.forEach(coupon => {
                     delete coupon.dataCid;
