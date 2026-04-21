@@ -37,6 +37,7 @@ const merchantSchema = new Schema(
     // Browser automation fields
     cookies: { type: Schema.Types.Mixed },
     actionMaps: { type: Map, of: String },
+    automationMacros: { type: Map, of: [Schema.Types.Mixed] },
     lastLoginAttempt: {
       status: { type: String, enum: ['idle', 'pending_otp', 'success', 'failed'], default: 'idle' },
       message: String,
