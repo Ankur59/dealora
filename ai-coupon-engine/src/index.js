@@ -4,10 +4,22 @@ import app from "./app.js";
 import { connectDB } from "./db/connectDB.js";
 
 const server = http.createServer(app);
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 export const io = new Server(server, {
   cors: {
-    origin: (process.env.CORS_ORIGIN || "http://localhost:5173"),
-    methods: ["GET", "POST"]
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
