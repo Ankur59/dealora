@@ -4,6 +4,7 @@ const { connectDB } = require('./src/config/database');
 const { validateEnv } = require('./src/config/env');
 const logger = require('./src/utils/logger');
 const { initCronJobs } = require('./src/cron/jobs');
+const { runScraperFieldAudit } = require('./src/scraper');
 
 validateEnv();
 
@@ -19,6 +20,11 @@ const startServer = async () => {
     try {
         await connectDB();
         initCronJobs();
+
+        if (process.env.RUN_SCRAPER_AUDIT_ON_STARTUP === 'true') {
+            logger.info('Startup scraper audit is enabled. Running adapter field audit...');
+            await runScraperFieldAudit();
+        }
 
         const server = app.listen(PORT, () => {
             logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);

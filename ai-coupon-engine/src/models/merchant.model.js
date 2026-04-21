@@ -34,6 +34,14 @@ const merchantSchema = new Schema(
       maxlength: 4000,
       default: "",
     },
+    // Browser automation fields
+    cookies: { type: Schema.Types.Mixed },
+    actionMaps: { type: Map, of: String },
+    lastLoginAttempt: {
+      status: { type: String, enum: ['idle', 'pending_otp', 'success', 'failed'], default: 'idle' },
+      message: String,
+      lastAttempted: Date
+    },
   },
   { timestamps: true },
 );

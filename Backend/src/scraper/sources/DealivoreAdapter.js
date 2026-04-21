@@ -136,6 +136,19 @@ class DealivoreAdapter extends GenericAdapter {
                     const desc = $el.find('.deal-description, .description, .details, [class*="desc"]').text().trim() ||
                                $el.find('p').text().trim();
 
+                    // Dealivore signal field extraction:
+                    // - trustscore: NOT consistently available in listing cards — avoid wide selectors
+                    // - usedBy: NOT exposed in listing HTML — always null
+                    // - verified: check specific badge selectors only to avoid false positives
+                    const trustscoreEl = $el.find('.trustscore, .trust-score, .success-rate, .like-count').first();
+                    const trustscoreText = trustscoreEl.length > 0 ? trustscoreEl.text().trim() : null;
+                    const usedByText = null; // Dealivore does not expose usage counts in listing cards
+                    const verifiedEl = $el.find(
+                        '.verified-tag, .valid-tag, .badge-verified, .coupon-verified, ' +
+                        '.verified-badge, [class="verified"], [class="valid"]'
+                    ).first();
+                    const verifiedText = verifiedEl.length > 0 ? verifiedEl.text().trim() : null;
+
                     // Try multiple selectors for link
                     const link = $el.find('a.deal-link, a.coupon-link, a').first().attr('href') || 
                                $el.attr('href') ||
@@ -160,6 +173,9 @@ class DealivoreAdapter extends GenericAdapter {
                             discountValue: discount || this.extractDiscountValue(title),
                             category: page.category,
                             couponLink: brandUrl,
+                            trustscore: this.parseCountFromText(trustscoreText),
+                            usedBy: this.parseCountFromText(usedByText),
+                            verified: this.parseVerifiedFlag(verifiedText),
                             detailUrl: detailUrl
                         });
                         brandCoupons++;

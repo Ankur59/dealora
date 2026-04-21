@@ -1,0 +1,12 @@
+{"level":"warn","message":"GEMINI_API_KEY not found. Gemini extraction will be disabled.","timestamp":"2026-04-21 12:49:47"}
+{"level":"info","message":"BrowserManager: Launching Puppeteer browser...","timestamp":"2026-04-21 12:52:17"}
+{"level":"info","message":"BrowserManager: Browser launched successfully","timestamp":"2026-04-21 12:52:17"}
+{"level":"info","message":"BrowserManager: Browser closed","timestamp":"2026-04-21 12:52:30"}
+{"level":"info","message":"BrowserManager: Launching Puppeteer browser...","timestamp":"2026-04-21 12:52:54"}
+{"level":"info","message":"BrowserManager: Browser launched successfully","timestamp":"2026-04-21 12:52:55"}
+{"level":"info","message":"BrowserManager: Browser closed","timestamp":"2026-04-21 12:53:03"}
+{"level":"info","message":"BrowserManager: Launching Puppeteer browser...","timestamp":"2026-04-21 12:53:26"}
+{"level":"info","message":"BrowserManager: Browser launched successfully","timestamp":"2026-04-21 12:53:27"}
+{"level":"info","message":"BrowserManager: Browser closed","timestamp":"2026-04-21 12:53:33"}
+{"level":"warn","message":"GEMINI_API_KEY not found. Gemini extraction will be disabled.","timestamp":"2026-04-21 12:53:58"}
+{"level":"warn","message":"GEMINI_API_KEY not found. Gemini extraction will be disabled.","timestamp":"2026-04-21 12:55:42"}
