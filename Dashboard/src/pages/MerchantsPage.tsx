@@ -304,54 +304,60 @@ export function MerchantsPage() {
         </h2>
         <form className="merchants-form" onSubmit={(e) => void onCreate(e)}>
           {fields.map((field) => (
-            <label className="merchants-label" key={`create-${field.key}`}>
-              {field.label}
-              {field.required ? <span className="merchants-req"> *</span> : null}
-              {field.kind === 'enum' ? (
-                <select
-                  className="merchants-input"
-                  value={formValues[field.key] ?? ''}
-                  onChange={(e) =>
-                    setFormValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                  }
-                >
-                  {(field.options ?? []).map((opt) => (
-                    <option key={`${field.key}-${opt}`} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              ) : field.maxLength && field.maxLength > 250 ? (
-                <textarea
-                  className="merchants-textarea"
-                  rows={3}
-                  value={formValues[field.key] ?? ''}
-                  onChange={(e) =>
-                    setFormValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                  }
-                  maxLength={field.maxLength}
-                />
-              ) : (
-                <input
-                  className="merchants-input"
-                  value={formValues[field.key] ?? ''}
-                  onChange={(e) =>
-                    setFormValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                  }
-                  maxLength={field.maxLength}
-                  required={Boolean(field.required)}
-                />
-              )}
-            </label>
+            <div className="merchants-field-group" key={`create-${field.key}`}>
+              <label className="merchants-label">
+                <span className="merchants-label-text">
+                  {field.label}
+                  {field.required ? <span className="merchants-req"> *</span> : null}
+                </span>
+                {field.kind === 'enum' ? (
+                  <select
+                    className="merchants-input"
+                    value={formValues[field.key] ?? ''}
+                    onChange={(e) =>
+                      setFormValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                  >
+                    {(field.options ?? []).map((opt) => (
+                      <option key={`${field.key}-${opt}`} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ) : field.maxLength && field.maxLength > 250 ? (
+                  <textarea
+                    className="merchants-textarea"
+                    rows={3}
+                    value={formValues[field.key] ?? ''}
+                    onChange={(e) =>
+                      setFormValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    maxLength={field.maxLength}
+                  />
+                ) : (
+                  <input
+                    className="merchants-input"
+                    value={formValues[field.key] ?? ''}
+                    onChange={(e) =>
+                      setFormValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    maxLength={field.maxLength}
+                    required={Boolean(field.required)}
+                  />
+                )}
+              </label>
+            </div>
           ))}
 
-          {formError ? <p className="merchants-msg merchants-msg--error">{formError}</p> : null}
-          {formSuccess ? (
-            <p className="merchants-msg merchants-msg--ok">{formSuccess}</p>
-          ) : null}
-          <button className="merchants-submit" type="submit" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save merchant'}
-          </button>
+          <div className="merchants-form-footer">
+            {formError ? <p className="merchants-msg merchants-msg--error">{formError}</p> : null}
+            {formSuccess ? (
+              <p className="merchants-msg merchants-msg--ok">{formSuccess}</p>
+            ) : null}
+            <button className="merchants-submit" type="submit" disabled={submitting}>
+              {submitting ? 'Saving…' : 'Save merchant'}
+            </button>
+          </div>
         </form>
       </section>
 
@@ -360,7 +366,7 @@ export function MerchantsPage() {
           Existing merchants
         </h2>
         <label className="merchants-search">
-          Search merchants
+          <span>Search merchants</span>
           <input
             className="merchants-input"
             type="search"
@@ -459,52 +465,56 @@ export function MerchantsPage() {
                 {isEditing ? (
                   <div className="merchant-edit-grid">
                     {fields.map((field) => (
-                      <label className="merchants-label" key={`edit-${merchant._id}-${field.key}`}>
-                        {field.label}
-                        {field.kind === 'enum' ? (
-                          <select
-                            className="merchants-input"
-                            value={editValues[field.key] ?? ''}
-                            onChange={(e) =>
-                              setEditValues((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                          >
-                            {(field.options ?? []).map((opt) => (
-                              <option key={`${merchant._id}-${field.key}-${opt}`} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
-                        ) : field.maxLength && field.maxLength > 250 ? (
-                          <textarea
-                            className="merchants-textarea"
-                            rows={3}
-                            value={editValues[field.key] ?? ''}
-                            onChange={(e) =>
-                              setEditValues((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            maxLength={field.maxLength}
-                          />
-                        ) : (
-                          <input
-                            className="merchants-input"
-                            value={editValues[field.key] ?? ''}
-                            onChange={(e) =>
-                              setEditValues((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            maxLength={field.maxLength}
-                          />
-                        )}
-                      </label>
+                      <div className="merchants-field-group" key={`edit-${merchant._id}-${field.key}`}>
+                        <label className="merchants-label">
+                          <span className="merchants-label-text">
+                            {field.label}
+                          </span>
+                          {field.kind === 'enum' ? (
+                            <select
+                              className="merchants-input"
+                              value={editValues[field.key] ?? ''}
+                              onChange={(e) =>
+                                setEditValues((prev) => ({
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                }))
+                              }
+                            >
+                              {(field.options ?? []).map((opt) => (
+                                <option key={`${merchant._id}-${field.key}-${opt}`} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          ) : field.maxLength && field.maxLength > 250 ? (
+                            <textarea
+                              className="merchants-textarea"
+                              rows={3}
+                              value={editValues[field.key] ?? ''}
+                              onChange={(e) =>
+                                setEditValues((prev) => ({
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                }))
+                              }
+                              maxLength={field.maxLength}
+                            />
+                          ) : (
+                            <input
+                              className="merchants-input"
+                              value={editValues[field.key] ?? ''}
+                              onChange={(e) =>
+                                setEditValues((prev) => ({
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                }))
+                              }
+                              maxLength={field.maxLength}
+                            />
+                          )}
+                        </label>
+                      </div>
                     ))}
                     {editError ? (
                       <p className="merchants-msg merchants-msg--error">{editError}</p>
