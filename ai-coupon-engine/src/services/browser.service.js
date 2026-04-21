@@ -5,14 +5,15 @@ import { io } from '../index.js';
 export class BrowserService {
   constructor() {
     this.browser = null;
+    /** @type {Map<string, import('playwright').BrowserContext>} */
     this.contexts = new Map();
   }
 
   async launchBrowser() {
     if (!this.browser) {
-      this.browser = await chromium.launch({ 
+      this.browser = await chromium.launch({
         headless: process.env.NODE_ENV === 'production',
-        args: ['--disable-blink-features=AutomationControlled']
+        args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
       });
     }
     return this.browser;
@@ -23,17 +24,26 @@ export class BrowserService {
     if (!merchant) throw new Error('Merchant not found');
 
     const browser = await this.launchBrowser();
-    
-    // Reuse context if exists
+
+    // Reuse existing context if one is alive
     let context = this.contexts.get(merchantId);
     if (!context) {
       context = await browser.newContext({
         viewport: { width: 1280, height: 720 },
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       });
-      if (merchant.cookies) {
-        await context.addCookies(merchant.cookies);
+
+      // Restore previously saved cookies if available
+      if (Array.isArray(merchant.cookies) && merchant.cookies.length > 0) {
+        try {
+          await context.addCookies(merchant.cookies);
+          await this.emitLog(merchantId, `♻️ Restored ${merchant.cookies.length} saved cookies for quick access.`, 'info');
+        } catch (err) {
+          await this.emitLog(merchantId, `⚠️ Could not restore cookies: ${err.message}`, 'warning');
+        }
       }
+
       this.contexts.set(merchantId, context);
     }
 
@@ -41,9 +51,17 @@ export class BrowserService {
     return { browser, context, page, merchant };
   }
 
+  /**
+   * Snapshot and persist cookies from the given context to MongoDB.
+   * Also updates `lastLoginAttempt.lastAttempted` timestamp.
+   */
   async saveSession(merchantId, context) {
     const cookies = await context.cookies();
-    await Merchant.findByIdAndUpdate(merchantId, { cookies });
+    await Merchant.findByIdAndUpdate(merchantId, {
+      cookies,
+      'lastLoginAttempt.lastAttempted': new Date(),
+    });
+    console.log(`[${merchantId}] Saved ${cookies.length} cookies to DB.`);
   }
 
   async closeSession(merchantId) {
@@ -59,10 +77,14 @@ export class BrowserService {
     console.log(`[${merchantId}] [${type}] ${message}`);
   }
 
+  /**
+   * Waits for a dashboard user to submit an OTP via the socket event.
+   * Resolves with the OTP string, or null on timeout (5 min).
+   */
   async waitForOTP(merchantId) {
-    this.emitLog(merchantId, 'Waiting for OTP input from dashboard...', 'warning');
-    await Merchant.findByIdAndUpdate(merchantId, { 
-      'lastLoginAttempt.status': 'pending_otp' 
+    this.emitLog(merchantId, '🔒 Waiting for OTP input from dashboard…', 'warning');
+    await Merchant.findByIdAndUpdate(merchantId, {
+      'lastLoginAttempt.status': 'pending_otp',
     });
 
     return new Promise((resolve) => {
@@ -73,32 +95,44 @@ export class BrowserService {
         }
       };
       io.on('otp_provided', onOTP);
-      
+
       // Timeout after 5 minutes
       setTimeout(() => {
         io.off('otp_provided', onOTP);
         resolve(null);
-      }, 300000);
+      }, 300_000);
     });
   }
 
+  /**
+   * Derives a stable CSS selector for a DOM element found via coordinates.
+   */
   async getUniqueSelector(page, element) {
-    // This helper tries to get a robust selector for an element found by Gemini
     return await page.evaluate((el) => {
       if (el.id) return `#${el.id}`;
       if (el.getAttribute('name')) return `[name="${el.getAttribute('name')}"]`;
-      
-      // Fallback to a simplified CSS path
+      if (el.getAttribute('data-testid')) return `[data-testid="${el.getAttribute('data-testid')}"]`;
+
+      // Build a short CSS path (max 4 levels)
       const path = [];
       let current = el;
       while (current && current.nodeType === Node.ELEMENT_NODE) {
         let selector = current.nodeName.toLowerCase();
+        if (current.id) {
+          selector = `#${current.id}`;
+          path.unshift(selector);
+          break;
+        }
         if (current.className) {
-          selector += '.' + Array.from(current.classList).join('.');
+          const classes = Array.from(current.classList)
+            .filter((c) => !/[0-9]/.test(c)) // skip purely numeric class names
+            .slice(0, 2)
+            .join('.');
+          if (classes) selector += `.${classes}`;
         }
         path.unshift(selector);
         current = current.parentNode;
-        if (path.length > 3) break; // Don't make it too long
+        if (path.length > 4) break;
       }
       return path.join(' > ');
     }, element);
