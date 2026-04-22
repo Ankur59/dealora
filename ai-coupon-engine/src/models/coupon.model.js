@@ -40,6 +40,9 @@ const couponSchema = new Schema({
     verifiedOn: {
         type: Date
     },
+    verifiedAt: {
+        type: Date
+    },
     isVerified: {
         type: Boolean,
         default: false
@@ -93,6 +96,9 @@ couponSchema.index(
         }
     }
 );
+
+couponSchema.index({ partner: 1, isVerified: 1, verifiedOn: -1 });
+couponSchema.index({ verifiedOn: -1, updatedAt: -1 });
 
 const coupon = model("partnercoupon", couponSchema)
 
