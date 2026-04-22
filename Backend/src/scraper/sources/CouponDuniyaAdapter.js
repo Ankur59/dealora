@@ -46,7 +46,7 @@ class CouponDuniyaAdapter extends GenericAdapter {
 
       // // Beauty & Fashion
       // { brand: 'Nykaa', category: 'Beauty' },
-      // { brand: 'Myntra', category: 'Fashion' },
+      { brand: 'Myntra', category: 'Fashion' },
 
       // // Travel
       // { brand: 'MakeMyTrip', category: 'Travel' },
@@ -167,11 +167,13 @@ class CouponDuniyaAdapter extends GenericAdapter {
           // ── Coupon Code ──────────────────────────────────────────────
           let code = null;
           
+          // Primary source: data-attributes (most reliable on CouponDuniya)
           const offerValue = $el.find('[data-offer-key="couponCode"]').attr('data-offer-value');
           if (offerValue && offerValue.trim() && !offerValue.includes('& GET CODE')) {
               code = offerValue.trim();
           }
 
+          // Secondary source: visible text inside p1-code div
           if (!code) {
               const p1Text = $el.find('.p1-code').text().trim();
               if (p1Text && !p1Text.includes('& GET CODE')) {
@@ -179,33 +181,35 @@ class CouponDuniyaAdapter extends GenericAdapter {
               }
           }
 
+          // Fallback selectors
           if (!code) {
               code = $el.find('.coupon-code, .code, .promo-code').text().trim() || null;
           }
 
           if (code) {
              const upper = code.trim().toUpperCase();
-             const isLabel = ['SHOW', 'GET CODE', 'REVEAL', 'COPY', 'ACTIVATE'].some(t => upper.includes(t));
+             // CD often puts labels like "GENERATE" or "VISIT" in code blocks
+             const isLabel = ['SHOW', 'GET CODE', 'REVEAL', 'COPY', 'ACTIVATE', 'VISIT', 'GENERATE'].some(t => upper.includes(t));
              if (isLabel || upper.length < 3 || upper.length > 20) {
                  code = null;
              }
           }
 
           // ── Signal Fields ────────────────────────────────────────────
-          // usedBy: <div class="used-tag">"60 People Used Today"</div>
-          const usedByText = $el.find('.used-tag, .offer-tag-block .used-tag').first().text().trim();
+          // Clean elements to remove hidden <style> tags that pollute text extraction
+          const $usedByEl = $el.find('.used-tag, .offer-tag-block .used-tag').first().clone();
+          $usedByEl.find('style, script, svg').remove();
+          const usedByText = $usedByEl.text().trim();
           const usedBy = this.parseCountFromText(usedByText) ?? null;
 
           // verified: <div class="verified-tag cd_offer "></div>
           const isVerifiedPresent = $el.find('.verified-tag, .text-div.verified-div').length > 0;
           const platformVerified = isVerifiedPresent ? true : null;
 
-          // trustscore (Success Rate): <span class="...success-percent">60%</span>
-          const successPercentText = $el
-            .find('.success-counter [class*="success-percent"], .success-block [class*="success-percent"]')
-            .first()
-            .text()
-            .trim();
+          // trustscore (Success Rate / Confidence Score): <span class="...success-percent">60%</span>
+          const $successEl = $el.find('[class*="success-percent"]').first().clone();
+          $successEl.find('style, script').remove();
+          const successPercentText = $successEl.text().trim();
           const trustscore = this.parseCountFromText(successPercentText) ?? null;
 
           // ── Terms and Conditions ─────────────────────────────────────
@@ -241,7 +245,7 @@ class CouponDuniyaAdapter extends GenericAdapter {
             title.includes('deals from') ||
             title.includes('email');
 
-          if (!isJunkTitle) {
+          if (!isJunkTitle && code) {
             // Get the actual brand website URL instead of source website
             const brandUrl = this.getBrandUrl(page.brand) || 'https://www.example.com'; // Always use brand URL
 
@@ -249,7 +253,7 @@ class CouponDuniyaAdapter extends GenericAdapter {
               brandName: page.brand,
               couponTitle: title,
               description: desc || title,
-              couponCode: code || null,
+              couponCode: code,
               discountType: this.inferDiscountType(title + ' ' + discount),
               discountValue: discount || this.extractDiscountValue(title),
               category: page.category,
