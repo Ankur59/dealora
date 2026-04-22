@@ -8,15 +8,42 @@ const STANDARD_CREDENTIALS = {
 
 export class GeminiService {
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY;
+    this.apiKeys = this.loadApiKeys();
+    this.currentKeyIndex = 0;
     // Use gemini-2.0-flash (stable vision model for computer use)
     this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
   }
 
+  loadApiKeys() {
+    let keys = [];
+    if (process.env.GEMINI_API_KEYS) {
+       keys = process.env.GEMINI_API_KEYS.split(',').map(k => k.trim().replace(/['"]/g, '')).filter(Boolean);
+    } else if (process.env.GEMINI_API_KEY) {
+       keys = [process.env.GEMINI_API_KEY];
+    }
+    return keys;
+  }
+
+  getCurrentKey() {
+    // Reload in case keys were added without restart
+    if (this.apiKeys.length === 0) {
+      this.apiKeys = this.loadApiKeys();
+    }
+    if (this.apiKeys.length === 0) return null;
+    return this.apiKeys[this.currentKeyIndex];
+  }
+
+  rotateKey() {
+    if (this.apiKeys.length > 0) {
+      this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
+      console.log(`Rotated to Gemini API key index ${this.currentKeyIndex}`);
+    }
+  }
+
   async analyzePage(screenshotBase64, prompt) {
-    const key = this.apiKey || process.env.GEMINI_API_KEY;
+    let key = this.getCurrentKey();
     if (!key) {
-      throw new Error('GEMINI_API_KEY is not configured in .env');
+      throw new Error('No GEMINI_API_KEYS configured in .env');
     }
 
     const payload = {
@@ -39,15 +66,27 @@ export class GeminiService {
       },
     };
 
-    try {
-      const response = await axios.post(`${this.apiUrl}?key=${key}`, payload, {
-        timeout: 30000,
-      });
-      const text = response.data.candidates[0].content.parts[0].text;
-      return JSON.parse(text);
-    } catch (error) {
-      console.error('Gemini API error:', error.response?.data || error.message);
-      throw new Error(`Gemini analysis failed: ${error.response?.data?.error?.message || error.message}`);
+    let attempts = 0;
+    const maxAttempts = Math.max(1, this.apiKeys.length);
+
+    while (attempts < maxAttempts) {
+      key = this.getCurrentKey();
+      try {
+        const response = await axios.post(`${this.apiUrl}?key=${key}`, payload, {
+          timeout: 30000,
+        });
+        const text = response.data.candidates[0].content.parts[0].text;
+        return JSON.parse(text);
+      } catch (error) {
+        console.error(`Gemini API error with key index ${this.currentKeyIndex}:`, error.response?.data || error.message);
+        
+        this.rotateKey();
+        attempts++;
+        
+        if (attempts >= maxAttempts) {
+          throw new Error(`Gemini analysis failed after trying all keys: ${error.response?.data?.error?.message || error.message}`);
+        }
+      }
     }
   }
 
