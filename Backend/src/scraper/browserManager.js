@@ -49,30 +49,68 @@ class BrowserManager {
         try {
             page = await this.createPage();
 
-            // Navigate to detail page
-            await page.goto(url, { 
-                waitUntil: 'networkidle2',
-                timeout: 30000 
+            // ── Block external redirects ──────────────────────────────────────────
+            // GrabOn's "COLLECT COUPON CODE" button navigates *to the merchant site*.
+            // We intercept document-type requests and abort any that leave grabon.in,
+            // keeping the page in the GrabOn detail page context so we can read
+            // expiry and terms without being redirected away.
+            await page.setRequestInterception(true);
+            page.on('request', (req) => {
+                const type = req.resourceType();
+                const reqUrl = req.url();
+                // Only block top-level HTML navigations to external sites
+                if (type === 'document' && !reqUrl.includes('grabon.in')) {
+                    req.abort();
+                } else {
+                    req.continue();
+                }
             });
 
-            // Wait for dynamic content
-            await new Promise(resolve => setTimeout(resolve, 2500));
+            // Navigate to GrabOn detail page
+            await page.goto(url, {
+                waitUntil: 'networkidle2',
+                timeout: 30000
+            });
 
+            // Wait for page to render fully
+            await new Promise(resolve => setTimeout(resolve, 2000));
             // Extract data using browser JavaScript
             const pageData = await page.evaluate(() => {
                 const data = {};
-                
-                // Extract coupon code - CORRECT SELECTOR: p.code
-                const codeElement = document.querySelector('p.code');
-                if (codeElement && codeElement.textContent.trim()) {
-                    data.code = codeElement.textContent.trim();
+ 
+                // ── Coupon code: try multiple GrabOn-specific selectors ──────────
+                // Order: most specific → least specific
+                const codeSelectors = [
+                    'p.code',              // GrabOn dedicated code element
+                    '.coupon-code-text',
+                    '.go-cpn-code',
+                    '.go-cpn-show',
+                    'input.coupon-code',   // read-only input boxes
+                    'input[class*="code"][readonly]',
+                    '#couponCode',
+                    '#copyCode',
+                ];
+
+                for (const sel of codeSelectors) {
+                    const el = document.querySelector(sel);
+                    if (el) {
+                        const val = (el.value || el.textContent || '').trim();
+                        if (val && val.length >= 3) {
+                            data.code = val;
+                            break;
+                        }
+                    }
                 }
-                
-                // Fallback: Try data-clipboard-text from copy button
+
+                // Fallback: any element with data-clipboard-text that looks like a code
                 if (!data.code) {
-                    const copyButton = document.querySelector('#copyCode, [data-clipboard-text]');
-                    if (copyButton) {
-                        data.code = copyButton.getAttribute('data-clipboard-text');
+                    const clipEls = document.querySelectorAll('[data-clipboard-text]');
+                    for (const el of clipEls) {
+                        const val = (el.getAttribute('data-clipboard-text') || '').trim();
+                        if (val && val.length >= 3 && /^[A-Z0-9]{3,20}$/i.test(val)) {
+                            data.code = val;
+                            break;
+                        }
                     }
                 }
                 
@@ -109,19 +147,57 @@ class BrowserManager {
                     data.terms = terms.slice(0, 10).join('\n');
                 }
                 
-                // Extract expiry
-                const expiryEl = document.querySelector('.expiry, .valid-till, [class*="expire"]');
-                if (expiryEl) data.expiry = expiryEl.textContent.trim();
+                // Extract expiry - multiple strategies
+                // GrabOn detail pages show: "Valid Till: Apr 30, 2026 (THU)"
+                let expiryText = null;
+
+                // Strategy 1: known CSS classes
+                const expiryEl = document.querySelector(
+                    '.expiry, .valid-till, .expiry-date, .valid-date, ' +
+                    '[class*="expir"], [class*="valid-date"], [class*="valid-till"]'
+                );
+                if (expiryEl) {
+                    expiryText = expiryEl.textContent.trim();
+                }
+
+                // Strategy 2: TreeWalker text search for "Valid Till" / "Expires"
+                if (!expiryText) {
+                    const walker = document.createTreeWalker(
+                        document.body,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                    );
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        const t = node.textContent.trim();
+                        if (
+                            t.length > 5 && t.length < 80 &&
+                            (
+                                t.toLowerCase().includes('valid till') ||
+                                t.toLowerCase().includes('expires on') ||
+                                t.toLowerCase().includes('expiry') ||
+                                t.toLowerCase().includes('valid until')
+                            )
+                        ) {
+                            expiryText = t;
+                            break;
+                        }
+                    }
+                }
+
+                data.expiry = expiryText;
                 
                 return data;
             });
 
             return {
-                couponCode: pageData.code || null,
+                couponCode:        pageData.code || null,
                 termsAndConditions: pageData.terms || null,
-                title: pageData.title || null,
-                description: pageData.description || null,
-                expiryInfo: pageData.expiry || null
+                title:             pageData.title || null,
+                description:       pageData.description || null,
+                // Parse "Valid Till: Apr 30, 2026 (THU)" → Date object
+                expiryDate:        this.parseExpiryDate(pageData.expiry || null),
             };
 
         } catch (error) {
@@ -132,6 +208,34 @@ class BrowserManager {
                 await page.close();
             }
         }
+    }
+
+    /**
+     * Parses GrabOn's "Valid Till: Apr 30, 2026 (THU)" (and similar) into a Date.
+     * Returns a Date object, or null if parsing fails.
+     *
+     * Supported patterns:
+     *   "Valid Till: Apr 30, 2026 (THU)"
+     *   "Expires on: 30 April 2026"
+     *   "Expiry: 2026-04-30"
+     */
+    parseExpiryDate(rawText) {
+        if (!rawText) return null;
+
+        // Remove the label prefix ("Valid Till:", "Expires on:", etc.)
+        const cleaned = rawText
+            .replace(/valid\s+till\s*:?/i, '')
+            .replace(/expires?\s+on\s*:?/i, '')
+            .replace(/expiry\s*:?/i, '')
+            .replace(/valid\s+until\s*:?/i, '')
+            // Remove day-of-week suffix like "(THU)" or "(Thursday)"
+            .replace(/\([A-Za-z]{2,9}\)/g, '')
+            .trim();
+
+        if (!cleaned) return null;
+
+        const parsed = new Date(cleaned);
+        return isNaN(parsed.getTime()) ? null : parsed;
     }
 
     async close() {

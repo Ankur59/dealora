@@ -85,7 +85,8 @@ class GenericAdapter {
 
             // Use Gemini/fallback cleaned data for the 3 critical fields
             // These are already cleaned by either Gemini AI or local fallback cleaner
-            const finalCouponCode = extractedData.couponCode || null;
+            // Fall back to raw scraped value if AI couldn't extract a code from title text
+            const finalCouponCode = extractedData.couponCode || rawData.couponCode || null;
             const finalCouponDetails = extractedData.couponDetails || null;
             const finalTerms = extractedData.terms || null;
 
@@ -99,7 +100,16 @@ class GenericAdapter {
                 couponCode: finalCouponCode,
                 discountType: extractedData.discountType || this.normalizeDiscountType(rawData.discountType),
                 discountValue: extractedData.discountValue || rawData.discountValue || null,
-                expireBy: extractedData.expireBy ? new Date(extractedData.expireBy) : (rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry()),
+                // expiryDate: GrabOn stores expiry as rawData.expiryDate (Date object)
+                // expireBy:   Gemini may return it as extractedData.expireBy (string)
+                // Fallback chain: Gemini → rawData.expireBy → rawData.expiryDate → default +30d
+                expireBy: extractedData.expireBy
+                    ? new Date(extractedData.expireBy)
+                    : (rawData.expireBy
+                        ? new Date(rawData.expireBy)
+                        : (rawData.expiryDate
+                            ? new Date(rawData.expiryDate)
+                            : this.getDefaultExpiry())),
                 categoryLabel: extractedData.categoryLabel || this.normalizeCategory(extractedData.category || rawData.category),
                 couponVisitingLink: rawData.couponLink || extractedData.couponVisitingLink || this.getBrandUrl(brand) || 'https://www.example.com',
                 sourceWebsite: this.sourceName,
