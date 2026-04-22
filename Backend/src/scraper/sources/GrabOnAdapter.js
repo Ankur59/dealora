@@ -15,15 +15,15 @@ class GrabOnAdapter extends GenericAdapter {
             // ===== ACTIVE BRANDS - Only scraping these essential brands =====
             // Food Delivery Apps
             { brand: 'Zomato', path: '/zomato-coupons/', category: 'Food' },
-            // { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
-            // { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
-            // { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
-            // { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
+            { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
+            { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
+            { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
+            { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
             
             // E-commerce & Shopping
-            // { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
-            // { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
-            // { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
+            { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
+            { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
+            { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
             
             // // Wallet & Payment Apps
             // { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
@@ -161,6 +161,24 @@ class GrabOnAdapter extends GenericAdapter {
                     // couponLink = specific GrabOn coupon page (preferred) OR brand homepage
                     const couponLink = grabOnDetailUrl || brandFallbackUrl || null;
 
+                    // ── Terms & Minimum Order (from listing HTML) ───────────────
+                    const termsArray = [];
+                    let minimumOrder = null;
+
+                    $(el).find('.cpn-det-v2 div[data-type="desc-div"] ul li').each((_, liEl) => {
+                        const liText = $(liEl).text().trim().replace(/\s+/g, ' '); // Clean spaces
+                        if (liText) {
+                            termsArray.push(liText);
+                            // Detect minimum order (e.g., "Minimum cart value should be Rs 999")
+                            const minMatch = liText.match(/minimum.*(?:rs\.?|₹|inr)\s*(\d+(?:,\d+)?)/i);
+                            if (minMatch) {
+                                minimumOrder = minMatch[0]; // Stores "Minimum cart value should be Rs 999"
+                            }
+                        }
+                    });
+
+                    const terms = termsArray.length > 0 ? termsArray.join('\n') : null;
+
                     couponDataList.push({
                         // ── Core fields ───────────────────────────────────────
                         brandName:              page.brand,
@@ -171,7 +189,8 @@ class GrabOnAdapter extends GenericAdapter {
                         discountValue:          discount || title,
                         category:               page.category,
                         couponLink:             couponLink,
-                        terms:                  null, // populated by deep scraping
+                        terms:                  terms, // Pre-filled from listing page
+                        minimumOrder:           minimumOrder,
 
                         // ── Scraped signal fields ─────────────────────────────
                         trustscore:             pageTrustScore,   // store-level, 0-100
