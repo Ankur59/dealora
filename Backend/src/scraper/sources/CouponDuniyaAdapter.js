@@ -86,7 +86,12 @@ class CouponDuniyaAdapter extends GenericAdapter {
 
     for (const page of pages) {
       try {
+        const fullPath = `${this.baseUrl}${page.path}`;
+        console.log(`\n=========================================\nVisiting page: ${fullPath}\n=========================================`);
         logger.info(`CouponDuniyaAdapter: Scraping ${page.brand} from ${page.path}`);
+
+        // Introduce a slight delay as requested so the terminal watcher doesn't fly by too fast
+        await new Promise(r => setTimeout(r, 2000));
         const html = await this.fetchHtml(page.path);
 
         // Skip if page not found (404)
@@ -152,31 +157,79 @@ class CouponDuniyaAdapter extends GenericAdapter {
             $el.find('.discount, .offer, .savings, [class*="discount"], [class*="offer"]').text().trim() ||
             $el.find('.badge, .tag, [class*="badge"]').text().trim();
 
-          // Try multiple selectors for coupon code
-          const code =
-            $el.find('.coupon-code, .code, .promo-code, [class*="code"]').text().trim() ||
-            $el.find('input[type="text"]').val() ||
-            $el.attr('data-code');
+          // Discount logic is handled previously
 
           // Try multiple selectors for description
           const desc =
             $el.find('.description, .details, .terms, [class*="desc"], [class*="detail"]').text().trim() ||
             $el.find('p').text().trim();
 
-          // CouponDuniya tags (current UI)
-          // - usedBy: <div class="used-tag">"50 People Used Today"</div> (may be missing on some cards)
-          // - verified: <div class="text-div verified-div">"Verified today"</div>
-          // - trustscore: <span class="...success-percent">100%</span> inside .success-counter (can be hidden until "See details" but present in HTML)
-          const usedByText = $el.find('.offer-tag-block .used-tag, .used-tag').first().text().trim();
+          // ── Coupon Code ──────────────────────────────────────────────
+          let code = null;
+          
+          const offerValue = $el.find('[data-offer-key="couponCode"]').attr('data-offer-value');
+          if (offerValue && offerValue.trim() && !offerValue.includes('& GET CODE')) {
+              code = offerValue.trim();
+          }
 
-          const verifiedText = $el.find('.text-div.verified-div, .verified-tag, .offer-tag-block .verified-tag').first().text().trim();
-          const isVerifiedPresent = $el.find('.text-div.verified-div, .verified-tag, .offer-tag-block .verified-tag').length > 0;
+          if (!code) {
+              const p1Text = $el.find('.p1-code').text().trim();
+              if (p1Text && !p1Text.includes('& GET CODE')) {
+                  code = p1Text;
+              }
+          }
 
+          if (!code) {
+              code = $el.find('.coupon-code, .code, .promo-code').text().trim() || null;
+          }
+
+          if (code) {
+             const upper = code.trim().toUpperCase();
+             const isLabel = ['SHOW', 'GET CODE', 'REVEAL', 'COPY', 'ACTIVATE'].some(t => upper.includes(t));
+             if (isLabel || upper.length < 3 || upper.length > 20) {
+                 code = null;
+             }
+          }
+
+          // ── Signal Fields ────────────────────────────────────────────
+          // usedBy: <div class="used-tag">"60 People Used Today"</div>
+          const usedByText = $el.find('.used-tag, .offer-tag-block .used-tag').first().text().trim();
+          const usedBy = this.parseCountFromText(usedByText) ?? null;
+
+          // verified: <div class="verified-tag cd_offer "></div>
+          const isVerifiedPresent = $el.find('.verified-tag, .text-div.verified-div').length > 0;
+          const platformVerified = isVerifiedPresent ? true : null;
+
+          // trustscore (Success Rate): <span class="...success-percent">60%</span>
           const successPercentText = $el
-            .find('.success-block .success-counter [class*="success-percent"], .success-counter [class*="success-percent"], [class*="success-percent"]')
+            .find('.success-counter [class*="success-percent"], .success-block [class*="success-percent"]')
             .first()
             .text()
             .trim();
+          const trustscore = this.parseCountFromText(successPercentText) ?? null;
+
+          // ── Terms and Conditions ─────────────────────────────────────
+          // Try to get per-coupon terms instead of page-level terms
+          const localTermsArray = [];
+          $el.find('.offer-desc-list, .desc-txt.more-desc, .more-desc-text, [data-offer-key="affKey"]').each((_, termEl) => {
+              const termText = $(termEl).text().trim().replace(/\s+/g, ' ');
+              if (termText && termText.length > 10 && !termText.includes('Show Details')) {
+                  localTermsArray.push(termText);
+              }
+          });
+          const terms = localTermsArray.length > 0 ? localTermsArray.join('\n') : combinedPageTerms;
+
+          // ── Expiry Date ──────────────────────────────────────────────
+          // Try to grab text like "Valid till 30 April" or "Expires in 2 days"
+          let expiryDate = null;
+          const expiryText = $el.find('[class*="expir"], [class*="valid"], .exp-msg, .ends-in').first().text().trim();
+          if (expiryText) {
+             const cleaned = expiryText.replace(/ends|valid till|expires on|expiry|:|valid/gi, '').trim();
+             const parsedDate = new Date(cleaned);
+             if (!isNaN(parsedDate.getTime())) {
+                 expiryDate = parsedDate;
+             }
+          }
 
           // Try multiple selectors for link
           const link = $el.find('a').attr('href') || $el.attr('href') || this.baseUrl + page.path;
@@ -201,10 +254,12 @@ class CouponDuniyaAdapter extends GenericAdapter {
               discountValue: discount || this.extractDiscountValue(title),
               category: page.category,
               couponLink: brandUrl,
-              terms: combinedPageTerms, // Use page-level terms for all coupons from this brand
-              trustscore: this.parseCountFromText(successPercentText),
-              usedBy: this.parseCountFromText(usedByText) ?? 0,
-              verified: isVerifiedPresent ? (this.parseVerifiedFlag(verifiedText) ?? true) : null,
+              terms: terms, 
+              trustscore: trustscore,
+              usedBy: usedBy,
+              platformVerified: platformVerified,
+              verified: platformVerified,
+              expiryDate: expiryDate,
             });
             brandCoupons++;
           }
