@@ -15,20 +15,20 @@ class GrabOnAdapter extends GenericAdapter {
             // ===== ACTIVE BRANDS - Only scraping these essential brands =====
             // Food Delivery Apps
             { brand: 'Zomato', path: '/zomato-coupons/', category: 'Food' },
-            { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
-            { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
-            { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
-            { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
+            // { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
+            // { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
+            // { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
+            // { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
             
             // E-commerce & Shopping
-            { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
-            { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
-            { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
+            // { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
+            // { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
+            // { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
             
-            // Wallet & Payment Apps
-            { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Paytm', path: '/paytm-coupons/', category: 'Wallet Rewards' },
-            { brand: 'Cred', path: '/cred-coupons/', category: 'Wallet Rewards' },
+            // // Wallet & Payment Apps
+            // { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Paytm', path: '/paytm-coupons/', category: 'Wallet Rewards' },
+            // { brand: 'Cred', path: '/cred-coupons/', category: 'Wallet Rewards' },
             // { brand: 'Dhani', path: '/dhani-coupons/', category: 'Wallet Rewards' },
             // { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
             
@@ -92,6 +92,11 @@ class GrabOnAdapter extends GenericAdapter {
                 
                 const $ = cheerio.load(html);
                 
+                // ── Store-level trust score ────────────────────────────────────
+                // GrabOn exposes a star rating at the top of every brand page,
+                // e.g. "4 / 5 (692 Votes)". We normalise this to 0-100.
+                const pageTrustScore = this.parseStoreTrustScore($('body').text());
+
                 // Extract coupon IDs and basic info from listing page
                 const couponDataList = [];
                 $('div.gc-box').each((i, el) => {
@@ -102,50 +107,92 @@ class GrabOnAdapter extends GenericAdapter {
                     const dataCid = $(el).attr('data-cid');
                     const dataType = $(el).attr('data-type');
                     const desc = $(el).find('p').text().trim();
-                    
-                    // Extract basic coupon code from listing (if visible)
-                    let couponCode = $(el).find('.go-cpn-show').text().trim();
-                    const buttonTexts = [
-                        'SHOW COUPON CODE', 'GET CODE', 'REVEAL CODE', 'COPY CODE',
-                        'ACTIVATE OFFER', 'GET DEAL', 'SHOP NOW', 'CLICK HERE',
-                        'VIEW OFFER', 'GRAB OFFER', 'REDEEM NOW', 'UNLOCK COUPON CODE'
-                    ];
-                    if (couponCode && (buttonTexts.some(btn => couponCode.toUpperCase().includes(btn)) || couponCode.length > 20)) {
-                        couponCode = null;
+
+                    // ── Coupon code: read directly from data attributes in the listing HTML ────
+                    // The code is embedded in the static HTML — NO button click needed.
+                    //
+                    // Observed GrabOn HTML structure (from DevTools):
+                    //   div.gc-box
+                    //     div.gcbr.go-cpn-show[data-code="CITI150"]  ← data-code
+                    //       div[data-inner-text="CITI150"]            ← data-inner-text
+                    //         span[data-type="cpn-code-text"]CITI150  ← text content
+                    let couponCode =
+                        $(el).find('.go-cpn-show[data-code]').attr('data-code')
+                        || $(el).find('[data-inner-text]').attr('data-inner-text')
+                        || $(el).find('span[data-type="cpn-code-text"]').text().trim()
+                        || null;
+
+                    // Sanitise: reject short/long values or known button-label garbage
+                    if (couponCode) {
+                        const upper = couponCode.trim().toUpperCase();
+                        const isLabel = [
+                            'SHOW COUPON', 'GET CODE', 'REVEAL', 'COPY CODE',
+                            'UNLOCK', 'ACTIVATE', 'COLLECT',
+                        ].some(t => upper.includes(t));
+                        couponCode = (!isLabel && upper.length >= 3 && upper.length <= 20)
+                            ? upper
+                            : null;
                     }
 
-                    // GrabOn: verified + uses are exposed via data-type attributes (stable)
-                    // Example:
-                    //   <span data-type="verified">Verified</span>
-                    //   <span data-type="views" data-uses="33">33 Uses Today</span>
-                    const verifiedText = $(el).find('span[data-type="verified"]').first().text().trim();
-                    const isVerifiedPresent = $(el).find('span[data-type="verified"]').length > 0;
+                    // ── Platform verified: read from data-cpn-verified attribute ──────────
+                    // GrabOn sets data-cpn-verified="True" / "False" on every gc-box div.
+                    // This is more reliable than hunting for a span[data-type="verified"].
+                    const cpnVerifiedAttr = $(el).attr('data-cpn-verified');
+                    const platformVerified =
+                        cpnVerifiedAttr === 'True'  ? true  :
+                        cpnVerifiedAttr === 'False' ? false :
+                        null;
 
+                    // ── Uses Today ─────────────────────────────────────────────
+                    // GrabOn exposes: <span data-type="views" data-uses="600">600 Uses Today</span>
                     const usesEl = $(el).find('span[data-type="views"]').first();
                     const usesAttr = usesEl.attr('data-uses');
                     const usesText = usesEl.text().trim();
+                    const usedByValue = this.parseCountFromText(usesAttr ?? usesText);
 
-                    // GrabOn currently doesn't expose a reliable "trustscore/likes" field on listing cards
-                    const trustscoreValue = null;
-
-                    // Get the actual brand website URL instead of source website
-                    const brandUrl = this.getBrandUrl(page.brand) || 'https://www.example.com'; // Fallback if brand not found
+                    // ── Coupon visiting link ────────────────────────────────────
+                    // Priority: GrabOn detail URL (specific) > brand homepage (generic)
+                    // The detail URL is the SPECIFIC page for this coupon — users
+                    // can click through to reveal and redeem it even without a code.
+                    const grabOnDetailUrl = dataCid
+                        ? `${this.baseUrl}/coupon-codes/${dataCid}/`
+                        : null;
+                    const brandFallbackUrl = this.getBrandUrl(page.brand);
+                    // couponLink = specific GrabOn coupon page (preferred) OR brand homepage
+                    const couponLink = grabOnDetailUrl || brandFallbackUrl || null;
 
                     couponDataList.push({
-                        brandName: page.brand,
-                        couponTitle: title,
-                        description: desc,
-                        couponCode: couponCode || null,
-                        discountType: this.inferDiscountType(title + discount),
-                        discountValue: discount || title,
-                        category: page.category,
-                        couponLink: brandUrl,
-                        terms: null, // Will be populated by deep scraping
-                        trustscore: trustscoreValue,
-                        usedBy: this.parseCountFromText(usesAttr ?? usesText),
-                        verified: isVerifiedPresent ? (this.parseVerifiedFlag(verifiedText) ?? true) : null,
-                        dataCid: dataCid,
-                        likelyHasCode: dataType === 'cc_c' // cc_c = coupon code, dl = deal
+                        // ── Core fields ───────────────────────────────────────
+                        brandName:              page.brand,
+                        couponTitle:            title,
+                        description:            desc,
+                        couponCode:             couponCode || null,
+                        discountType:           this.inferDiscountType(title + discount),
+                        discountValue:          discount || title,
+                        category:               page.category,
+                        couponLink:             couponLink,
+                        terms:                  null, // populated by deep scraping
+
+                        // ── Scraped signal fields ─────────────────────────────
+                        trustscore:             pageTrustScore,   // store-level, 0-100
+                        usedBy:                 usedByValue,      // uses reported today
+                        platformVerified:       platformVerified, // per-coupon badge (explicit only)
+                        verified:               platformVerified, // backward compat
+                        expiryDate:             null,  // populated by deep scraping
+                        liveSuccessRate:        null,  // GrabOn: not exposed per coupon
+
+                        // ── Source credibility (static per adapter) ───────────
+                        sourceCredibilityScore: 75, // GrabOn is a reputable aggregator
+
+                        // ── Computed later by AI / user-feedback pipeline ─────
+                        recencyScore:           null, // derived from scrapedAt by engine
+                        failureRate:            null, // populated from user feedback
+                        confidenceScore:        null, // f(trust, failure, verified, recency)
+                        trendVelocity:          null, // computed across scrape runs
+
+                        // ── Internal scraping helpers (deleted before save) ───
+                        dataCid:                dataCid,
+                        likelyHasCode:          dataType === 'cc_c',
                     });
                 });
 
@@ -153,9 +200,27 @@ class GrabOnAdapter extends GenericAdapter {
           
                 // Deep scraping: Visit detail pages to get codes and terms
                 if (this.enableDeepScraping && couponDataList.length > 0) {
-                    const detailsToFetch = couponDataList
-                        .filter(c => c.dataCid)
-                        .slice(0, this.maxDetailPagesPerBrand);
+                    // ── Budget allocation strategy ────────────────────────────────
+                    // GrabOn marks cc_c = coupon with code, dl = deal (no code).
+                    // Prioritise cc_c coupons so the page budget is spent on coupons
+                    // that actually have codes to extract. Remaining slots go to deals
+                    // (we still visit them for expiry dates).
+                    const withCid = couponDataList.filter(c => c.dataCid);
+                    const codeCoupons = withCid.filter(c => c.likelyHasCode);
+                    const dealCoupons = withCid.filter(c => !c.likelyHasCode);
+
+                    const codeSlots = Math.min(codeCoupons.length, this.maxDetailPagesPerBrand);
+                    const dealSlots = Math.min(dealCoupons.length, this.maxDetailPagesPerBrand - codeSlots);
+
+                    const detailsToFetch = [
+                        ...codeCoupons.slice(0, codeSlots),   // codes first
+                        ...dealCoupons.slice(0, dealSlots),   // deals fill remaining
+                    ];
+
+                    logger.info(
+                        `GrabOnAdapter: Deep scraping budget: ${codeSlots} code-coupons + ` +
+                        `${dealSlots} deal-coupons = ${detailsToFetch.length} pages for ${page.brand}`
+                    );
 
                     logger.info(`GrabOnAdapter: Deep scraping ${detailsToFetch.length} detail pages for ${page.brand}`);
 
@@ -167,21 +232,32 @@ class GrabOnAdapter extends GenericAdapter {
                             const details = await browserManager.extractCouponDetails(detailUrl);
                             
                             if (details) {
-                                // Update with detailed information
+                                // Coupon code
                                 if (details.couponCode) {
                                     couponData.couponCode = details.couponCode;
                                 }
+                                // Terms & conditions
                                 if (details.termsAndConditions) {
                                     couponData.terms = details.termsAndConditions;
                                 }
+                                // Expiry date — "Valid Till: Apr 30, 2026 (THU)"
+                                if (details.expiryDate) {
+                                    couponData.expiryDate = details.expiryDate;
+                                }
+                                // Richer title / description from detail page
                                 if (details.title && couponData.couponTitle === couponData.description) {
                                     couponData.couponTitle = details.title;
                                 }
                                 if (details.description && details.description.length > couponData.description.length) {
                                     couponData.description = details.description;
                                 }
-                                
-                                logger.info(`GrabOnAdapter: [${i + 1}/${detailsToFetch.length}] Extracted ${details.couponCode ? 'CODE' : 'DEAL'} for ${page.brand}`);
+
+                                logger.info(
+                                    `GrabOnAdapter: [${i + 1}/${detailsToFetch.length}] ` +
+                                    `${details.couponCode ? 'CODE' : 'DEAL'} | ` +
+                                    `expiry: ${details.expiryDate ? details.expiryDate.toISOString().slice(0,10) : 'n/a'} | ` +
+                                    `${page.brand}`
+                                );
                             }
 
                             // Rate limiting between detail page requests
@@ -193,14 +269,52 @@ class GrabOnAdapter extends GenericAdapter {
                     }
                 }
 console.log(couponDataList);
-                // Remove temporary fields and add to results
+                // ── Quality filter & cleanup ────────────────────────────────────
+                // A usable coupon must have EITHER a coupon code OR a specific
+                // coupon-page link (not just a generic brand homepage).
+                // Coupons missing both are discarded before MongoDB write.
+                let dropped = 0;
+                let noExpiry = 0;
+                const validCoupons = [];
+
                 couponDataList.forEach(coupon => {
+                    const hasCode = !!coupon.couponCode;
+                    // couponLink is already the specific GrabOn detail URL if dataCid existed
+                    const hasSpecificLink = !!coupon.dataCid; // dataCid → specific URL was built
+
+                    if (!hasCode && !hasSpecificLink) {
+                        dropped++;
+                        logger.warn(
+                            `GrabOnAdapter: DROPPED "${coupon.couponTitle}" — ` +
+                            `no coupon code and no specific link (dataCid missing)`
+                        );
+                        return; // skip
+                    }
+
+                    if (!coupon.expiryDate) {
+                        noExpiry++;
+                        // Warn but keep — AI engine will decide during validation
+                        logger.warn(
+                            `GrabOnAdapter: NO EXPIRY for "${coupon.couponTitle}" (${page.brand}) — ` +
+                            `kept but flagged for AI review`
+                        );
+                    }
+
+                    // Clean up internal helpers before pushing
                     delete coupon.dataCid;
                     delete coupon.likelyHasCode;
-                    allCoupons.push(coupon);
+                    validCoupons.push(coupon);
                 });
 
-                logger.info(`GrabOnAdapter: Completed ${page.brand} - ${couponDataList.length} coupons`);
+                if (dropped > 0) {
+                    logger.warn(`GrabOnAdapter: Dropped ${dropped} unusable coupons for ${page.brand}`);
+                }
+                if (noExpiry > 0) {
+                    logger.warn(`GrabOnAdapter: ${noExpiry} coupons for ${page.brand} have no expiry date`);
+                }
+
+                validCoupons.forEach(c => allCoupons.push(c));
+                logger.info(`GrabOnAdapter: Completed ${page.brand} — ${validCoupons.length} valid (${dropped} dropped)`);
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
             } catch (error) {
@@ -216,6 +330,19 @@ console.log(couponDataList);
         }
 
         return allCoupons;
+    }
+
+    /**
+     * Parses the store-level GrabOn star rating into a 0-100 score.
+     * Looks for patterns like "4 / 5 (692 Votes)" or "4.2 / 5 (100 Votes)".
+     * Returns null if no rating found.
+     */
+    parseStoreTrustScore(pageText) {
+        const match = pageText.match(/(\d+(?:\.\d+)?)\s*\/\s*5\s*\(\s*(\d+)\s*[Vv]otes?\s*\)/);
+        if (!match) return null;
+        const rating = parseFloat(match[1]);
+        if (isNaN(rating) || rating < 0 || rating > 5) return null;
+        return Math.round((rating / 5) * 100);
     }
 
     inferDiscountType(text) {

@@ -92,9 +92,10 @@ const rawScrapedCouponSchema = new mongoose.Schema(
             default: null,
         },
 
-        // ─── AI Signal fields ─────────────────────────────────────────
+        // ─── AI Signal fields (scraped from source) ──────────────────
         /**
-         * usedBy: Number of users who redeemed this coupon (from source listing).
+         * usedBy: Number of uses today reported by the source platform.
+         * GrabOn: parsed from span[data-type="views"] data-uses attribute.
          * null = source does not expose this metric.
          */
         usedBy: {
@@ -104,9 +105,8 @@ const rawScrapedCouponSchema = new mongoose.Schema(
         },
 
         /**
-         * verified: Whether the coupon was verified/authenticated by the source platform.
-         * null = source does not expose a verified badge.
-         * true = explicitly verified, false = explicitly marked as unverified.
+         * verified: Legacy verified flag (kept for backward compat with older adapters).
+         * Prefer platformVerified for new adapters.
          */
         verified: {
             type: Boolean,
@@ -114,15 +114,108 @@ const rawScrapedCouponSchema = new mongoose.Schema(
         },
 
         /**
-         * trustscore: Vote/like count or success-rate count (raw integer, not percentage).
-         * For CouponDekho: computed from (ratingPercent/100) * totalVotes.
-         * For CouponDuniya: parsed from success-percent span.
+         * platformVerified: Whether the coupon carries an explicit verified badge
+         * from the source platform (e.g. GrabOn's green checkmark).
+         * null = source does not expose a verified badge.
+         */
+        platformVerified: {
+            type: Boolean,
+            default: null,
+        },
+
+        /**
+         * trustscore: Raw trust/vote count or normalised score (0–100).
+         * GrabOn: (storeRating / 5) * 100  (page-level star rating).
+         * CouponDekho: (ratingPercent/100) * totalVotes.
+         * CouponDuniya: parsed from success-percent span.
          * null = source does not expose this metric.
          */
         trustscore: {
             type: Number,
             default: null,
             min: [0, 'trustscore cannot be negative'],
+            max: [100, 'trustscore cannot exceed 100'],
+        },
+
+        /**
+         * expiryDate: Coupon expiry date parsed from source (e.g. "Valid Till: Apr 30, 2026").
+         * GrabOn: extracted from detail page via Puppeteer deep scraping.
+         * null = source does not expose or we failed to parse expiry.
+         */
+        expiryDate: {
+            type: Date,
+            default: null,
+        },
+
+        /**
+         * liveSuccessRate: Percentage of users who reported this coupon as working.
+         * GrabOn: not available per-coupon on listing pages (null).
+         * Range: 0–100.
+         */
+        liveSuccessRate: {
+            type: Number,
+            default: null,
+            min: [0, 'liveSuccessRate cannot be negative'],
+            max: [100, 'liveSuccessRate cannot exceed 100'],
+        },
+
+        // ─── Computed / derived signal fields ────────────────────────────
+        /**
+         * recencyScore: Freshness score 0–100 derived from scrapedAt.
+         * 100 = scraped today, decays ~10 pts per day.
+         * Computed by the AI validation engine from scrapedAt; stored for fast querying.
+         */
+        recencyScore: {
+            type: Number,
+            default: null,
+            min: [0, 'recencyScore cannot be negative'],
+            max: [100, 'recencyScore cannot exceed 100'],
+        },
+
+        /**
+         * failureRate: Percentage of our users who reported this coupon as failed.
+         * Populated by user feedback pipeline; starts null.
+         * Range: 0–100.
+         */
+        failureRate: {
+            type: Number,
+            default: null,
+            min: [0, 'failureRate cannot be negative'],
+            max: [100, 'failureRate cannot exceed 100'],
+        },
+
+        /**
+         * confidenceScore: Composite score (0–100) computed by AI engine.
+         * Formula: f(trustscore, liveSuccessRate, failureRate, platformVerified, recencyScore).
+         * null = not yet computed.
+         */
+        confidenceScore: {
+            type: Number,
+            default: null,
+            min: [0, 'confidenceScore cannot be negative'],
+            max: [100, 'confidenceScore cannot exceed 100'],
+        },
+
+        /**
+         * sourceCredibilityScore: Static trust score assigned to the scraping source (0–100).
+         * GrabOn = 75, CouponDuniya = 65, Desidime = 70, etc.
+         * Set per-adapter at scrape time.
+         */
+        sourceCredibilityScore: {
+            type: Number,
+            default: null,
+            min: [0, 'sourceCredibilityScore cannot be negative'],
+            max: [100, 'sourceCredibilityScore cannot exceed 100'],
+        },
+
+        /**
+         * trendVelocity: Rate of traction growth for this coupon.
+         * Measures how quickly usedBy/likes are increasing across scrape runs.
+         * null = not enough historical data yet; computed by monitoring pipeline.
+         */
+        trendVelocity: {
+            type: Number,
+            default: null,
         },
 
         // ─── AI Validation Engine fields ──────────────────────────────

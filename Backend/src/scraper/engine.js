@@ -167,10 +167,22 @@ class ScraperEngine {
                         couponLink: coupon.couponLink || null,
                         terms: coupon.terms || null,
                         minimumOrder: coupon.minimumOrder || null,
-                        // Signal fields — preserve null if not available from source
-                        usedBy: Number.isFinite(coupon.usedBy) ? coupon.usedBy : null,
-                        verified: typeof coupon.verified === 'boolean' ? coupon.verified : null,
-                        trustscore: Number.isFinite(coupon.trustscore) ? coupon.trustscore : null,
+                        // ── Signal fields (scraped from source) ──────────────────────
+                        usedBy:               Number.isFinite(coupon.usedBy)               ? coupon.usedBy               : null,
+                        verified:             typeof coupon.verified === 'boolean'          ? coupon.verified             : null,
+                        platformVerified:     typeof coupon.platformVerified === 'boolean'  ? coupon.platformVerified     : null,
+                        trustscore:           Number.isFinite(coupon.trustscore)            ? coupon.trustscore            : null,
+                        expiryDate:           coupon.expiryDate instanceof Date             ? coupon.expiryDate            : null,
+                        liveSuccessRate:      Number.isFinite(coupon.liveSuccessRate)       ? coupon.liveSuccessRate       : null,
+
+                        // ── Static / computed signal fields ───────────────────────────
+                        sourceCredibilityScore: Number.isFinite(coupon.sourceCredibilityScore) ? coupon.sourceCredibilityScore : null,
+
+                        // ── User-feedback / AI-computed fields (null until pipeline runs) ──
+                        recencyScore:         Number.isFinite(coupon.recencyScore)          ? coupon.recencyScore          : null,
+                        failureRate:          Number.isFinite(coupon.failureRate)           ? coupon.failureRate           : null,
+                        confidenceScore:      Number.isFinite(coupon.confidenceScore)       ? coupon.confidenceScore       : null,
+                        trendVelocity:        Number.isFinite(coupon.trendVelocity)         ? coupon.trendVelocity         : null,
                     },
                     // Only set aiValidationStatus to 'pending' on first insert;
                     // don't reset it if the AI engine has already processed this coupon
