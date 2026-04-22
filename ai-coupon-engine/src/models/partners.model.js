@@ -75,6 +75,22 @@ const partnerSchema = new Schema({
         enum: ['active', 'inactive'],
         default: 'active'
     },
+    /** Shown in the internal dashboard and stored for ops context */
+    description: {
+        type: String,
+        maxlength: 4000,
+        default: '',
+    },
+    website: {
+        type: String,
+        maxlength: 500,
+        default: '',
+    },
+    notes: {
+        type: String,
+        maxlength: 4000,
+        default: '',
+    },
     partnerApis: {
         type: [partnerApiSchema],
         default: []

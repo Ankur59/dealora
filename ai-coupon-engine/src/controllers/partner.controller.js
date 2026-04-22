@@ -4,8 +4,31 @@ import { fetchAndNormalizePartnerData } from "../services/normalization.service.
 // 1. Create a new Partner
 export const createPartner = async (req, res) => {
     try {
-        const { partnerName, status, partnerApis } = req.body;
-        const newPartner = new Partner({ partnerName, status, partnerApis });
+        const {
+            partnerName,
+            status,
+            partnerApis,
+            description,
+            website,
+            notes,
+        } = req.body;
+
+        const name = typeof partnerName === "string" ? partnerName.trim() : "";
+        if (!name) {
+            return res.status(400).json({
+                success: false,
+                message: "partnerName is required",
+            });
+        }
+
+        const newPartner = new Partner({
+            partnerName: name,
+            status: status === "inactive" ? "inactive" : "active",
+            partnerApis: Array.isArray(partnerApis) ? partnerApis : [],
+            description: typeof description === "string" ? description.trim() : "",
+            website: typeof website === "string" ? website.trim() : "",
+            notes: typeof notes === "string" ? notes.trim() : "",
+        });
         await newPartner.save();
         res.status(201).json({ success: true, data: newPartner });
     } catch (error) {
