@@ -147,6 +147,11 @@ class ScraperEngine {
 
         for (const coupon of coupons) {
             try {
+                // Debug log for signal fields
+                if (coupon.trustscore !== null && coupon.trustscore !== undefined) {
+                    logger.info(`ScraperEngine: Saving Raw Coupon Signal - Brand: ${coupon.brandName}, TrustScore: ${coupon.trustscore}, Type: ${typeof coupon.trustscore}, UsedBy: ${coupon.usedBy}`);
+                }
+
                 const filter = {
                     sourceAdapter: sourceName,
                     brandName: coupon.brandName || 'Unknown',
@@ -168,12 +173,15 @@ class ScraperEngine {
                         terms: coupon.terms || null,
                         minimumOrder: coupon.minimumOrder || null,
                         // ── Signal fields (scraped from source) ──────────────────────
-                        usedBy:               Number.isFinite(coupon.usedBy)               ? coupon.usedBy               : null,
-                        verified:             typeof coupon.verified === 'boolean'          ? coupon.verified             : null,
-                        platformVerified:     typeof coupon.platformVerified === 'boolean'  ? coupon.platformVerified     : null,
-                        trustscore:           Number.isFinite(coupon.trustscore)            ? coupon.trustscore            : null,
+                        // Only update signals if they are present in this scrape run
+                        // This prevents overwriting valid data with null from duplicate/incomplete scrape fragments
+                        ...((coupon.usedBy || coupon.usedBy === 0) ? { usedBy: Number(coupon.usedBy) } : {}),
+                        ...((coupon.trustscore || coupon.trustscore === 0) ? { trustscore: Number(coupon.trustscore) } : {}),
+                        ...((coupon.liveSuccessRate || coupon.liveSuccessRate === 0) ? { liveSuccessRate: Number(coupon.liveSuccessRate) } : {}),
+                        
+                        verified:             typeof coupon.verified === 'boolean' ? coupon.verified : null,
+                        platformVerified:     typeof coupon.platformVerified === 'boolean' ? coupon.platformVerified : null,
                         expiryDate:           coupon.expiryDate instanceof Date             ? coupon.expiryDate            : null,
-                        liveSuccessRate:      Number.isFinite(coupon.liveSuccessRate)       ? coupon.liveSuccessRate       : null,
 
                         // ── Static / computed signal fields ───────────────────────────
                         sourceCredibilityScore: Number.isFinite(coupon.sourceCredibilityScore) ? coupon.sourceCredibilityScore : null,

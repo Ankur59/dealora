@@ -136,90 +136,86 @@ class CouponDuniyaAdapter extends GenericAdapter {
 
         // CouponDuniya: target the actual offer card wrapper to avoid capturing
         // nested fragments like "Show Details/Hide Details", "Get Coupon", etc.
+        const brandCouponsMap = new Map();
         $(
-          // Primary card wrapper(s) seen in current CouponDuniya UI
-          '.ofr-card-wrap.revert, .ofr-card-wrap, .offer-card-ctr.offer-card-v2, .offer-card-main'
+          '.offer-list-item, .coupon-tile, .offer-card, .cd-offer-card, [class*="offer-card"], [class*="coupon-tile"]'
         ).each((i, el) => {
           const $el = $(el);
 
+          // Function to safely extract text by cloning and cleaning the element
+          const cleanText = (selector) => {
+            const $found = $el.find(selector).first();
+            if (!$found.length) return null;
+            const $cloned = $found.clone();
+            $cloned.find('style, script, svg, .hidden, [style*="display:none"]').remove();
+            return $cloned.text().trim();
+          };
+
           // Try multiple selectors for title
           const title =
-            $el
-              .find('.store-title-block .long-title, .store-title-block .short-title, .coupon-title, .deal-title, .offer-title, h3, h4, h2, .title, [class*="title"]')
-              .first()
-              .text()
-              .trim() ||
-            $el.find('a').first().text().trim() ||
+            cleanText('.store-title-block .long-title, .store-title-block .short-title, .coupon-title, .deal-title, .offer-title, h3, h4, h2, .title, [class*="title"]') ||
+            cleanText('a') ||
             $el.text().split('\n')[0].trim();
 
           // Try multiple selectors for discount
-          const discount =
-            $el.find('.discount, .offer, .savings, [class*="discount"], [class*="offer"]').text().trim() ||
-            $el.find('.badge, .tag, [class*="badge"]').text().trim();
-
-          // Discount logic is handled previously
+          const discount = cleanText('.discount, .offer, .savings, [class*="discount"], [class*="offer"], .badge, .tag, [class*="badge"]');
 
           // Try multiple selectors for description
-          const desc =
-            $el.find('.description, .details, .terms, [class*="desc"], [class*="detail"]').text().trim() ||
-            $el.find('p').text().trim();
+          const desc = cleanText('.description, .details, .terms, [class*="desc"], [class*="detail"], p');
 
           // ── Coupon Code ──────────────────────────────────────────────
           let code = null;
-          
+
           // Primary source: data-attributes (most reliable on CouponDuniya)
           const offerValue = $el.find('[data-offer-key="couponCode"]').attr('data-offer-value');
           if (offerValue && offerValue.trim() && !offerValue.includes('& GET CODE')) {
-              code = offerValue.trim();
+            code = offerValue.trim();
           }
 
           // Secondary source: visible text inside p1-code div
           if (!code) {
-              const p1Text = $el.find('.p1-code').text().trim();
-              if (p1Text && !p1Text.includes('& GET CODE')) {
-                  code = p1Text;
-              }
+            const p1Text = $el.find('.p1-code').text().trim();
+            if (p1Text && !p1Text.includes('& GET CODE')) {
+              code = p1Text;
+            }
           }
 
           // Fallback selectors
           if (!code) {
-              code = $el.find('.coupon-code, .code, .promo-code').text().trim() || null;
+            code = $el.find('.coupon-code, .code, .promo-code').text().trim() || null;
           }
 
           if (code) {
-             const upper = code.trim().toUpperCase();
-             // CD often puts labels like "GENERATE" or "VISIT" in code blocks
-             const isLabel = ['SHOW', 'GET CODE', 'REVEAL', 'COPY', 'ACTIVATE', 'VISIT', 'GENERATE'].some(t => upper.includes(t));
-             if (isLabel || upper.length < 3 || upper.length > 20) {
-                 code = null;
-             }
+            const upper = code.trim().toUpperCase();
+            // CD often puts labels like "GENERATE" or "VISIT" in code blocks
+            const isLabel = ['SHOW', 'GET CODE', 'REVEAL', 'COPY', 'ACTIVATE', 'VISIT', 'GENERATE'].some(t => upper.includes(t));
+            if (isLabel || upper.length < 3 || upper.length > 20) {
+              code = null;
+            }
           }
 
           // ── Signal Fields ────────────────────────────────────────────
-          // Clean elements to remove hidden <style> tags that pollute text extraction
-          const $usedByEl = $el.find('.used-tag, .offer-tag-block .used-tag').first().clone();
-          $usedByEl.find('style, script, svg').remove();
-          const usedByText = $usedByEl.text().trim();
-          const usedBy = this.parseCountFromText(usedByText) ?? null;
+          const usedByText = cleanText('.used-tag, .offer-tag-block .used-tag, .used-count, .people-used');
+          const usedBy = this.parseCountFromText(usedByText);
 
           // verified: <div class="verified-tag cd_offer "></div>
           const isVerifiedPresent = $el.find('.verified-tag, .text-div.verified-div').length > 0;
           const platformVerified = isVerifiedPresent ? true : null;
 
           // trustscore (Success Rate / Confidence Score): <span class="...success-percent">60%</span>
-          const $successEl = $el.find('[class*="success-percent"]').first().clone();
-          $successEl.find('style, script').remove();
-          const successPercentText = $successEl.text().trim();
-          const trustscore = this.parseCountFromText(successPercentText) ?? null;
-
+          const successPercentText = cleanText('[class*="success-percent"]');
+          const trustscore = this.parseCountFromText(successPercentText);
+          
           // ── Terms and Conditions ─────────────────────────────────────
           // Try to get per-coupon terms instead of page-level terms
           const localTermsArray = [];
           $el.find('.offer-desc-list, .desc-txt.more-desc, .more-desc-text, [data-offer-key="affKey"]').each((_, termEl) => {
-              const termText = $(termEl).text().trim().replace(/\s+/g, ' ');
-              if (termText && termText.length > 10 && !termText.includes('Show Details')) {
-                  localTermsArray.push(termText);
-              }
+            const $term = $(termEl).clone();
+            $term.find('style, script, svg').remove();
+            const termText = $term.text().trim().replace(/\s+/g, ' ');
+            if (termText && termText.length > 10 && !termText.includes('Show Details')) {
+              localTermsArray.push(termText);
+            }
           });
           const terms = localTermsArray.length > 0 ? localTermsArray.join('\n') : combinedPageTerms;
 
@@ -228,11 +224,18 @@ class CouponDuniyaAdapter extends GenericAdapter {
           let expiryDate = null;
           const expiryText = $el.find('[class*="expir"], [class*="valid"], .exp-msg, .ends-in').first().text().trim();
           if (expiryText) {
-             const cleaned = expiryText.replace(/ends|valid till|expires on|expiry|:|valid/gi, '').trim();
-             const parsedDate = new Date(cleaned);
-             if (!isNaN(parsedDate.getTime())) {
-                 expiryDate = parsedDate;
-             }
+            const cleaned = expiryText.replace(/ends|valid till|expires on|expiry|:|valid/gi, '').trim();
+            const parsedDate = new Date(cleaned);
+            if (!isNaN(parsedDate.getTime())) {
+              expiryDate = parsedDate;
+            }
+          }
+
+          // Default to one month from now if expiry date is missing
+          if (!expiryDate) {
+            const defaultDate = new Date();
+            defaultDate.setMonth(defaultDate.getMonth() + 1);
+            expiryDate = defaultDate;
           }
 
           // Try multiple selectors for link
@@ -249,25 +252,35 @@ class CouponDuniyaAdapter extends GenericAdapter {
             // Get the actual brand website URL instead of source website
             const brandUrl = this.getBrandUrl(page.brand) || 'https://www.example.com'; // Always use brand URL
 
-            allCoupons.push({
-              brandName: page.brand,
-              couponTitle: title,
-              description: desc || title,
-              couponCode: code,
-              discountType: this.inferDiscountType(title + ' ' + discount),
-              discountValue: discount || this.extractDiscountValue(title),
-              category: page.category,
-              couponLink: brandUrl,
-              terms: terms, 
-              trustscore: trustscore,
-              usedBy: usedBy,
-              platformVerified: platformVerified,
-              verified: platformVerified,
-              expiryDate: expiryDate,
-            });
-            brandCoupons++;
+            // Deduplication logic: use code or title as key
+            const couponKey = (code || title || "").toLowerCase().trim();
+            const existing = brandCouponsMap.get(couponKey);
+
+            // Only add if new, or if existing one is missing trustscore but this one has it
+            if (!existing || (!existing.trustscore && trustscore)) {
+              brandCouponsMap.set(couponKey, {
+                brandName: page.brand,
+                couponTitle: title,
+                description: desc || title,
+                couponCode: code,
+                discountType: this.inferDiscountType(title + ' ' + (discount || '')),
+                discountValue: discount || this.extractDiscountValue(title),
+                category: page.category,
+                couponLink: brandUrl,
+                terms: terms,
+                trustscore: trustscore,
+                usedBy: usedBy,
+                platformVerified: platformVerified,
+                verified: platformVerified,
+                expiryDate: expiryDate,
+              });
+            }
           }
         });
+
+        const brandCouponsArray = Array.from(brandCouponsMap.values());
+        allCoupons.push(...brandCouponsArray);
+        brandCoupons = brandCouponsArray.length;
 
         logger.info(`CouponDuniyaAdapter: Scraped ${brandCoupons} coupons for ${page.brand}`);
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -281,7 +294,7 @@ class CouponDuniyaAdapter extends GenericAdapter {
     logger.info(
       `CouponDuniyaAdapter: Total scraped coupons=${allCoupons.length}. Sample=${JSON.stringify(allCoupons.slice(0, 3))}`
     );
-    console.log(allCoupons,"hereehehehe");
+    console.log(allCoupons, "hereehehehe");
     return allCoupons;
   }
 
