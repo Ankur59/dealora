@@ -71,7 +71,18 @@ const couponSchema = new Schema({
     },
     discount: {
         type: String,
-    }
+    },
+    // AI Coupon Scoring Parameters
+    liveSuccessRate: { type: Number, default: 0 },
+    recencyScore: { type: Number, default: 0 },
+    failureRate: { type: Number, default: 0 },
+    trustScore: { type: Number, default: 0 },
+    usedByCount: { type: Number, default: 0 },
+    confidenceScore: { type: Number, default: 0 },
+    contextMatchScore: { type: Number, default: 0 },
+    sourceCredibilityScore: { type: Number, default: 0 },
+    trendVelocity: { type: Number, default: 0 },
+    finalScore: { type: Number, default: 0 },
 
 }, { timestamps: true });
 

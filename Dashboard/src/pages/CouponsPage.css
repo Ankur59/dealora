@@ -74,6 +74,13 @@
   color: var(--text-h);
 }
 
+.coupons-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+
 .coupons-input {
   font: inherit;
   padding: 9px 10px;
@@ -144,6 +151,31 @@
   background: var(--accent-bg);
   color: var(--text-h);
   border: 1px solid var(--accent-border);
+}
+
+.coupon-card-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coupon-score-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  cursor: help;
+}
+
+@media (prefers-color-scheme: dark) {
+  .coupon-score-pill {
+    background: rgba(250, 204, 21, 0.15);
+    color: #fde047;
+    border: 1px solid rgba(250, 204, 21, 0.3);
+  }
 }
 
 .coupon-meta-row {
