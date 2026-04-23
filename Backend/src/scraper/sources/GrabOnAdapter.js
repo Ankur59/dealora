@@ -15,15 +15,15 @@ class GrabOnAdapter extends GenericAdapter {
             // ===== ACTIVE BRANDS - Only scraping these essential brands =====
             // Food Delivery Apps
             { brand: 'Zomato', path: '/zomato-coupons/', category: 'Food' },
-            { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
-            { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
-            { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
-            { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
+            // { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
+            // { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
+            // { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
+            // { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
             
             // E-commerce & Shopping
             { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
-            { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
-            { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
+            // { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
+            // { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
             
             // // Wallet & Payment Apps
             // { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
@@ -179,6 +179,19 @@ class GrabOnAdapter extends GenericAdapter {
 
                     const terms = termsArray.length > 0 ? termsArray.join('\n') : null;
 
+                    // ── Expiry Date ───────────────────────────────────────────
+                    // From DOM: <span aria-label="Expiry"> Valid Till: Apr 30, 2026 (THU) </span>
+                    const expiryEl = $(el).find('span[aria-label="Expiry"]').first();
+                    const expiryText = expiryEl.text().trim();
+                    let expiryDate = this.parseExpiryDate(expiryText);
+
+                    // Fallback to one month from now if expiry date is missing
+                    if (!expiryDate) {
+                        const defaultDate = new Date();
+                        defaultDate.setMonth(defaultDate.getMonth() + 1);
+                        expiryDate = defaultDate;
+                    }
+
                     couponDataList.push({
                         // ── Core fields ───────────────────────────────────────
                         brandName:              page.brand,
@@ -187,6 +200,7 @@ class GrabOnAdapter extends GenericAdapter {
                         couponCode:             couponCode || null,
                         discountType:           this.inferDiscountType(title + discount),
                         discountValue:          discount || title,
+                        // category is now explicitly passed from the brand configuration
                         category:               page.category,
                         couponLink:             couponLink,
                         terms:                  terms, // Pre-filled from listing page
@@ -197,11 +211,11 @@ class GrabOnAdapter extends GenericAdapter {
                         usedBy:                 usedByValue,      // uses reported today
                         platformVerified:       platformVerified, // per-coupon badge (explicit only)
                         verified:               platformVerified, // backward compat
-                        expiryDate:             null,  // populated by deep scraping
+                        expiryDate:             expiryDate,
                         liveSuccessRate:        null,  // GrabOn: not exposed per coupon
 
                         // ── Source credibility (static per adapter) ───────────
-                        sourceCredibilityScore: 75, // GrabOn is a reputable aggregator
+                        sourceCredibilityScore: null, // User requested null
 
                         // ── Computed later by AI / user-feedback pipeline ─────
                         recencyScore:           null, // derived from scrapedAt by engine
@@ -376,6 +390,24 @@ console.log(couponDataList);
     extractDiscountValue(text) {
         const match = text.match(/(\d+%\s*OFF|\d+\s*%)/i) || text.match(/(₹|Rs\.?)\s*\d+/i);
         return match ? match[0] : null;
+    }
+
+    /**
+     * Parses GrabOn's expiry date text into a Date object.
+     * Example: "Valid Till: Apr 30, 2026 (THU)"
+     */
+    parseExpiryDate(text) {
+        if (!text) return null;
+        try {
+            // Remove labels and handle whitespace
+            const cleaned = text.replace(/Valid Till:|Expiry:|:/gi, '').trim();
+            // Remove day suffix like (THU)
+            const dateString = cleaned.replace(/\s*\(\w+\)\s*$/, '').trim();
+            const parsedDate = new Date(dateString);
+            return isNaN(parsedDate.getTime()) ? null : parsedDate;
+        } catch (e) {
+            return null;
+        }
     }
 }
 
