@@ -1,0 +1,143 @@
+Coupon Scoring System (Documentation)
+🎯 Motive
+The goal of this system is to:
+Select the best performing coupons from multiple providers
+Ensure fair comparison even when providers give different data
+Prioritize reliable and meaningful signals over incomplete or weak data
+👉 Final outcome:
+Poor or uncertain coupons get filtered out
+High-quality, reliable coupons move forward for validation
+
+📊 Parameters Used (12 Total)
+Live Success Rate
+Recency Score
+Failure Rate
+Trust Score
+Used By Count
+Context Match
+Confidence Score
+Discount Value
+Min Order Value
+Category Match
+Expiry Urgency
+Platform Specific Boost
+
+🧾 Example Scenario
+Coupon A (Vcommission)
+Available:
+Live Success Rate = 80
+Recency Score = 70
+Failure Rate = 10
+Missing:
+Trust, UsedBy, Context, etc.
+
+Coupon B (Coupomated)
+Available:
+Trust Score = 90
+UsedBy Count = 85
+Context Match = 80
+Confidence Score = 75
+Missing:
+Live Success, Recency, Failure
+
+⚖️ Weights
+Parameter
+Weight
+Live Success
+30
+Recency
+20
+Failure
+15
+Trust
+10
+UsedBy
+10
+Context Match
+10
+Confidence
+5
+
+👉 Total Weight = 100
+
+✅ Step-by-Step Scoring
+🔹 Step 1: Pick Available Parameters
+Coupon A
+Live Success (30)
+Recency (20)
+Failure (15)
+👉 Total = 65
+Giving score on basis of weights of each parameter from weight table like Live success will have- 30
+
+Coupon B
+Trust (10)
+UsedBy (10)
+Context (10)
+Confidence (5)
+👉 Total = 35
+
+🔹 Step 2: Base Score
+Formula:
+Base Score = (Sum of (value × weight)) / (Sum of available weights)
+Value means what value a coupon has for that parameter like a coupon can have live success score of 40
+
+
+Coupon A
+= (80×30 + 70×20 + 10×15) / 65
+= (2400 + 1400 + 150) / 65
+= 3950 / 65
+= 60.76
+
+Coupon B
+= (90×10 + 85×10 + 80×10 + 75×5) / 35
+= (900 + 850 + 800 + 375) / 35
+= 2925 / 35
+= 83.57
+
+👉 At this stage:
+Coupon B looks better
+But this is based on limited data
+
+🔹 Step 3: Coverage Factor
+Formula:
+Coverage Factor = Available Weight / Total Weight
+
+Coupon A
+= 65 / 100 = 0.65
+
+Coupon B
+= 35 / 100 = 0.35
+
+🔹 Step 4: Final Adjusted Score
+Formula:
+Final Score = Base Score × Coverage Factor
+
+Coupon A
+= 60.76 × 0.65
+= 39.49
+
+Coupon B
+= 83.57 × 0.35
+= 29.24
+
+🏆 Final Result
+Winner: Coupon A
+Rejected / Lower Ranked: Coupon B
+
+📌 Final Understanding
+A coupon is ranked lower if:
+It performs poorly on the data it has
+OR
+It has less data, making it less reliable
+
+🧠 Key Insight
+The system ensures that important and reliable data wins over incomplete but high-looking data
+
+🚀 Conclusion
+Coupon A wins because it includes critical performance signals
+Coupon B loses because it lacks core reliability indicators, even though its values are high
+👉 This system ensures:
+Fair comparison
+No bias due to missing data
+Better real-world performance of selected coupons
+

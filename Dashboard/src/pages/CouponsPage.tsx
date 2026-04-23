@@ -24,6 +24,7 @@ export function CouponsPage() {
   const [isVerified, setIsVerified] = useState<CouponFilters['isVerified']>('')
   const [verifiedFrom, setVerifiedFrom] = useState('')
   const [verifiedTo, setVerifiedTo] = useState('')
+  const [sortByScore, setSortByScore] = useState(true)
 
   const [partnerOptions, setPartnerOptions] = useState<string[]>([])
   const [items, setItems] = useState<PartnerCouponRow[]>([])
@@ -65,8 +66,9 @@ export function CouponsPage() {
       isVerified,
       verifiedFrom,
       verifiedTo,
+      sortByScore,
     }),
-    [deferredPartner, isVerified, verifiedFrom, verifiedTo],
+    [deferredPartner, isVerified, verifiedFrom, verifiedTo, sortByScore],
   )
 
   const fetchPage = useCallback(
@@ -250,6 +252,14 @@ export function CouponsPage() {
             onChange={(e) => setVerifiedTo(e.target.value)}
           />
         </label>
+        <label className="coupons-field coupons-field--checkbox">
+          <input
+            type="checkbox"
+            checked={sortByScore}
+            onChange={(e) => setSortByScore(e.target.checked)}
+          />
+          Sort by AI Score
+        </label>
       </section>
 
       {error ? <p className="coupons-error">{error}</p> : null}
@@ -276,7 +286,14 @@ export function CouponsPage() {
           <li key={c.id} className="coupon-card">
             <div className="coupon-card-top">
               <span className="coupon-brand">{c.brandName}</span>
-              <span className="coupon-partner-pill">{c.partner}</span>
+              <div className="coupon-card-top-right">
+                <span className="coupon-partner-pill">{c.partner}</span>
+                {c.finalScore !== undefined && (
+                  <span className="coupon-score-pill" title={`Success: ${c.liveSuccessRate}% | Recency: ${c.recencyScore} | Credibility: ${c.sourceCredibilityScore}`}>
+                    ⭐ {c.finalScore}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="coupon-meta-row">
               <span

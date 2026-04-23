@@ -1,0 +1,36 @@
+Dealora Coupon Accuracy Engine – Detailed Parameter Explanation
+1. Trust Score
+Represents social proof based on likes/upvotes from platforms like GrabOn or CouponDunia. While it indicates popularity, it is not always reliable due to outdated engagement. It should be normalized across platforms and used as a weak supporting signal (5-8% weight).
+2. UsedBy Count
+Indicates how many users have historically used the coupon. Enhanced by recency (usage in last 7 days). Helps validate baseline trust but lacks real-time accuracy. Suggested weight: 8-10%.
+3. Expiry Filter
+Ensures coupons are still valid. Only coupons with more than 5 days expiry should be ingested. Additional boost can be given to near-expiry coupons for urgency. Weight: ~5%.
+4. Platform Verified
+Coupons marked as verified by source platforms are more trustworthy. This parameter can override others when data is limited. Should be combined with platform credibility scoring. Weight: 10-12%.
+5. Live Success Rate
+Most critical parameter. Calculated using bot validation results (successful runs divided by total runs in last 24 hours). Directly reflects real-world performance. Weight: 30-35%.
+6. Recency Score
+Applies time decay to coupon success. Recent successes are more valuable than older ones. Uses exponential decay function. Weight: 15-20%.
+7. Failure Rate
+Tracks failed attempts. A high failure rate indicates unreliability. Coupons with >40% failure should be removed or heavily penalized. Weight: ~15%.
+8. Confidence Score
+Accounts for sample size reliability. Uses logarithmic scaling to prioritize coupons tested more frequently. Prevents bias from low data. Weight: 10-12%.
+9. Stability Score
+Measures consistency of coupon performance. Coupons that fluctuate between working and failing are penalized. Helps remove flaky coupons. Weight: 8-10%.
+10. Context Match Score
+Matches coupon applicability based on user conditions such as cart value, payment method, and user type. Improves personalization and accuracy. Weight: ~10%.
+11. Source Credibility Score
+Assigns trust level to different platforms based on historical accuracy. High-quality sources get higher weight. Weight: ~10%.
+12. Trend Velocity
+Measures how quickly a coupon is gaining traction. Useful for identifying trending and currently effective coupons. Weight: 5-8%.
+Final Scoring Formula
+Final Coupon Score = 35% Live Success Rate + 20% Recency + 15% Failure Rate (inverse) + 10% Confidence Score + 10% Context Match + 5% Source Credibility + 5% Trend Velocity. Only coupons above a threshold score are shown to users.
+System Flow
+1. Scrape coupons from multiple platforms
+2. Normalize data
+3. Run bot validation every few hours
+4. Compute all parameter scores
+5. Apply scoring formula
+6. Rank coupons
+7. Remove low-performing coupons using kill logic
+8. Display top-performing coupons to users

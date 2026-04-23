@@ -13,6 +13,12 @@ export type PartnerCouponRow = {
   countries: string[]
   trackingLink: string | null
   updatedAt: string | null
+  finalScore?: number
+  liveSuccessRate?: number
+  recencyScore?: number
+  failureRate?: number
+  confidenceScore?: number
+  sourceCredibilityScore?: number
 }
 
 export type CouponListPayload = {
