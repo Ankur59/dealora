@@ -15,33 +15,33 @@ class GrabOnAdapter extends GenericAdapter {
             // ===== ACTIVE BRANDS - Only scraping these essential brands =====
             // Food Delivery Apps
             { brand: 'Zomato', path: '/zomato-coupons/', category: 'Food' },
-            // { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
-            // { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
-            // { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
-            // { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
+            { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
+            { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
+            { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
+            { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
             
             // E-commerce & Shopping
             { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
-            // { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
+            { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
             // { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
             
             // // Wallet & Payment Apps
-            // { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Paytm', path: '/paytm-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Cred', path: '/cred-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Dhani', path: '/dhani-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
+            { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Paytm', path: '/paytm-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Cred', path: '/cred-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Dhani', path: '/dhani-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
             
             // // Grocery & Daily Needs
             // { brand: 'Blinkit', path: '/blinkit-coupons/', category: 'Grocery' },
-            // { brand: 'BigBasket', path: '/bigbasket-coupons/', category: 'Grocery' },
+            { brand: 'BigBasket', path: '/bigbasket-coupons/', category: 'Grocery' },
             
             // // Beauty & Fashion
             // { brand: 'Nykaa', path: '/nykaa-coupons/', category: 'Beauty' },
-            // { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
+            { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
             
             // // Travel
-            // { brand: 'MakeMyTrip', path: '/makemytrip-coupons/', category: 'Travel' },
+            { brand: 'MakeMyTrip', path: '/makemytrip-coupons/', category: 'Travel' },
             
             // ===== COMMENTED OUT - Not needed currently =====
             // { brand: 'TWID', path: '/twid-coupons/', category: 'Wallet Rewards' },
@@ -165,14 +165,19 @@ class GrabOnAdapter extends GenericAdapter {
                     const termsArray = [];
                     let minimumOrder = null;
 
-                    $(el).find('.cpn-det-v2 div[data-type="desc-div"] ul li').each((_, liEl) => {
-                        const liText = $(liEl).text().trim().replace(/\s+/g, ' '); // Clean spaces
+                    // GrabOn often hides terms in this specific structure (as seen in screenshot)
+                    $(el).find('.cpn-det-v2 div[data-type="desc-div"] ul li, .cpn-det-v2 div[data-type="desc-div"] p').each((_, item) => {
+                        let liText = $(item).text().trim();
+                        // Clean up zero-width spaces (&ZeroWidthSpace; / \u200B) and multiple whitespaces
+                        liText = liText.replace(/[\u200B-\u200D\uFEFF]/g, '');
+                        liText = liText.replace(/\s+/g, ' ').trim();
+
                         if (liText) {
                             termsArray.push(liText);
                             // Detect minimum order (e.g., "Minimum cart value should be Rs 999")
                             const minMatch = liText.match(/minimum.*(?:rs\.?|₹|inr)\s*(\d+(?:,\d+)?)/i);
                             if (minMatch) {
-                                minimumOrder = minMatch[0]; // Stores "Minimum cart value should be Rs 999"
+                                minimumOrder = minMatch[0]; 
                             }
                         }
                     });
@@ -194,7 +199,7 @@ class GrabOnAdapter extends GenericAdapter {
 
                     couponDataList.push({
                         // ── Core fields ───────────────────────────────────────
-                        brandName:              page.brand,
+                        brandName:              this.normalizeBrand(page.brand),
                         couponTitle:            title,
                         description:            desc,
                         couponCode:             couponCode || null,

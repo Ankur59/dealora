@@ -22,34 +22,34 @@ class CouponDuniyaAdapter extends GenericAdapter {
     const brands = [
       // ===== ACTIVE BRANDS - Only scraping these essential brands =====
       // Food Delivery Apps
-      // { brand: 'Zomato', category: 'Food' },
-      // { brand: 'Swiggy', category: 'Food' },
-      // { brand: 'Box8', category: 'Food' },
-      // { brand: 'Eatsure', category: 'Food' },
-      // { brand: 'Freshmenu', category: 'Food' },
+      { brand: 'Zomato', category: 'Food' },
+      { brand: 'Swiggy', category: 'Food' },
+      { brand: 'Box8', category: 'Food' },
+      { brand: 'Eatsure', category: 'Food' },
+      { brand: 'Freshmenu', category: 'Food' },
 
       // // E-commerce & Shopping
       { brand: 'Amazon', category: 'Grocery' },
-      // { brand: 'Flipkart', category: 'Grocery' },
-      // { brand: 'Snapdeal', category: 'Grocery' },
+      { brand: 'Flipkart', category: 'Grocery' },
+      { brand: 'Snapdeal', category: 'Grocery' },
 
       // // Wallet & Payment Apps
-      // { brand: 'PhonePe', category: 'Wallet Rewards' },
-      // { brand: 'Paytm', category: 'Wallet Rewards' },
-      // { brand: 'Cred', category: 'Wallet Rewards' },
-      // { brand: 'Dhani', category: 'Wallet Rewards' },
-      // { brand: 'Freo', category: 'Wallet Rewards' },
+      { brand: 'PhonePe', category: 'Wallet Rewards' },
+      { brand: 'Paytm', category: 'Wallet Rewards' },
+      { brand: 'Cred', category: 'Wallet Rewards' },
+      { brand: 'Dhani', category: 'Wallet Rewards' },
+      { brand: 'Freo', category: 'Wallet Rewards' },
 
       // Grocery & Daily Needs
-      // { brand: 'Blinkit', category: 'Grocery' },
-      // { brand: 'BigBasket', category: 'Grocery' },
+      { brand: 'Blinkit', category: 'Grocery' },
+      { brand: 'BigBasket', category: 'Grocery' },
 
       // // Beauty & Fashion
-      // { brand: 'Nykaa', category: 'Beauty' },
+      { brand: 'Nykaa', category: 'Beauty' },
       { brand: 'Myntra', category: 'Fashion' },
 
       // // Travel
-      // { brand: 'MakeMyTrip', category: 'Travel' },
+      { brand: 'MakeMyTrip', category: 'Travel' },
 
       // ===== COMMENTED OUT - Not needed currently =====
       // { brand: 'TWID', category: 'Wallet Rewards' },
@@ -258,8 +258,9 @@ class CouponDuniyaAdapter extends GenericAdapter {
 
             // Only add if new, or if existing one is missing trustscore but this one has it
             if (!existing || (!existing.trustscore && trustscore)) {
+              const normalizedBrand = this.normalizeBrand(page.brand);
               brandCouponsMap.set(couponKey, {
-                brandName: page.brand,
+                brandName: normalizedBrand,
                 couponTitle: title,
                 description: desc || title,
                 couponCode: code,
