@@ -119,8 +119,8 @@ class GenericAdapter {
                 couponDetails: finalCouponDetails,
                 terms: finalTerms,
                 minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
-                trustscore: Number.isFinite(extractedData.trustscore) ? extractedData.trustscore : (Number.isFinite(rawData.trustscore) ? rawData.trustscore : null),
-                usedBy: Number.isFinite(extractedData.usedBy) ? extractedData.usedBy : (Number.isFinite(rawData.usedBy) ? rawData.usedBy : null),
+                trustscore: this.isValidNumber(rawData.trustscore) ? Number(rawData.trustscore) : (this.isValidNumber(extractedData.trustscore) ? Number(extractedData.trustscore) : null),
+                usedBy: this.isValidNumber(rawData.usedBy) ? Number(rawData.usedBy) : (this.isValidNumber(extractedData.usedBy) ? Number(extractedData.usedBy) : null),
                 verified: typeof extractedData.verified === 'boolean' ? extractedData.verified : (typeof rawData.verified === 'boolean' ? rawData.verified : null),
             };
 
@@ -156,8 +156,8 @@ class GenericAdapter {
                 status: 'active',
                 couponDetails: rawData.terms || null,
                 terms: rawData.terms || null, // Add terms field in fallback too
-                trustscore: Number.isFinite(rawData.trustscore) ? rawData.trustscore : null,
-                usedBy: Number.isFinite(rawData.usedBy) ? rawData.usedBy : null,
+                trustscore: this.isValidNumber(rawData.trustscore) ? Number(rawData.trustscore) : null,
+                usedBy: this.isValidNumber(rawData.usedBy) ? Number(rawData.usedBy) : null,
                 verified: typeof rawData.verified === 'boolean' ? rawData.verified : null,
             };
         }
@@ -207,21 +207,35 @@ class GenericAdapter {
 
     parseCountFromText(value) {
         if (value === null || value === undefined) return null;
+
         const text = String(value).trim().toLowerCase();
         if (!text) return null;
 
+        // 🔹 Handle percentage (e.g., "2%", "12.5 %", "60% Success")
+        const percentMatch = text.match(/(\d+(?:\.\d+)?)\s*%/);
+        if (percentMatch) {
+            return Number(percentMatch[1]);
+        }
+
+        // 🔹 Handle k / m (e.g., "2.5k", "3m")
         const compactMatch = text.match(/(\d+(?:\.\d+)?)\s*([km])/i);
         if (compactMatch) {
             const base = Number(compactMatch[1]);
-            if (!Number.isFinite(base)) return null;
             const suffix = compactMatch[2].toLowerCase();
             return suffix === 'm' ? Math.round(base * 1000000) : Math.round(base * 1000);
         }
 
-        const numberMatch = text.match(/(\d[\d,]*)/);
-        if (!numberMatch) return null;
-        const parsed = Number(numberMatch[1].replace(/,/g, ''));
-        return Number.isFinite(parsed) ? parsed : null;
+        // 🔹 Extract FIRST number found in text (e.g., "14 people used", "500+", "123")
+        const firstNumMatch = text.match(/(\d+(?:\.\d+)?)/);
+        if (firstNumMatch) {
+            return Number(firstNumMatch[1]);
+        }
+
+        return null;
+    }
+
+    isValidNumber(val) {
+        return val !== null && val !== undefined && val !== '' && Number.isFinite(Number(val));
     }
 
     parseVerifiedFlag(value) {
@@ -255,7 +269,7 @@ class GenericAdapter {
             'Rebel foods': 'https://www.rebelfoods.com',
             'Freshmenu': 'https://www.freshmenu.com',
             'FreshMenu': 'https://www.freshmenu.com',
-            
+
             // E-commerce & Shopping
             'Amazon': 'https://www.amazon.in',
             'Flipkart': 'https://www.flipkart.com',
@@ -266,7 +280,7 @@ class GenericAdapter {
             'Nykaa': 'https://www.nykaa.com',
             'Meesho': 'https://www.meesho.com',
             'Ajio': 'https://www.ajio.com',
-            
+
             // Wallet & Payment Apps
             'Paytm': 'https://www.paytm.com',
             'PhonePe': 'https://www.phonepe.com',
@@ -284,7 +298,7 @@ class GenericAdapter {
             'Payworld': 'https://www.payworld.in',
             'Rio Money': 'https://www.riomoney.in',
             'Payinstacard': 'https://www.payinstacard.com',
-            
+
             // Grocery & Daily Needs
             'BigBasket': 'https://www.bigbasket.com',
             'Blinkit': 'https://www.blinkit.com',
@@ -294,7 +308,7 @@ class GenericAdapter {
             'Dealshare': 'https://www.dealshare.in',
             'Satvacart': 'https://www.satvacart.com',
             'nearwala': 'https://www.nearwala.com',
-            
+
             // Travel & Transportation
             'MakeMyTrip': 'https://www.makemytrip.com',
             'Goibibo': 'https://www.goibibo.com',
@@ -307,14 +321,14 @@ class GenericAdapter {
             'Yatra': 'https://www.yatra.com',
             'EaseMyTrip': 'https://www.easemytrip.com',
             'Ixigo': 'https://www.ixigo.com',
-            
+
             // Beauty & Wellness
             'Purplle': 'https://www.purplle.com',
             'Salon Nayana': 'https://www.salonnayana.com',
             'HR Wellness': 'https://www.hrwellness.in',
             'UrbanClap': 'https://www.urbancompany.com',
             'Cult.fit': 'https://www.cult.fit',
-            
+
             // Entertainment & OTT
             'BookMyShow': 'https://www.bookmyshow.com',
             'Netflix': 'https://www.netflix.com',
@@ -322,26 +336,26 @@ class GenericAdapter {
             'Disney+ Hotstar': 'https://www.hotstar.com',
             'Zee5': 'https://www.zee5.com',
             'SonyLiv': 'https://www.sonyliv.com',
-            
+
             // Others
             'NPCL': 'https://www.npci.org.in',
             'Sarvatra tech': 'https://www.sarvatra.in',
         };
-        
+
         // Try exact match first
         if (brandUrls[brandName]) {
             return brandUrls[brandName];
         }
-        
+
         // Try case-insensitive match
         const brandKey = Object.keys(brandUrls).find(
             key => key.toLowerCase() === brandName.toLowerCase()
         );
-        
+
         if (brandKey) {
             return brandUrls[brandKey];
         }
-        
+
         // If no match found, log warning and return null (don't fallback to source URL)
         logger.warn(`getBrandUrl: No URL mapping found for brand "${brandName}". Please add it to GenericAdapter.getBrandUrl()`);
         return null;
