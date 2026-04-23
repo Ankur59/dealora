@@ -21,6 +21,9 @@ export function Sidebar() {
         <NavLink to="/coupons" className={navClass}>
           Coupons
         </NavLink>
+        <NavLink to="/automation" className={navClass}>
+          AI Automation
+        </NavLink>
       </nav>
     </aside>
   )

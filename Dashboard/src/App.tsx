@@ -5,6 +5,7 @@ import { DashboardHome } from './pages/DashboardHome'
 import { PartnersPage } from './pages/PartnersPage'
 import { CouponsPage } from './pages/CouponsPage'
 import { MerchantsPage } from './pages/MerchantsPage'
+import { AIAutomationPage } from './pages/AIAutomationPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import './App.css'
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="partners" element={<PartnersPage />} />
             <Route path="merchants" element={<MerchantsPage />} />
             <Route path="coupons" element={<CouponsPage />} />
+            <Route path="automation" element={<AIAutomationPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
