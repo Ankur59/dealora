@@ -29,10 +29,29 @@ const merchantSchema = new Schema(
       maxlength: 500,
       default: "",
     },
+    domain: {
+      type: String,
+      maxlength: 500,
+      default: "",
+    },
+    merchantUrl: {
+      type: String,
+      maxlength: 500,
+      default: "",
+    },
     notes: {
       type: String,
       maxlength: 4000,
       default: "",
+    },
+    // Browser automation fields
+    cookies: { type: Schema.Types.Mixed },
+    actionMaps: { type: Map, of: String },
+    automationMacros: { type: Map, of: [Schema.Types.Mixed] },
+    lastLoginAttempt: {
+      status: { type: String, enum: ['idle', 'pending_otp', 'success', 'failed'], default: 'idle' },
+      message: String,
+      lastAttempted: Date
     },
   },
   { timestamps: true },

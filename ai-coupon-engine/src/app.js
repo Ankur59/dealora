@@ -1,5 +1,7 @@
-import express from "express"
 import dotenv from "dotenv"
+dotenv.config()
+
+import express from "express"
 import cookieParser from "cookie-parser"
 import morgan from "morgan"
 import cors from "cors"
@@ -9,9 +11,8 @@ import partnerRouter from "./routes/partner.route.js"
 import couponRouter from "./routes/coupon.route.js"
 import merchantRouter from "./routes/merchant.route.js"
 import authRouter from "./routes/auth.route.js"
+import automationRouter from "./routes/automation.route.js"
 import { requireDashboardAuth } from "./middleware/requireDashboardAuth.middleware.js"
-
-dotenv.config()
 
 const app = express()
 
@@ -33,7 +34,7 @@ app.use(
 app.use(
     cors({
         origin(origin, callback) {
-            if (!origin || allowedOrigins.includes(origin)) {
+            if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
                 return callback(null, true)
             }
             return callback(null, false)
@@ -54,5 +55,6 @@ app.use("/api/v1/auth", authRouter)
 app.use("/api/v1/partners", requireDashboardAuth, partnerRouter)
 app.use("/api/v1/coupons", requireDashboardAuth, couponRouter)
 app.use("/api/v1/merchants", requireDashboardAuth, merchantRouter)
+app.use("/api/v1/automation", requireDashboardAuth, automationRouter)
 
 export default app
