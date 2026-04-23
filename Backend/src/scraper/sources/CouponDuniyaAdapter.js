@@ -273,6 +273,7 @@ class CouponDuniyaAdapter extends GenericAdapter {
                 platformVerified: platformVerified,
                 verified: platformVerified,
                 expiryDate: expiryDate,
+                sourceCredibilityScore: null,
               });
             }
           }
