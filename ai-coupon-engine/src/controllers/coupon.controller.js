@@ -1,4 +1,5 @@
 import Coupon from "../models/coupon.model.js";
+import { calculateCouponScore } from "../services/scoring.service.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -88,22 +89,36 @@ export const listCoupons = async (req, res) => {
       Coupon.countDocuments(filter),
     ]);
 
-    const rows = items.map((doc) => ({
-      id: doc._id.toString(),
-      partner: doc.partner,
-      couponId: doc.couponId,
-      code: doc.code ?? null,
-      description: doc.description ?? null,
-      brandName: doc.brandName,
-      status: doc.status ?? null,
-      type: doc.type ?? null,
-      isVerified: Boolean(doc.isVerified),
-      verifiedOn: doc.verifiedOn ?? null,
-      verifiedAt: doc.verifiedAt ?? null,
-      countries: Array.isArray(doc.countries) ? doc.countries : [],
-      trackingLink: doc.trackingLink ?? null,
-      updatedAt: doc.updatedAt ?? null,
-    }));
+    const rows = items.map((doc) => {
+      const scores = calculateCouponScore(doc);
+      return {
+        id: doc._id.toString(),
+        partner: doc.partner,
+        couponId: doc.couponId,
+        code: doc.code ?? null,
+        description: doc.description ?? null,
+        brandName: doc.brandName,
+        status: doc.status ?? null,
+        type: doc.type ?? null,
+        isVerified: Boolean(doc.isVerified),
+        verifiedOn: doc.verifiedOn ?? null,
+        verifiedAt: doc.verifiedAt ?? null,
+        countries: Array.isArray(doc.countries) ? doc.countries : [],
+        trackingLink: doc.trackingLink ?? null,
+        updatedAt: doc.updatedAt ?? null,
+        finalScore: scores.finalScore,
+        liveSuccessRate: scores.liveSuccessRate,
+        recencyScore: scores.recencyScore,
+        failureRate: scores.failureRate,
+        confidenceScore: scores.confidenceScore,
+        sourceCredibilityScore: scores.sourceCredibilityScore,
+      };
+    });
+
+    // Optionally sort by finalScore if requested (we can do it after mapping for now)
+    if (req.query.sortByScore === 'true') {
+        rows.sort((a, b) => b.finalScore - a.finalScore);
+    }
 
     res.status(200).json({
       success: true,
