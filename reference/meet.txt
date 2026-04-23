@@ -1,0 +1,228 @@
+NotesCoupon Parameter Strategy and Filtering Framework
+The team agreed to build a comprehensive coupon filtering system using multiple parameters sourced from both scraped data and affiliate partners to achieve around 80-85% accuracy in presenting valid coupons (00:12).
+
+
+Multi-source parameter integration for coupon scoring (01:18)
+
+Initial parameters include platform verification status, usage count, and trust scores from sources like Grabon and Kupandunya.
+Some parameters, like user-based validation and confidence scores, need to be generated internally since affiliate platforms may not provide them.
+Parameters will be weighted differently depending on source reliability and data availability.
+
+
+
+Expiry and freshness filtering logic (05:03)
+
+Coupons older than 7 days on the platform should have reduced scores or be filtered out to avoid showing expired deals.
+When expiry dates are missing, the system will use the published or scraped date as a fallback to estimate coupon validity.
+AI validation will complement this by testing coupons in real-time to confirm accuracy.
+
+
+
+User feedback and success rate incorporation (19:15)
+
+Confidence scores will be calculated based on user feedback on coupon success or failure, with thresholds (e.g., above 80% success rates get higher confidence).
+Usage volume (e.g., coupons used by over 1,000 users) will influence stability and confidence scores.
+This data will enhance filtering by prioritizing coupons proven to work in practice.
+
+
+
+Source credibility and parameter adaptability (31:23)
+
+Affiliate partners like V Commission and Coupon Mated will be rated for data reliability, affecting coupon scores.
+The system will tag coupons by source and apply parameters selectively, adapting to differences in data availability and quality per provider.
+Around 70-80% of parameters are expected to overlap across sources; the remaining will be tailored per partner.
+
+
+
+AI Validation and Coupon Checkout Automation
+AI will be deployed as a final step to validate filtered coupons through automated checkout processes, improving user experience by ensuring shown coupons work.
+
+
+Filtering reduces AI workload to top coupons (33:59)
+
+From an initial large dataset (e.g., 5,000 coupons), parameters will filter down to roughly 100-150 top coupons for AI validation.
+This approach conserves AI resources by avoiding redundant validation of low-scoring coupons.
+
+
+
+Smart cart management by AI agent (27:21)
+
+The AI agent will dynamically adjust cart values by adding products to meet coupon minimum purchase requirements before applying coupons.
+It checks current cart value to avoid unnecessary additions, optimizing validation efficiency.
+AI will handle various coupon conditions and apply them in real-time during checkout simulations.
+
+
+
+Credential and session management for AI (56:27)
+
+AI agents will use stored credentials and cookies to log into merchant websites like Klook.com and Healthcard.com for coupon application.
+Login sessions will be tracked for expiry (e.g., valid for 2-5 days) and refreshed manually by admins when needed.
+OTP handling remains manual currently but automation options like Gmail API are planned for future iterations.
+
+
+
+Handling of coupons without codes and tracking links (52:43)
+
+Coupons lacking codes or with generic URLs will be filtered out or hidden since AI validation requires a coupon code to test validity.
+Tracking links from partners like V Commission will be preserved for accurate attribution and revenue tracking post validation.
+
+
+
+Data Collection and Scraping Engine Progress
+The current scraping engine fetches coupon data primarily from Grabon and Kupandunya, but improvements and source prioritization are underway.
+
+
+Current data volume and quality issues (41:39)
+
+The scraping engine collects about 25-50 coupons per half-hour from two main sources but struggles with others due to API key expirations and data inconsistencies.
+Coupon data often includes expired or null coupon codes, requiring filtering and cleaning before processing.
+
+
+
+Focus on limited, high-quality sources for initial testing (48:04)
+
+The team decided to prioritize 2-3 reliable platforms and sample sizes of 100-500 coupons for initial parameter testing and AI validation.
+This approach avoids spreading resources too thin and focuses on building a robust filtering model.
+Expansion to more sources and higher volumes will occur once the system proves effective.
+
+
+
+API key management for data cleansing (42:42)
+
+The team requires active Germini API keys for cleaning coupon data from some providers; current keys are expired or paused, causing scraping errors.
+Aman shared his API key to support ongoing scraping efforts, and plans for multiple keys with sufficient credits are suggested.
+
+
+
+Database-centric design for coupon input (37:38)
+
+Coupon data from all sources will be ingested into a common database, tagged by source to apply tailored filtering parameters.
+This input-agnostic approach allows the filtering and AI validation logic to remain consistent regardless of coupon origin.
+
+
+
+Parameter Weighting and Scoring System
+A flexible scoring framework will account for differences in data availability and quality across sources, balancing user feedback and affiliate partner data.
+
+
+Weighted scoring per parameter and source (15:03)
+
+Parameters carry different weights reflecting their importance and reliability, e.g., AI validation success rate might get 30-35% weight.
+Scores from user feedback and platform verification are combined to generate a final coupon rating.
+
+
+
+Handling missing parameters gracefully (14:15)
+
+If a coupon source lacks certain parameters, those are scored as zero or ignored without penalizing the coupon unfairly.
+The system adapts scoring logic based on which parameters are available per source.
+
+
+
+Overall coupon scoring and ranking (01:07:08)
+
+Final scores integrate freshness, usage, confidence, source credibility, expiry, and AI validation results to rank coupons.
+Coupons from higher credibility sources like V Commission are given boosted scores reflecting their higher accuracy.
+This ranking ensures users see the most reliable and relevant coupons first.
+
+
+
+Parameter evolution and additions encouraged (01:14:05)
+
+Team members are invited to propose new parameters or remove less useful ones with clear reasoning and calculations.
+Continuous iteration aims to improve accuracy and relevance in coupon scoring.
+
+
+
+User Experience and Market Differentiation
+The platform aims to solve the common user problem of sifting through large volumes of invalid coupons by presenting a curated, high-quality coupon selection.
+
+
+User pain point as guiding principle (59:09)
+
+As explained by Shourya, users currently test many coupons with low success; the platform will reduce this frustration by showing 5-10 coupons that all work reliably.
+This selective approach differentiates the product from competitors like Grabon or Coupon Dunia, which show many coupons with low validity.
+
+
+
+Cart value and coupon applicability matching (20:26)
+
+AI will factor in cart value and coupon conditions to match users with coupons that maximize savings based on their purchase amount.
+If cart value restrictions are unknown, the system will default to showing all coupons but improve as data quality improves.
+
+
+
+Internal dashboard for monitoring and management (51:52)
+
+An internal dashboard tracks coupon counts, verification status, and source distribution to support operational oversight.
+Admins can manually add credentials, manage expired sessions, and oversee coupon validation progress.
+
+
+
+Scalability through parameter-driven filtering (48:59)
+
+Once robust, the system can handle tens of thousands of coupons daily from multiple platforms without compromising accuracy or user experience.
+The focus remains on quality over quantity to build user trust and repeat engagement.
+
+
+
+Timeline and Next Steps
+The team recognizes significant work remains to finalize the parameter logic, improve scraping, and integrate AI validation with a goal to deliver a functional system soon.
+
+
+Immediate focus on parameter logic and small sample testing (50:38)
+
+The team will start with 100-500 coupons from a few sources to validate parameter effectiveness and scoring logic.
+This phased approach allows refinement before scaling to larger datasets.
+
+
+
+Scraping engine stabilization and API key renewal (42:59)
+
+Fixes to the scraping engine and securing valid API keys are critical to ensure steady data flow for testing and production.
+Aman and Ankur are coordinating on these technical fixes.
+
+
+
+Follow-up meeting planned to finalize parameters (01:15:05)
+
+The team agreed on the need for another meeting to review parameter progress, resolve doubts, and finalize scoring models.
+Collaborative iteration and sharing notes (via Fireflies) will support alignment.
+
+
+
+Manual steps remain for AI login and OTP handling (01:03:37)
+
+Current manual intervention for OTP during AI login will continue temporarily, with automation possibilities explored later.
+This is a known bottleneck but does not block initial validation workflows.
+
+
+
+Ownership and communication (41:26)
+
+Aman is positioned as the key point for delivery timelines, with Shourya providing strategic guidance and Ankur focused on implementation details.
+Team members are encouraged to raise questions and share feedback continuously to maintain progress momentum.
+
+
+
+Action ItemsAnkur Kumar
+
+Apply filtering parameters to an initial sample set of approximately 100 coupons, then scale up to 500 coupons, and prepare the filtered data set for AI validation (48:07)
+Remove unnecessary or less effective coupon evaluation parameters only after documenting clear reasons for their removal (01:14:27)
+Address the issue of API key renewal or acquire working Gemini API keys to enable complete coupon scraping and data cleaning processes (42:59)
+Refine coupon data handling logic to manage coupons missing codes or containing dummy data by filtering them out before displaying to users (52:31)
+Implement session expiry tracking for AI agent logins to merchant sites and develop a manual re-login process for expired sessions to maintain validation continuity (01:01:38)
+
+Aman Agarwal
+
+Coordinate a follow-up call to establish timelines and delivery dates for the complete coupon filtering and AI validation system (46:25)
+Share the updated Fireflies meeting notes with all participants to facilitate review and tracking of discussed points and action items (01:14:05)
+
+Utkarsh Kumar
+
+Support parameter experimentation by providing feedback and assisting with testing score computations to refine coupon evaluation logic (01:13:25)
+Assist Ankur Kumar in clarifying any ambiguities related to coupon evaluation parameters and AI integration as needed during experimentation and development (01:13:35)
+
+Unassigned
+
+All participants to continue absorbing detailed parameter descriptions and communicate any questions or clarifications promptly via chat or scheduled meetings to ensure alignment (01:15:44)
