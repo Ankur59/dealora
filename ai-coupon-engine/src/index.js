@@ -2,6 +2,7 @@ import http from "http";
 import { Server } from "socket.io";
 import app from "./app.js";
 import { connectDB } from "./db/connectDB.js";
+import verificationSchedulerService from './services/verificationScheduler.service.js';
 
 const server = http.createServer(app);
 const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
@@ -29,6 +30,9 @@ io.on("connection", (socket) => {
 
 connectDB(process.env.MONGODB_URI)
   .then(() => {
+    // Initialize verification scheduler
+    verificationSchedulerService.init();
+
     server.listen(process.env.PORT || 8000, () => {
       console.log("Server started at port: ", process.env.PORT || 8000);
     });

@@ -14,22 +14,35 @@ const STANDARD_CREDENTIALS = {
  * Fetches dynamic credentials taking manual merchant overrides into account
  */
 async function getActiveCredentials(merchantId) {
-  const creds = { ...STANDARD_CREDENTIALS };
-  const custom = await MerchantCredential.find({ merchantId }).lean();
+  const globalId = '000000000000000000000000';
   
-  for (const c of custom) {
+  // 1. Start with hardcoded defaults
+  const creds = { ...STANDARD_CREDENTIALS };
+  
+  // 2. Load and apply Global overrides
+  const globalCustom = await MerchantCredential.find({ merchantId: globalId }).lean();
+  applyCustomCreds(creds, globalCustom);
+  
+  // 3. Load and apply Merchant-specific overrides (takes precedence)
+  const merchantCustom = await MerchantCredential.find({ merchantId }).lean();
+  applyCustomCreds(creds, merchantCustom);
+  
+  return creds;
+}
+
+function applyCustomCreds(creds, customList) {
+  for (const c of customList) {
     if (c.credentialType === 'email_password') {
        creds.EMAIL = c.login;
        creds.PASSWORD = c.password;
     } else if (c.credentialType === 'phone_password') {
        creds.PHONE = c.login;
        // We only override the password if we didn't just grab it from email, or if it's explicitly phone_password
-       if (!custom.find(x => x.credentialType === 'email_password')) {
+       if (!customList.find(x => x.credentialType === 'email_password')) {
          creds.PASSWORD = c.password;
        }
     }
   }
-  return creds;
 }
 
 /**
@@ -94,7 +107,7 @@ async function executeMacro(merchantId, merchant, mode, page, context, res, acti
       'lastLoginAttempt.status': 'success',
       'lastLoginAttempt.message': 'Automation completed successfully via Macro',
     });
-    res.status(200).json({ message: 'Automation finished via Macro', success: true });
+    res.status(200).json({ success: true, data: { message: 'Automation finished via Macro' } });
     return true; // Used macro successfully
   } catch (err) {
     await browserService.emitLog(merchantId, `⚠️ Macro execution failed at some step: ${err.message}. Falling back to AI…`, 'warning');
@@ -161,7 +174,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
       const screenshotBase64 = screenshot.toString('base64');
 
       await browserService.emitLog(merchantId, `Analyzing page (Attempt ${attempts}/${maxAttempts})…`);
-      const suggestion = await geminiService.suggestNextAction(screenshotBase64, url, finalGoal);
+      const suggestion = await geminiService.suggestNextAction(screenshotBase64, url, finalGoal, activeCreds);
 
       await browserService.emitLog(merchantId, `AI → ${suggestion.action}: ${suggestion.reason}`);
 
@@ -200,6 +213,10 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
         await Merchant.findByIdAndUpdate(merchantId, {
           'lastLoginAttempt.status': 'pending_otp',
         });
+        
+        // Emit a high-level notification for the dashboard
+        await browserService.emitNotification(merchantId, 'otp_required', 'Verification code requested during automation');
+        
         const otp = await browserService.waitForOTP(merchantId);
         if (otp) {
           context._lastOtp = otp;
@@ -301,7 +318,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     }
 
     if (!res.headersSent) {
-        res.status(200).json({ message: 'Automation finished', success: succeeded });
+        res.status(200).json({ success: true, data: { message: 'Automation finished', automationSuccess: succeeded } });
     }
   } catch (error) {
     console.error('Automation error:', error);
@@ -311,7 +328,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
       'lastLoginAttempt.message': error.message,
     }).catch(() => {});
     if (!res.headersSent) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 }
@@ -350,10 +367,10 @@ export class AutomationController {
   async provideOTP(req, res) {
     const { merchantId, otp } = req.body;
     if (!merchantId || !otp) {
-      return res.status(400).json({ error: 'merchantId and otp are required' });
+      return res.status(400).json({ success: false, message: 'merchantId and otp are required' });
     }
     io.emit('otp_provided', { merchantId, otp });
-    res.status(200).json({ message: 'OTP forwarded to automation agent' });
+    res.status(200).json({ success: true, data: { message: 'OTP forwarded to automation agent' } });
   }
 
   /**
@@ -365,14 +382,14 @@ export class AutomationController {
     try {
       const context = browserService.contexts.get(merchantId);
       if (!context) {
-        return res.status(404).json({ error: 'No active browser session for this merchant. Start an automation first.' });
+        return res.status(404).json({ success: false, message: 'No active browser session for this merchant. Start an automation first.' });
       }
       await browserService.saveSession(merchantId, context);
       await browserService.emitLog(merchantId, '🍪 Cookies manually saved by dashboard user.', 'success');
       const updated = await Merchant.findById(merchantId).lean();
-      res.status(200).json({ message: 'Session cookies saved', cookieCount: updated?.cookies?.length ?? 0 });
+      res.status(200).json({ success: true, data: { message: 'Session cookies saved', cookieCount: updated?.cookies?.length ?? 0 } });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ success: false, message: err.message });
     }
   }
 
@@ -384,19 +401,22 @@ export class AutomationController {
     const { merchantId } = req.params;
     try {
       const merchant = await Merchant.findById(merchantId).lean();
-      if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+      if (!merchant) return res.status(404).json({ success: false, message: 'Merchant not found' });
       const hasActiveBrowserSession = browserService.contexts.has(merchantId);
       
       const macroCount = merchant.automationMacros ? Object.keys(Object.fromEntries(merchant.automationMacros)).length : 0;
       
       res.status(200).json({
-        merchantId,
-        merchantName: merchant.merchantName,
-        cookieCount: Array.isArray(merchant.cookies) ? merchant.cookies.length : 0,
-        hasSavedCookies: Array.isArray(merchant.cookies) && merchant.cookies.length > 0,
-        hasActiveBrowserSession,
-        lastLoginAttempt: merchant.lastLoginAttempt ?? { status: 'idle' },
-        actionMapCount: (merchant.actionMaps ? Object.keys(Object.fromEntries(merchant.actionMaps)).length : 0) + macroCount,
+        success: true,
+        data: {
+          merchantId,
+          merchantName: merchant.merchantName,
+          cookieCount: Array.isArray(merchant.cookies) ? merchant.cookies.length : 0,
+          hasSavedCookies: Array.isArray(merchant.cookies) && merchant.cookies.length > 0,
+          hasActiveBrowserSession,
+          lastLoginAttempt: merchant.lastLoginAttempt ?? { status: 'idle' },
+          actionMapCount: (merchant.actionMaps ? Object.keys(Object.fromEntries(merchant.actionMaps)).length : 0) + macroCount,
+        }
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -413,9 +433,9 @@ export class AutomationController {
       await browserService.closeSession(merchantId);
       await Merchant.findByIdAndUpdate(merchantId, { $set: { cookies: [] } });
       await browserService.emitLog(merchantId, '🗑️ Session cleared by dashboard user.', 'warning');
-      res.status(200).json({ message: 'Session cleared' });
+      res.status(200).json({ success: true, data: { message: 'Session cleared' } });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ success: false, message: err.message });
     }
   }
 }
