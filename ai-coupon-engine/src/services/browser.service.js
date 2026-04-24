@@ -77,6 +77,21 @@ export class BrowserService {
     console.log(`[${merchantId}] [${type}] ${message}`);
   }
 
+  async emitNotification(merchantId, type, message, data = {}) {
+    const merchant = await Merchant.findById(merchantId);
+    const notification = {
+      id: Math.random().toString(36).substring(2, 11),
+      merchantId,
+      merchantName: merchant?.merchantName || 'Unknown Merchant',
+      type,
+      message,
+      timestamp: new Date(),
+      data
+    };
+    io.emit('automation:notification', notification);
+    console.log(`[Notification] [${type}] ${merchant?.merchantName}: ${message}`);
+  }
+
   /**
    * Waits for a dashboard user to submit an OTP via the socket event.
    * Resolves with the OTP string, or null on timeout (5 min).
