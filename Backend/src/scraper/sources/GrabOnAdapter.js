@@ -15,30 +15,30 @@ class GrabOnAdapter extends GenericAdapter {
             // ===== ACTIVE BRANDS - Only scraping these essential brands =====
             // Food Delivery Apps
             { brand: 'Zomato', path: '/zomato-coupons/', category: 'Food' },
-            // { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
-            // { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
-            // { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
-            // { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
+            { brand: 'Swiggy', path: '/swiggy-coupons/', category: 'Food' },
+            { brand: 'Box8', path: '/box8-coupons/', category: 'Food' },
+            { brand: 'Eatsure', path: '/eatsure-coupons/', category: 'Food' },
+            { brand: 'Freshmenu', path: '/freshmenu-coupons/', category: 'Food' },
             
             // E-commerce & Shopping
             { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
-            // { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
-            // { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
+            { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
+            { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
             
             // // Wallet & Payment Apps
-            // { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Paytm', path: '/paytm-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Cred', path: '/cred-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Dhani', path: '/dhani-coupons/', category: 'Wallet Rewards' },
-            // { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
+            { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Paytm', path: '/paytm-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Cred', path: '/cred-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Dhani', path: '/dhani-coupons/', category: 'Wallet Rewards' },
+            { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
             
             // // Grocery & Daily Needs
-            // { brand: 'Blinkit', path: '/blinkit-coupons/', category: 'Grocery' },
-            // { brand: 'BigBasket', path: '/bigbasket-coupons/', category: 'Grocery' },
+            { brand: 'Blinkit', path: '/blinkit-coupons/', category: 'Grocery' },
+            { brand: 'BigBasket', path: '/bigbasket-coupons/', category: 'Grocery' },
             
             // // Beauty & Fashion
-            // { brand: 'Nykaa', path: '/nykaa-coupons/', category: 'Beauty' },
-            // { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
+            { brand: 'Nykaa', path: '/nykaa-coupons/', category: 'Beauty' },
+            { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
             
             // // Travel
             // { brand: 'MakeMyTrip', path: '/makemytrip-coupons/', category: 'Travel' },
