@@ -48,6 +48,8 @@ const merchantSchema = new Schema(
     cookies: { type: Schema.Types.Mixed },
     actionMaps: { type: Map, of: String },
     automationMacros: { type: Map, of: [Schema.Types.Mixed] },
+    // Global toggle for 12h verification run
+    autoVerificationEnabled: { type: Boolean, default: true },
     lastLoginAttempt: {
       status: { type: String, enum: ['idle', 'pending_otp', 'success', 'failed'], default: 'idle' },
       message: String,

@@ -10,11 +10,25 @@ interface Merchant {
   merchantName: string;
   website: string;
   status: 'active' | 'inactive';
+  autoVerificationEnabled?: boolean;
   lastLoginAttempt?: {
     status: 'idle' | 'running' | 'pending_otp' | 'success' | 'failed';
     message?: string;
     lastAttempted?: string;
   };
+}
+
+interface VerificationJob {
+  _id: string;
+  status: 'scheduled' | 'running' | 'completed' | 'failed' | 'cancelled';
+  cycleStartTime: string;
+  cycleEndTime?: string;
+  totalMerchants: number;
+  processedMerchants: number;
+  totalCoupons: number;
+  verifiedCount: number;
+  failedCount: number;
+  skippedCount?: number;
 }
 
 interface SessionStatus {
@@ -61,19 +75,42 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+interface AutomationNotification {
+  id: string;
+  merchantId: string;
+  merchantName: string;
+  type: 'otp_required' | 'error' | 'success';
+  message: string;
+  timestamp: Date;
+  data?: any;
+}
+
 export function AIAutomationPage() {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [selectedMerchant, setSelectedMerchant] = useState('');
+  const [selectedMerchantIds, setSelectedMerchantIds] = useState<Set<string>>(new Set());
+  const [merchantSearch, setMerchantSearch] = useState('');
   const [sessionStatus, setSessionStatus] = useState<SessionStatus | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isManualVerifying, setIsManualVerifying] = useState(false);
+  const [jobStatus, setJobStatus] = useState<VerificationJob | null>(null);
   const [mode, setMode] = useState<AutomationMode>('login');
   const [otpNeeded, setOtpNeeded] = useState(false);
   const [otpValue, setOtpValue] = useState('');
   const [savingCookies, setSavingCookies] = useState(false);
   const [clearingSession, setClearingSession] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [credentials, setCredentials] = useState({ email: '', password: '', phone: '' });
+  const [globalCredentials, setGlobalCredentials] = useState({ email: '', password: '', phone: '' });
+  const [editingCreds, setEditingCreds] = useState(false);
+  const [editingGlobalCreds, setEditingGlobalCreds] = useState(false);
+  const [savingCreds, setSavingCreds] = useState(false);
+  const [notifications, setNotifications] = useState<AutomationNotification[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const selectedMerchantRef = useRef(selectedMerchant);
+  selectedMerchantRef.current = selectedMerchant;
 
   // ─── Load merchants ─────────────────────────────────────────────────────────
   const loadMerchants = useCallback(async () => {
@@ -87,9 +124,108 @@ export function AIAutomationPage() {
 
   useEffect(() => {
     loadMerchants();
+    fetchJobStatus();
+    fetchGlobalCredentials();
     socket.connect();
+
+    socket.on('verification:job_started', (data) => {
+      addLocalLog(`🚀 Verification job started: ${data.totalMerchants} merchants`, 'info');
+      fetchJobStatus();
+    });
+
+    socket.on('verification:progress', (data) => {
+      setJobStatus(prev => prev ? { ...prev, processedMerchants: data.processed } : null);
+    });
+
+    socket.on('verification:job_completed', () => {
+      addLocalLog(`✅ Verification job completed!`, 'success');
+      fetchJobStatus();
+    });
+
+    socket.on('automation:notification', (notif: AutomationNotification) => {
+      setNotifications(prev => [notif, ...prev].slice(0, 10));
+      if (notif.type === 'otp_required' && notif.merchantId === selectedMerchantRef.current) {
+        setOtpNeeded(true);
+      }
+    });
+
     return () => { socket.disconnect(); };
   }, [loadMerchants]);
+
+  const fetchJobStatus = async () => {
+    try {
+      const data = await apiGet<{ job: VerificationJob }>('/api/v1/automation/job-status');
+      setJobStatus(data.job);
+    } catch { /* ignore */ }
+  };
+
+  const toggleAutoVerification = async (mId: string, enabled: boolean) => {
+    try {
+      await apiPostJson(`/api/v1/automation/merchant-toggle/${mId}`, { enabled });
+      await loadMerchants();
+    } catch (err: any) {
+      addLocalLog(`Toggle failed: ${err.message}`, 'error');
+    }
+  };
+
+  const startGlobalVerification = async () => {
+    if (!window.confirm('Start 12h cycle for ALL enabled merchants?')) return;
+    setIsVerifying(true);
+    try {
+      await apiPostJson('/api/v1/automation/verify-all', {});
+      addLocalLog('🚀 12h cycle triggered.', 'info');
+    } catch (err: any) {
+      addLocalLog(`Failed to start cycle: ${err.message}`, 'error');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const startManualVerification = async () => {
+    const ids = Array.from(selectedMerchantIds);
+    if (ids.length === 0) {
+      addLocalLog('Select at least one merchant to run manual verification.', 'warning');
+      return;
+    }
+    if (!window.confirm(`Run manual verification on ${ids.length} selected merchant(s)?`)) return;
+    setIsManualVerifying(true);
+    try {
+      const res = await apiPostJson<{ message: string; jobId?: string }>('/api/v1/automation/verify-selected', { merchantIds: ids });
+      addLocalLog(`🚀 ${res.message}`, 'success');
+    } catch (err: any) {
+      addLocalLog(`Manual verify failed: ${err.message}`, 'error');
+    } finally {
+      setIsManualVerifying(false);
+    }
+  };
+
+  // ─── Merchant selection helpers ─────────────────────────────────────────────
+  const filteredMerchants = merchants.filter(m =>
+    m.merchantName.toLowerCase().includes(merchantSearch.toLowerCase())
+  );
+
+  const toggleMerchantSelection = (mId: string) => {
+    setSelectedMerchantIds(prev => {
+      const next = new Set(prev);
+      if (next.has(mId)) next.delete(mId);
+      else next.add(mId);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    const ids = filteredMerchants.map(m => m._id);
+    setSelectedMerchantIds(prev => {
+      const next = new Set(prev);
+      const allSelected = ids.every(id => next.has(id));
+      if (allSelected) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
 
   // ─── Fetch session status when merchant selected ────────────────────────────
   const fetchSessionStatus = useCallback(async (mId: string) => {
@@ -107,7 +243,51 @@ export function AIAutomationPage() {
 
   useEffect(() => {
     fetchSessionStatus(selectedMerchant);
+    if (selectedMerchant) {
+      fetchCredentials(selectedMerchant);
+    }
   }, [selectedMerchant, fetchSessionStatus]);
+
+  const fetchCredentials = async (mId: string) => {
+    try {
+      const data = await apiGet<{ email: string; password: string; phone: string }>(`/api/v1/automation/credentials/${mId}`);
+      setCredentials(data);
+    } catch { /* ignore */ }
+  };
+
+  const fetchGlobalCredentials = async () => {
+    try {
+      const data = await apiGet<{ email: string; password: string; phone: string }>('/api/v1/automation/global-credentials');
+      setGlobalCredentials(data);
+    } catch { /* ignore */ }
+  };
+
+  const saveCredentials = async () => {
+    if (!selectedMerchant) return;
+    setSavingCreds(true);
+    try {
+      await apiPostJson(`/api/v1/automation/credentials/${selectedMerchant}`, credentials);
+      addLocalLog('✅ Merchant credentials saved successfully', 'success');
+      setEditingCreds(false);
+    } catch (err: any) {
+      addLocalLog(`Failed to save credentials: ${err.message}`, 'error');
+    } finally {
+      setSavingCreds(false);
+    }
+  };
+
+  const saveGlobalCredentials = async () => {
+    setSavingCreds(true);
+    try {
+      await apiPostJson('/api/v1/automation/global-credentials', globalCredentials);
+      addLocalLog('✅ Global common credentials saved successfully', 'success');
+      setEditingGlobalCreds(false);
+    } catch (err: any) {
+      addLocalLog(`Failed to save global credentials: ${err.message}`, 'error');
+    } finally {
+      setSavingCreds(false);
+    }
+  };
 
   // ─── Socket log listener ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -119,7 +299,6 @@ export function AIAutomationPage() {
         setOtpNeeded(true);
       }
       if (log.message.includes('Cookies saved') || log.message.includes('cookies saved')) {
-        // Refresh session status after cookie save
         fetchSessionStatus(selectedMerchant);
       }
     };
@@ -230,70 +409,278 @@ export function AIAutomationPage() {
             Cookies are saved in real-time for future quick access.
           </p>
         </div>
-        <div className="ai-creds-badge">
-          <span className="ai-creds-label">Standard Credentials</span>
-          <code>Nobentadeal@gmail.com</code>
-          <code>Mumbai@123</code>
-          <code>+91 7425817074</code>
+        <div className="ai-header-actions">
+          <button
+            className={`ai-btn ${jobStatus?.status === 'running' ? 'ai-btn--secondary' : 'ai-btn--primary'}`}
+            onClick={startGlobalVerification}
+            disabled={isVerifying || jobStatus?.status === 'running'}
+          >
+            {jobStatus?.status === 'running' ? '🕒 Cycle Running' : '🔄 Start 12h Cycle'}
+          </button>
+          <button
+            className="ai-btn ai-btn--primary"
+            onClick={startManualVerification}
+            disabled={isManualVerifying || selectedMerchantIds.size === 0}
+          >
+            {isManualVerifying ? <><span className="ai-spinner" /> Running…</> : `▶ Run on Selected (${selectedMerchantIds.size})`}
+          </button>
         </div>
       </header>
+
+      {/* ── Job Progress Panel ── */}
+      {jobStatus && (
+        <div className="ai-job-panel">
+          <div className="ai-job-header">
+            <span className="ai-job-title">
+              {jobStatus.status === 'running' ? '🔵 Verification Job In Progress' : '📋 Last Verification Job'}
+            </span>
+            <span className="ai-badge badge--running">{jobStatus.status.toUpperCase()}</span>
+          </div>
+          <div className="ai-job-progress-bar">
+            <div
+              className="ai-job-progress-fill"
+              style={{ width: `${jobStatus.totalMerchants > 0 ? (jobStatus.processedMerchants / jobStatus.totalMerchants) * 100 : 0}%` }}
+            />
+          </div>
+          <div className="ai-job-stats">
+            <span>Merchants: {jobStatus.processedMerchants} / {jobStatus.totalMerchants}</span>
+            <span>Verified: {jobStatus.verifiedCount}</span>
+            <span>Failed: {jobStatus.failedCount}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Notifications Section ── */}
+      {notifications.length > 0 && (
+        <div className="ai-notifications-panel">
+          <div className="ai-notifications-header">
+            <span className="ai-notifications-title">🔔 Recent Alerts</span>
+            <button className="ai-btn ai-btn--ghost ai-btn--sm" onClick={() => setNotifications([])}>Clear All</button>
+          </div>
+          <div className="ai-notifications-list">
+            {notifications.map(n => (
+              <div key={n.id} className={`ai-notification ai-notification--${n.type}`}>
+                <div className="ai-notification-content">
+                  <strong>{n.merchantName}</strong>: {n.message}
+                  <span className="ai-notification-time">{new Date(n.timestamp).toLocaleTimeString()}</span>
+                </div>
+                {n.type === 'otp_required' && (
+                  <button
+                    className="ai-btn ai-btn--primary ai-btn--sm"
+                    onClick={() => {
+                      setSelectedMerchant(n.merchantId);
+                      setOtpNeeded(true);
+                    }}
+                  >
+                    Enter OTP
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Merchants Selection Panel ── */}
+      <div className="ai-merchants-panel">
+        <div className="ai-merchants-panel-header">
+          <span className="ai-merchants-panel-title">🎯 Merchant Selection</span>
+          <div className="ai-merchants-actions">
+            <input
+              type="text"
+              className="ai-merchants-search"
+              placeholder="Search merchants…"
+              value={merchantSearch}
+              onChange={(e) => setMerchantSearch(e.target.value)}
+            />
+            <button className="ai-btn ai-btn--ghost ai-btn--sm" onClick={selectAllFiltered}>
+              Toggle All
+            </button>
+            <button
+              className="ai-btn ai-btn--primary ai-btn--sm"
+              onClick={startManualVerification}
+              disabled={isManualVerifying || selectedMerchantIds.size === 0}
+            >
+              {isManualVerifying ? '…' : `Run (${selectedMerchantIds.size})`}
+            </button>
+          </div>
+        </div>
+        <div className="ai-merchants-list">
+          {filteredMerchants.length === 0 && (
+            <div className="ai-merchants-empty">No merchants found.</div>
+          )}
+          {filteredMerchants.map((m) => (
+            <div
+              key={m._id}
+              className={`ai-merchant-row ${selectedMerchantIds.has(m._id) ? 'ai-merchant-row--selected' : ''}`}
+            >
+              <div className="ai-merchant-row-left">
+                <input
+                  type="checkbox"
+                  className="ai-merchant-checkbox"
+                  checked={selectedMerchantIds.has(m._id)}
+                  onChange={() => toggleMerchantSelection(m._id)}
+                />
+                <span className="ai-merchant-name">{m.merchantName}</span>
+                <span className={`ai-merchant-status ai-merchant-status--${m.status}`}>{m.status}</span>
+              </div>
+              <div className="ai-merchant-row-right">
+                <span className="ai-merchant-toggle-label">12h auto</span>
+                <label className="ai-switch">
+                  <input
+                    type="checkbox"
+                    checked={m.autoVerificationEnabled ?? true}
+                    onChange={(e) => toggleAutoVerification(m._id, e.target.checked)}
+                  />
+                  <span className="ai-slider"></span>
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ── Control Panel ── */}
       <div className="ai-control-panel">
 
-        {/* Merchant Selector */}
-        <div className="ai-control-group">
-          <label className="ai-label" htmlFor="merchant-select">Target Merchant</label>
-          <select
-            id="merchant-select"
-            className="ai-select"
-            value={selectedMerchant}
-            onChange={(e) => {
-              setSelectedMerchant(e.target.value);
-              setLogs([]);
-              setOtpNeeded(false);
-            }}
-            disabled={isRunning}
-          >
-            <option value="">— Select a merchant —</option>
-            {merchants.map((m) => (
-              <option key={m._id} value={m._id}>
-                {m.merchantName} {m.status === 'inactive' ? '(inactive)' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Mode Toggle */}
-        <div className="ai-control-group">
-          <label className="ai-label">Automation Mode</label>
-          <div className="ai-mode-toggle">
-            <button
-              type="button"
-              id="mode-login"
-              className={`ai-mode-btn ${mode === 'login' ? 'ai-mode-btn--active' : ''}`}
-              onClick={() => setMode('login')}
-              disabled={isRunning}
-            >
-              🔑 Auto Login
-            </button>
-            <button
-              type="button"
-              id="mode-create"
-              className={`ai-mode-btn ${mode === 'create_account' ? 'ai-mode-btn--active' : ''}`}
-              onClick={() => setMode('create_account')}
-              disabled={isRunning}
-            >
-              ✨ Create Account
-            </button>
+        {/* Left: Merchant & Config */}
+        <div className="ai-control-left">
+          <div className="ai-control-group">
+            <label className="ai-label" htmlFor="merchant-select">Target Merchant</label>
+            <div className="ai-select-wrapper">
+              <select
+                id="merchant-select"
+                className="ai-select"
+                value={selectedMerchant}
+                onChange={(e) => {
+                  setSelectedMerchant(e.target.value);
+                  setLogs([]);
+                  setOtpNeeded(false);
+                }}
+                disabled={isRunning}
+              >
+                <option value="">— Select a merchant —</option>
+                {merchants.map((m) => (
+                  <option key={m._id} value={m._id}>
+                    {m.merchantName} {m.status === 'inactive' ? '(inactive)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Launch Button */}
-        <div className="ai-control-group ai-control-group--launch">
+        {/* Center: Credentials (Global or Merchant) */}
+        <div className="ai-control-center">
+          <div className="ai-credentials-panel">
+            <div className="ai-credentials-header">
+              <span className="ai-credentials-title">
+                {selectedMerchant ? 'Merchant Credentials' : 'Global Common Credentials'}
+              </span>
+              <button
+                className="ai-btn ai-btn--ghost ai-btn--sm"
+                onClick={() => selectedMerchant ? setEditingCreds(!editingCreds) : setEditingGlobalCreds(!editingGlobalCreds)}
+              >
+                {(selectedMerchant ? editingCreds : editingGlobalCreds) ? 'Cancel' : 'Edit'}
+              </button>
+            </div>
+
+            {(selectedMerchant ? editingCreds : editingGlobalCreds) ? (
+              <div className="ai-credentials-form">
+                <div className="ai-cred-grid">
+                  <div className="ai-cred-field">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={selectedMerchant ? credentials.email : globalCredentials.email}
+                      onChange={(e) => selectedMerchant
+                        ? setCredentials(c => ({ ...c, email: e.target.value }))
+                        : setGlobalCredentials(c => ({ ...c, email: e.target.value }))
+                      }
+                      className="ai-input ai-input--compact"
+                    />
+                  </div>
+                  <div className="ai-cred-field">
+                    <label>Password</label>
+                    <input
+                      type="text"
+                      value={selectedMerchant ? credentials.password : globalCredentials.password}
+                      onChange={(e) => selectedMerchant
+                        ? setCredentials(c => ({ ...c, password: e.target.value }))
+                        : setGlobalCredentials(c => ({ ...c, password: e.target.value }))
+                      }
+                      className="ai-input ai-input--compact"
+                    />
+                  </div>
+                  <div className="ai-cred-field">
+                    <label>Phone</label>
+                    <input
+                      type="tel"
+                      value={selectedMerchant ? credentials.phone : globalCredentials.phone}
+                      onChange={(e) => selectedMerchant
+                        ? setCredentials(c => ({ ...c, phone: e.target.value }))
+                        : setGlobalCredentials(c => ({ ...c, phone: e.target.value }))
+                      }
+                      className="ai-input ai-input--compact"
+                    />
+                  </div>
+                </div>
+                <button
+                  className="ai-btn ai-btn--primary ai-btn--sm"
+                  onClick={selectedMerchant ? saveCredentials : saveGlobalCredentials}
+                  disabled={savingCreds}
+                >
+                  {savingCreds ? 'Saving…' : 'Save Credentials'}
+                </button>
+              </div>
+            ) : (
+              <div className="ai-credentials-display">
+                <div className="ai-cred-row">
+                  <span className="ai-cred-label">Email:</span>
+                  <code className="ai-cred-value">{(selectedMerchant ? credentials.email : globalCredentials.email) || '—'}</code>
+                </div>
+                <div className="ai-cred-row">
+                  <span className="ai-cred-label">Password:</span>
+                  <code className="ai-cred-value">{(selectedMerchant ? credentials.password : globalCredentials.password) || '—'}</code>
+                </div>
+                <div className="ai-cred-row">
+                  <span className="ai-cred-label">Phone:</span>
+                  <code className="ai-cred-value">{(selectedMerchant ? credentials.phone : globalCredentials.phone) || '—'}</code>
+                </div>
+              </div>
+            )}
+            {!selectedMerchant && <p className="ai-cred-hint">These apply to all merchants by default.</p>}
+          </div>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="ai-control-right">
+          <div className="ai-control-group">
+            <label className="ai-label">Automation Mode</label>
+            <div className="ai-mode-toggle">
+              <button
+                type="button"
+                id="mode-login"
+                className={`ai-mode-btn ${mode === 'login' ? 'ai-mode-btn--active' : ''}`}
+                onClick={() => setMode('login')}
+                disabled={isRunning}
+              >
+                🔑 Auto Login
+              </button>
+              <button
+                type="button"
+                id="mode-create"
+                className={`ai-mode-btn ${mode === 'create_account' ? 'ai-mode-btn--active' : ''}`}
+                onClick={() => setMode('create_account')}
+                disabled={isRunning}
+              >
+                ✨ Create Account
+              </button>
+            </div>
+          </div>
           <button
             id="start-automation-btn"
-            className="ai-btn ai-btn--primary"
+            className="ai-btn ai-btn--primary ai-btn--launch"
             onClick={startAutomation}
             disabled={!selectedMerchant || isRunning}
           >
@@ -468,17 +855,17 @@ export function AIAutomationPage() {
           <div className="ai-info-card ai-info-card--blue">
             <strong>🔑 Auto Login Mode</strong>
             <p>
-              The AI agent will navigate to the merchant site and log in using the standard credentials
-              (<code>Nobentadeal@gmail.com</code> / <code>Mumbai@123</code>).
+              The AI agent will navigate to the merchant site and log in using the configured merchant credentials.
+              If no specific credentials are set, it defaults to the system standard.
               It learns and caches selector mappings so future runs on the same site are faster.
               Cookies are saved automatically upon success.
             </p>
           </div>
         ) : (
-          <div className="ai-info-card ai-info-card--purple">
+          <div className="ai-info-card ai-info-card--cyan">
             <strong>✨ Create Account Mode</strong>
             <p>
-              The AI agent will find the sign-up page and create a new account using the standard credentials.
+              The AI agent will find the sign-up page and create a new account using the configured merchant credentials.
               It handles email, phone, and password fields automatically.
               OTP/2FA challenges will be forwarded to you for manual input.
             </p>
