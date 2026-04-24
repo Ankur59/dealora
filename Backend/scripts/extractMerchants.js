@@ -1,10 +1,10 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const { connectDB } = require('./src/config/database');
-const RawScrapedCoupon = require('./src/models/RawScrapedCoupon');
-const RawScrapedMerchant = require('./src/models/RawScrapedMerchant');
-const GenericAdapter = require('./src/scraper/sources/GenericAdapter');
-const logger = require('./src/utils/logger');
+const { connectDB } = require('../src/config/database.js');
+const RawScrapedCoupon = require('../src/models/RawScrapedCoupon.js');
+const RawScrapedMerchant = require('../src/models/RawScrapedMerchant.js');
+const GenericAdapter = require('../src/scraper/sources/GenericAdapter.js');
+const logger = require('../src/utils/logger');
 
 // Instantiate a generic adapter to use its normalization logic
 const adapter = new GenericAdapter('Internal', 'http://localhost');
