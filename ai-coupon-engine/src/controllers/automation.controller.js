@@ -15,34 +15,42 @@ const STANDARD_CREDENTIALS = {
  */
 async function getActiveCredentials(merchantId) {
   const globalId = '000000000000000000000000';
-  
+
   // 1. Start with hardcoded defaults
   const creds = { ...STANDARD_CREDENTIALS };
-  
+
   // 2. Load and apply Global overrides
   const globalCustom = await MerchantCredential.find({ merchantId: globalId }).lean();
   applyCustomCreds(creds, globalCustom);
-  
+
   // 3. Load and apply Merchant-specific overrides (takes precedence)
   const merchantCustom = await MerchantCredential.find({ merchantId }).lean();
   applyCustomCreds(creds, merchantCustom);
-  
+
   return creds;
 }
 
 function applyCustomCreds(creds, customList) {
   for (const c of customList) {
     if (c.credentialType === 'email_password') {
-       creds.EMAIL = c.login;
-       creds.PASSWORD = c.password;
+      creds.EMAIL = c.login;
+      creds.PASSWORD = c.password;
     } else if (c.credentialType === 'phone_password') {
-       creds.PHONE = c.login;
-       // We only override the password if we didn't just grab it from email, or if it's explicitly phone_password
-       if (!customList.find(x => x.credentialType === 'email_password')) {
-         creds.PASSWORD = c.password;
-       }
+      creds.PHONE = c.login;
+      // We only override the password if we didn't just grab it from email, or if it's explicitly phone_password
+      if (!customList.find(x => x.credentialType === 'email_password')) {
+        creds.PASSWORD = c.password;
+      }
     }
   }
+}
+
+/**
+ * Mongoose Maps do not support keys containing "." or "$".
+ * We replace them with safe placeholders before using them as Map keys.
+ */
+function sanitizeActionKey(key) {
+  return key.replace(/\./g, '__DOT__').replace(/\$/g, '__DOLLAR__');
 }
 
 /**
@@ -65,7 +73,7 @@ async function executeMacro(merchantId, merchant, mode, page, context, res, acti
         await page.waitForTimeout(3000);
         continue;
       }
-      
+
       if (step.action === 'otp_needed') {
         await Merchant.findByIdAndUpdate(merchantId, { 'lastLoginAttempt.status': 'pending_otp' });
         const otp = await browserService.waitForOTP(merchantId);
@@ -125,11 +133,11 @@ async function executeMacro(merchantId, merchant, mode, page, context, res, acti
 async function runAutomationLoop(merchantId, goal, res, mode) {
   try {
     const activeCreds = await getActiveCredentials(merchantId);
-    
+
     // Inject custom email into the goal text if appropriate
     let finalGoal = goal.replace(STANDARD_CREDENTIALS.EMAIL, activeCreds.EMAIL);
     finalGoal = finalGoal.replace(STANDARD_CREDENTIALS.PHONE, activeCreds.PHONE);
-    
+
     const { page, context, merchant } = await browserService.getPageWithSession(merchantId);
     if (!merchant.actionMaps) merchant.actionMaps = new Map();
     if (!merchant.automationMacros) merchant.automationMacros = new Map();
@@ -150,9 +158,9 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
 
     // 1. Try to execute Macro if we have one
     if (merchant.automationMacros.has(mode)) {
-       const macroSucceeded = await executeMacro(merchantId, merchant, mode, page, context, res, activeCreds);
-       if (macroSucceeded) return; // All done!
-       // If failed, we just fall through to the slow Gemini loop.
+      const macroSucceeded = await executeMacro(merchantId, merchant, mode, page, context, res, activeCreds);
+      if (macroSucceeded) return; // All done!
+      // If failed, we just fall through to the slow Gemini loop.
     }
 
     // 2. Slow path: Gemini reasoning
@@ -187,12 +195,12 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
           'lastLoginAttempt.status': 'success',
           'lastLoginAttempt.message': 'Automation completed successfully',
         });
-        
+
         // Save the successful sequence to avoid using tokens next time
         if (currentMacro.length > 0) {
-            merchant.automationMacros.set(mode, currentMacro);
-            await merchant.save();
-            await browserService.emitLog(merchantId, '💾 Saved action sequence as macro for future runs.');
+          merchant.automationMacros.set(mode, currentMacro);
+          await merchant.save();
+          await browserService.emitLog(merchantId, '💾 Saved action sequence as macro for future runs.');
         }
         break;
       }
@@ -213,10 +221,10 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
         await Merchant.findByIdAndUpdate(merchantId, {
           'lastLoginAttempt.status': 'pending_otp',
         });
-        
+
         // Emit a high-level notification for the dashboard
         await browserService.emitNotification(merchantId, 'otp_required', 'Verification code requested during automation');
-        
+
         const otp = await browserService.waitForOTP(merchantId);
         if (otp) {
           context._lastOtp = otp;
@@ -240,7 +248,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
 
       if (suggestion.action === 'click' || suggestion.action === 'fill') {
         const normalizedUrl = new URL(url).pathname;
-        const actionKey = `${normalizedUrl}:${suggestion.element}`;
+        const actionKey = sanitizeActionKey(`${normalizedUrl}:${suggestion.element}`);
         let selector = merchant.actionMaps.get(actionKey);
 
         if (!selector && suggestion.x && suggestion.y) {
@@ -261,10 +269,10 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
         }
 
         if (selector) {
-          currentMacro.push({ 
-            action: suggestion.action, 
-            selector, 
-            value: suggestion.value 
+          currentMacro.push({
+            action: suggestion.action,
+            selector,
+            value: suggestion.value
           });
         }
 
@@ -318,7 +326,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     }
 
     if (!res.headersSent) {
-        res.status(200).json({ success: true, data: { message: 'Automation finished', automationSuccess: succeeded } });
+      res.status(200).json({ success: true, data: { message: 'Automation finished', automationSuccess: succeeded } });
     }
   } catch (error) {
     console.error('Automation error:', error);
@@ -326,7 +334,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     await Merchant.findByIdAndUpdate(merchantId, {
       'lastLoginAttempt.status': 'failed',
       'lastLoginAttempt.message': error.message,
-    }).catch(() => {});
+    }).catch(() => { });
     if (!res.headersSent) {
       res.status(500).json({ success: false, message: error.message });
     }
@@ -403,9 +411,9 @@ export class AutomationController {
       const merchant = await Merchant.findById(merchantId).lean();
       if (!merchant) return res.status(404).json({ success: false, message: 'Merchant not found' });
       const hasActiveBrowserSession = browserService.contexts.has(merchantId);
-      
+
       const macroCount = merchant.automationMacros ? Object.keys(Object.fromEntries(merchant.automationMacros)).length : 0;
-      
+
       res.status(200).json({
         success: true,
         data: {
