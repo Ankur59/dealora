@@ -50,22 +50,23 @@ export const calculateCouponScore = (coupon) => {
     // --- Derived fallbacks ---
 
     // Live Success Rate & Failure Rate from isVerified
-    if (!coupon.liveSuccessRate && coupon.isVerified) {
-        liveSuccessRate = 90;
-        failureRate = 10;
-        confidenceScore = 80;
-    } else if (!coupon.liveSuccessRate && !coupon.isVerified && coupon.verifiedOn) {
-        liveSuccessRate = 10;
-        failureRate = 90;
-        confidenceScore = 60;
-    }
+    // Just doing this for testing
+    // if (!coupon.liveSuccessRate && coupon.isVerified) {
+    //     liveSuccessRate = 90;
+    //     failureRate = 10;
+    //     confidenceScore = 80;
+    // } else if (!coupon.liveSuccessRate && !coupon.isVerified && coupon.verifiedOn) {
+    //     liveSuccessRate = 10;
+    //     failureRate = 90;
+    //     confidenceScore = 60;
+    // }
 
-    // Recency Score from verifiedOn or updatedAt
-    if (!coupon.recencyScore) {
-        const dateToUse = coupon.verifiedOn || coupon.updatedAt || new Date();
-        const diffDays = (new Date() - new Date(dateToUse)) / (1000 * 60 * 60 * 24);
-        recencyScore = Math.max(0, Math.round(100 * Math.exp(-0.1 * diffDays)));
-    }
+    // // Recency Score from verifiedOn or updatedAt
+    // if (!coupon.recencyScore) {
+    //     const dateToUse = coupon.verifiedOn || coupon.updatedAt || new Date();
+    //     const diffDays = (new Date() - new Date(dateToUse)) / (1000 * 60 * 60 * 24);
+    //     recencyScore = Math.max(0, Math.round(100 * Math.exp(-0.1 * diffDays)));
+    // }
 
     // Source Credibility from partner name
     if (!coupon.sourceCredibilityScore && coupon.partner) {

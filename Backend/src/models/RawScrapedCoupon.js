@@ -83,7 +83,6 @@ const rawScrapedCouponSchema = new mongoose.Schema(
         terms: {
             type: String,
             trim: true,
-            maxlength: [3000, 'Terms cannot exceed 3000 characters'],
             default: null,
         },
 
@@ -159,11 +158,8 @@ const rawScrapedCouponSchema = new mongoose.Schema(
             max: [100, 'liveSuccessRate cannot exceed 100'],
         },
 
-        // ─── Computed / derived signal fields ────────────────────────────
         /**
          * recencyScore: Freshness score 0–100 derived from scrapedAt.
-         * 100 = scraped today, decays ~10 pts per day.
-         * Computed by the AI validation engine from scrapedAt; stored for fast querying.
          */
         recencyScore: {
             type: Number,
@@ -174,8 +170,6 @@ const rawScrapedCouponSchema = new mongoose.Schema(
 
         /**
          * failureRate: Percentage of our users who reported this coupon as failed.
-         * Populated by user feedback pipeline; starts null.
-         * Range: 0–100.
          */
         failureRate: {
             type: Number,
@@ -186,8 +180,6 @@ const rawScrapedCouponSchema = new mongoose.Schema(
 
         /**
          * confidenceScore: Composite score (0–100) computed by AI engine.
-         * Formula: f(trustscore, liveSuccessRate, failureRate, platformVerified, recencyScore).
-         * null = not yet computed.
          */
         confidenceScore: {
             type: Number,
@@ -198,8 +190,6 @@ const rawScrapedCouponSchema = new mongoose.Schema(
 
         /**
          * sourceCredibilityScore: Static trust score assigned to the scraping source (0–100).
-         * GrabOn = 75, CouponDuniya = 65, Desidime = 70, etc.
-         * Set per-adapter at scrape time.
          */
         sourceCredibilityScore: {
             type: Number,
@@ -210,22 +200,87 @@ const rawScrapedCouponSchema = new mongoose.Schema(
 
         /**
          * trendVelocity: Rate of traction growth for this coupon.
-         * Measures how quickly usedBy/likes are increasing across scrape runs.
-         * null = not enough historical data yet; computed by monitoring pipeline.
          */
         trendVelocity: {
             type: Number,
             default: null,
         },
 
+        /**
+         * verifiedOn: Date when the coupon was verified.
+         * Used for recency calculations.
+         */
+        verifiedOn: {
+            type: Date,
+            default: null,
+        },
+
+        /**
+         * isVerified: Boolean flag indicating if the coupon is verified.
+         * Used as a fallback for liveSuccessRate and failureRate.
+         */
+        isVerified: {
+            type: Boolean,
+            default: null,
+        },
+
+        /**
+         * contextMatchScore: Score (0–100) indicating how well the coupon matches the merchant context.
+         */
+        contextMatchScore: {
+            type: Number,
+            default: null,
+            min: [0, 'contextMatchScore cannot be negative'],
+            max: [100, 'contextMatchScore cannot exceed 100'],
+        },
+
+        /**
+         * usedByCount: Total number of uses for trend velocity calculations.
+         */
+        usedByCount: {
+            type: Number,
+            default: null,
+            min: [0, 'usedByCount cannot be negative'],
+        },
+
+        /**
+         * partner: The source partner name (e.g., "vcommission", "admitad").
+         */
+        partner: {
+            type: String,
+            trim: true,
+            default: null,
+        },
+
+        /**
+         * couponScore: The final calculated score from the validation engine.
+         */
+        couponScore: {
+            type: Number,
+            default: null,
+            min: [0, 'Score cannot be below 0'],
+            max: [100, 'Score cannot exceed 100'],
+        },
+
+        /**
+         * scoreCalculatedAt: Timestamp when the score was last calculated.
+         */
+        scoreCalculatedAt: {
+            type: Date,
+            default: null,
+        },
+
+        /**
+         * scoreDetails: Detailed breakdown of the score components.
+         */
+        scoreDetails: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
+
         // ─── AI Validation Engine fields ──────────────────────────────
         /**
          * aiValidationStatus: Current status in the AI validation pipeline.
-         * pending    → not yet processed
-         * processing → currently being validated
-         * valid      → AI confirmed coupon is likely live
-         * invalid    → AI flagged coupon as expired/incorrect
-         * uncertain  → AI confidence too low to decide
          */
         aiValidationStatus: {
             type: String,
@@ -236,7 +291,6 @@ const rawScrapedCouponSchema = new mongoose.Schema(
 
         /**
          * aiValidationScore: Confidence score from AI validation engine (0–100).
-         * null = not yet scored.
          */
         aiValidationScore: {
             type: Number,
@@ -264,9 +318,7 @@ const rawScrapedCouponSchema = new mongoose.Schema(
         },
 
         /**
-         * validatedCouponId: ObjectId reference to the main Coupon collection entry,
-         * once the coupon has been promoted after validation.
-         * null = not yet promoted.
+         * validatedCouponId: ObjectId reference to the main Coupon collection entry.
          */
         validatedCouponId: {
             type: mongoose.Schema.Types.ObjectId,
