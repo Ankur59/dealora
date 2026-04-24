@@ -22,22 +22,22 @@ class CouponDuniyaAdapter extends GenericAdapter {
     const brands = [
       // ===== ACTIVE BRANDS - Only scraping these essential brands =====
       // Food Delivery Apps
-      // { brand: 'Zomato', category: 'Food' },
-      // { brand: 'Swiggy', category: 'Food' },
-      // { brand: 'Box8', category: 'Food' },
-      // { brand: 'Eatsure', category: 'Food' },
+      { brand: 'Zomato', category: 'Food' },
+      { brand: 'Swiggy', category: 'Food' },
+      { brand: 'Box8', category: 'Food' },
+      { brand: 'Eatsure', category: 'Food' },
       // { brand: 'Freshmenu', category: 'Food' },
 
       // // E-commerce & Shopping
       { brand: 'Amazon', category: 'Grocery' },
-      // { brand: 'Flipkart', category: 'Grocery' },
-      // { brand: 'Snapdeal', category: 'Grocery' },
+      { brand: 'Flipkart', category: 'Grocery' },
+      { brand: 'Snapdeal', category: 'Grocery' },
 
       // // Wallet & Payment Apps
-      // { brand: 'PhonePe', category: 'Wallet Rewards' },
-      // { brand: 'Paytm', category: 'Wallet Rewards' },
-      // { brand: 'Cred', category: 'Wallet Rewards' },
-      // { brand: 'Dhani', category: 'Wallet Rewards' },
+      { brand: 'PhonePe', category: 'Wallet Rewards' },
+      { brand: 'Paytm', category: 'Wallet Rewards' },
+      { brand: 'Cred', category: 'Wallet Rewards' },
+      { brand: 'Dhani', category: 'Wallet Rewards' },
       // { brand: 'Freo', category: 'Wallet Rewards' },
 
       // Grocery & Daily Needs
