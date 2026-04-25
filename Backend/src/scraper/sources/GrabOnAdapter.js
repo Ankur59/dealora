@@ -41,7 +41,7 @@ class GrabOnAdapter extends GenericAdapter {
             { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
             
             // // Travel
-            // { brand: 'MakeMyTrip', path: '/makemytrip-coupons/', category: 'Travel' },
+            { brand: 'MakeMyTrip', path: '/makemytrip-coupons/', category: 'Travel' },
             
             // ===== COMMENTED OUT - Not needed currently =====
             // { brand: 'TWID', path: '/twid-coupons/', category: 'Wallet Rewards' },
@@ -165,14 +165,19 @@ class GrabOnAdapter extends GenericAdapter {
                     const termsArray = [];
                     let minimumOrder = null;
 
-                    $(el).find('.cpn-det-v2 div[data-type="desc-div"] ul li').each((_, liEl) => {
-                        const liText = $(liEl).text().trim().replace(/\s+/g, ' '); // Clean spaces
+                    // GrabOn often hides terms in this specific structure (as seen in screenshot)
+                    $(el).find('.cpn-det-v2 div[data-type="desc-div"] ul li, .cpn-det-v2 div[data-type="desc-div"] p').each((_, item) => {
+                        let liText = $(item).text().trim();
+                        // Clean up zero-width spaces (&ZeroWidthSpace; / \u200B) and multiple whitespaces
+                        liText = liText.replace(/[\u200B-\u200D\uFEFF]/g, '');
+                        liText = liText.replace(/\s+/g, ' ').trim();
+
                         if (liText) {
                             termsArray.push(liText);
                             // Detect minimum order (e.g., "Minimum cart value should be Rs 999")
                             const minMatch = liText.match(/minimum.*(?:rs\.?|₹|inr)\s*(\d+(?:,\d+)?)/i);
                             if (minMatch) {
-                                minimumOrder = minMatch[0]; // Stores "Minimum cart value should be Rs 999"
+                                minimumOrder = minMatch[0]; 
                             }
                         }
                     });
@@ -194,7 +199,7 @@ class GrabOnAdapter extends GenericAdapter {
 
                     couponDataList.push({
                         // ── Core fields ───────────────────────────────────────
-                        brandName:              page.brand,
+                        brandName:              this.normalizeBrand(page.brand),
                         couponTitle:            title,
                         description:            desc,
                         couponCode:             couponCode || null,

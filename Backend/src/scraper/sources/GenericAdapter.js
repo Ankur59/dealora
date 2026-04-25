@@ -165,7 +165,111 @@ class GenericAdapter {
 
     normalizeBrand(brand) {
         if (!brand) return 'General';
-        return brand.split(' ')[0].trim();
+        
+        const trimmedBrand = brand.trim();
+        
+        // Get the standard casing from our brandUrls map if it exists
+        const brandUrls = this.getBrandUrls();
+        const standardName = Object.keys(brandUrls).find(
+            key => key.toLowerCase() === trimmedBrand.toLowerCase()
+        );
+
+        if (standardName) {
+            return standardName;
+        }
+
+        // Fallback: Title Case (e.g., "rebel foods" -> "Rebel Foods")
+        return trimmedBrand
+            .toLowerCase()
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
+    /**
+     * Internal helper to get the brand URLs map
+     */
+    getBrandUrls() {
+        return {
+            // Food Delivery
+            'Zomato': 'https://www.zomato.com',
+            'Swiggy': 'https://www.swiggy.com',
+            'Fassos': 'https://www.fassos.com',
+            'Eatsure': 'https://www.eatsure.com',
+            'Box8': 'https://www.box8.in',
+            'Rebel Foods': 'https://www.rebelfoods.com',
+            'FreshMenu': 'https://www.freshmenu.com',
+
+            // E-commerce & Shopping
+            'Amazon': 'https://www.amazon.in',
+            'Flipkart': 'https://www.flipkart.com',
+            'Myntra': 'https://www.myntra.com',
+            'Snapdeal': 'https://www.snapdeal.com',
+            'Shopclues': 'https://www.shopclues.com',
+            'Limeroad': 'https://www.limeroad.com',
+            'Nykaa': 'https://www.nykaa.com',
+            'Meesho': 'https://www.meesho.com',
+            'Ajio': 'https://www.ajio.com',
+
+            // Wallet & Payment Apps
+            'Paytm': 'https://www.paytm.com',
+            'PhonePe': 'https://www.phonepe.com',
+            'Cred': 'https://www.cred.club',
+            'Freecharge': 'https://www.freecharge.in',
+            'MobiKwik': 'https://www.mobikwik.com',
+            'TWID': 'https://www.twid.app',
+            'Pop': 'https://www.getpop.in',
+            'Dhani': 'https://www.dhani.com',
+            'Kiwi': 'https://www.kiwi.money',
+            'Payzapp': 'https://www.payzapp.com',
+            'Freo': 'https://www.freo.money',
+            'BharatNxt': 'https://www.bharatnxt.com',
+            'Payworld': 'https://www.payworld.in',
+            'Rio Money': 'https://www.riomoney.in',
+            'Payinstacard': 'https://www.payinstacard.com',
+
+            // Grocery & Daily Needs
+            'BigBasket': 'https://www.bigbasket.com',
+            'Blinkit': 'https://www.blinkit.com',
+            'Zepto': 'https://www.zeptonow.com',
+            'Dunzo': 'https://www.dunzo.com',
+            'Grofers': 'https://www.grofers.com',
+            'Dealshare': 'https://www.dealshare.in',
+            'Satvacart': 'https://www.satvacart.com',
+            'Nearwala': 'https://www.nearwala.com',
+
+            // Travel & Transportation
+            'MakeMyTrip': 'https://www.makemytrip.com',
+            'Goibibo': 'https://www.goibibo.com',
+            'Cleartrip': 'https://www.cleartrip.com',
+            'Uber': 'https://www.uber.com',
+            'Ola': 'https://www.olacabs.com',
+            'Rapido': 'https://www.rapido.bike',
+            'redBus': 'https://www.redbus.in',
+            'Zingbus': 'https://www.zingbus.com',
+            'Yatra': 'https://www.yatra.com',
+            'EaseMyTrip': 'https://www.easemytrip.com',
+            'Ixigo': 'https://www.ixigo.com',
+
+            // Beauty & Wellness
+            'Purplle': 'https://www.purplle.com',
+            'Salon Nayana': 'https://www.salonnayana.com',
+            'HR Wellness': 'https://www.hrwellness.in',
+            'UrbanClap': 'https://www.urbancompany.com',
+            'Cult.fit': 'https://www.cult.fit',
+
+            // Entertainment & OTT
+            'BookMyShow': 'https://www.bookmyshow.com',
+            'Netflix': 'https://www.netflix.com',
+            'Amazon Prime': 'https://www.primevideo.com',
+            'Disney+ Hotstar': 'https://www.hotstar.com',
+            'Zee5': 'https://www.zee5.com',
+            'SonyLiv': 'https://www.sonyliv.com',
+
+            // Others
+            'NPCI': 'https://www.npci.org.in',
+            'Sarvatra Tech': 'https://www.sarvatra.in',
+        };
     }
 
     normalizeCode(code) {
@@ -259,88 +363,7 @@ class GenericAdapter {
      * This ensures couponLink points to the actual brand website, not the source scraper site
      */
     getBrandUrl(brandName) {
-        const brandUrls = {
-            // Food Delivery
-            'Zomato': 'https://www.zomato.com',
-            'Swiggy': 'https://www.swiggy.com',
-            'Fassos': 'https://www.fassos.com',
-            'Eatsure': 'https://www.eatsure.com',
-            'Box8': 'https://www.box8.in',
-            'Rebel foods': 'https://www.rebelfoods.com',
-            'Freshmenu': 'https://www.freshmenu.com',
-            'FreshMenu': 'https://www.freshmenu.com',
-
-            // E-commerce & Shopping
-            'Amazon': 'https://www.amazon.in',
-            'Flipkart': 'https://www.flipkart.com',
-            'Myntra': 'https://www.myntra.com',
-            'Snapdeal': 'https://www.snapdeal.com',
-            'Shopclues': 'https://www.shopclues.com',
-            'Limeroad': 'https://www.limeroad.com',
-            'Nykaa': 'https://www.nykaa.com',
-            'Meesho': 'https://www.meesho.com',
-            'Ajio': 'https://www.ajio.com',
-
-            // Wallet & Payment Apps
-            'Paytm': 'https://www.paytm.com',
-            'PhonePe': 'https://www.phonepe.com',
-            'Cred': 'https://www.cred.club',
-            'CRED': 'https://www.cred.club',
-            'Freecharge': 'https://www.freecharge.in',
-            'MobiKwik': 'https://www.mobikwik.com',
-            'TWID': 'https://www.twid.app',
-            'Pop': 'https://www.getpop.in',
-            'Dhani': 'https://www.dhani.com',
-            'Kiwi': 'https://www.kiwi.money',
-            'Payzapp': 'https://www.payzapp.com',
-            'Freo': 'https://www.freo.money',
-            'BharatNxt': 'https://www.bharatnxt.com',
-            'Payworld': 'https://www.payworld.in',
-            'Rio Money': 'https://www.riomoney.in',
-            'Payinstacard': 'https://www.payinstacard.com',
-
-            // Grocery & Daily Needs
-            'BigBasket': 'https://www.bigbasket.com',
-            'Blinkit': 'https://www.blinkit.com',
-            'Zepto': 'https://www.zeptonow.com',
-            'Dunzo': 'https://www.dunzo.com',
-            'Grofers': 'https://www.grofers.com',
-            'Dealshare': 'https://www.dealshare.in',
-            'Satvacart': 'https://www.satvacart.com',
-            'nearwala': 'https://www.nearwala.com',
-
-            // Travel & Transportation
-            'MakeMyTrip': 'https://www.makemytrip.com',
-            'Goibibo': 'https://www.goibibo.com',
-            'Cleartrip': 'https://www.cleartrip.com',
-            'Uber': 'https://www.uber.com',
-            'Ola': 'https://www.olacabs.com',
-            'Rapido': 'https://www.rapido.bike',
-            'redBus': 'https://www.redbus.in',
-            'Zingbus': 'https://www.zingbus.com',
-            'Yatra': 'https://www.yatra.com',
-            'EaseMyTrip': 'https://www.easemytrip.com',
-            'Ixigo': 'https://www.ixigo.com',
-
-            // Beauty & Wellness
-            'Purplle': 'https://www.purplle.com',
-            'Salon Nayana': 'https://www.salonnayana.com',
-            'HR Wellness': 'https://www.hrwellness.in',
-            'UrbanClap': 'https://www.urbancompany.com',
-            'Cult.fit': 'https://www.cult.fit',
-
-            // Entertainment & OTT
-            'BookMyShow': 'https://www.bookmyshow.com',
-            'Netflix': 'https://www.netflix.com',
-            'Amazon Prime': 'https://www.primevideo.com',
-            'Disney+ Hotstar': 'https://www.hotstar.com',
-            'Zee5': 'https://www.zee5.com',
-            'SonyLiv': 'https://www.sonyliv.com',
-
-            // Others
-            'NPCL': 'https://www.npci.org.in',
-            'Sarvatra tech': 'https://www.sarvatra.in',
-        };
+        const brandUrls = this.getBrandUrls();
 
         // Try exact match first
         if (brandUrls[brandName]) {
@@ -357,7 +380,7 @@ class GenericAdapter {
         }
 
         // If no match found, log warning and return null (don't fallback to source URL)
-        logger.warn(`getBrandUrl: No URL mapping found for brand "${brandName}". Please add it to GenericAdapter.getBrandUrl()`);
+        logger.warn(`getBrandUrl: No URL mapping found for brand "${brandName}". Please add it to GenericAdapter.getBrandUrls()`);
         return null;
     }
 
