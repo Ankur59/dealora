@@ -54,6 +54,75 @@ function sanitizeActionKey(key) {
 }
 
 /**
+ * Attempts to auto-fill an OTP input and click a submit button
+ * after receiving an OTP from the dashboard.
+ */
+async function attemptPostOTPFill(page, otp, merchantId) {
+  const otpSelectors = [
+    'input[inputmode="numeric"]',
+    'input[type="tel"]',
+    'input[name*="otp" i]',
+    'input[id*="otp" i]',
+    'input[placeholder*="otp" i]',
+    'input[placeholder*="code" i]',
+    'input[name*="verification" i]',
+    'input[id*="verification" i]',
+    'input[autocomplete="one-time-code"]',
+    'input[maxlength="6"]',
+  ];
+
+  let filled = false;
+  for (const sel of otpSelectors) {
+    try {
+      const el = await page.$(sel);
+      if (el) {
+        await page.fill(sel, otp);
+        await browserService.emitLog(merchantId, `Auto-filled OTP into ${sel}`);
+        filled = true;
+        break;
+      }
+    } catch (e) {
+      // try next selector
+    }
+  }
+
+  if (!filled) {
+    await browserService.emitLog(merchantId, 'Could not auto-detect OTP field; letting AI locate it.', 'warning');
+    return false;
+  }
+
+  // Try common submit / continue buttons
+  const submitSelectors = [
+    'button[type="submit"]',
+    'input[type="submit"]',
+    'button:has-text("Continue")',
+    'button:has-text("Submit")',
+    'button:has-text("Verify")',
+    'button:has-text("Login")',
+    'a:has-text("Continue")',
+    'a:has-text("Submit")',
+    'a:has-text("Verify")',
+  ];
+
+  for (const sel of submitSelectors) {
+    try {
+      const el = await page.$(sel);
+      if (el) {
+        await page.click(sel);
+        await browserService.emitLog(merchantId, `Auto-clicked ${sel}`);
+        break;
+      }
+    } catch (e) {
+      // try next selector
+    }
+  }
+
+  // Give the site time to process the OTP and redirect
+  await page.waitForTimeout(4000);
+  return true;
+}
+
+/**
  * Executes a previously recorded macro of steps strictly.
  */
 async function executeMacro(merchantId, merchant, mode, page, context, res, activeCreds) {
@@ -234,6 +303,37 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
           await Merchant.findByIdAndUpdate(merchantId, {
             'lastLoginAttempt.status': 'running',
           });
+
+          // Try to auto-fill OTP and submit so the AI doesn't get stuck
+          const autoFilled = await attemptPostOTPFill(page, otp, merchantId);
+
+          if (autoFilled) {
+            // Quick check: if URL changed away from login/otp pages, mark success immediately
+            const currentUrl = page.url().toLowerCase();
+            const looksLoggedIn =
+              !currentUrl.includes('login') &&
+              !currentUrl.includes('otp') &&
+              !currentUrl.includes('verify') &&
+              !currentUrl.includes('auth');
+
+            if (looksLoggedIn) {
+              succeeded = true;
+              await browserService.saveSession(merchantId, context);
+              await browserService.emitLog(merchantId, '✅ Login successful after OTP! Cookies saved.', 'success');
+              await Merchant.findByIdAndUpdate(merchantId, {
+                'lastLoginAttempt.status': 'success',
+                'lastLoginAttempt.message': 'Automation completed successfully after OTP',
+              });
+
+              if (currentMacro.length > 0) {
+                merchant.automationMacros.set(mode, currentMacro);
+                await merchant.save();
+                await browserService.emitLog(merchantId, '💾 Saved action sequence as macro for future runs.');
+              }
+              break;
+            }
+          }
+
           continue;
         } else {
           await browserService.emitLog(merchantId, 'OTP timeout / cancelled.', 'error');

@@ -103,18 +103,33 @@ export class BrowserService {
     });
 
     return new Promise((resolve) => {
+      let resolved = false;
+      let timer = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        io.off('otp_provided', onOTP);
+      };
+
       const onOTP = (data) => {
         if (data.merchantId === merchantId.toString()) {
-          io.off('otp_provided', onOTP);
-          resolve(data.otp);
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+            resolve(data.otp);
+          }
         }
       };
+
       io.on('otp_provided', onOTP);
 
       // Timeout after 5 minutes
-      setTimeout(() => {
-        io.off('otp_provided', onOTP);
-        resolve(null);
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(null);
+        }
       }, 300_000);
     });
   }
