@@ -23,7 +23,7 @@ class GrabOnAdapter extends GenericAdapter {
             // E-commerce & Shopping
             { brand: 'Amazon', path: '/amazon-coupons/', category: 'Grocery' },
             { brand: 'Flipkart', path: '/flipkart-coupons/', category: 'Grocery' },
-            // { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
+            { brand: 'Snapdeal', path: '/snapdeal-coupons/', category: 'Grocery' },
             
             // // Wallet & Payment Apps
             { brand: 'PhonePe', path: '/phonepe-coupons/', category: 'Wallet Rewards' },
@@ -33,11 +33,11 @@ class GrabOnAdapter extends GenericAdapter {
             { brand: 'Freo', path: '/freo-coupons/', category: 'Wallet Rewards' },
             
             // // Grocery & Daily Needs
-            // { brand: 'Blinkit', path: '/blinkit-coupons/', category: 'Grocery' },
+            { brand: 'Blinkit', path: '/blinkit-coupons/', category: 'Grocery' },
             { brand: 'BigBasket', path: '/bigbasket-coupons/', category: 'Grocery' },
             
             // // Beauty & Fashion
-            // { brand: 'Nykaa', path: '/nykaa-coupons/', category: 'Beauty' },
+            { brand: 'Nykaa', path: '/nykaa-coupons/', category: 'Beauty' },
             { brand: 'Myntra', path: '/myntra-coupons/', category: 'Fashion' },
             
             // // Travel
