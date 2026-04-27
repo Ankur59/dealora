@@ -163,10 +163,11 @@ RULES:
 10. If the goal is impossible on this site → action "failed"
 11. If you need to create an account or login but are not on the registration/login page, look for 'Login', 'Sign In', 'Register', 'Sign Up', or account icons/menus to find the entry point.
 12. If a page is still loading or content is missing → action "wait"
+13. If the page shows a 403 error, "access denied", "request blocked", or any bot/security detection page → action "blocked" (NOT "failed" — the system will retry with a different browser fingerprint)
 
 Return ONLY a valid JSON object (no markdown):
 {
-  "action": "click" | "fill" | "wait" | "done" | "otp_needed" | "failed",
+  "action": "click" | "fill" | "wait" | "done" | "otp_needed" | "failed" | "blocked",
   "element": "<short description of the element to interact with>",
   "value": "EMAIL" | "PASSWORD" | "PHONE" | "OTP_VALUE" | "<other text>",
   "reason": "<brief explanation of why this action>",
