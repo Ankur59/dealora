@@ -1,20 +1,67 @@
 import { chromium } from 'playwright';
 import Merchant from '../models/merchant.model.js';
 import { io } from '../index.js';
+import { getStealthScript } from '../utils/stealth.js';
+
+/**
+ * Modern Chrome user-agents to rotate through (keeps TLS/UA fingerprint consistent).
+ */
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+];
 
 export class BrowserService {
   constructor() {
     this.browser = null;
     /** @type {Map<string, import('playwright').BrowserContext>} */
     this.contexts = new Map();
+    this._uaIdx = Math.floor(Math.random() * USER_AGENTS.length);
+  }
+
+  /** Pick a random modern user-agent */
+  _nextUA() {
+    return USER_AGENTS[this._uaIdx++ % USER_AGENTS.length];
   }
 
   async launchBrowser() {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: process.env.NODE_ENV === 'production',
-        args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
-      });
+      const commonArgs = [
+        '--disable-blink-features=AutomationControlled',
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-infobars',
+        '--window-size=1920,1080',
+        '--disable-extensions',
+        '--disable-default-apps',
+        '--disable-component-update',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-background-timer-throttling',
+        '--lang=en-US',
+      ];
+
+      // Try system Chrome first (real TLS fingerprint = much harder to detect)
+      try {
+        this.browser = await chromium.launch({
+          channel: 'chrome',
+          headless: false,
+          args: commonArgs,
+          ignoreDefaultArgs: ['--enable-automation'],
+        });
+        console.log('[Browser] ✅ Launched with system Chrome (best anti-detection).');
+      } catch (_err) {
+        // Fallback to bundled Chromium
+        console.warn('[Browser] ⚠️  System Chrome not found, using bundled Chromium.');
+        this.browser = await chromium.launch({
+          headless: process.env.NODE_ENV === 'production',
+          args: commonArgs,
+          ignoreDefaultArgs: ['--enable-automation'],
+        });
+        console.log('[Browser] ✅ Launched with bundled Chromium (fallback).');
+      }
     }
     return this.browser;
   }
@@ -28,11 +75,31 @@ export class BrowserService {
     // Reuse existing context if one is alive
     let context = this.contexts.get(merchantId);
     if (!context) {
+      const ua = this._nextUA();
+      const isWindows = ua.includes('Windows');
+
       context = await browser.newContext({
         viewport: { width: 1280, height: 720 },
-        userAgent:
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        screen: { width: 1920, height: 1080 },
+        userAgent: ua,
+        locale: 'en-US',
+        timezoneId: 'Asia/Kolkata',
+        colorScheme: 'light',
+        javaScriptEnabled: true,
+        bypassCSP: false,
+        extraHTTPHeaders: {
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Sec-CH-UA': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+          'Sec-CH-UA-Mobile': '?0',
+          'Sec-CH-UA-Platform': isWindows ? '"Windows"' : '"macOS"',
+          'Upgrade-Insecure-Requests': '1',
+        },
       });
+
+      // ── Stealth: inject patches BEFORE any page scripts run ──────────
+      await context.addInitScript({ content: getStealthScript() });
 
       // Restore previously saved cookies if available
       if (Array.isArray(merchant.cookies) && merchant.cookies.length > 0) {
@@ -49,6 +116,16 @@ export class BrowserService {
 
     const page = await context.newPage();
     return { browser, context, page, merchant };
+  }
+
+  /**
+   * Close and destroy a context so the next getPageWithSession() creates a fresh
+   * one with a different fingerprint. Used for retry-after-block flows.
+   */
+  async recreateContext(merchantId) {
+    await this.closeSession(merchantId);
+    // Brief pause so the site doesn't see an instant reconnect
+    await BrowserService.randomDelay(2000, 5000);
   }
 
   /**
@@ -166,6 +243,39 @@ export class BrowserService {
       }
       return path.join(' > ');
     }, element);
+  }
+
+  // ─── Static helpers ──────────────────────────────────────────────────
+
+  /** Random delay between min and max ms */
+  static randomDelay(min = 500, max = 2000) {
+    return new Promise(resolve => setTimeout(resolve, min + Math.random() * (max - min)));
+  }
+
+  /** Simulate human-like mouse movement to target coordinates */
+  static async humanMove(page, targetX, targetY) {
+    const steps = 5 + Math.floor(Math.random() * 10);
+    let curX = 200 + Math.random() * 400;
+    let curY = 150 + Math.random() * 200;
+
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      curX += (targetX - curX) * t + (Math.random() - 0.5) * 4;
+      curY += (targetY - curY) * t + (Math.random() - 0.5) * 4;
+      await page.mouse.move(curX, curY);
+      await new Promise(r => setTimeout(r, 10 + Math.random() * 30));
+    }
+  }
+
+  /**
+   * Perform some initial human-like interactions on a freshly loaded page
+   * to look less like a bot (scroll, move mouse around).
+   */
+  static async warmUpPage(page) {
+    await BrowserService.randomDelay(1500, 3500);
+    await BrowserService.humanMove(page, 640, 360);
+    await page.mouse.wheel(0, 50 + Math.random() * 100);
+    await BrowserService.randomDelay(800, 1500);
   }
 }
 

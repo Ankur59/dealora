@@ -1,4 +1,4 @@
-import browserService from '../services/browser.service.js';
+import browserService, { BrowserService } from '../services/browser.service.js';
 import geminiService from '../services/gemini.service.js';
 import Merchant from '../models/merchant.model.js';
 import MerchantCredential from '../models/merchantCredential.model.js';
@@ -207,7 +207,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     let finalGoal = goal.replace(STANDARD_CREDENTIALS.EMAIL, activeCreds.EMAIL);
     finalGoal = finalGoal.replace(STANDARD_CREDENTIALS.PHONE, activeCreds.PHONE);
 
-    const { page, context, merchant } = await browserService.getPageWithSession(merchantId);
+    let { page, context, merchant } = await browserService.getPageWithSession(merchantId);
     if (!merchant.actionMaps) merchant.actionMaps = new Map();
     if (!merchant.automationMacros) merchant.automationMacros = new Map();
 
@@ -224,6 +224,9 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     } catch (err) {
       await browserService.emitLog(merchantId, `⚠️ Initial navigation took too long, proceeding anyway: ${err.message}`, 'warning');
     }
+
+    // Human-like warm-up: move mouse, scroll a bit, wait
+    await BrowserService.warmUpPage(page);
 
     // 1. Try to execute Macro if we have one
     if (merchant.automationMacros.has(mode)) {
@@ -243,6 +246,8 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     const maxAttempts = 25;
     let succeeded = false;
     let currentMacro = []; // We will record this run to save it later
+    let blockRetries = 0;
+    const maxBlockRetries = 3;
 
     while (attempts < maxAttempts) {
       attempts++;
@@ -283,6 +288,43 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
         // Clear macro if we fail, so we don't save a bad state
         currentMacro = [];
         break;
+      }
+
+      // ── Handle 403 / bot-blocked pages with retry ─────────────────
+      if (suggestion.action === 'blocked') {
+        if (blockRetries < maxBlockRetries) {
+          blockRetries++;
+          await browserService.emitLog(merchantId, `🔄 Site blocked access (retry ${blockRetries}/${maxBlockRetries}). Recreating session with fresh fingerprint…`, 'warning');
+
+          // Destroy current context and wait (exponential backoff)
+          await browserService.recreateContext(merchantId);
+          const waitSec = Math.round(5 * blockRetries + Math.random() * 5);
+          await browserService.emitLog(merchantId, `⏳ Waiting ${waitSec}s before retry…`);
+          await BrowserService.randomDelay(waitSec * 1000, waitSec * 1000 + 2000);
+
+          // Get a brand-new page with different UA / fingerprint
+          const fresh = await browserService.getPageWithSession(merchantId);
+          page = fresh.page;
+          context = fresh.context;
+          merchant = fresh.merchant;
+
+          try {
+            await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+          } catch (navErr) {
+            await browserService.emitLog(merchantId, `⚠️ Retry navigation slow: ${navErr.message}`, 'warning');
+          }
+
+          await BrowserService.warmUpPage(page);
+          continue; // re-enter the loop and let the AI re-analyze
+        } else {
+          await browserService.emitLog(merchantId, `❌ Site continues to block after ${maxBlockRetries} retries.`, 'error');
+          await Merchant.findByIdAndUpdate(merchantId, {
+            'lastLoginAttempt.status': 'failed',
+            'lastLoginAttempt.message': 'Site blocked automation after multiple retry attempts',
+          });
+          currentMacro = [];
+          break;
+        }
       }
 
       if (suggestion.action === 'otp_needed') {
@@ -411,9 +453,10 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
 
       if (suggestion.action === 'wait') {
         currentMacro.push({ action: 'wait' });
-        await page.waitForTimeout(3000);
+        await BrowserService.randomDelay(2500, 4000);
       } else {
-        await page.waitForTimeout(2000);
+        // Human-like pause between actions (randomised)
+        await BrowserService.randomDelay(1500, 3000);
       }
     }
 
