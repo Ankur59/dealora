@@ -1,4 +1,4 @@
-package com.ayaan.dealora.ui.presentation.couponsList.coupondetails
+﻿package com.ayaan.dealora.ui.presentation.couponsList.coupondetails
 
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
@@ -198,6 +198,15 @@ class CouponDetailsViewModel @Inject constructor(
     }
 
     private fun convertRawCouponToCouponDetail(rawCoupon: RawScrapedCoupon): CouponDetail {
+        // Prefer AI-enriched websiteLink (brand's actual website) over couponLink (scraper source URL)
+        val brandWebsite = rawCoupon.websiteLink?.takeIf { it.isNotBlank() }
+            ?: rawCoupon.homePage?.takeIf { it.isNotBlank() }
+            ?: rawCoupon.couponLink
+
+        // Build terms: use AI-enriched value if present, otherwise fallback
+        val resolvedTerms = rawCoupon.terms?.takeIf { it.isNotBlank() }
+            ?: "Scraped from public source. Subject to brand terms and conditions."
+
         return CouponDetail(
             id = rawCoupon.id,
             userId = "raw_scraped",
@@ -210,11 +219,11 @@ class CouponDetailsViewModel @Inject constructor(
             useCouponVia = "Online",
             discountType = rawCoupon.discountType ?: "scraped",
             discountValue = rawCoupon.discountValue,
-            minimumOrder = null,
+            minimumOrder = rawCoupon.minimumOrder?.let { if (it > 0) it.toInt() else null },
             couponCode = rawCoupon.couponCode,
-            couponVisitingLink = rawCoupon.couponLink,
-            websiteLink = rawCoupon.couponLink,
-            couponDetails = rawCoupon.description ?: "Redeem this scraped coupon on the brand website.",
+            couponVisitingLink = null,
+            websiteLink = brandWebsite,
+            couponDetails = rawCoupon.description ?: "Redeem this exclusive coupon on the brand website.",
             terms = "• Scraped from public source\n• Verified: ${rawCoupon.verified ?: "Unknown"}\n• Subject to brand terms",
             status = "active",
             addedMethod = "exclusive",

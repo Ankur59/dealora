@@ -91,7 +91,41 @@ const rawScrapedCouponSchema = new mongoose.Schema(
             default: null,
         },
 
-        // ─── AI Signal fields (scraped from source) ──────────────────
+        /**
+         * userType: Which user segment this coupon is valid for.
+         * Inferred by AI enrichment from scraped title/description/terms.
+         * Values: 'new' | 'existing' | 'both'
+         * null = not determined yet.
+         */
+        userType: {
+            type: String,
+            enum: ['new', 'existing', 'both', null],
+            default: null,
+        },
+
+        /**
+         * websiteLink: The brand's promotional / offer page URL
+         * (NOT the GrabOn/scraper source URL — the actual brand website).
+         * e.g. for Amazon coupon → "https://www.amazon.in/deals"
+         * Populated by AI enrichment layer.
+         */
+        websiteLink: {
+            type: String,
+            trim: true,
+            default: null,
+        },
+
+        /**
+         * homePage: The brand's root homepage URL.
+         * e.g. "https://www.zomato.com"
+         * Populated by AI enrichment layer.
+         */
+        homePage: {
+            type: String,
+            trim: true,
+            default: null,
+        },
+
         /**
          * usedBy: Number of uses today reported by the source platform.
          * GrabOn: parsed from span[data-type="views"] data-uses attribute.
