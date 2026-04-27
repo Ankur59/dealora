@@ -102,6 +102,18 @@ const couponSchema = new mongoose.Schema(
             default: null,
         },
 
+        /**
+         * discountWeight: Normalised 0–100 score for the coupon's monetary value.
+         * Computed at scrape time in ScraperEngine.saveRawCoupons() and
+         * passed through to the Coupon collection so filterBelowAverageCoupons.js
+         * can use it as a scoring factor.
+         */
+        discountWeight: {
+            type: Number,
+            default: null,
+            min: [0, 'discountWeight cannot be negative'],
+        },
+
         couponCode: {
             type: String,
             trim: true,

@@ -207,6 +207,29 @@ const rawScrapedCouponSchema = new mongoose.Schema(
         },
 
         /**
+         * discountWeight: Normalised score (0–100) representing the monetary
+         * value of the coupon's discount.  Computed at scrape time from
+         * discountType + discountValue so high-value coupons are not deleted
+         * by the below-average filter.
+         *
+         * Scoring rules:
+         *   percentage  →  min(discountPct * 1.5, 100)   e.g. 30 % → 45
+         *   flat        →  log10-scaled on ₹5000 ceiling  e.g. ₹500 → ~54
+         *   cashback    →  same as flat  (monetary value)
+         *   freebie     →  60  (non-monetary but high perceived value)
+         *   buy1get1    →  70  (strong deal)
+         *   free_delivery → 40
+         *   unknown     →  20  (can't determine value)
+         *   null / N/A  →  10  (no discount info at all)
+         */
+        discountWeight: {
+            type: Number,
+            default: null,
+            min: [0, 'discountWeight cannot be negative'],
+            max: [100, 'discountWeight cannot exceed 100'],
+        },
+
+        /**
          * verifiedOn: Date when the coupon was verified.
          * Used for recency calculations.
          */

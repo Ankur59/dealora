@@ -2,16 +2,35 @@
  * DEV-ONLY scraper routes — only mounted in development mode.
  *
  * Endpoints:
- *   POST /api/dev/scraper/run          → trigger a full scraper run immediately
- *   GET  /api/dev/scraper/raw          → query rawscrapedcoupons collection
- *   GET  /api/dev/scraper/raw/stats    → signal field coverage stats per adapter
- *   GET  /api/dev/scraper/audit        → run field audit without saving to DB
+ *   POST /api/dev/scraper/run              → trigger a full scraper run (background)
+ *   POST /api/dev/scraper/pipeline/score   → run scoring script (same as cron step 2)
+ *   POST /api/dev/scraper/pipeline/delete  → run deletion script (same as cron step 3)
+ *   GET  /api/dev/scraper/raw              → query rawscrapedcoupons collection
+ *   GET  /api/dev/scraper/raw/stats        → signal field coverage stats per adapter
+ *   GET  /api/dev/scraper/audit            → run field audit without saving to DB
  */
 
+const path = require('path');
+const { execFile } = require('child_process');
 const express = require('express');
 const router = express.Router();
 const RawScrapedCoupon = require('../models/RawScrapedCoupon');
 const logger = require('../utils/logger');
+
+// Resolves the path to a script in /scripts the same way the cron does
+const SCORE_SCRIPT  = path.resolve(__dirname, '../../scripts/scoreCoupons.js');
+const DELETE_SCRIPT = path.resolve(__dirname, '../../scripts/filterBelowAverageCoupons.js');
+
+// Runs a pipeline script as a child process and resolves with its stdout/stderr.
+// Identical to the runScript() helper used inside the cron job.
+function runScript(scriptPath) {
+    return new Promise((resolve, reject) => {
+        execFile(process.execPath, [scriptPath], { env: process.env }, (err, stdout, stderr) => {
+            if (err) return reject({ exitCode: err.code, message: err.message, stderr });
+            resolve({ stdout, stderr });
+        });
+    });
+}
 
 // ─── POST /api/dev/scraper/run ────────────────────────────────────────────────
 // Triggers a full scraper run immediately (respects SCRAPER_ADAPTERS env var).
@@ -238,6 +257,47 @@ router.get('/raw/stats', async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
+// ─── POST /api/dev/scraper/pipeline/score ────────────────────────────────────
+// Runs scoreCoupons.js exactly as the cron does — scores all coupons scraped
+// in the last 12h and writes couponScore + scoreCalculatedAt to each document.
+// The response waits for the script to finish and returns the full log output.
+router.post('/pipeline/score', async (req, res) => {
+    logger.info('DEV: Manual pipeline/score triggered');
+    try {
+        const { stdout, stderr } = await runScript(SCORE_SCRIPT);
+        res.json({
+            success: true,
+            message: 'Scoring complete (last 12h window, same as cron).',
+            output: stdout.trim().split('\n').filter(Boolean),
+            warnings: stderr ? stderr.trim().split('\n').filter(Boolean) : [],
+        });
+    } catch (err) {
+        logger.error(`DEV: pipeline/score failed — ${err.message}`);
+        res.status(500).json({ success: false, error: err.message, exitCode: err.exitCode, stderr: err.stderr });
+    }
+});
+
+// ─── POST /api/dev/scraper/pipeline/delete ───────────────────────────────────
+// Runs filterBelowAverageCoupons.js exactly as the cron does — deletes below-
+// average coupons from the batch scored in the last 12h, grouped per merchant.
+// WARNING: permanently deletes documents from rawscrapedcoupons.
+router.post('/pipeline/delete', async (req, res) => {
+    logger.warn('DEV: Manual pipeline/delete triggered');
+    try {
+        const { stdout, stderr } = await runScript(DELETE_SCRIPT);
+        res.json({
+            success: true,
+            message: 'Deletion complete (last 12h scored batch, same as cron).',
+            output: stdout.trim().split('\n').filter(Boolean),
+            warnings: stderr ? stderr.trim().split('\n').filter(Boolean) : [],
+        });
+    } catch (err) {
+        logger.error(`DEV: pipeline/delete failed — ${err.message}`);
+        res.status(500).json({ success: false, error: err.message, exitCode: err.exitCode, stderr: err.stderr });
     }
 });
 
