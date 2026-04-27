@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CouponStatisticsRequest
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.ExclusiveCouponDetailResponseData
+import com.ayaan.dealora.data.api.models.RawCouponListResponseData
 import com.ayaan.dealora.data.api.models.ExclusiveCouponListResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
@@ -83,4 +84,17 @@ interface CouponApiService {
     suspend fun getExclusiveCouponByCode(
         @Path("couponCode") couponCode: String
     ): Response<ApiResponse<ExclusiveCouponDetailResponseData>>
+
+    // Raw scraped coupons endpoint (exclusive / discover mode)
+    @GET("api/raw-coupons")
+    suspend fun getRawCoupons(
+        @Query("category") category: String? = null,
+        @Query("brand") brand: String? = null,
+        @Query("search") search: String? = null,
+        @Query("discountType") discountType: String? = null,
+        @Query("validity") validity: String? = null,
+        @Query("sortBy") sortBy: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResponse<RawCouponListResponseData>>
 }
