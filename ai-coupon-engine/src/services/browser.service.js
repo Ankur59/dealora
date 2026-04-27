@@ -272,10 +272,10 @@ export class BrowserService {
    * to look less like a bot (scroll, move mouse around).
    */
   static async warmUpPage(page) {
-    await BrowserService.randomDelay(1500, 3500);
+    await BrowserService.randomDelay(500, 1500);
     await BrowserService.humanMove(page, 640, 360);
     await page.mouse.wheel(0, 50 + Math.random() * 100);
-    await BrowserService.randomDelay(800, 1500);
+    await BrowserService.randomDelay(400, 1000);
   }
 }
 
