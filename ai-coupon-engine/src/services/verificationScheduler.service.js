@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import Merchant from '../models/merchant.model.js';
 import VerificationJob from '../models/verificationJob.model.js';
-import browserService from './browser.service.js';
+import browserService, { BrowserService } from './browser.service.js';
 import couponVerificationService from './couponVerification.service.js';
 import { io } from '../index.js';
 
@@ -97,6 +97,15 @@ class VerificationSchedulerService {
       await browserService.emitLog(merchantId, `🚀 Starting batch verification cycle…`);
 
       const { page, context } = await browserService.getPageWithSession(merchantId);
+
+      // ─── INITIAL NAVIGATION ───
+      // Ensure we don't start on about:blank
+      const targetUrl = merchant.website || merchant.merchantUrl || merchant.domain;
+      if (targetUrl) {
+        await browserService.emitLog(merchantId, `🌐 Navigating to ${targetUrl}…`);
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await BrowserService.warmUpPage(page);
+      }
 
       // Perform verification
       await couponVerificationService.verifyAllMerchantCoupons(merchantId, page, context, job);

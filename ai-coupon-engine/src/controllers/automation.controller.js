@@ -4,20 +4,14 @@ import Merchant from '../models/merchant.model.js';
 import MerchantCredential from '../models/merchantCredential.model.js';
 import { io } from '../index.js';
 
-const STANDARD_CREDENTIALS = {
-  EMAIL: 'Nobentadeal@gmail.com',
-  PASSWORD: 'Mumbai@123',
-  PHONE: '7425817074'
-};
-
 /**
  * Fetches dynamic credentials taking manual merchant overrides into account
  */
 async function getActiveCredentials(merchantId) {
   const globalId = '000000000000000000000000';
 
-  // 1. Start with hardcoded defaults
-  const creds = { ...STANDARD_CREDENTIALS };
+  // 1. Start with empty defaults (will be filled by global/merchant overrides)
+  const creds = {};
 
   // 2. Load and apply Global overrides
   const globalCustom = await MerchantCredential.find({ merchantId: globalId }).lean();
@@ -56,33 +50,83 @@ function sanitizeActionKey(key) {
 /**
  * Attempts to auto-fill an OTP input and click a submit button
  * after receiving an OTP from the dashboard.
+ * Handles both single-input and multi-box (digit-by-digit) OTP patterns.
  */
 async function attemptPostOTPFill(page, otp, merchantId) {
-  const otpSelectors = [
-    'input[inputmode="numeric"]',
-    'input[type="tel"]',
-    'input[name*="otp" i]',
-    'input[id*="otp" i]',
-    'input[placeholder*="otp" i]',
-    'input[placeholder*="code" i]',
-    'input[name*="verification" i]',
-    'input[id*="verification" i]',
-    'input[autocomplete="one-time-code"]',
-    'input[maxlength="6"]',
+  const otpString = otp.toString().trim();
+
+  // First, try to detect multi-box OTP inputs (e.g., 6 separate boxes for 6 digits)
+  // Common patterns: maxlength="1" inputs, or inputs with index-based names
+  const multiBoxPatterns = [
+    'input[maxlength="1"][inputmode="numeric"]',
+    'input[maxlength="1"][type="tel"]',
+    'input[maxlength="1"][type="number"]',
+    'input[maxlength="1"][type="text"]',
+    'input[name*="otp"][maxlength="1"]',
+    'input[id*="otp"][maxlength="1"]',
+    'input[data-testid*="otp"][maxlength="1"]',
+    'input[class*="otp"][maxlength="1"]',
+    'input[class*="pin"][maxlength="1"]',
+    'input[class*="digit"][maxlength="1"]',
+    // MuscleBlaze specific patterns
+    'input[class*="nxt"][maxlength="1"]',
+    '.nxtAuthModalContent input[maxlength="1"]',
   ];
 
   let filled = false;
-  for (const sel of otpSelectors) {
+
+  // Try multi-box pattern first
+  for (const pattern of multiBoxPatterns) {
     try {
-      const el = await page.$(sel);
-      if (el) {
-        await page.fill(sel, otp);
-        await browserService.emitLog(merchantId, `Auto-filled OTP into ${sel}`);
+      const inputs = await page.$$(pattern);
+      if (inputs.length >= otpString.length) {
+        await browserService.emitLog(merchantId, `Detected multi-box OTP with ${inputs.length} inputs, filling ${otpString.length} digits…`);
+        for (let i = 0; i < otpString.length; i++) {
+          await inputs[i].fill(otpString[i]);
+          await inputs[i].dispatchEvent('input');
+          // Small delay between digits to mimic human typing
+          await page.waitForTimeout(50);
+        }
+        await browserService.emitLog(merchantId, `Filled OTP digits into ${pattern}`);
         filled = true;
         break;
       }
     } catch (e) {
-      // try next selector
+      // try next pattern
+    }
+  }
+
+  // Fallback: single-input OTP field
+  if (!filled) {
+    const otpSelectors = [
+      'input[inputmode="numeric"]',
+      'input[type="tel"]',
+      'input[name*="otp" i]',
+      'input[id*="otp" i]',
+      'input[placeholder*="otp" i]',
+      'input[placeholder*="code" i]',
+      'input[name*="verification" i]',
+      'input[id*="verification" i]',
+      'input[autocomplete="one-time-code"]',
+      'input[maxlength="6"]',
+      // MuscleBlaze specific
+      'input[class*="nxt"]',
+      '.nxtAuthModalContent input[type="tel"]',
+      '.nxtAuthModalContent input[type="text"]',
+    ];
+
+    for (const sel of otpSelectors) {
+      try {
+        const el = await page.$(sel);
+        if (el) {
+          await page.fill(sel, otpString);
+          await browserService.emitLog(merchantId, `Auto-filled OTP into ${sel}`);
+          filled = true;
+          break;
+        }
+      } catch (e) {
+        // try next selector
+      }
     }
   }
 
@@ -102,19 +146,30 @@ async function attemptPostOTPFill(page, otp, merchantId) {
     'a:has-text("Continue")',
     'a:has-text("Submit")',
     'a:has-text("Verify")',
+    // MuscleBlaze specific
+    'button.nxtContinueButton',
+    '.nxtAuthModalContent button[type="submit"]',
+    '.nxtAuthModalContentInner button',
+    'button[class*="nxt"]',
   ];
 
+  let clicked = false;
   for (const sel of submitSelectors) {
     try {
       const el = await page.$(sel);
       if (el) {
         await page.click(sel);
         await browserService.emitLog(merchantId, `Auto-clicked ${sel}`);
+        clicked = true;
         break;
       }
     } catch (e) {
       // try next selector
     }
+  }
+
+  if (!clicked) {
+    await browserService.emitLog(merchantId, 'Could not find submit button; AI will need to click it.', 'warning');
   }
 
   // Give the site time to process the OTP and redirect
@@ -174,7 +229,7 @@ async function executeMacro(merchantId, merchant, mode, page, context, res, acti
         await page.waitForSelector(step.selector, { timeout: 5000 });
         await page.fill(step.selector, val);
       }
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1000);
     }
 
     // If we completed the macro loop successfully without crashing
@@ -204,8 +259,9 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     const activeCreds = await getActiveCredentials(merchantId);
 
     // Inject custom email into the goal text if appropriate
-    let finalGoal = goal.replace(STANDARD_CREDENTIALS.EMAIL, activeCreds.EMAIL);
-    finalGoal = finalGoal.replace(STANDARD_CREDENTIALS.PHONE, activeCreds.PHONE);
+    let finalGoal = goal;
+    if (activeCreds.EMAIL) finalGoal = finalGoal.replace(/Nobentadeal@gmail.com/g, activeCreds.EMAIL);
+    if (activeCreds.PHONE) finalGoal = finalGoal.replace(/7425817074/g, activeCreds.PHONE);
 
     let { page, context, merchant } = await browserService.getPageWithSession(merchantId);
     if (!merchant.actionMaps) merchant.actionMaps = new Map();
@@ -453,10 +509,10 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
 
       if (suggestion.action === 'wait') {
         currentMacro.push({ action: 'wait' });
-        await BrowserService.randomDelay(2500, 4000);
+        await BrowserService.randomDelay(1500, 2500);
       } else {
         // Human-like pause between actions (randomised)
-        await BrowserService.randomDelay(1500, 3000);
+        await BrowserService.randomDelay(800, 2000);
       }
     }
 
@@ -501,11 +557,15 @@ export class AutomationController {
    */
   async createAccountOnMerchant(req, res) {
     const { merchantId } = req.params;
+    const activeCreds = await getActiveCredentials(merchantId);
+    const email = activeCreds.EMAIL || 'Nobentadeal@gmail.com';
+    const password = activeCreds.PASSWORD || 'Mumbai@123';
+    const phone = activeCreds.PHONE || '7425817074';
     const goal = req.body.goal ||
       `Create a new account on this merchant website using these standard credentials:
-       Email: ${STANDARD_CREDENTIALS.EMAIL}
-       Password: ${STANDARD_CREDENTIALS.PASSWORD}
-       Phone: ${STANDARD_CREDENTIALS.PHONE}
+       Email: ${email}
+       Password: ${password}
+       Phone: ${phone}
        Fill in the registration/signup form, handle any OTP verification, and complete account creation.
        Use EMAIL for email fields, PASSWORD for password fields, PHONE for phone fields.`;
     await runAutomationLoop(merchantId, goal, res, 'create_account');

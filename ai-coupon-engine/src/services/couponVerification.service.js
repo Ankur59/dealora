@@ -27,8 +27,8 @@ export class CouponVerificationService {
         if (jobTracker) jobTracker.failedCount++;
       }
 
-      // Random human-like delay between coupons
-      await page.waitForTimeout(2000 + Math.random() * 3000);
+      // Random human-like delay between coupons (reduced)
+      await page.waitForTimeout(1000 + Math.random() * 2000);
     }
   }
 
@@ -41,28 +41,20 @@ export class CouponVerificationService {
     }
 
     // 1. Check if we are already on a checkout/cart page or logged in
-    // This is a fast check to skip redundant login/navigation
-    const currentUrl = page.url();
     const isLoggedIn = await this.checkLoginStatus(page);
 
     if (!isLoggedIn) {
-      await browserService.emitLog(merchantId, `🔑 Not logged in, performing auto-login first...`);
-      // Logic to trigger login would go here, but for batch verification, 
-      // we assume verifyAllMerchantCoupons handles the initial setup.
+      await browserService.emitLog(merchantId, `🔑 Session lost or not logged in, attempting auto-login...`);
+      // Use the existing login flow from automation.controller
+      const targetUrl = page.url();
+      const goal = 'Login to the merchant account using the provided credentials. Fill email with EMAIL, password with PASSWORD.';
+      // We need to import or access runAutomationLoop logic here.
+      // For now, let's assume we can trigger a login via the controller or a simplified version.
+      await browserService.emitLog(merchantId, `⚠️ Login logic required but currently in batch mode. Continuing...`, 'warning');
     }
 
-    // 2. Try Macro first
-    if (verification.verificationMacro && verification.verificationMacro.length > 0) {
-      await browserService.emitLog(merchantId, `⚡ Replaying macro for coupon ${coupon.code}…`);
-      const success = await this.replayMacro(page, verification.verificationMacro);
-      if (success) {
-        await this.markVerified(verification, coupon);
-        return;
-      }
-    }
-
-    // 2. AI Path: Deep analysis of T&C and Cart matching
-    await browserService.emitLog(merchantId, `🤖 Using AI to verify coupon ${coupon.code}…`);
+    // 2. Deep analysis of T&C and Cart matching
+    await browserService.emitLog(merchantId, `🤖 Verifying coupon ${coupon.code}…`);
 
     // Extract T&C if we don't have them
     if (!verification.termsSummary || !verification.termsSummary.minOrderValue) {
@@ -78,54 +70,133 @@ export class CouponVerificationService {
     verification.result = result;
     verification.status = result.success ? 'verified' : 'failed';
     verification.lastAttemptedAt = new Date();
-    if (result.success) verification.verifiedAt = new Date();
+    if (result.success) {
+      verification.verifiedAt = new Date();
+      await browserService.emitLog(merchantId, `✅ Coupon ${coupon.code} verified successfully!`, 'success');
+    } else {
+      await browserService.emitLog(merchantId, `❌ Coupon ${coupon.code} verification failed: ${result.errorMessage || 'Unknown error'}`, 'error');
+    }
 
     await verification.save();
 
     if (result.success) {
       await this.markVerified(verification, coupon);
-      // Logic to record successful macro here would go in applyAndCheck or a wrapper
     }
   }
 
   async analyzeTerms(page, coupon, verification, merchantId) {
-    // Navigate to product page or T&C section
-    // For now, assume we are on a page where we can see some info or the coupon description helps
-    const screenshot = await page.screenshot({ type: 'png' });
-    const analysis = await geminiService.analyzeTermsAndConditions(screenshot.toString('base64'), coupon.description);
+    const description = coupon.description || '';
+    // If description is clear enough, we might not even need a screenshot, but Gemini likes it.
+    try {
+      const screenshot = await page.screenshot({ type: 'png' });
+      const analysis = await geminiService.analyzeTermsAndConditions(screenshot.toString('base64'), description);
 
-    verification.termsSummary = analysis;
-    await verification.save();
-    await browserService.emitLog(merchantId, `📝 AI extracted T&C: Min Order ${analysis.minOrderValue || 'None'}`);
+      verification.termsSummary = {
+        minOrderValue: analysis.minOrderValue || 0,
+        applicableCategories: analysis.applicableCategories || [],
+        excludedProducts: analysis.excludedProducts || [],
+        userTypes: analysis.userTypes || ['all_users']
+      };
+      await verification.save();
+      await browserService.emitLog(merchantId, `📝 T&C: Min Order ${analysis.minOrderValue || 'None'}`);
+    } catch (err) {
+      await browserService.emitLog(merchantId, `⚠️ AI T&C analysis failed: ${err.message}`, 'warning');
+      // Fallback defaults
+      verification.termsSummary = { minOrderValue: 0 };
+    }
   }
 
   async prepareCart(page, terms, merchantId) {
-    // AI suggests what to add to cart to meet terms
+    const minOrder = terms?.minOrderValue || 0;
+    
+    // Check current cart value if possible
+    const cartValue = await page.evaluate(() => {
+      // Common cart value selectors
+      const selectors = ['.cart-total', '.subtotal', '.cart-value', '.amount', '#cart-total'];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) {
+          const val = parseFloat(el.innerText.replace(/[^0-9.]/g, ''));
+          if (!isNaN(val)) return val;
+        }
+      }
+      return 0;
+    });
+
+    if (cartValue >= minOrder && cartValue > 0) {
+      await browserService.emitLog(merchantId, `🛒 Cart value ${cartValue} already meets requirement ${minOrder}.`);
+      return;
+    }
+
+    await browserService.emitLog(merchantId, `🛒 Preparing cart (Current: ${cartValue}, Target: ${minOrder})…`);
+    
     const screenshot = await page.screenshot({ type: 'png' });
     const suggestion = await geminiService.suggestCartActions(screenshot.toString('base64'), terms);
 
-    if (suggestion.action === 'add_item') {
-      await browserService.emitLog(merchantId, `🛒 Adding items to cart to meet requirements…`);
-      // Perform the click/navigate to add item
-      // This would use the same logic as runAutomationLoop but focused on cart prep
+    if (suggestion.action === 'add_item' || suggestion.action === 'navigate') {
+      await browserService.emitLog(merchantId, `🛒 AI suggests: ${suggestion.reason}`);
+      if (suggestion.x && suggestion.y) {
+        const vp = page.viewportSize();
+        await page.mouse.click((suggestion.x / 1000) * vp.width, (suggestion.y / 1000) * vp.height);
+        await page.waitForTimeout(3000); // Wait for navigation/add
+      }
     }
   }
 
   async applyAndCheck(page, code, merchantId) {
-    // Navigate to checkout/cart
-    // Find coupon input, type code, click apply
-    // Check if "Success" or "Discount Applied" appears
-    return { success: true, couponApplied: true }; // Placeholder
+    await browserService.emitLog(merchantId, `🎟️ Applying code ${code}…`);
+    
+    // Use AI to find and apply coupon
+    const url = page.url();
+    const screenshot = await page.screenshot({ type: 'png' });
+    const goal = `Find the coupon/promo code input field, type "${code}", and click Apply. Then tell me if it worked.`;
+    
+    // We reuse suggestNextAction for this
+    const suggestion = await geminiService.suggestNextAction(screenshot.toString('base64'), url, goal);
+    
+    if (suggestion.action === 'fill' || suggestion.action === 'click') {
+      if (suggestion.x && suggestion.y) {
+        const vp = page.viewportSize();
+        const targetX = (suggestion.x / 1000) * vp.width;
+        const targetY = (suggestion.y / 1000) * vp.height;
+        
+        if (suggestion.action === 'fill') {
+          await page.mouse.click(targetX, targetY);
+          await page.keyboard.type(code);
+          await page.keyboard.press('Enter');
+        } else {
+          await page.mouse.click(targetX, targetY);
+        }
+        
+        await page.waitForTimeout(3000); // Wait for application
+        
+        // Final check
+        const finalScreenshot = await page.screenshot({ type: 'png' });
+        const checkGoal = `Check if the coupon code "${code}" was successfully applied. Look for "Applied", discount amounts, or success messages.`;
+        const check = await geminiService.suggestNextAction(finalScreenshot.toString('base64'), page.url(), checkGoal);
+        
+        const success = check.reason?.toLowerCase().includes('success') || check.action === 'done';
+        return { 
+          success, 
+          couponApplied: success,
+          errorMessage: success ? null : check.reason
+        };
+      }
+    }
+
+    return { success: false, errorMessage: 'Could not locate coupon input' };
   }
 
   async checkLoginStatus(page) {
     try {
-      // Common indicators of being logged in: absence of "Login/Sign In" or presence of "Account/Logout"
-      const loginText = await page.evaluate(() => {
+      return await page.evaluate(() => {
         const text = document.body.innerText.toLowerCase();
-        return text.includes('logout') || text.includes('my account') || text.includes('sign out');
+        const indicators = [
+          'logout', 'sign out', 'my account', 'my profile', 'order history',
+          'hi,', 'welcome back', 'account settings'
+        ];
+        return indicators.some(ind => text.includes(ind));
       });
-      return loginText;
     } catch {
       return false;
     }
