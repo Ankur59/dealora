@@ -171,6 +171,111 @@ class AiExtractionService {
     }
 
     /**
+     * Enrich a single raw-scraped coupon with fields that are often missing
+     * from listing-page scrapes:
+     *   - userType   ('new' | 'existing' | 'both')
+     *   - websiteLink (brand's direct offer/promo URL, not the scraper source)
+     *   - homePage    (brand's root homepage URL)
+     *   - minimumOrder (numeric minimum spend, 0 if none)
+     *   - terms       (cleaned / improved terms string)
+     *
+     * Only the fields that are null/missing in the raw coupon are inferred.
+     * Existing values are passed-through unchanged.
+     *
+     * @param {object} rawCoupon - A coupon object as returned by the adapter
+     * @returns {Promise<object>} - The same object with enriched fields merged in
+     */
+    async enrichScrapedCoupon(rawCoupon) {
+        try {
+            const model = await geminiService.findWorkingModel();
+            if (!model) {
+                logger.warn('AiExtractionService.enrichScrapedCoupon: No Gemini model available — skipping enrichment');
+                return rawCoupon;
+            }
+
+            // Build a compact text block from whatever data we have so the AI has context
+            const context = [
+                `Brand: ${rawCoupon.brandName || 'Unknown'}`,
+                `Title: ${rawCoupon.couponTitle || ''}`,
+                `Description: ${rawCoupon.description || ''}`,
+                `Coupon Code: ${rawCoupon.couponCode || 'N/A'}`,
+                `Category: ${rawCoupon.category || 'Unknown'}`,
+                `Discount Type: ${rawCoupon.discountType || 'unknown'}`,
+                `Discount Value: ${rawCoupon.discountValue || 'N/A'}`,
+                `Existing Terms: ${rawCoupon.terms || 'None'}`,
+                `Existing Minimum Order: ${rawCoupon.minimumOrder ?? 'Not found'}`,
+            ].join('\n');
+
+            const prompt = `
+You are a coupon data enrichment assistant. Given the following scraped coupon data, 
+extract or infer ONLY the specified fields. Be concise and accurate.
+
+SCRAPED COUPON DATA:
+${context}
+
+Return a strictly valid JSON object with EXACTLY these fields:
+{
+  "userType": "Which user segment this coupon targets. Must be one of: 'new', 'existing', 'both'. Use 'new' only if the offer explicitly says 'new users'. Use 'existing' if it says 'existing users'. Otherwise return 'both'.",
+  "websiteLink": "The brand's own website promo/deals URL (e.g. https://www.zomato.com/offers). NOT a GrabOn or coupon-aggregator URL. Return null if unknown.",
+  "homePage": "The brand's root homepage URL (e.g. https://www.zomato.com). Return null if unknown.",
+  "minimumOrder": "Minimum spend amount as a plain number (e.g. 299). Return 0 if there is no minimum order. Return null ONLY if you cannot determine it at all.",
+  "terms": "A clean, concise bullet-point list of the key redemption terms. Each bullet on a new line starting with '•'. If terms already exist in the input and are complete, return them cleaned up. If missing, infer from the title/description. Keep under 300 characters."
+}
+
+Rules:
+- Return ONLY the JSON object. No markdown, no explanation.
+- Do not invent URLs — if genuinely unknown, return null for URL fields.
+- minimumOrder must be a NUMBER or null, never a string.
+- userType must be exactly one of: 'new', 'existing', 'both'.
+`;
+
+            const result = await model.generateContent(prompt);
+            const text = result.response.text();
+            const enriched = this.parseResponse(text);
+
+            // Validate and merge — only overwrite fields that are currently null/missing
+            const merged = { ...rawCoupon };
+
+            // userType: only accept valid enum values
+            if (!merged.userType && enriched.userType && ['new', 'existing', 'both'].includes(enriched.userType)) {
+                merged.userType = enriched.userType;
+            }
+
+            // websiteLink: only accept if it looks like a URL and the field is empty
+            if (!merged.websiteLink && typeof enriched.websiteLink === 'string' && enriched.websiteLink.startsWith('http')) {
+                merged.websiteLink = enriched.websiteLink;
+            }
+
+            // homePage: same rules as websiteLink
+            if (!merged.homePage && typeof enriched.homePage === 'string' && enriched.homePage.startsWith('http')) {
+                merged.homePage = enriched.homePage;
+            }
+
+            // minimumOrder: accept numeric values (including 0 which is valid "no minimum")
+            if ((merged.minimumOrder === null || merged.minimumOrder === undefined) && typeof enriched.minimumOrder === 'number') {
+                merged.minimumOrder = enriched.minimumOrder;
+            }
+
+            // terms: only enrich if empty and the AI returned something meaningful
+            if (!merged.terms && typeof enriched.terms === 'string' && enriched.terms.trim().length > 5) {
+                merged.terms = enriched.terms.trim();
+            }
+
+            logger.info(
+                `AiExtractionService.enrichScrapedCoupon: Enriched "${rawCoupon.couponTitle}" (${rawCoupon.brandName}) ` +
+                `userType=${merged.userType} minOrder=${merged.minimumOrder} hasWebsite=${!!merged.websiteLink}`
+            );
+
+            return merged;
+
+        } catch (error) {
+            // Enrichment is best-effort — never block the scraper pipeline
+            logger.warn(`AiExtractionService.enrichScrapedCoupon: Failed for "${rawCoupon.couponTitle}" — ${error.message}. Returning raw data.`);
+            return rawCoupon;
+        }
+    }
+
+    /**
      * Clean and parse the JSON response from Gemini
      */
     parseResponse(text) {

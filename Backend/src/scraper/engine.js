@@ -3,6 +3,7 @@ const RawScrapedCoupon = require('../models/RawScrapedCoupon');
 const logger = require('../utils/logger');
 const { generateCouponImage } = require('../services/couponImageService');
 const { addDisplayFields } = require('../utils/couponHelpers');
+const aiExtractionService = require('../services/aiExtractionService');
 
 /**
  * Compute a 0-100 discount weight for a coupon based on its discountType
@@ -220,9 +221,27 @@ class ScraperEngine {
         const now = new Date();
         let saved = 0;
         let errors = 0;
+        let enriched = 0;
 
-        for (const coupon of coupons) {
+        for (let coupon of coupons) {
             try {
+                // ── AI Enrichment pass ────────────────────────────────────────
+                // Fills in userType, websiteLink, homePage, minimumOrder, terms
+                // for fields that the listing-page scraper could not extract.
+                // This is best-effort: if Gemini is unavailable the raw data is used.
+                const needsEnrichment =
+                    !coupon.userType ||
+                    !coupon.websiteLink ||
+                    !coupon.homePage ||
+                    coupon.minimumOrder === null ||
+                    coupon.minimumOrder === undefined ||
+                    !coupon.terms;
+
+                if (needsEnrichment) {
+                    coupon = await aiExtractionService.enrichScrapedCoupon(coupon);
+                    enriched++;
+                }
+
                 // Debug log for signal fields
                 if (coupon.trustscore !== null && coupon.trustscore !== undefined) {
                     logger.info(`ScraperEngine: Saving Raw Coupon Signal - Brand: ${coupon.brandName}, TrustScore: ${coupon.trustscore}, Type: ${typeof coupon.trustscore}, UsedBy: ${coupon.usedBy}`);
@@ -247,7 +266,15 @@ class ScraperEngine {
                         category: coupon.category || null,
                         couponLink: coupon.couponLink || null,
                         terms: coupon.terms || null,
-                        minimumOrder: coupon.minimumOrder || null,
+                        minimumOrder: (coupon.minimumOrder !== null && coupon.minimumOrder !== undefined)
+                            ? Number(coupon.minimumOrder)
+                            : null,
+
+                        // ── AI-enriched metadata fields ───────────────────────────────
+                        userType:    coupon.userType    || null,
+                        websiteLink: coupon.websiteLink || null,
+                        homePage:    coupon.homePage    || null,
+
                         // ── Signal fields (scraped from source) ──────────────────────
                         // Only update signals if they are present in this scrape run
                         // This prevents overwriting valid data with null from duplicate/incomplete scrape fragments
@@ -299,7 +326,7 @@ class ScraperEngine {
             }
         }
 
-        logger.info(`saveRawCoupons [${sourceName}]: upserted=${saved} errors=${errors} total=${coupons.length}`);
+        logger.info(`saveRawCoupons [${sourceName}]: upserted=${saved} enriched=${enriched} errors=${errors} total=${coupons.length}`);
     }
 
     async saveOrUpdate(data) {

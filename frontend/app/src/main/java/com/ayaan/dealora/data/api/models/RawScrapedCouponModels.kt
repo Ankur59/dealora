@@ -53,5 +53,15 @@ data class RawScrapedCoupon(
 
     @Json(name = "verified") val verified: Boolean? = null,
 
+    @Json(name = "terms") val terms: String? = null,
+
+    @Json(name = "minimumOrder") val minimumOrder: Double? = null,
+
+    @Json(name = "userType") val userType: String? = null,
+
+    @Json(name = "websiteLink") val websiteLink: String? = null,
+
+    @Json(name = "homePage") val homePage: String? = null,
+
     @Json(name = "scrapedAt") val scrapedAt: String? = null
 )
