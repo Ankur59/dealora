@@ -6,6 +6,8 @@ const RawScrapedCoupon = require('../src/models/RawScrapedCoupon.js');
 const RawScrapedMerchant = require('../src/models/RawScrapedMerchant.js');
 const logger = require('../src/utils/logger');
 
+const SCORING_WINDOW_HOURS = 12;
+
 async function scoreCoupons() {
     try {
         console.log('Connecting to database...');
@@ -22,11 +24,19 @@ async function scoreCoupons() {
 
         let totalCouponsScored = 0;
 
+        // Only score coupons scraped within the last SCORING_WINDOW_HOURS hours
+        // so this script can be safely chained after a scraping run on the same cadence.
+        const cutoffTime = new Date(Date.now() - SCORING_WINDOW_HOURS * 60 * 60 * 1000);
+        console.log(`\nScoring window: coupons scraped after ${cutoffTime.toISOString()} (last ${SCORING_WINDOW_HOURS}h)`);
+
         for (const merchant of merchants) {
             console.log(`\nProcessing merchant: ${merchant.merchantName}`);
-            
-            const coupons = await RawScrapedCoupon.find({ brandName: merchant.merchantName });
-            console.log(`Found ${coupons.length} coupons for ${merchant.merchantName}`);
+
+            const coupons = await RawScrapedCoupon.find({
+                brandName: merchant.merchantName,
+                scrapedAt: { $gte: cutoffTime },
+            });
+            console.log(`Found ${coupons.length} coupons scraped in last ${SCORING_WINDOW_HOURS}h for ${merchant.merchantName}`);
 
             for (const coupon of coupons) {
                 // Prepare a copy of the coupon data for scoring without modifying the DB fields
@@ -41,12 +51,14 @@ async function scoreCoupons() {
                 // Calculate score
                 const scoreResult = calculateCouponScore(scoringData);
 
-                // Update ONLY the score-related fields
-                // coupon.couponScore = scoreResult.finalScore;
-                // coupon.scoreCalculatedAt = new Date();
-                // coupon.scoreDetails = scoreResult;
+                // Persist score-related fields so the deletion script can
+                // filter by scoreCalculatedAt (i.e. "scored in last 12h").
+                coupon.couponScore = scoreResult.finalScore ?? scoreResult;
+                coupon.scoreCalculatedAt = new Date();
+                coupon.scoreDetails = scoreResult?.details ?? null;
 
                 await coupon.save();
+                console.log(`   ✅ Scored: ${coupon.couponTitle.substring(0, 30)}... | Score: ${coupon.couponScore} | Bonus: +${scoreResult.discountBonus || 0}`);
                 totalCouponsScored++;
             }
             console.log(`Finished scoring ${coupons.length} coupons for ${merchant.merchantName}`);

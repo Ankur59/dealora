@@ -1,4 +1,6 @@
 const cron = require('node-cron');
+const path = require('path');
+const { execFile } = require('child_process');
 const { runScraper } = require('../scraper');
 const Coupon = require('../models/Coupon');
 const PrivateCoupon = require('../models/PrivateCoupon');
@@ -8,6 +10,23 @@ const notificationService = require('../services/notificationService');
 const { syncSheet } = require('../controllers/exclusiveCouponController');
 const logger = require('../utils/logger');
 const ImportedCoupons = require('../models/ImportedCoupons');
+
+// ─── Helpers for the scrape→score→delete pipeline ────────────────────────────
+
+/**
+ * Runs a Node script as a child process and resolves when it exits successfully,
+ * or rejects with the exit code / stderr on failure.
+ */
+function runScript(scriptPath) {
+    return new Promise((resolve, reject) => {
+        execFile(process.execPath, [scriptPath], { env: process.env }, (err, stdout, stderr) => {
+            if (stdout) logger.info(`[pipeline] ${path.basename(scriptPath)} stdout:\n${stdout.trim()}`);
+            if (stderr) logger.warn(`[pipeline] ${path.basename(scriptPath)} stderr:\n${stderr.trim()}`);
+            if (err) return reject(new Error(`${path.basename(scriptPath)} exited with code ${err.code}: ${err.message}`));
+            resolve();
+        });
+    });
+}
 
 const initCronJobs = () => {
     // 1. Daily Scraping at 2:00 AM
@@ -284,6 +303,53 @@ const initCronJobs = () => {
             logger.info(`CRON: expiresIn update complete. Modified ${result.modifiedCount} out of ${coupons.length} coupons.`);
         } catch (error) {
             logger.error('CRON: expiresIn update job failed:', error);
+        }
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PIPELINE: Scrape → Score → Delete  (every 12 hours at 00:00 and 12:00)
+    //
+    // Adapters currently active: GrabOn, CouponDuniya
+    // To add more later, push their names into PIPELINE_ADAPTERS.
+    // ─────────────────────────────────────────────────────────────────────────
+    const PIPELINE_ADAPTERS = ['GrabOn', 'CouponDuniya'];
+    const SCORE_SCRIPT  = path.resolve(__dirname, '../../scripts/scoreCoupons.js');
+    const DELETE_SCRIPT = path.resolve(__dirname, '../../scripts/filterBelowAverageCoupons.js');
+
+    cron.schedule('0 */12 * * *', async () => {
+        logger.info('PIPELINE: ▶ Starting 12h scrape → score → delete cycle');
+        logger.info(`PIPELINE: Adapters: ${PIPELINE_ADAPTERS.join(', ')}`);
+
+        try {
+            // ── Step 1: Scrape ─────────────────────────────────────────────
+            logger.info('PIPELINE: [1/3] Running scrapers...');
+            const savedAdapters = process.env.SCRAPER_ADAPTERS;
+            process.env.SCRAPER_ADAPTERS = PIPELINE_ADAPTERS.join(',');
+            try {
+                await runScraper();
+                logger.info('PIPELINE: [1/3] Scraping complete.');
+            } finally {
+                // Always restore the original env var even if scraping fails
+                if (savedAdapters !== undefined) {
+                    process.env.SCRAPER_ADAPTERS = savedAdapters;
+                } else {
+                    delete process.env.SCRAPER_ADAPTERS;
+                }
+            }
+
+            // ── Step 2: Score ──────────────────────────────────────────────
+            logger.info('PIPELINE: [2/3] Running scoring script...');
+            await runScript(SCORE_SCRIPT);
+            logger.info('PIPELINE: [2/3] Scoring complete.');
+
+            // ── Step 3: Delete below-average ──────────────────────────────
+            logger.info('PIPELINE: [3/3] Running deletion script...');
+            await runScript(DELETE_SCRIPT);
+            logger.info('PIPELINE: [3/3] Deletion complete.');
+
+            logger.info('PIPELINE: ✅ Cycle finished successfully.');
+        } catch (error) {
+            logger.error(`PIPELINE: ❌ Cycle failed — ${error.message}`);
         }
     });
 

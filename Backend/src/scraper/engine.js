@@ -4,6 +4,82 @@ const logger = require('../utils/logger');
 const { generateCouponImage } = require('../services/couponImageService');
 const { addDisplayFields } = require('../utils/couponHelpers');
 
+/**
+ * Compute a 0-100 discount weight for a coupon based on its discountType
+ * and discountValue.  This is calculated once at scrape time and stored on
+ * both RawScrapedCoupon and Coupon so the filter/scoring scripts can use it
+ * as a signal — ensuring high-value coupons survive below-average pruning.
+ *
+ * @param {string|null} discountType  - e.g. 'percentage', 'flat', 'cashback'
+ * @param {*}           discountValue - raw value (number, string, or null)
+ * @returns {number} score 0-100
+ */
+function computeDiscountWeight(discountType, discountValue) {
+    const type = (discountType || 'unknown').toLowerCase();
+
+    // ── Fixed-value types (no numeric parsing needed) ─────────────────────
+    if (type === 'freebie')        return 60;
+    if (type === 'buy1get1')       return 70;
+    if (type === 'free_delivery')  return 40;
+    if (type === 'wallet_upi')     return 45;
+    if (type === 'prepaid_only')   return 35;
+
+    // ── Try to extract a numeric value from discountValue ────────────────
+    // discountValue can be a number, or a raw string like:
+    //   "60% OFF", "All (32)", "₹500 off", "33 People Used Today 40% Off..."
+    let numericValue = null;
+
+    if (typeof discountValue === 'number' && !isNaN(discountValue)) {
+        numericValue = discountValue;
+    } else if (typeof discountValue === 'string') {
+        // Priority 1: percentage pattern (e.g. "60%", "40 % OFF")
+        const pctMatch = discountValue.match(/(\d+(?:\.\d+)?)\s*%/);
+        if (pctMatch) {
+            numericValue = parseFloat(pctMatch[1]);
+            // If we hit a percentage pattern but type is unknown/flat, promote type
+            if (type === 'unknown' || type === 'flat') {
+                return Math.min(Math.round(numericValue * 1.5), 100);
+            }
+        }
+        if (numericValue === null) {
+            // Priority 2: rupee / flat amount (e.g. "₹500", "Rs. 200")
+            const flatMatch = discountValue.match(/(?:₹|rs\.?\s*)(\d+(?:,\d+)*)/i);
+            if (flatMatch) {
+                numericValue = parseInt(flatMatch[1].replace(/,/g, ''), 10);
+            }
+        }
+        if (numericValue === null) {
+            // Priority 3: bare integer (e.g. "200")
+            const bareMatch = discountValue.match(/^\s*(\d+(?:\.\d+)?)\s*$/);
+            if (bareMatch) numericValue = parseFloat(bareMatch[1]);
+        }
+    }
+
+    // ── Score by type using extracted numeric value ───────────────────────
+    if (type === 'percentage') {
+        if (numericValue === null) return 25; // type known but can't parse value
+        // Cap at 100: 30 % → 45, 50 % → 75, 67 % → 100
+        return Math.min(Math.round(numericValue * 1.5), 100);
+    }
+
+    if (type === 'flat' || type === 'cashback') {
+        if (numericValue === null) return 20;
+        // Log-scale on a ₹5000 ceiling: ₹100→26, ₹500→54, ₹1000→67, ₹5000→100
+        const score = (Math.log10(numericValue + 1) / Math.log10(5001)) * 100;
+        return Math.min(Math.round(score), 100);
+    }
+
+    // unknown type — use numeric value if parseable, otherwise floor
+    if (numericValue !== null) {
+        // Treat as percentage if ≤100, else as flat
+        if (numericValue <= 100) return Math.min(Math.round(numericValue * 1.5), 100);
+        const score = (Math.log10(numericValue + 1) / Math.log10(5001)) * 100;
+        return Math.min(Math.round(score), 100);
+    }
+
+    return 10; // no discount info at all
+}
+
 class ScraperEngine {
     constructor(adapters = []) {
         this.adapters = adapters;
@@ -186,6 +262,11 @@ class ScraperEngine {
                         // ── Static / computed signal fields ───────────────────────────
                         sourceCredibilityScore: Number.isFinite(coupon.sourceCredibilityScore) ? coupon.sourceCredibilityScore : null,
 
+                        // ── Discount weight: computed from discountType + discountValue ──
+                        // Gives high-value coupons a boost so they survive the
+                        // below-average filter even when other signals are weak.
+                        discountWeight: computeDiscountWeight(coupon.discountType, coupon.discountValue),
+
                         // ── User-feedback / AI-computed fields (null until pipeline runs) ──
                         recencyScore:         Number.isFinite(coupon.recencyScore)          ? coupon.recencyScore          : null,
                         failureRate:          Number.isFinite(coupon.failureRate)           ? coupon.failureRate           : null,
@@ -287,6 +368,13 @@ class ScraperEngine {
         }
 
         const existing = await Coupon.findOne(query);
+
+        // Compute discountWeight from discount signals scraped on this coupon.
+        // This ensures the Coupon collection (read by filterBelowAverageCoupons)
+        // always has the weight — even when saveRawCoupons ran asynchronously.
+        if (data.discountWeight === undefined || data.discountWeight === null) {
+            data.discountWeight = computeDiscountWeight(data.discountType, data.discountValue);
+        }
 
         // Generate base64 image for the coupon
         try {

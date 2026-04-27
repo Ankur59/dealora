@@ -102,6 +102,33 @@ export const calculateCouponScore = (coupon) => {
         (platformVerifiedScore * weights.platformVerified)
     ) / totalWeight;
 
+    // --- Discount weight bonus (bias for high-value coupons) ---
+    //
+    // A flat weight-based approach gives too little separation between, say,
+    // discountWeight=8 and discountWeight=60 when all other scores are low.
+    //
+    // Instead we apply a POST-SCORE BONUS that scales quadratically with
+    // discountWeight, so the advantage grows non-linearly:
+    //
+    //   bonus = MAX_BONUS * (discountWeight / 100)²
+    //
+    //   discountWeight = 8  →  bonus ≈  0.2 pts
+    //   discountWeight = 15 →  bonus ≈  0.6 pts
+    //   discountWeight = 40 →  bonus ≈  4.2 pts
+    //   discountWeight = 46 →  bonus ≈  5.5 pts
+    //   discountWeight = 60 →  bonus ≈  9.4 pts
+    //   discountWeight = 70 →  bonus ≈ 12.8 pts
+    //   discountWeight = 100 →  bonus = 17.0 pts  (max)
+    //
+    // MAX_BONUS = 17 means a freebie/BOGO-level coupon (dw ≈ 60-70) earns
+    // ~9-13 pts on top of its base score, while a 5% off coupon (dw ≈ 8)
+    // earns almost nothing extra.  Cap at 100 to prevent overflow.
+    const MAX_DISCOUNT_BONUS = 17;
+    const dw = coupon.discountWeight != null ? Math.max(0, Math.min(100, coupon.discountWeight)) : 0;
+    const discountBonus = MAX_DISCOUNT_BONUS * Math.pow(dw / 100, 2);
+
+    const finalScore = Math.min(100, Math.round((baseScore + discountBonus) * 100) / 100);
+
     return {
         liveSuccessRate,
         recencyScore,
@@ -114,6 +141,8 @@ export const calculateCouponScore = (coupon) => {
         usedByScore,
         expiryFilter,
         platformVerifiedScore,
-        finalScore: Math.round(baseScore * 100) / 100,
-    };
-};
+        discountWeight: dw,
+        discountBonus: Math.round(discountBonus * 100) / 100,
+        finalScore,
+    }
+}
