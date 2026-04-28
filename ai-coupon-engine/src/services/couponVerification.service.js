@@ -148,43 +148,71 @@ export class CouponVerificationService {
     
     // Use AI to find and apply coupon
     const url = page.url();
-    const screenshot = await page.screenshot({ type: 'png' });
-    const goal = `Find the coupon/promo code input field, type "${code}", and click Apply. Then tell me if it worked.`;
-    
-    // We reuse suggestNextAction for this
-    const suggestion = await geminiService.suggestNextAction(screenshot.toString('base64'), url, goal);
-    
-    if (suggestion.action === 'fill' || suggestion.action === 'click') {
-      if (suggestion.x && suggestion.y) {
-        const vp = page.viewportSize();
-        const targetX = (suggestion.x / 1000) * vp.width;
-        const targetY = (suggestion.y / 1000) * vp.height;
-        
-        if (suggestion.action === 'fill') {
-          await page.mouse.click(targetX, targetY);
-          await page.keyboard.type(code);
-          await page.keyboard.press('Enter');
-        } else {
-          await page.mouse.click(targetX, targetY);
-        }
-        
-        await page.waitForTimeout(3000); // Wait for application
-        
-        // Final check
-        const finalScreenshot = await page.screenshot({ type: 'png' });
-        const checkGoal = `Check if the coupon code "${code}" was successfully applied. Look for "Applied", discount amounts, or success messages.`;
-        const check = await geminiService.suggestNextAction(finalScreenshot.toString('base64'), page.url(), checkGoal);
-        
-        const success = check.reason?.toLowerCase().includes('success') || check.action === 'done';
-        return { 
-          success, 
-          couponApplied: success,
-          errorMessage: success ? null : check.reason
-        };
+    let attempts = 0;
+    const maxAttempts = 3; // Allow up to 3 AI-guided steps (e.g., click section -> fill code -> click apply)
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      const screenshot = await page.screenshot({ type: 'png' });
+      const goal = `Find the coupon/promo code input field, type "${code}", and click Apply. If you see an "Apply Coupon" section that needs to be clicked to reveal the input, click that first. Then tell me if it worked.`;
+      
+      const suggestion = await geminiService.suggestNextAction(screenshot.toString('base64'), page.url(), goal);
+      await browserService.emitLog(merchantId, `🤖 AI Suggestion (${attempts}/${maxAttempts}): ${suggestion.action} - ${suggestion.reason}`);
+
+      if (suggestion.action === 'done') {
+        return { success: true, couponApplied: true, errorMessage: null };
       }
+
+      if (suggestion.action === 'failed') {
+        return { success: false, errorMessage: suggestion.reason };
+      }
+
+      if (suggestion.action === 'fill' || suggestion.action === 'click') {
+        if (suggestion.x && suggestion.y) {
+          const vp = page.viewportSize();
+          const targetX = (suggestion.x / 1000) * vp.width;
+          const targetY = (suggestion.y / 1000) * vp.height;
+          
+          if (suggestion.action === 'fill') {
+            await page.mouse.click(targetX, targetY);
+            // Clear existing value if any
+            await page.keyboard.down('Meta');
+            await page.keyboard.press('a');
+            await page.keyboard.up('Meta');
+            await page.keyboard.press('Backspace');
+            
+            await page.keyboard.type(code);
+            await page.keyboard.press('Enter');
+          } else {
+            await page.mouse.click(targetX, targetY);
+          }
+          
+          await page.waitForTimeout(3000); // Wait for action to settle
+          
+          // After fill/click, let the next loop iteration check the result or perform the next step
+          continue;
+        }
+      }
+      
+      if (suggestion.action === 'wait') {
+        await page.waitForTimeout(2000);
+        continue;
+      }
+
+      break; // Unknown action or missing coordinates
     }
 
-    return { success: false, errorMessage: 'Could not locate coupon input' };
+    // Final check if we reached here without a definitive "done" or "failed"
+    const finalScreenshot = await page.screenshot({ type: 'png' });
+    const checkGoal = `Check if the coupon code "${code}" was successfully applied. Look for "Applied", discount amounts, or success messages.`;
+    const check = await geminiService.suggestNextAction(finalScreenshot.toString('base64'), page.url(), checkGoal);
+    
+    const success = check.reason?.toLowerCase().includes('success') || check.action === 'done';
+    return { 
+      success, 
+      couponApplied: success,
+      errorMessage: success ? null : (check.reason || 'Could not verify application')
+    };
   }
 
   async checkLoginStatus(page) {
