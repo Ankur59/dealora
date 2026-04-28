@@ -7,7 +7,7 @@ import { io } from '../index.js';
 /**
  * Fetches dynamic credentials taking manual merchant overrides into account
  */
-async function getActiveCredentials(merchantId) {
+export async function getActiveCredentials(merchantId) {
   const globalId = '000000000000000000000000';
 
   // 1. Start with empty defaults (will be filled by global/merchant overrides)
@@ -180,7 +180,7 @@ async function attemptPostOTPFill(page, otp, merchantId) {
 /**
  * Executes a previously recorded macro of steps strictly.
  */
-async function executeMacro(merchantId, merchant, mode, page, context, res, activeCreds) {
+export async function executeMacro(merchantId, merchant, mode, page, context, res, activeCreds) {
   const macro = merchant.automationMacros.get(mode);
   if (!macro || macro.length === 0) return false;
 
@@ -239,7 +239,9 @@ async function executeMacro(merchantId, merchant, mode, page, context, res, acti
       'lastLoginAttempt.status': 'success',
       'lastLoginAttempt.message': 'Automation completed successfully via Macro',
     });
-    res.status(200).json({ success: true, data: { message: 'Automation finished via Macro' } });
+    if (res && !res.headersSent) {
+      res.status(200).json({ success: true, data: { message: 'Automation finished via Macro' } });
+    }
     return true; // Used macro successfully
   } catch (err) {
     await browserService.emitLog(merchantId, `⚠️ Macro execution failed at some step: ${err.message}. Falling back to AI…`, 'warning');
@@ -251,10 +253,10 @@ async function executeMacro(merchantId, merchant, mode, page, context, res, acti
  * Core automation loop – shared by both loginToMerchant and createAccountOnMerchant.
  * @param {string} merchantId
  * @param {string} goal       – Natural-language goal sent to Gemini
- * @param {object} res        – Express response (called once at end)
+ * @param {object} res        – Express response (called once at end, optional)
  * @param {string} mode       – 'login' or 'create_account'
  */
-async function runAutomationLoop(merchantId, goal, res, mode) {
+export async function runAutomationLoop(merchantId, goal, res, mode) {
   try {
     const activeCreds = await getActiveCredentials(merchantId);
 
@@ -287,7 +289,7 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
     // 1. Try to execute Macro if we have one
     if (merchant.automationMacros.has(mode)) {
       const macroSucceeded = await executeMacro(merchantId, merchant, mode, page, context, res, activeCreds);
-      if (macroSucceeded) return; // All done!
+      if (macroSucceeded) return true; // All done!
       // If failed, we just fall through to the slow Gemini loop.
     }
 
@@ -524,9 +526,10 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
       });
     }
 
-    if (!res.headersSent) {
+    if (res && !res.headersSent) {
       res.status(200).json({ success: true, data: { message: 'Automation finished', automationSuccess: succeeded } });
     }
+    return succeeded;
   } catch (error) {
     console.error('Automation error:', error);
     await browserService.emitLog(merchantId, `🔥 Critical error: ${error.message}`, 'error');
@@ -534,9 +537,10 @@ async function runAutomationLoop(merchantId, goal, res, mode) {
       'lastLoginAttempt.status': 'failed',
       'lastLoginAttempt.message': error.message,
     }).catch(() => { });
-    if (!res.headersSent) {
+    if (res && !res.headersSent) {
       res.status(500).json({ success: false, message: error.message });
     }
+    throw error;
   }
 }
 

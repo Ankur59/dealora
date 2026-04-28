@@ -110,11 +110,21 @@ class VerificationSchedulerService {
       // Perform verification
       await couponVerificationService.verifyAllMerchantCoupons(merchantId, page, context, job);
 
-      await browserService.closeSession(merchantId);
       await browserService.emitLog(merchantId, `✅ Batch verification finished for merchant.`, 'success');
     } catch (err) {
       console.error(`Error processing merchant ${merchant.merchantName}:`, err);
       await browserService.emitLog(merchantId, `🔥 Verification cycle error: ${err.message}`, 'error');
+    } finally {
+      // Guaranteed cleanup: close browser context even on fatal errors / timeouts
+      try {
+        const context = browserService.contexts.get(merchantId);
+        if (context) {
+          await browserService.closeSession(merchantId);
+          await browserService.emitLog(merchantId, `🧹 Browser session cleaned up.`, 'info');
+        }
+      } catch (closeErr) {
+        console.error(`Failed to close session for ${merchantId}:`, closeErr);
+      }
     }
   }
 
