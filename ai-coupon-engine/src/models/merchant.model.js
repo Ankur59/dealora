@@ -50,11 +50,17 @@ const merchantSchema = new Schema(
     automationMacros: { type: Map, of: [Schema.Types.Mixed] },
     // Global toggle for 12h verification run
     autoVerificationEnabled: { type: Boolean, default: true },
+    // Cursor for batch verification (tracks which coupon index to resume from)
+    _verificationCursor: { type: Number, default: 0 },
     lastLoginAttempt: {
-      status: { type: String, enum: ['idle', 'pending_otp', 'success', 'failed'], default: 'idle' },
+      status: { type: String, enum: ['idle', 'running', 'pending_otp', 'success', 'failed'], default: 'idle' },
       message: String,
       lastAttempted: Date
     },
+    // Health score computed every 12h
+    healthScore: { type: Number, default: 0, min: 0, max: 100 },
+    lastHealthCheck: { type: Date },
+    healthScoreBreakdown: { type: Schema.Types.Mixed },
   },
   { timestamps: true },
 );
