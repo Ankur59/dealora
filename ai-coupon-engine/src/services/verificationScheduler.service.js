@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import Merchant from '../models/merchant.model.js';
 import VerificationJob from '../models/verificationJob.model.js';
-import browserService from './browser.service.js';
+import browserService, { BrowserService } from './browser.service.js';
 import couponVerificationService from './couponVerification.service.js';
 import { io } from '../index.js';
 
@@ -98,14 +98,33 @@ class VerificationSchedulerService {
 
       const { page, context } = await browserService.getPageWithSession(merchantId);
 
+      // ─── INITIAL NAVIGATION ───
+      // Ensure we don't start on about:blank
+      const targetUrl = merchant.website || merchant.merchantUrl || merchant.domain;
+      if (targetUrl) {
+        await browserService.emitLog(merchantId, `🌐 Navigating to ${targetUrl}…`);
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await BrowserService.warmUpPage(page);
+      }
+
       // Perform verification
       await couponVerificationService.verifyAllMerchantCoupons(merchantId, page, context, job);
 
-      await browserService.closeSession(merchantId);
       await browserService.emitLog(merchantId, `✅ Batch verification finished for merchant.`, 'success');
     } catch (err) {
       console.error(`Error processing merchant ${merchant.merchantName}:`, err);
       await browserService.emitLog(merchantId, `🔥 Verification cycle error: ${err.message}`, 'error');
+    } finally {
+      // Guaranteed cleanup: close browser context even on fatal errors / timeouts
+      try {
+        const context = browserService.contexts.get(merchantId);
+        if (context) {
+          await browserService.closeSession(merchantId);
+          await browserService.emitLog(merchantId, `🧹 Browser session cleaned up.`, 'info');
+        }
+      } catch (closeErr) {
+        console.error(`Failed to close session for ${merchantId}:`, closeErr);
+      }
     }
   }
 
