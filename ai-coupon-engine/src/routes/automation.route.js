@@ -3,6 +3,9 @@ import automationController from '../controllers/automation.controller.js';
 import verificationSchedulerService from '../services/verificationScheduler.service.js';
 import CouponVerification from '../models/couponVerification.model.js';
 import MerchantCredential from '../models/merchantCredential.model.js';
+import Merchant from '../models/merchant.model.js';
+import browserService from '../services/browser.service.js';
+import healthScoreService from '../services/healthScore.service.js';
 import { requireDashboardAuth } from '../middleware/requireDashboardAuth.middleware.js';
 
 const router = Router();
@@ -152,6 +155,148 @@ router.post('/credentials/:merchantId', requireDashboardAuth, async (req, res) =
     res.status(200).json({ success: true, data: { message: 'Credentials updated', email, password, phone } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to save credentials' });
+  }
+});
+
+// ─── Health Score Routes ───
+router.get('/health-scores', requireDashboardAuth, async (req, res) => {
+  try {
+    const data = await healthScoreService.computeAllHealthScores();
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to compute health scores' });
+  }
+});
+
+router.get('/health-score/:merchantId', requireDashboardAuth, async (req, res) => {
+  try {
+    const data = await healthScoreService.computeMerchantHealth(req.params.merchantId);
+    if (!data) return res.status(404).json({ success: false, message: 'Merchant not found' });
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to compute health score' });
+  }
+});
+
+// ─── AI Model Metrics Route ───
+router.get('/model-metrics', requireDashboardAuth, async (req, res) => {
+  try {
+    const data = await healthScoreService.computeModelMetrics();
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to compute model metrics' });
+  }
+});
+
+// ─── Manual Override Route (by verification ID) ───
+router.post('/verification-override/:verificationId', requireDashboardAuth, async (req, res) => {
+  try {
+    const { newStatus, reason } = req.body;
+    if (!['verified', 'failed'].includes(newStatus)) {
+      return res.status(400).json({ success: false, message: 'newStatus must be verified or failed' });
+    }
+    const verification = await CouponVerification.findByIdAndUpdate(
+      req.params.verificationId,
+      {
+        'manualOverride.newStatus': newStatus,
+        'manualOverride.reason': reason || '',
+        'manualOverride.overriddenAt': new Date(),
+      },
+      { new: true }
+    );
+    if (!verification) return res.status(404).json({ success: false, message: 'Verification not found' });
+    res.status(200).json({ success: true, data: verification });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── Manual Override Route (by coupon DB ID) ───
+router.post('/verification-override/coupon/:couponDbId', requireDashboardAuth, async (req, res) => {
+  try {
+    const { newStatus, reason } = req.body;
+    if (!['verified', 'failed'].includes(newStatus)) {
+      return res.status(400).json({ success: false, message: 'newStatus must be verified or failed' });
+    }
+    
+    // Find latest verification for this coupon
+    const verification = await CouponVerification.findOne({ couponId: req.params.couponDbId })
+      .sort({ createdAt: -1 });
+
+    if (!verification) {
+      return res.status(404).json({ success: false, message: 'No verification history found for this coupon' });
+    }
+
+    verification.manualOverride = {
+      newStatus,
+      reason: reason || 'Manual fleet override from Coupons Page',
+      overriddenAt: new Date()
+    };
+    await verification.save();
+
+    // Re-trigger health/metric compute since ground truth changed
+    healthScoreService.computeAllHealthScores().catch(console.error);
+
+    res.status(200).json({ success: true, data: verification });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── Import Cookies Route (manual login / already logged in case) ───
+router.post('/import-cookies/:merchantId', requireDashboardAuth, async (req, res) => {
+  try {
+    const { cookies } = req.body;
+    const merchantId = req.params.merchantId;
+    if (!Array.isArray(cookies) || cookies.length === 0) {
+      return res.status(400).json({ success: false, message: 'cookies array is required' });
+    }
+    // Validate cookie structure
+    const validCookies = cookies.filter(c => c && typeof c.name === 'string' && typeof c.value === 'string');
+    if (validCookies.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid cookies found (need name + value)' });
+    }
+    await Merchant.findByIdAndUpdate(merchantId, {
+      cookies: validCookies,
+      'lastLoginAttempt.status': 'success',
+      'lastLoginAttempt.message': 'Cookies imported manually',
+      'lastLoginAttempt.lastAttempted': new Date(),
+    });
+    res.status(200).json({ success: true, data: { message: `Imported ${validCookies.length} cookies`, cookieCount: validCookies.length } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── Extract Cookies from Active Browser (already logged in case) ───
+router.post('/extract-cookies/:merchantId', requireDashboardAuth, async (req, res) => {
+  try {
+    const merchantId = req.params.merchantId;
+    const context = browserService.contexts.get(merchantId);
+    if (!context) {
+      return res.status(404).json({ success: false, message: 'No active browser session. Start automation first or import cookies manually.' });
+    }
+    await browserService.saveSession(merchantId, context);
+    const merchant = await Merchant.findById(merchantId).lean();
+    res.status(200).json({
+      success: true,
+      data: {
+        message: 'Cookies extracted and saved from active browser',
+        cookieCount: Array.isArray(merchant?.cookies) ? merchant.cookies.length : 0,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── Proxy Stats Route ───
+router.get('/proxy-stats', requireDashboardAuth, (req, res) => {
+  try {
+    const stats = verificationSchedulerService.getProxyStats();
+    res.status(200).json({ success: true, data: stats });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to fetch proxy stats' });
   }
 });
 

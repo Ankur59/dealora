@@ -4,6 +4,7 @@ import Coupon from '../models/coupon.model.js';
 import Merchant from '../models/merchant.model.js';
 import CouponVerification from '../models/couponVerification.model.js';
 import { getActiveCredentials, executeMacro, runAutomationLoop } from '../controllers/automation.controller.js';
+import proxyManager from './proxyManager.service.js';
 
 export class CouponVerificationService {
   /**
@@ -22,6 +23,23 @@ export class CouponVerificationService {
     const coupons = await Coupon.find({ brandName: merchant.merchantName, status: 'active' });
 
     await browserService.emitLog(merchantId, `🔍 Starting verification for ${coupons.length} coupons…`);
+
+    // Check for block right at the start
+    const blockResult = await browserService.checkAndHandleBlock(merchantId, page);
+    if (blockResult.blocked && blockResult.escalated) {
+      // Swap to proxy page/context
+      page = blockResult.page;
+      context = blockResult.context;
+      // Re-navigate
+      const targetUrl = merchant.website || merchant.merchantUrl || merchant.domain;
+      if (targetUrl) {
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await BrowserService.warmUpPage(page);
+      }
+    } else if (blockResult.blocked && !blockResult.escalated) {
+      await browserService.emitLog(merchantId, `⚠️ Blocked and cannot escalate further. Skipping merchant.`, 'error');
+      return;
+    }
 
     for (const coupon of coupons) {
       try {
@@ -44,6 +62,120 @@ export class CouponVerificationService {
         await page.waitForTimeout(500 + Math.random() * 1000);
       }
     }
+  }
+
+  /**
+   * Verify a LIMITED batch of coupons for a merchant (default 3).
+   * Used by the minute-by-minute scheduler to process exactly N coupons per cycle.
+   * Tracks progress via `lastVerifiedIndex` on the merchant doc.
+   *
+   * @param {string} merchantId
+   * @param {import('playwright').Page} page
+   * @param {import('playwright').BrowserContext} context
+   * @param {number} batchSize - Number of coupons to verify this cycle (default: 3)
+   * @param {object} jobTracker - Optional job tracker for stats
+   * @returns {{ processed: number, remaining: number, done: boolean }}
+   */
+  async verifyBatchCoupons(merchantId, page, context, batchSize = 3, jobTracker = null) {
+    if (!page || page.isClosed()) {
+      throw new Error('PAGE_FATAL: Page is closed before batch verification started');
+    }
+
+    const merchant = await Merchant.findById(merchantId);
+    if (!merchant) {
+      throw new Error(`Merchant not found: ${merchantId}`);
+    }
+
+    const allCoupons = await Coupon.find({ brandName: merchant.merchantName, status: 'active' }).sort({ _id: 1 });
+    if (allCoupons.length === 0) {
+      await browserService.emitLog(merchantId, `ℹ️ No active coupons to verify.`);
+      return { processed: 0, remaining: 0, done: true };
+    }
+
+    // Determine where we left off
+    const startIndex = merchant._verificationCursor || 0;
+    const batch = allCoupons.slice(startIndex, startIndex + batchSize);
+
+    if (batch.length === 0) {
+      // All coupons processed — reset cursor
+      await Merchant.findByIdAndUpdate(merchantId, { _verificationCursor: 0 });
+      await browserService.emitLog(merchantId, `✅ All ${allCoupons.length} coupons verified. Cursor reset.`);
+      return { processed: 0, remaining: 0, done: true };
+    }
+
+    await browserService.emitLog(merchantId, `🔍 Batch: verifying coupons ${startIndex + 1}–${startIndex + batch.length} of ${allCoupons.length}…`);
+
+    // Check for block before starting
+    const blockResult = await browserService.checkAndHandleBlock(merchantId, page);
+    if (blockResult.blocked && blockResult.escalated) {
+      page = blockResult.page;
+      context = blockResult.context;
+      const targetUrl = merchant.website || merchant.merchantUrl || merchant.domain;
+      if (targetUrl) {
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await BrowserService.warmUpPage(page);
+      }
+    } else if (blockResult.blocked && !blockResult.escalated) {
+      await browserService.emitLog(merchantId, `⚠️ Blocked, proxy already active. Skipping batch.`, 'error');
+      return { processed: 0, remaining: allCoupons.length - startIndex, done: false };
+    }
+
+    let processed = 0;
+    for (const coupon of batch) {
+      try {
+        await this.verifySingleCoupon(merchantId, coupon, page, context);
+        if (jobTracker) jobTracker.verifiedCount++;
+        processed++;
+      } catch (err) {
+        const msg = err.message || '';
+        if (msg.includes('PAGE_FATAL') || msg.includes('Target page, context or browser has been closed')) {
+          await browserService.emitLog(merchantId, `💀 Fatal error for ${coupon.code}: ${err.message}`, 'error');
+          if (jobTracker) jobTracker.failedCount++;
+          throw err;
+        }
+
+        // Check if this was a block — try proxy escalation mid-batch
+        if (!page.isClosed()) {
+          const midBlock = await browserService.checkAndHandleBlock(merchantId, page);
+          if (midBlock.blocked && midBlock.escalated) {
+            page = midBlock.page;
+            context = midBlock.context;
+            await browserService.emitLog(merchantId, `🔄 Switched to proxy mid-batch. Retrying ${coupon.code}…`);
+            try {
+              const targetUrl = merchant.website || merchant.merchantUrl || merchant.domain;
+              if (targetUrl) await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+              await this.verifySingleCoupon(merchantId, coupon, page, context);
+              if (jobTracker) jobTracker.verifiedCount++;
+              processed++;
+              continue;
+            } catch (retryErr) {
+              await browserService.emitLog(merchantId, `❌ Retry with proxy failed for ${coupon.code}: ${retryErr.message}`, 'error');
+            }
+          }
+        }
+
+        await browserService.emitLog(merchantId, `❌ Verification failed for ${coupon.code}: ${err.message}`, 'error');
+        if (jobTracker) jobTracker.failedCount++;
+        processed++; // Still count as processed to advance cursor
+      }
+
+      // Brief pause between coupons
+      if (!page.isClosed()) {
+        await page.waitForTimeout(500 + Math.random() * 1000);
+      }
+    }
+
+    // Advance cursor
+    const newCursor = startIndex + processed;
+    const remaining = allCoupons.length - newCursor;
+    const done = remaining <= 0;
+
+    await Merchant.findByIdAndUpdate(merchantId, {
+      _verificationCursor: done ? 0 : newCursor,
+    });
+
+    await browserService.emitLog(merchantId, `📊 Batch done: ${processed} verified, ${remaining} remaining.`);
+    return { processed, remaining: Math.max(0, remaining), done };
   }
 
   async verifySingleCoupon(merchantId, coupon, page, context) {

@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { apiGet } from '../lib/api'
+import { apiGet, apiPostJson } from '../lib/api'
 import { buildCouponsListUrl, type CouponFilters } from '../lib/couponsQuery'
 import type { CouponListPayload, PartnerCouponRow } from '../types/coupon'
 import { filterCouponsBySearch } from './couponSearch'
@@ -37,6 +37,7 @@ export function CouponsPage() {
 
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [overridingId, setOverridingId] = useState<string | null>(null)
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -149,6 +150,27 @@ export function CouponsPage() {
       setLoadingMore(false)
     }
   }, [fetchPage, hasMore, loading])
+
+  const handleOverride = useCallback(async (couponDbId: string, newStatus: 'verified' | 'failed') => {
+    if (overridingId) return
+    setOverridingId(couponDbId)
+    try {
+      await apiPostJson(`/api/v1/automation/verification-override/coupon/${couponDbId}`, {
+        newStatus,
+        reason: 'Manual fleet override from Coupons Page'
+      })
+      // Update local state to reflect the override
+      setItems(prev => prev.map(c => 
+        c.id === couponDbId 
+          ? { ...c, isVerified: newStatus === 'verified', verifiedOn: new Date().toISOString() } 
+          : c
+      ))
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to save override')
+    } finally {
+      setOverridingId(null)
+    }
+  }, [overridingId])
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -306,6 +328,24 @@ export function CouponsPage() {
               <span className="coupon-verified-date">
                 Last verified: {formatWhen(c.verifiedOn)}
               </span>
+              <div className="coupon-override-actions">
+                <button 
+                  className={`override-btn override-btn--valid ${c.isVerified ? 'active' : ''}`}
+                  onClick={() => handleOverride(c.id, 'verified')}
+                  disabled={overridingId === c.id}
+                  title="Human Override: Mark Valid"
+                >
+                  ✓ Valid
+                </button>
+                <button 
+                  className={`override-btn override-btn--invalid ${!c.isVerified && c.verifiedOn ? 'active' : ''}`}
+                  onClick={() => handleOverride(c.id, 'failed')}
+                  disabled={overridingId === c.id}
+                  title="Human Override: Mark Invalid"
+                >
+                  ✗ Invalid
+                </button>
+              </div>
             </div>
             {c.code ? (
               <p className="coupon-code">
