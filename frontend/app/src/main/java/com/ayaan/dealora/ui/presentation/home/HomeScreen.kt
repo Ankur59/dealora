@@ -27,6 +27,7 @@ import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
 import com.ayaan.dealora.ui.presentation.home.components.ExclusiveBannerCard
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
+import com.ayaan.dealora.ui.presentation.home.components.MultiFleetFeedbackPopup
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
@@ -39,6 +40,19 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
+    
+    // Show multi-coupon feedback popup if there are pending interactions
+    if (uiState.pendingInteractions.isNotEmpty()) {
+        MultiFleetFeedbackPopup(
+            interactions = uiState.pendingInteractions,
+            onResolve = { id, outcome ->
+                viewModel.resolveInteraction(id, outcome)
+            },
+            onDismissAll = {
+                viewModel.skipAllInteractions()
+            }
+        )
+    }
     
     val snackbarHostState = remember { SnackbarHostState() }
 

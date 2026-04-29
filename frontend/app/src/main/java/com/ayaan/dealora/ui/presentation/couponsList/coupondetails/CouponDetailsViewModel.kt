@@ -1,4 +1,4 @@
-﻿package com.ayaan.dealora.ui.presentation.couponsList.coupondetails
+package com.ayaan.dealora.ui.presentation.couponsList.coupondetails
 
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
@@ -12,6 +12,9 @@ import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import com.ayaan.dealora.data.repository.FleetRepository
+import com.ayaan.dealora.data.repository.FleetResult
+import com.ayaan.dealora.data.api.models.PendingInteraction
 import com.google.firebase.auth.FirebaseAuth
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,6 +32,7 @@ import javax.inject.Inject
 class CouponDetailsViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
+    private val fleetRepository: FleetRepository,
     private val firebaseAuth: FirebaseAuth,
     private val moshi: Moshi,
     savedStateHandle: SavedStateHandle
@@ -49,6 +53,9 @@ class CouponDetailsViewModel @Inject constructor(
     private val _isPrivateState = MutableStateFlow(_isPrivate)
     val isPrivateMode: StateFlow<Boolean> = _isPrivateState.asStateFlow()
 
+    private val _pendingInteractions = MutableStateFlow<List<PendingInteraction>>(emptyList())
+    val pendingInteractions: StateFlow<List<PendingInteraction>> = _pendingInteractions.asStateFlow()
+
     init {
         Log.d(TAG, "========== ViewModel Initialized ==========")
         Log.d(TAG, "Coupon ID: $couponId")
@@ -59,6 +66,8 @@ class CouponDetailsViewModel @Inject constructor(
         } else {
             loadCouponDetails()
         }
+        
+        loadPendingInteractions()
     }
 
     private fun handlePassedCouponData(json: String) {
@@ -134,11 +143,16 @@ class CouponDetailsViewModel @Inject constructor(
 
     fun retry() = loadCouponDetails()
 
+    /**
+     * Redeem a PRIVATE coupon — calls the backend to mark it as redeemed.
+     * Used when isPrivateMode = true.
+     */
     fun redeemCoupon(onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
                 if (!_isPrivate) {
-                    onError("Only private coupons can be redeemed")
+                    // Exclusive/scraped coupon — delegate to local-only path
+                    redeemRawCoupon(onSuccess = onSuccess, onError = onError)
                     return@launch
                 }
                 val currentUser = firebaseAuth.currentUser ?: run {
@@ -154,6 +168,89 @@ class CouponDetailsViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 onError("Unable to redeem coupon.")
+            }
+        }
+    }
+
+    /**
+     * Redeem an EXCLUSIVE/scraped coupon — local-only, no backend call.
+     * Mirrors the behaviour in CouponsListViewModel.redeemRawCoupon().
+     * Used when isPrivateMode = false (exclusive mode in CouponsList).
+     */
+    fun redeemRawCoupon(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Record the redeem interaction first (explicit redeem press)
+                recordInteraction("redeem")
+                
+                // No backend endpoint for scraped-coupon redemption (other than fleet stats).
+                // Just signal success so the UI can show a confirmation.
+                onSuccess()
+            } catch (e: Exception) {
+                onError("Unable to mark coupon as redeemed.")
+            }
+        }
+    }
+
+    /**
+     * Record a user interaction with an exclusive coupon (copy, discover, redeem).
+     * Only works for non-private mode.
+     */
+    fun recordInteraction(action: String) {
+        if (_isPrivate) return // Only for exclusive coupons
+        
+        val currentState = _uiState.value
+        if (currentState !is CouponDetailsUiState.Success) return
+        
+        val coupon = currentState.coupon
+        val userId = firebaseAuth.currentUser?.uid ?: "anonymous"
+        
+        viewModelScope.launch {
+            Log.d(TAG, "Recording interaction: $action for coupon: ${coupon.id}")
+            fleetRepository.recordInteraction(
+                userId = userId,
+                couponId = coupon.id.toString(),
+                brandName = coupon.brandName.toString(),
+                couponCode = coupon.couponCode?.toString(),
+                couponLink = coupon.websiteLink?.toString(),
+                action = action
+            )
+        }
+    }
+
+    /**
+     * Fetch pending interactions for the current user.
+     */
+    fun loadPendingInteractions() {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        
+        viewModelScope.launch {
+            when (val result = fleetRepository.getPendingInteractions(userId)) {
+                is FleetResult.Success -> {
+                    _pendingInteractions.value = result.data
+                    Log.d(TAG, "Loaded ${result.data.size} pending interactions")
+                }
+                is FleetResult.Error -> {
+                    Log.e(TAG, "Error loading pending interactions: ${result.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve a pending interaction.
+     */
+    fun resolveInteraction(interactionId: String, outcome: String) {
+        viewModelScope.launch {
+            when (val result = fleetRepository.resolveInteraction(interactionId, outcome)) {
+                is FleetResult.Success -> {
+                    // Remove from local list
+                    _pendingInteractions.value = _pendingInteractions.value.filter { it.id != interactionId }
+                    Log.d(TAG, "Resolved interaction $interactionId as $outcome")
+                }
+                is FleetResult.Error -> {
+                    Log.e(TAG, "Error resolving interaction: ${result.message}")
+                }
             }
         }
     }
