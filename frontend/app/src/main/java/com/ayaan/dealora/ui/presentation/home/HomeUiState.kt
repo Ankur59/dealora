@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.home
 import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.api.models.User
+import com.ayaan.dealora.data.api.models.PendingInteraction
 
 /**
  * UI state for Home screen
@@ -13,6 +14,7 @@ data class HomeUiState(
     val statistics: CouponStatistics? = null,
     val errorMessage: String? = null,
     val exploreCoupons: List<PrivateCoupon> = emptyList(),
-    val isLoadingCoupons: Boolean = false
+    val isLoadingCoupons: Boolean = false,
+    val pendingInteractions: List<PendingInteraction> = emptyList()
 )
 

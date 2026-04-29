@@ -382,6 +382,25 @@ const rawScrapedCouponSchema = new mongoose.Schema(
             ref: 'Coupon',
             default: null,
         },
+
+        // ─── Fleet Engine counters ─────────────────────────────────────
+        /**
+         * totalUsage: Total number of times any user interacted with this
+         * coupon (copy + discover + redeem) and later provided feedback.
+         */
+        totalUsage: { type: Number, default: 0, min: 0 },
+
+        /**
+         * totalSuccess: Number of interactions that the user confirmed
+         * as successful (coupon worked).
+         */
+        totalSuccess: { type: Number, default: 0, min: 0 },
+
+        /**
+         * totalFailure: Number of interactions the user reported as failed,
+         * OR explicit Redeem-button presses (treated as "used but uncertain").
+         */
+        totalFailure: { type: Number, default: 0, min: 0 },
     },
     {
         timestamps: true,

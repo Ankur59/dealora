@@ -25,6 +25,8 @@ import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import com.ayaan.dealora.data.repository.FleetRepository
+import com.ayaan.dealora.data.repository.FleetResult
 import kotlinx.coroutines.tasks.await
 
 @HiltViewModel
@@ -34,6 +36,7 @@ class HomeViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
+    private val fleetRepository: FleetRepository,
     private val backendAuthRepository: BackendAuthRepository,
     private val firebaseAuth: FirebaseAuth,
     val moshi: Moshi
@@ -52,6 +55,7 @@ class HomeViewModel @Inject constructor(
 
     init {
         observeSavedCoupons()
+        fetchPendingInteractions()
     }
 
     private fun observeSavedCoupons() {
@@ -336,5 +340,59 @@ class HomeViewModel @Inject constructor(
         Log.d(TAG, "Synced app IDs: ${syncedAppIds.joinToString()}")
 
         return syncedAppIds.containsAll(totalAvailableApps)
+    }
+
+    /**
+     * Fetch pending interactions for the current user.
+     */
+    fun fetchPendingInteractions() {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        
+        viewModelScope.launch {
+            when (val result = fleetRepository.getPendingInteractions(userId)) {
+                is FleetResult.Success -> {
+                    _uiState.update { it.copy(pendingInteractions = result.data) }
+                    Log.d(TAG, "Loaded ${result.data.size} pending interactions")
+                }
+                is FleetResult.Error -> {
+                    Log.e(TAG, "Error loading pending interactions: ${result.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve a pending interaction.
+     */
+    fun resolveInteraction(interactionId: String, outcome: String) {
+        viewModelScope.launch {
+            when (val result = fleetRepository.resolveInteraction(interactionId, outcome)) {
+                is FleetResult.Success -> {
+                    // Update UI state by removing the resolved interaction
+                    _uiState.update { state ->
+                        state.copy(
+                            pendingInteractions = state.pendingInteractions.filter { it.id != interactionId }
+                        )
+                    }
+                    Log.d(TAG, "Resolved interaction $interactionId as $outcome")
+                }
+                is FleetResult.Error -> {
+                    Log.e(TAG, "Error resolving interaction: ${result.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve all pending interactions as skipped.
+     */
+    fun skipAllInteractions() {
+        val currentPending = _uiState.value.pendingInteractions
+        viewModelScope.launch {
+            currentPending.forEach { interaction ->
+                fleetRepository.resolveInteraction(interaction.id, "skipped")
+            }
+            _uiState.update { it.copy(pendingInteractions = emptyList()) }
+        }
     }
 }
