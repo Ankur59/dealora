@@ -47,7 +47,7 @@ router.get('/job-status', requireDashboardAuth, async (req, res) => {
   }
 });
 
-router.patch('/merchant-toggle/:merchantId', requireDashboardAuth, async (req, res) => {
+router.post('/merchant-toggle/:merchantId', requireDashboardAuth, async (req, res) => {
   try {
     const { enabled } = req.body;
     const merchant = await verificationSchedulerService.toggleMerchantAutoVerification(req.params.merchantId, enabled);
