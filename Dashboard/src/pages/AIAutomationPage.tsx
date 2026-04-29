@@ -85,6 +85,45 @@ interface AutomationNotification {
   data?: any;
 }
 
+interface ModelMetrics {
+  total: number;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1Score: number;
+  truePositives: number;
+  falsePositives: number;
+  trueNegatives: number;
+  falseNegatives: number;
+  manualOverrideCount: number;
+  confidenceDistribution: Record<string, number>;
+  statusBreakdown: Record<string, number>;
+  averageAttempts: number;
+  errorTypeBreakdown: Record<string, number>;
+  computedAt: string;
+}
+
+interface MerchantHealth {
+  merchantId: string;
+  merchantName: string;
+  healthScore: number;
+  breakdown: Record<string, number>;
+  activeCoupons: number;
+  verifiedCoupons: number;
+  totalVerifications: number;
+  computedAt: string;
+}
+
+interface HealthData {
+  systemHealth: number;
+  merchantCount: number;
+  merchantHealthScores: MerchantHealth[];
+  modelMetrics: ModelMetrics;
+  lastJobStatus: string;
+  lastJobTime: string | null;
+  computedAt: string;
+}
+
 export function AIAutomationPage() {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [selectedMerchant, setSelectedMerchant] = useState('');
@@ -102,12 +141,17 @@ export function AIAutomationPage() {
   const [savingCookies, setSavingCookies] = useState(false);
   const [clearingSession, setClearingSession] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importCookiesJson, setImportCookiesJson] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', password: '', phone: '' });
   const [globalCredentials, setGlobalCredentials] = useState({ email: '', password: '', phone: '' });
   const [editingCreds, setEditingCreds] = useState(false);
   const [editingGlobalCreds, setEditingGlobalCreds] = useState(false);
   const [savingCreds, setSavingCreds] = useState(false);
   const [notifications, setNotifications] = useState<AutomationNotification[]>([]);
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
+  const [loadingHealth, setLoadingHealth] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   const selectedMerchantRef = useRef(selectedMerchant);
   selectedMerchantRef.current = selectedMerchant;
@@ -149,6 +193,13 @@ export function AIAutomationPage() {
       }
     });
 
+    socket.on('health:scores_updated', (data: HealthData) => {
+      setHealthData(data);
+    });
+
+    // Fetch health data on mount
+    fetchHealthData();
+
     return () => { socket.disconnect(); };
   }, [loadMerchants]);
 
@@ -166,6 +217,15 @@ export function AIAutomationPage() {
     } catch (err: any) {
       addLocalLog(`Toggle failed: ${err.message}`, 'error');
     }
+  };
+
+  const fetchHealthData = async () => {
+    setLoadingHealth(true);
+    try {
+      const data = await apiGet<HealthData>('/api/v1/automation/health-scores');
+      setHealthData(data);
+    } catch { /* ignore */ }
+    finally { setLoadingHealth(false); }
   };
 
   const startGlobalVerification = async () => {
@@ -389,6 +449,35 @@ export function AIAutomationPage() {
     }
   };
 
+  const importCookies = async () => {
+    if (!selectedMerchant || !importCookiesJson.trim()) return;
+    setIsImporting(true);
+    try {
+      let parsedCookies;
+      try {
+        parsedCookies = JSON.parse(importCookiesJson);
+      } catch (err) {
+        throw new Error('Invalid JSON format. Please paste a valid JSON array.');
+      }
+      if (!Array.isArray(parsedCookies)) {
+        throw new Error('Cookies must be a JSON array.');
+      }
+      const data = await apiPostJson<{ message: string; cookieCount: number }>(`/api/v1/automation/import-cookies/${selectedMerchant}`, {
+        cookies: parsedCookies
+      });
+      addLocalLog(`🍪 ${data.message}`, 'success');
+      setShowImportModal(false);
+      setImportCookiesJson('');
+      await fetchSessionStatus(selectedMerchant);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      addLocalLog(`Cookie import failed: ${msg}`, 'error');
+      alert(`Import failed: ${msg}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const addLocalLog = (message: string, type: LogEntry['type'] = 'info') => {
     setLogs((prev) => [...prev, { message, type, timestamp: new Date() }]);
   };
@@ -446,6 +535,116 @@ export function AIAutomationPage() {
             <span>Merchants: {jobStatus.processedMerchants} / {jobStatus.totalMerchants}</span>
             <span>Verified: {jobStatus.verifiedCount}</span>
             <span>Failed: {jobStatus.failedCount}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Model Metrics Panel ── */}
+      {healthData?.modelMetrics && (
+        <div className="ai-metrics-panel">
+          <div className="ai-metrics-header">
+            <span className="ai-metrics-title">📊 AI Model Performance (every 12h)</span>
+            <button className="ai-btn ai-btn--ghost ai-btn--sm" onClick={fetchHealthData} disabled={loadingHealth}>
+              {loadingHealth ? '…' : '↺ Refresh'}
+            </button>
+          </div>
+          <div className="ai-metrics-grid">
+            <div className="ai-metric-card">
+              <div className="ai-metric-value">{healthData.modelMetrics.accuracy}%</div>
+              <div className="ai-metric-label">Accuracy</div>
+            </div>
+            <div className="ai-metric-card">
+              <div className="ai-metric-value">{healthData.modelMetrics.precision}%</div>
+              <div className="ai-metric-label">Precision</div>
+            </div>
+            <div className="ai-metric-card">
+              <div className="ai-metric-value">{healthData.modelMetrics.recall}%</div>
+              <div className="ai-metric-label">Recall</div>
+            </div>
+            <div className="ai-metric-card">
+              <div className="ai-metric-value">{healthData.modelMetrics.f1Score}</div>
+              <div className="ai-metric-label">F1 Score</div>
+            </div>
+            <div className="ai-metric-card">
+              <div className="ai-metric-value">{healthData.modelMetrics.total}</div>
+              <div className="ai-metric-label">Total Verifications</div>
+            </div>
+            <div className="ai-metric-card">
+              <div className="ai-metric-value">{healthData.modelMetrics.averageAttempts}</div>
+              <div className="ai-metric-label">Avg Attempts</div>
+            </div>
+          </div>
+          <div className="ai-metrics-detail">
+            <div className="ai-metrics-section">
+              <strong>Status Breakdown:</strong>
+              <div className="ai-metrics-chips">
+                {Object.entries(healthData.modelMetrics.statusBreakdown).map(([k, v]) => (
+                  <span key={k} className={`ai-chip ai-chip--${k}`}>{k}: {v}</span>
+                ))}
+              </div>
+            </div>
+            {Object.keys(healthData.modelMetrics.errorTypeBreakdown).length > 0 && (
+              <div className="ai-metrics-section">
+                <strong>Error Types:</strong>
+                <div className="ai-metrics-chips">
+                  {Object.entries(healthData.modelMetrics.errorTypeBreakdown).map(([k, v]) => (
+                    <span key={k} className="ai-chip ai-chip--error">{k}: {v}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="ai-metrics-section">
+              <strong>Confidence Distribution:</strong>
+              <div className="ai-confidence-bars">
+                {Object.entries(healthData.modelMetrics.confidenceDistribution).map(([range, count]) => (
+                  <div key={range} className="ai-conf-bar">
+                    <span className="ai-conf-label">{range}</span>
+                    <div className="ai-conf-track">
+                      <div
+                        className="ai-conf-fill"
+                        style={{ width: `${healthData.modelMetrics.total > 0 ? (count / healthData.modelMetrics.total) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <span className="ai-conf-count">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {healthData.modelMetrics.manualOverrideCount === 0 && (
+              <p className="ai-metrics-note">
+                ⚠️ No manual overrides yet. Metrics self-reported. Use manual override for ground truth.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Merchant Health Scores ── */}
+      {healthData && healthData.merchantHealthScores.length > 0 && (
+        <div className="ai-health-panel">
+          <div className="ai-health-header">
+            <span className="ai-health-title">❤️ Merchant Health (System: {healthData.systemHealth}%)</span>
+            <span className="ai-health-time">Last: {healthData.computedAt ? new Date(healthData.computedAt).toLocaleString() : '—'}</span>
+          </div>
+          <div className="ai-health-grid">
+            {healthData.merchantHealthScores
+              .sort((a, b) => a.healthScore - b.healthScore)
+              .map(h => (
+                <div key={h.merchantId} className={`ai-health-card ai-health-card--${h.healthScore >= 70 ? 'good' : h.healthScore >= 40 ? 'warn' : 'bad'}`}>
+                  <div className="ai-health-card-top">
+                    <span className="ai-health-name">{h.merchantName}</span>
+                    <span className="ai-health-score">{h.healthScore}%</span>
+                  </div>
+                  <div className="ai-health-bar">
+                    <div className="ai-health-bar-fill" style={{ width: `${h.healthScore}%` }} />
+                  </div>
+                  <div className="ai-health-stats">
+                    <span>🔑 Login: {h.breakdown.loginHealth}%</span>
+                    <span>🍪 Cookies: {h.breakdown.cookieFreshness}%</span>
+                    <span>✅ Verified: {h.verifiedCoupons}/{h.activeCoupons}</span>
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       )}
@@ -770,6 +969,14 @@ export function AIAutomationPage() {
             >
               {clearingSession ? '⏳ Clearing…' : '🗑️ Clear Session & Cookies'}
             </button>
+            <button
+              id="import-cookies-btn"
+              className="ai-btn ai-btn--ghost"
+              onClick={() => setShowImportModal(true)}
+              title="Import JSON array of cookies manually"
+            >
+              📥 Import Cookies
+            </button>
           </div>
         </div>
       )}
@@ -872,6 +1079,43 @@ export function AIAutomationPage() {
           </div>
         )}
       </div>
+
+      {/* ── Cookie Import Modal ── */}
+      {showImportModal && (
+        <div className="otp-overlay" role="dialog" aria-modal="true" aria-label="Import Cookies">
+          <div className="otp-overlay-icon">🍪</div>
+          <h3>Import Manual Cookies</h3>
+          <p>Paste a JSON array of cookies (e.g. from a browser extension like EditThisCookie).</p>
+          <div className="otp-input-group" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <textarea
+              className="ai-input"
+              rows={8}
+              value={importCookiesJson}
+              onChange={(e) => setImportCookiesJson(e.target.value)}
+              placeholder='[{"name": "session", "value": "xyz"...}]'
+              style={{ width: '100%', marginBottom: '1rem', fontFamily: 'monospace' }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                className="ai-btn ai-btn--ghost"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportCookiesJson('');
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="ai-btn ai-btn--primary"
+                onClick={importCookies}
+                disabled={isImporting || !importCookiesJson.trim()}
+              >
+                {isImporting ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
