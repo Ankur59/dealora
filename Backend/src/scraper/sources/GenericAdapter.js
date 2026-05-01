@@ -85,7 +85,8 @@ class GenericAdapter {
 
             // Use Gemini/fallback cleaned data for the 3 critical fields
             // These are already cleaned by either Gemini AI or local fallback cleaner
-            const finalCouponCode = extractedData.couponCode || null;
+            // Fall back to raw scraped value if AI couldn't extract a code from title text
+            const finalCouponCode = extractedData.couponCode || rawData.couponCode || null;
             const finalCouponDetails = extractedData.couponDetails || null;
             const finalTerms = extractedData.terms || null;
 
@@ -99,7 +100,16 @@ class GenericAdapter {
                 couponCode: finalCouponCode,
                 discountType: extractedData.discountType || this.normalizeDiscountType(rawData.discountType),
                 discountValue: extractedData.discountValue || rawData.discountValue || null,
-                expireBy: extractedData.expireBy ? new Date(extractedData.expireBy) : (rawData.expireBy ? new Date(rawData.expireBy) : this.getDefaultExpiry()),
+                // expiryDate: GrabOn stores expiry as rawData.expiryDate (Date object)
+                // expireBy:   Gemini may return it as extractedData.expireBy (string)
+                // Fallback chain: Gemini → rawData.expireBy → rawData.expiryDate → default +30d
+                expireBy: extractedData.expireBy
+                    ? new Date(extractedData.expireBy)
+                    : (rawData.expireBy
+                        ? new Date(rawData.expireBy)
+                        : (rawData.expiryDate
+                            ? new Date(rawData.expiryDate)
+                            : this.getDefaultExpiry())),
                 categoryLabel: extractedData.categoryLabel || this.normalizeCategory(extractedData.category || rawData.category),
                 couponVisitingLink: rawData.couponLink || extractedData.couponVisitingLink || this.getBrandUrl(brand) || 'https://www.example.com',
                 sourceWebsite: this.sourceName,
@@ -109,6 +119,9 @@ class GenericAdapter {
                 couponDetails: finalCouponDetails,
                 terms: finalTerms,
                 minimumOrder: extractedData.minimumOrder || rawData.minimumOrder || null,
+                trustscore: this.isValidNumber(rawData.trustscore) ? Number(rawData.trustscore) : (this.isValidNumber(extractedData.trustscore) ? Number(extractedData.trustscore) : null),
+                usedBy: this.isValidNumber(rawData.usedBy) ? Number(rawData.usedBy) : (this.isValidNumber(extractedData.usedBy) ? Number(extractedData.usedBy) : null),
+                verified: typeof extractedData.verified === 'boolean' ? extractedData.verified : (typeof rawData.verified === 'boolean' ? rawData.verified : null),
             };
 
             logger.info(`Successfully normalized coupon: ${normalized.couponName} (Code: ${normalized.couponCode || 'N/A'}, Link: ${normalized.couponVisitingLink ? 'Yes' : 'No'})`);
@@ -143,13 +156,120 @@ class GenericAdapter {
                 status: 'active',
                 couponDetails: rawData.terms || null,
                 terms: rawData.terms || null, // Add terms field in fallback too
+                trustscore: this.isValidNumber(rawData.trustscore) ? Number(rawData.trustscore) : null,
+                usedBy: this.isValidNumber(rawData.usedBy) ? Number(rawData.usedBy) : null,
+                verified: typeof rawData.verified === 'boolean' ? rawData.verified : null,
             };
         }
     }
 
     normalizeBrand(brand) {
         if (!brand) return 'General';
-        return brand.split(' ')[0].trim();
+        
+        const trimmedBrand = brand.trim();
+        
+        // Get the standard casing from our brandUrls map if it exists
+        const brandUrls = this.getBrandUrls();
+        const standardName = Object.keys(brandUrls).find(
+            key => key.toLowerCase() === trimmedBrand.toLowerCase()
+        );
+
+        if (standardName) {
+            return standardName;
+        }
+
+        // Fallback: Title Case (e.g., "rebel foods" -> "Rebel Foods")
+        return trimmedBrand
+            .toLowerCase()
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
+    /**
+     * Internal helper to get the brand URLs map
+     */
+    getBrandUrls() {
+        return {
+            // Food Delivery
+            'Zomato': 'https://www.zomato.com',
+            'Swiggy': 'https://www.swiggy.com',
+            'Fassos': 'https://www.fassos.com',
+            'Eatsure': 'https://www.eatsure.com',
+            'Box8': 'https://www.box8.in',
+            'Rebel Foods': 'https://www.rebelfoods.com',
+            'FreshMenu': 'https://www.freshmenu.com',
+
+            // E-commerce & Shopping
+            'Amazon': 'https://www.amazon.in',
+            'Flipkart': 'https://www.flipkart.com',
+            'Myntra': 'https://www.myntra.com',
+            'Snapdeal': 'https://www.snapdeal.com',
+            'Shopclues': 'https://www.shopclues.com',
+            'Limeroad': 'https://www.limeroad.com',
+            'Nykaa': 'https://www.nykaa.com',
+            'Meesho': 'https://www.meesho.com',
+            'Ajio': 'https://www.ajio.com',
+
+            // Wallet & Payment Apps
+            'Paytm': 'https://www.paytm.com',
+            'PhonePe': 'https://www.phonepe.com',
+            'Cred': 'https://www.cred.club',
+            'Freecharge': 'https://www.freecharge.in',
+            'MobiKwik': 'https://www.mobikwik.com',
+            'TWID': 'https://www.twid.app',
+            'Pop': 'https://www.getpop.in',
+            'Dhani': 'https://www.dhani.com',
+            'Kiwi': 'https://www.kiwi.money',
+            'Payzapp': 'https://www.payzapp.com',
+            'Freo': 'https://www.freo.money',
+            'BharatNxt': 'https://www.bharatnxt.com',
+            'Payworld': 'https://www.payworld.in',
+            'Rio Money': 'https://www.riomoney.in',
+            'Payinstacard': 'https://www.payinstacard.com',
+
+            // Grocery & Daily Needs
+            'BigBasket': 'https://www.bigbasket.com',
+            'Blinkit': 'https://www.blinkit.com',
+            'Zepto': 'https://www.zeptonow.com',
+            'Dunzo': 'https://www.dunzo.com',
+            'Grofers': 'https://www.grofers.com',
+            'Dealshare': 'https://www.dealshare.in',
+            'Satvacart': 'https://www.satvacart.com',
+            'Nearwala': 'https://www.nearwala.com',
+
+            // Travel & Transportation
+            'MakeMyTrip': 'https://www.makemytrip.com',
+            'Goibibo': 'https://www.goibibo.com',
+            'Cleartrip': 'https://www.cleartrip.com',
+            'Uber': 'https://www.uber.com',
+            'Ola': 'https://www.olacabs.com',
+            'Rapido': 'https://www.rapido.bike',
+            'redBus': 'https://www.redbus.in',
+            'Zingbus': 'https://www.zingbus.com',
+            'Yatra': 'https://www.yatra.com',
+            'EaseMyTrip': 'https://www.easemytrip.com',
+            'Ixigo': 'https://www.ixigo.com',
+
+            // Beauty & Wellness
+            'Purplle': 'https://www.purplle.com',
+            'Salon Nayana': 'https://www.salonnayana.com',
+            'HR Wellness': 'https://www.hrwellness.in',
+            'UrbanClap': 'https://www.urbancompany.com',
+            'Cult.fit': 'https://www.cult.fit',
+
+            // Entertainment & OTT
+            'BookMyShow': 'https://www.bookmyshow.com',
+            'Netflix': 'https://www.netflix.com',
+            'Amazon Prime': 'https://www.primevideo.com',
+            'Disney+ Hotstar': 'https://www.hotstar.com',
+            'Zee5': 'https://www.zee5.com',
+            'SonyLiv': 'https://www.sonyliv.com',
+
+            // Others
+            'NPCI': 'https://www.npci.org.in',
+            'Sarvatra Tech': 'https://www.sarvatra.in',
+        };
     }
 
     normalizeCode(code) {
@@ -189,6 +309,49 @@ class GenericAdapter {
         return found || 'Other';
     }
 
+    parseCountFromText(value) {
+        if (value === null || value === undefined) return null;
+
+        const text = String(value).trim().toLowerCase();
+        if (!text) return null;
+
+        // 🔹 Handle percentage (e.g., "2%", "12.5 %", "60% Success")
+        const percentMatch = text.match(/(\d+(?:\.\d+)?)\s*%/);
+        if (percentMatch) {
+            return Number(percentMatch[1]);
+        }
+
+        // 🔹 Handle k / m (e.g., "2.5k", "3m")
+        const compactMatch = text.match(/(\d+(?:\.\d+)?)\s*([km])/i);
+        if (compactMatch) {
+            const base = Number(compactMatch[1]);
+            const suffix = compactMatch[2].toLowerCase();
+            return suffix === 'm' ? Math.round(base * 1000000) : Math.round(base * 1000);
+        }
+
+        // 🔹 Extract FIRST number found in text (e.g., "14 people used", "500+", "123")
+        const firstNumMatch = text.match(/(\d+(?:\.\d+)?)/);
+        if (firstNumMatch) {
+            return Number(firstNumMatch[1]);
+        }
+
+        return null;
+    }
+
+    isValidNumber(val) {
+        return val !== null && val !== undefined && val !== '' && Number.isFinite(Number(val));
+    }
+
+    parseVerifiedFlag(value) {
+        if (typeof value === 'boolean') return value;
+        if (value === null || value === undefined) return null;
+        const text = String(value).toLowerCase().trim();
+        if (!text) return null;
+        if (/(not\s+verified|unverified|not\s+valid|invalid|expired)/i.test(text)) return false;
+        if (/(verified|trusted|authentic)/i.test(text)) return true;
+        return null;
+    }
+
     getDefaultExpiry() {
         const date = new Date();
         date.setDate(date.getDate() + 30); // Default 30 days
@@ -200,105 +363,24 @@ class GenericAdapter {
      * This ensures couponLink points to the actual brand website, not the source scraper site
      */
     getBrandUrl(brandName) {
-        const brandUrls = {
-            // Food Delivery
-            'Zomato': 'https://www.zomato.com',
-            'Swiggy': 'https://www.swiggy.com',
-            'Fassos': 'https://www.fassos.com',
-            'Eatsure': 'https://www.eatsure.com',
-            'Box8': 'https://www.box8.in',
-            'Rebel foods': 'https://www.rebelfoods.com',
-            'Freshmenu': 'https://www.freshmenu.com',
-            'FreshMenu': 'https://www.freshmenu.com',
-            
-            // E-commerce & Shopping
-            'Amazon': 'https://www.amazon.in',
-            'Flipkart': 'https://www.flipkart.com',
-            'Myntra': 'https://www.myntra.com',
-            'Snapdeal': 'https://www.snapdeal.com',
-            'Shopclues': 'https://www.shopclues.com',
-            'Limeroad': 'https://www.limeroad.com',
-            'Nykaa': 'https://www.nykaa.com',
-            'Meesho': 'https://www.meesho.com',
-            'Ajio': 'https://www.ajio.com',
-            
-            // Wallet & Payment Apps
-            'Paytm': 'https://www.paytm.com',
-            'PhonePe': 'https://www.phonepe.com',
-            'Cred': 'https://www.cred.club',
-            'CRED': 'https://www.cred.club',
-            'Freecharge': 'https://www.freecharge.in',
-            'MobiKwik': 'https://www.mobikwik.com',
-            'TWID': 'https://www.twid.app',
-            'Pop': 'https://www.getpop.in',
-            'Dhani': 'https://www.dhani.com',
-            'Kiwi': 'https://www.kiwi.money',
-            'Payzapp': 'https://www.payzapp.com',
-            'Freo': 'https://www.freo.money',
-            'BharatNxt': 'https://www.bharatnxt.com',
-            'Payworld': 'https://www.payworld.in',
-            'Rio Money': 'https://www.riomoney.in',
-            'Payinstacard': 'https://www.payinstacard.com',
-            
-            // Grocery & Daily Needs
-            'BigBasket': 'https://www.bigbasket.com',
-            'Blinkit': 'https://www.blinkit.com',
-            'Zepto': 'https://www.zeptonow.com',
-            'Dunzo': 'https://www.dunzo.com',
-            'Grofers': 'https://www.grofers.com',
-            'Dealshare': 'https://www.dealshare.in',
-            'Satvacart': 'https://www.satvacart.com',
-            'nearwala': 'https://www.nearwala.com',
-            
-            // Travel & Transportation
-            'MakeMyTrip': 'https://www.makemytrip.com',
-            'Goibibo': 'https://www.goibibo.com',
-            'Cleartrip': 'https://www.cleartrip.com',
-            'Uber': 'https://www.uber.com',
-            'Ola': 'https://www.olacabs.com',
-            'Rapido': 'https://www.rapido.bike',
-            'redBus': 'https://www.redbus.in',
-            'Zingbus': 'https://www.zingbus.com',
-            'Yatra': 'https://www.yatra.com',
-            'EaseMyTrip': 'https://www.easemytrip.com',
-            'Ixigo': 'https://www.ixigo.com',
-            
-            // Beauty & Wellness
-            'Purplle': 'https://www.purplle.com',
-            'Salon Nayana': 'https://www.salonnayana.com',
-            'HR Wellness': 'https://www.hrwellness.in',
-            'UrbanClap': 'https://www.urbancompany.com',
-            'Cult.fit': 'https://www.cult.fit',
-            
-            // Entertainment & OTT
-            'BookMyShow': 'https://www.bookmyshow.com',
-            'Netflix': 'https://www.netflix.com',
-            'Amazon Prime': 'https://www.primevideo.com',
-            'Disney+ Hotstar': 'https://www.hotstar.com',
-            'Zee5': 'https://www.zee5.com',
-            'SonyLiv': 'https://www.sonyliv.com',
-            
-            // Others
-            'NPCL': 'https://www.npci.org.in',
-            'Sarvatra tech': 'https://www.sarvatra.in',
-        };
-        
+        const brandUrls = this.getBrandUrls();
+
         // Try exact match first
         if (brandUrls[brandName]) {
             return brandUrls[brandName];
         }
-        
+
         // Try case-insensitive match
         const brandKey = Object.keys(brandUrls).find(
             key => key.toLowerCase() === brandName.toLowerCase()
         );
-        
+
         if (brandKey) {
             return brandUrls[brandKey];
         }
-        
+
         // If no match found, log warning and return null (don't fallback to source URL)
-        logger.warn(`getBrandUrl: No URL mapping found for brand "${brandName}". Please add it to GenericAdapter.getBrandUrl()`);
+        logger.warn(`getBrandUrl: No URL mapping found for brand "${brandName}". Please add it to GenericAdapter.getBrandUrls()`);
         return null;
     }
 

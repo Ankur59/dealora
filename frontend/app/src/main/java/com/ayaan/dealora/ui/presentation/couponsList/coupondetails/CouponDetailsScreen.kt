@@ -201,40 +201,40 @@ fun CouponDetailsContent(
             navController = navController, title = "Details"
         )
     }, containerColor = AppColors.Background, bottomBar = {
-        // Only show bottom action buttons when in private mode and not an exclusive coupon
-        if (isPrivateMode && coupon.addedMethod != "exclusive") {
+        // Always show Discover + Redeem in the details page.
+        // - Private coupons  (isPrivateMode = true)  → calls redeemCoupon()  on the VM.
+        // - Exclusive coupons (isPrivateMode = false) → calls redeemRawCoupon() on the VM
+        //   (local-only removal, no backend call needed for scraped coupons).
+        // The websiteLink / couponVisitingLink fields are populated for both types.
+        BottomActionButtons(couponLink = coupon.websiteLink?.toString(), onRedeemed = {
+            // Show confirmation dialog — VM decides how to handle based on coupon type
+            showRedeemDialog = true
+        }, onDiscoverClick = {
+            val websiteUrl = coupon.websiteLink?.toString()?.trim()
+                ?.takeIf { it.isNotEmpty() }
 
-            BottomActionButtons(couponLink = coupon.websiteLink?.toString(), onRedeemed = {
-                // Show confirmation dialog
-                showRedeemDialog = true
-            }, onDiscoverClick = {
-                val websiteUrl = coupon.websiteLink?.toString()?.trim()
-                    ?.takeIf { it.isNotEmpty() }
-
-                if (websiteUrl != null) {
-                    try {
-                        // Android App Links: fire a plain https:// ACTION_VIEW intent.
-                        // If the brand app (e.g. Zomato, Swiggy) is installed and has
-                        // claimed this domain via App Links, Android routes straight to it.
-                        // Otherwise the system browser opens the URL as a fallback.
-                        val uri = Uri.parse(
-                            if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
-                                websiteUrl
-                            else
-                                "https://$websiteUrl"
-                        )
-                        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Log.e("CouponDetailsScreen", "Could not open brand link: ${e.message}", e)
+            if (websiteUrl != null) {
+                // Record discovery interaction for fleet engine
+                viewModel.recordInteraction("discover")
+                
+                try {
+                    val uri = Uri.parse(
+                        if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
+                            websiteUrl
+                        else
+                            "https://$websiteUrl"
+                    )
+                    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                } else {
-                    Log.w("CouponDetailsScreen", "No website link available for this coupon")
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e("CouponDetailsScreen", "Could not open brand link: ${e.message}", e)
                 }
-            })
-        }
+            } else {
+                Log.w("CouponDetailsScreen", "No website link available for this coupon")
+            }
+        })
     }) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -304,18 +304,21 @@ fun CouponDetailsContent(
                     onCopyCode = {
                         coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let {
                             clipboardManager.setText(AnnotatedString(it))
+                            // Record copy interaction for fleet engine
+                            viewModel.recordInteraction("copy")
                         }
                     },
                     onLinkClick = {
-                        coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let {
-                            clipboardManager.setText(AnnotatedString(it))
-                        }
-                        coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let {
+                        // For links that also copy code
+                        viewModel.recordInteraction("copy")
+                        viewModel.recordInteraction("discover")
+                        
+                        coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let { link ->
                             try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
                                 context.startActivity(intent)
                             } catch (e: Exception) {
-                                Log.e("CouponDetailsScreen", "Failed to open link: $it", e)
+                                Log.e("CouponDetailsScreen", "Failed to open link: $link", e)
                             }
                         }
                     })

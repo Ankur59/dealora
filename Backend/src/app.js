@@ -18,6 +18,8 @@ const exclusiveCouponRoutes = require('./routes/exclusiveCouponRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const connectEmailRoutes = require('./routes/connectEmailRoutes');
 const termsRoutes = require('./routes/termsRoutes');
+const rawCouponRoutes = require('./routes/rawCouponRoutes');
+const fleetRoutes     = require('./routes/fleetRoutes');
 
 
 const app = express();
@@ -131,6 +133,15 @@ app.use('/api/exclusive-coupons', exclusiveCouponRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/connect-email', connectEmailRoutes);
 app.use('/api/terms', termsRoutes);
+app.use('/api/raw-coupons', rawCouponRoutes);
+app.use('/api/fleet',       fleetRoutes);
+
+// ── Dev-only scraper routes (not mounted in production) ──────────────────────
+if (process.env.NODE_ENV === 'development') {
+    const devScraperRoutes = require('./routes/devScraperRoutes');
+    app.use('/api/dev/scraper', devScraperRoutes);
+    logger.info('DEV: /api/dev/scraper routes mounted');
+}
 
 app.get('/', (req, res) => {
     res.status(200).json({

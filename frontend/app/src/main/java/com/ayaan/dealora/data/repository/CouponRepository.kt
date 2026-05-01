@@ -13,6 +13,7 @@ import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
 import com.ayaan.dealora.data.paging.CouponPagingSource
 import com.ayaan.dealora.data.util.NetworkErrorMapper
@@ -464,6 +465,58 @@ class CouponRepository @Inject constructor(
         }
     }
 
+    /**
+     * Get raw scraped coupons sorted by discountScore (exclusive mode)
+     */
+    suspend fun getRawCoupons(
+        category: String? = null,
+        brand: String? = null,
+        search: String? = null,
+        discountType: String? = null,
+        validity: String? = null,
+        sortBy: String? = null,
+        page: Int? = null,
+        limit: Int? = null
+    ): RawCouponResult {
+        return try {
+            Log.d(TAG, "Fetching raw coupons - category: $category, search: $search, sortBy: $sortBy, page: $page")
+            val response = couponApiService.getRawCoupons(
+                category = category,
+                brand = brand,
+                search = search,
+                discountType = discountType,
+                validity = validity,
+                sortBy = sortBy,
+                page = page,
+                limit = limit
+            )
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Log.d(TAG, "Raw coupons fetched: ${body.data.count} of ${body.data.total}")
+                    RawCouponResult.Success(
+                        coupons = body.data.coupons,
+                        total = body.data.total,
+                        page = body.data.page,
+                        pages = body.data.pages
+                    )
+                } else {
+                    val msg = body?.message ?: "Failed to fetch raw coupons"
+                    Log.e(TAG, msg)
+                    RawCouponResult.Error(msg)
+                }
+            } else {
+                val msg = "HTTP ${response.code()}: ${response.message()}"
+                Log.e(TAG, msg)
+                RawCouponResult.Error(msg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getRawCoupons exception", e)
+            RawCouponResult.Error(NetworkErrorMapper.from(e))
+        }
+    }
+
     // Exclusive coupons cache for details screen
     private val exclusiveCouponCache = mutableMapOf<String, ExclusiveCoupon>()
 
@@ -566,4 +619,20 @@ sealed class ExclusiveCouponDetailResult {
     data class Error(
         val message: String
     ) : ExclusiveCouponDetailResult()
+}
+
+/**
+ * Sealed class for raw scraped coupon results (exclusive/discover mode)
+ */
+sealed class RawCouponResult {
+    data class Success(
+        val coupons: List<RawScrapedCoupon>,
+        val total: Int,
+        val page: Int,
+        val pages: Int
+    ) : RawCouponResult()
+
+    data class Error(
+        val message: String
+    ) : RawCouponResult()
 }

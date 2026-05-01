@@ -85,6 +85,35 @@ const couponSchema = new mongoose.Schema(
             min: [0, 'Minimum order value cannot be negative'],
         },
 
+        trustscore: {
+            type: Number,
+            default: null,
+            min: [0, 'Trustscore cannot be negative'],
+        },
+
+        usedBy: {
+            type: Number,
+            default: null,
+            min: [0, 'Used by count cannot be negative'],
+        },
+
+        verified: {
+            type: Boolean,
+            default: null,
+        },
+
+        /**
+         * discountWeight: Normalised 0–100 score for the coupon's monetary value.
+         * Computed at scrape time in ScraperEngine.saveRawCoupons() and
+         * passed through to the Coupon collection so filterBelowAverageCoupons.js
+         * can use it as a scoring factor.
+         */
+        discountWeight: {
+            type: Number,
+            default: null,
+            min: [0, 'discountWeight cannot be negative'],
+        },
+
         couponCode: {
             type: String,
             trim: true,

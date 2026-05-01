@@ -6,6 +6,7 @@ import com.ayaan.dealora.data.api.AuthApiService
 import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.FeatureApiService
 import com.ayaan.dealora.data.api.ProfileApiService
+import com.ayaan.dealora.data.api.FleetApiService
 import com.ayaan.dealora.data.api.TermsApiService
 import com.ayaan.dealora.data.repository.ConnectEmailRepository
 import com.ayaan.dealora.data.repository.GmailSyncRepository
@@ -30,7 +31,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL ="https://dealora-5zcp.onrender.com/"
+    private const val BASE_URL ="http://10.0.2.2:3001/"
     // "https://dealora-5zcp.onrender.com/" 
     // "http://192.168.29.76:3001/"
     // IF backend on locahost 3001 use: http://10.0.2.2:3001/
@@ -115,6 +116,12 @@ object NetworkModule {
     @Singleton
     fun provideCouponApiService(retrofit: Retrofit): CouponApiService {
         return retrofit.create(CouponApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFleetApiService(retrofit: Retrofit): FleetApiService {
+        return retrofit.create(FleetApiService::class.java)
     }
 
     @Provides

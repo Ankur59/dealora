@@ -9,13 +9,15 @@ import com.ayaan.dealora.data.api.models.CouponDisplay
 import com.ayaan.dealora.data.api.models.CouponActions
 import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
-import com.ayaan.dealora.data.repository.CouponDetailResult
+import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import com.ayaan.dealora.data.repository.FleetRepository
+import com.ayaan.dealora.data.repository.FleetResult
+import com.ayaan.dealora.data.api.models.PendingInteraction
 import com.google.firebase.auth.FirebaseAuth
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
-
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +32,7 @@ import javax.inject.Inject
 class CouponDetailsViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
+    private val fleetRepository: FleetRepository,
     private val firebaseAuth: FirebaseAuth,
     private val moshi: Moshi,
     savedStateHandle: SavedStateHandle
@@ -47,22 +50,30 @@ class CouponDetailsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<CouponDetailsUiState>(CouponDetailsUiState.Loading)
     val uiState: StateFlow<CouponDetailsUiState> = _uiState.asStateFlow()
 
-    // Expose isPrivate as StateFlow
     private val _isPrivateState = MutableStateFlow(_isPrivate)
     val isPrivateMode: StateFlow<Boolean> = _isPrivateState.asStateFlow()
+
+    private val _pendingInteractions = MutableStateFlow<List<PendingInteraction>>(emptyList())
+    val pendingInteractions: StateFlow<List<PendingInteraction>> = _pendingInteractions.asStateFlow()
+
+    /**
+     * Session-level guard: tracks "couponId:action" keys already sent to the backend
+     * this ViewModel session.  Prevents spam-copying from creating duplicate DB entries.
+     */
+    private val recordedInteractionKeys = mutableSetOf<String>()
 
     init {
         Log.d(TAG, "========== ViewModel Initialized ==========")
         Log.d(TAG, "Coupon ID: $couponId")
         Log.d(TAG, "Is Private: $_isPrivate")
-        Log.d(TAG, "Coupon Code: $_couponCode")
         
         if (!_couponDataJson.isNullOrBlank()) {
-            Log.d(TAG, "Found couponData in arguments, attempting to deserialize...")
             handlePassedCouponData(_couponDataJson)
         } else {
             loadCouponDetails()
         }
+        
+        loadPendingInteractions()
     }
 
     private fun handlePassedCouponData(json: String) {
@@ -71,31 +82,27 @@ class CouponDetailsViewModel @Inject constructor(
                 val adapter = moshi.adapter(PrivateCoupon::class.java)
                 val privateCoupon = adapter.fromJson(json)
                 if (privateCoupon != null) {
-                    Log.d(TAG, "✓ Successfully deserialized PrivateCoupon")
-                    val couponDetail = convertPrivateCouponToCouponDetail(privateCoupon)
-                    _uiState.value = CouponDetailsUiState.Success(couponDetail)
-                    // Also cache it just in case
-                    viewModelScope.launch {
-                        couponRepository.cacheCoupon(privateCoupon)
-                    }
+                    _uiState.value = CouponDetailsUiState.Success(convertPrivateCouponToCouponDetail(privateCoupon))
                 } else {
-                    Log.e(TAG, "Failed to deserialize PrivateCoupon from JSON")
                     loadCouponDetails()
                 }
             } else {
-                val adapter = moshi.adapter(ExclusiveCoupon::class.java)
-                val exclusiveCoupon = adapter.fromJson(json)
-                if (exclusiveCoupon != null) {
-                    Log.d(TAG, "✓ Successfully deserialized ExclusiveCoupon")
-                    val couponDetail = convertExclusiveCouponToCouponDetail(exclusiveCoupon)
-                    _uiState.value = CouponDetailsUiState.Success(couponDetail)
-                    // Also cache it for compatibility
-                    viewModelScope.launch {
-                        couponRepository.cacheExclusiveCoupon(exclusiveCoupon)
-                    }
+                // Try RawScrapedCoupon first (Exclusive mode)
+                val rawAdapter = moshi.adapter(RawScrapedCoupon::class.java)
+                val rawCoupon = rawAdapter.fromJson(json)
+                if (rawCoupon != null && rawCoupon.brandName.isNotBlank()) {
+                    Log.d(TAG, "✓ Successfully deserialized RawScrapedCoupon")
+                    _uiState.value = CouponDetailsUiState.Success(convertRawCouponToCouponDetail(rawCoupon))
                 } else {
-                    Log.e(TAG, "Failed to deserialize ExclusiveCoupon from JSON")
-                    loadCouponDetails()
+                    // Fallback to legacy ExclusiveCoupon
+                    val exclusiveAdapter = moshi.adapter(ExclusiveCoupon::class.java)
+                    val exclusiveCoupon = exclusiveAdapter.fromJson(json)
+                    if (exclusiveCoupon != null) {
+                        Log.d(TAG, "✓ Successfully deserialized ExclusiveCoupon")
+                        _uiState.value = CouponDetailsUiState.Success(convertExclusiveCouponToCouponDetail(exclusiveCoupon))
+                    } else {
+                        loadCouponDetails()
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -104,184 +111,170 @@ class CouponDetailsViewModel @Inject constructor(
         }
     }
 
-
     fun loadCouponDetails() {
         viewModelScope.launch {
             _uiState.value = CouponDetailsUiState.Loading
-
             try {
-                // If it's a private coupon, fetch from private coupons API
                 if (_isPrivate) {
-                    Log.d(TAG, "Loading private coupon with id: $couponId")
-
-                    // Step 1: Try to get from cache (ExploringCoupons caches coupons before navigation)
-                    var privateCoupon: PrivateCoupon? = couponRepository.getCachedCoupon(couponId)
-
+                    val privateCoupon = couponRepository.getCachedCoupon(couponId)
                     if (privateCoupon != null) {
-                        Log.d(TAG, "✓ Found coupon in cache: $couponId")
-                        val couponDetail = convertPrivateCouponToCouponDetail(privateCoupon)
-                        _uiState.value = CouponDetailsUiState.Success(couponDetail)
+                        _uiState.value = CouponDetailsUiState.Success(convertPrivateCouponToCouponDetail(privateCoupon))
                         return@launch
                     }
-
-                    Log.d(TAG, "Coupon not in cache, trying API fetch...")
-
-                    // Step 2: Try with hardcoded brands (ExploringCoupons compatibility)
-                    val hardcodedBrands = listOf("Amazon", "Blinkit", "Cred", "Nykaa")
-                    Log.d(TAG, "Attempt 1: Fetching private coupon for hardcoded brands: ${hardcodedBrands.joinToString()}")
-                    privateCoupon = couponRepository.getPrivateCouponById(couponId, hardcodedBrands)
-
-                    // Step 3: If not found, try with synced apps (CouponsList compatibility)
-                    if (privateCoupon == null) {
-                        Log.d(TAG, "Coupon not found with hardcoded brands, trying synced apps...")
-                        val syncedApps = syncedAppRepository.getAllSyncedApps().first()
-                        val syncedBrands = syncedApps.map { syncedApp ->
-                            syncedApp.appName.replaceFirstChar { it.uppercase() }
-                        }
-
-                        Log.d(TAG, "Attempt 2: Fetching private coupon for synced brands: ${syncedBrands.joinToString()}")
-
-                        if (syncedBrands.isNotEmpty()) {
-                            privateCoupon = couponRepository.getPrivateCouponById(couponId, syncedBrands)
-                        }
-                    }
-
-                    if (privateCoupon != null) {
-                        // Convert PrivateCoupon to CouponDetail
-                        val couponDetail = convertPrivateCouponToCouponDetail(privateCoupon)
-                        _uiState.value = CouponDetailsUiState.Success(couponDetail)
-                        // Cache it for next time
-                        couponRepository.cacheCoupon(privateCoupon)
+                    
+                    val syncedApps = syncedAppRepository.getAllSyncedApps().first()
+                    val syncedBrands = syncedApps.map { it.appName.replaceFirstChar { it.uppercase() } }
+                    val apiCoupon = if (syncedBrands.isNotEmpty()) couponRepository.getPrivateCouponById(couponId, syncedBrands) else null
+                    
+                    if (apiCoupon != null) {
+                        _uiState.value = CouponDetailsUiState.Success(convertPrivateCouponToCouponDetail(apiCoupon))
+                        couponRepository.cacheCoupon(apiCoupon)
                     } else {
-                        Log.e(TAG, "Private coupon not found")
                         _uiState.value = CouponDetailsUiState.Error("Coupon not found")
                     }
-                    return@launch
                 } else {
-                    // Public mode - EXCLUSIVE COUPONS ONLY USE CACHE
-                    Log.d(TAG, "Loading exclusive coupon with id: $couponId")
-
                     val exclusiveCoupon = couponRepository.getCachedExclusiveCoupon(couponId)
                     if (exclusiveCoupon != null) {
-                        Log.d(TAG, "✓ Found exclusive coupon in cache: $couponId")
-                        val couponDetail = convertExclusiveCouponToCouponDetail(exclusiveCoupon)
-                        _uiState.value = CouponDetailsUiState.Success(couponDetail)
-                        return@launch
+                        _uiState.value = CouponDetailsUiState.Success(convertExclusiveCouponToCouponDetail(exclusiveCoupon))
                     } else {
-                        // Exclusive coupon not found in cache - this should not happen
-                        Log.e(TAG, "❌ Exclusive coupon not found in cache: $couponId")
-                        _uiState.value = CouponDetailsUiState.Error("Coupon data not available. Please go back and try again.")
-                        return@launch
+                        _uiState.value = CouponDetailsUiState.Error("Coupon data not available.")
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception loading coupon details", e)
-                _uiState.value = CouponDetailsUiState.Error("Unable to load coupon details. Please try again.")
+                _uiState.value = CouponDetailsUiState.Error("Unable to load details.")
             }
         }
     }
 
-    fun retry() {
-        loadCouponDetails()
-    }
+    fun retry() = loadCouponDetails()
 
+    /**
+     * Redeem a PRIVATE coupon — calls the backend to mark it as redeemed.
+     * Used when isPrivateMode = true.
+     */
     fun redeemCoupon(onSuccess: () -> Unit, onError: (String) -> Unit) {
-        Log.d(TAG, "========== REDEEM COUPON FLOW STARTED ==========")
-        Log.d(TAG, "Coupon ID from SavedStateHandle: $couponId")
-        Log.d(TAG, "Is Private Mode: $_isPrivate")
-
         viewModelScope.launch {
             try {
-                // Only allow redeeming private coupons for now
                 if (!_isPrivate) {
-                    Log.e(TAG, "Not a private coupon, aborting redeem")
-                    onError("Only private coupons can be redeemed")
+                    // Exclusive/scraped coupon — delegate to local-only path
+                    redeemRawCoupon(onSuccess = onSuccess, onError = onError)
                     return@launch
                 }
-
-                val currentUser = firebaseAuth.currentUser
-                if (currentUser == null) {
-                    Log.e(TAG, "User not authenticated")
+                val currentUser = firebaseAuth.currentUser ?: run {
                     onError("Please login to redeem coupon")
                     return@launch
                 }
-
-                val uid = currentUser.uid
-                Log.d(TAG, "✓ User authenticated - UID: $uid")
-                Log.d(TAG, "→ Calling repository.redeemPrivateCoupon(couponId=$couponId, uid=$uid)")
-
-                when (val result = couponRepository.redeemPrivateCoupon(couponId, uid)) {
+                when (val result = couponRepository.redeemPrivateCoupon(couponId, currentUser.uid)) {
                     is com.ayaan.dealora.data.repository.PrivateCouponResult.Success -> {
-                        Log.d(TAG, "✓ SUCCESS: Coupon redeemed successfully")
-                        Log.d(TAG, "Response message: ${result.message}")
-                        Log.d(TAG, "Response coupons count: ${result.coupons.size}")
-                        if (result.coupons.isNotEmpty()) {
-                            val redeemedCoupon = result.coupons[0]
-                            Log.d(TAG, "Redeemed coupon details:")
-                            Log.d(TAG, "  - ID: ${redeemedCoupon.id}")
-                            Log.d(TAG, "  - Brand: ${redeemedCoupon.brandName}")
-                            Log.d(TAG, "  - Redeemable: ${redeemedCoupon.redeemable}")
-                            Log.d(TAG, "  - Redeemed: ${redeemedCoupon.redeemed}")
-                            Log.d(TAG, "  - Redeemed By: ${redeemedCoupon.redeemedBy}")
-                            Log.d(TAG, "  - Redeemed At: ${redeemedCoupon.redeemedAt}")
-                        }
                         onSuccess()
-                        // Reload the coupon details to show updated state
                         loadCouponDetails()
                     }
-                    is com.ayaan.dealora.data.repository.PrivateCouponResult.Error -> {
-                        Log.e(TAG, "✗ ERROR: ${result.message}")
-                        onError(result.message)
-                    }
+                    is com.ayaan.dealora.data.repository.PrivateCouponResult.Error -> onError(result.message)
                 }
-                Log.d(TAG, "========== REDEEM COUPON FLOW COMPLETED ==========")
             } catch (e: Exception) {
-                Log.e(TAG, "✗ EXCEPTION in redeem flow: ${e.message}", e)
-                Log.e(TAG, "Exception stack trace:", e)
-                onError("Unable to redeem coupon. Please try again.")
+                onError("Unable to redeem coupon.")
             }
         }
     }
 
     /**
-     * Calculates the number of days between today and an ISO-8601 expiry date string.
-     * Returns null if the string is blank / unparseable.
+     * Redeem an EXCLUSIVE/scraped coupon — local-only, no backend call.
+     * Mirrors the behaviour in CouponsListViewModel.redeemRawCoupon().
+     * Used when isPrivateMode = false (exclusive mode in CouponsList).
      */
-    private fun computeDaysUntilExpiry(expiryDateStr: String?): Int? {
-        if (expiryDateStr.isNullOrBlank()) return null
-        return try {
-            // Handle ISO strings like "2025-04-30T00:00:00.000Z" or "2025-04-30"
-            val datePart = expiryDateStr.substringBefore("T").trim()
-            val parts = datePart.split("-")
-            if (parts.size < 3) return null
-            val year  = parts[0].toInt()
-            val month = parts[1].toInt()
-            val day   = parts[2].toInt()
-
-            val cal = java.util.Calendar.getInstance()
-            val todayYear  = cal.get(java.util.Calendar.YEAR)
-            val todayMonth = cal.get(java.util.Calendar.MONTH) + 1 // 0-indexed
-            val todayDay   = cal.get(java.util.Calendar.DAY_OF_MONTH)
-
-            val expiry = java.util.Calendar.getInstance().apply {
-                set(year, month - 1, day, 0, 0, 0); set(java.util.Calendar.MILLISECOND, 0)
+    fun redeemRawCoupon(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Record the redeem interaction first (explicit redeem press)
+                recordInteraction("redeem")
+                
+                // No backend endpoint for scraped-coupon redemption (other than fleet stats).
+                // Just signal success so the UI can show a confirmation.
+                onSuccess()
+            } catch (e: Exception) {
+                onError("Unable to mark coupon as redeemed.")
             }
-            val today = java.util.Calendar.getInstance().apply {
-                set(todayYear, todayMonth - 1, todayDay, 0, 0, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }
+    }
+
+    /**
+     * Record a user interaction with an exclusive coupon (copy, discover, redeem).
+     * Only works for non-private mode.
+     *
+     * Deduplication: each coupon+action pair is only sent to the backend ONCE per
+     * ViewModel session, regardless of how many times the user taps the button.
+     */
+    fun recordInteraction(action: String) {
+        if (_isPrivate) return // Only for exclusive coupons
+
+        val currentState = _uiState.value
+        if (currentState !is CouponDetailsUiState.Success) return
+
+        val coupon = currentState.coupon
+        val couponId = coupon.id.toString()
+        val sessionKey = "$couponId:$action"
+
+        // Skip if this coupon+action was already recorded this session
+        if (!recordedInteractionKeys.add(sessionKey)) {
+            Log.d(TAG, "Interaction already recorded this session, skipping: $sessionKey")
+            return
+        }
+
+        val userId = firebaseAuth.currentUser?.uid ?: "anonymous"
+
+        viewModelScope.launch {
+            Log.d(TAG, "Recording interaction: $action for coupon: $couponId")
+            fleetRepository.recordInteraction(
+                userId = userId,
+                couponId = couponId,
+                brandName = coupon.brandName.toString(),
+                couponCode = coupon.couponCode?.toString(),
+                couponLink = coupon.websiteLink?.toString(),
+                action = action
+            )
+        }
+    }
+
+    /**
+     * Fetch pending interactions for the current user.
+     */
+    fun loadPendingInteractions() {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        
+        viewModelScope.launch {
+            when (val result = fleetRepository.getPendingInteractions(userId)) {
+                is FleetResult.Success -> {
+                    _pendingInteractions.value = result.data
+                    Log.d(TAG, "Loaded ${result.data.size} pending interactions")
+                }
+                is FleetResult.Error -> {
+                    Log.e(TAG, "Error loading pending interactions: ${result.message}")
+                }
             }
-            val diffMs = expiry.timeInMillis - today.timeInMillis
-            (diffMs / (1000L * 60 * 60 * 24)).toInt()
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not parse expiry date: $expiryDateStr", e)
-            null
+        }
+    }
+
+    /**
+     * Resolve a pending interaction.
+     */
+    fun resolveInteraction(interactionId: String, outcome: String) {
+        viewModelScope.launch {
+            when (val result = fleetRepository.resolveInteraction(interactionId, outcome)) {
+                is FleetResult.Success -> {
+                    // Remove from local list
+                    _pendingInteractions.value = _pendingInteractions.value.filter { it.id != interactionId }
+                    Log.d(TAG, "Resolved interaction $interactionId as $outcome")
+                }
+                is FleetResult.Error -> {
+                    Log.e(TAG, "Error resolving interaction: ${result.message}")
+                }
+            }
         }
     }
 
     private fun convertPrivateCouponToCouponDetail(privateCoupon: PrivateCoupon): CouponDetail {
-        // For Gmail-imported coupons daysUntilExpiry is null; compute it from expiryDate instead.
-        val daysUntilExpiry = privateCoupon.daysUntilExpiry
-            ?: computeDaysUntilExpiry(privateCoupon.expiryDate?.toString())
-
+        val daysUntilExpiry = privateCoupon.daysUntilExpiry ?: computeDaysUntilExpiry(privateCoupon.expiryDate?.toString())
         return CouponDetail(
             id = privateCoupon.id,
             userId = privateCoupon.userId ?: "private_user",
@@ -296,40 +289,73 @@ class CouponDetailsViewModel @Inject constructor(
             discountValue = privateCoupon.discountValue,
             minimumOrder = privateCoupon.minimumOrderValue,
             couponCode = privateCoupon.couponCode,
-            couponVisitingLink = privateCoupon.couponVisitingLink,  // coupon-specific URL
-            websiteLink = privateCoupon.couponLink,                 // brand homepage (for Discover)
-            couponDetails = privateCoupon.couponDetails ?: (privateCoupon.description ?: "Visit the brand website to redeem this coupon."),
-            terms = privateCoupon.terms ?: "• Check brand website for complete terms\n• Subject to availability\n• Cannot be combined with other offers",
-            status = "active",
+            couponVisitingLink = privateCoupon.couponVisitingLink,
+            websiteLink = privateCoupon.couponLink,
+            couponDetails = privateCoupon.couponDetails ?: privateCoupon.description ?: "Visit brand website to redeem.",
+            terms = privateCoupon.terms ?: "• Check brand website for terms\n• Subject to availability",
+            status = privateCoupon.status ?: "active",
             addedMethod = privateCoupon.couponType,
             userType = privateCoupon.userType,
-
             base64ImageUrl = privateCoupon.base64ImageUrl,
-            createdAt = privateCoupon.createdAt ?: System.currentTimeMillis().toString(),
-            updatedAt = privateCoupon.updatedAt ?: System.currentTimeMillis().toString(),
+            createdAt = privateCoupon.createdAt ?: "",
+            updatedAt = privateCoupon.updatedAt ?: "",
             display = CouponDisplay(
                 initial = privateCoupon.brandName.firstOrNull()?.toString() ?: "?",
                 daysUntilExpiry = daysUntilExpiry,
                 isExpiringSoon = (daysUntilExpiry ?: Int.MAX_VALUE) <= 7,
                 formattedExpiry = daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
-                expiryStatusColor = when {
-                    daysUntilExpiry == null -> "gray"
-                    daysUntilExpiry <= 3   -> "red"
-                    daysUntilExpiry <= 7   -> "orange"
-                    else                   -> "green"
-                },
-                badgeLabels = listOfNotNull(
-                    privateCoupon.category,
-                    "Private Coupon"
-                ),
+                expiryStatusColor = "gray",
+                badgeLabels = listOfNotNull(privateCoupon.category, "Private Coupon"),
                 redemptionType = "online"
             ),
-            actions = CouponActions(
-                canEdit = false,
-                canDelete = false,
-                canRedeem = privateCoupon.redeemable ?: true,
-                canShare = false
-            )
+            actions = CouponActions(canEdit = false, canDelete = false, canRedeem = privateCoupon.redeemable ?: true, canShare = false)
+        )
+    }
+
+    private fun convertRawCouponToCouponDetail(rawCoupon: RawScrapedCoupon): CouponDetail {
+        // Prefer AI-enriched websiteLink (brand's actual website) over couponLink (scraper source URL)
+        val brandWebsite = rawCoupon.websiteLink?.takeIf { it.isNotBlank() }
+            ?: rawCoupon.homePage?.takeIf { it.isNotBlank() }
+            ?: rawCoupon.couponLink
+
+        // Build terms: use AI-enriched value if present, otherwise fallback
+        val resolvedTerms = rawCoupon.terms?.takeIf { it.isNotBlank() }
+            ?: "Scraped from public source. Subject to brand terms and conditions."
+
+        return CouponDetail(
+            id = rawCoupon.id,
+            userId = "raw_scraped",
+            couponName = rawCoupon.brandName,
+            brandName = rawCoupon.brandName,
+            couponTitle = rawCoupon.couponTitle,
+            description = rawCoupon.description,
+            expireBy = rawCoupon.expiryDate,
+            categoryLabel = rawCoupon.category,
+            useCouponVia = "Online",
+            discountType = rawCoupon.discountType ?: "scraped",
+            discountValue = rawCoupon.discountValue,
+            minimumOrder = rawCoupon.minimumOrder?.let { if (it > 0) it.toInt() else null },
+            couponCode = rawCoupon.couponCode,
+            couponVisitingLink = null,
+            websiteLink = brandWebsite,
+            couponDetails = rawCoupon.description ?: "Redeem this exclusive coupon on the brand website.",
+            terms = "• Scraped from public source\n• Verified: ${rawCoupon.verified ?: "Unknown"}\n• Subject to brand terms",
+            status = "active",
+            addedMethod = "exclusive",
+            userType = null,
+            base64ImageUrl = null,
+            createdAt = rawCoupon.scrapedAt ?: "",
+            updatedAt = "",
+            display = CouponDisplay(
+                initial = rawCoupon.brandName.firstOrNull()?.toString() ?: "?",
+                daysUntilExpiry = rawCoupon.daysUntilExpiry,
+                isExpiringSoon = (rawCoupon.daysUntilExpiry ?: Int.MAX_VALUE) <= 7,
+                formattedExpiry = rawCoupon.daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
+                expiryStatusColor = "gray",
+                badgeLabels = listOfNotNull(rawCoupon.category, "Exclusive Offer"),
+                redemptionType = "online"
+            ),
+            actions = CouponActions(canEdit = false, canDelete = false, canRedeem = false, canShare = true)
         )
     }
 
@@ -349,49 +375,49 @@ class CouponDetailsViewModel @Inject constructor(
             minimumOrder = null,
             couponCode = exclusiveCoupon.couponCode,
             couponVisitingLink = exclusiveCoupon.couponLink,
-            couponDetails = exclusiveCoupon.details ?: (exclusiveCoupon.description ?: "Visit the brand website to redeem this exclusive coupon."),
-            terms = exclusiveCoupon.terms ?: "• Check brand website for complete terms\n• Subject to availability\n• Cannot be combined with other offers",
+            websiteLink = exclusiveCoupon.couponLink,
+            couponDetails = exclusiveCoupon.details ?: exclusiveCoupon.description ?: "Visit brand website to redeem.",
+            terms = exclusiveCoupon.terms ?: "• Check brand website for terms",
             status = "active",
             addedMethod = "exclusive",
             base64ImageUrl = null,
-            createdAt = exclusiveCoupon.createdAt ?: System.currentTimeMillis().toString(),
-            updatedAt = exclusiveCoupon.updatedAt ?: System.currentTimeMillis().toString(),
+            createdAt = exclusiveCoupon.createdAt ?: "",
+            updatedAt = exclusiveCoupon.updatedAt ?: "",
             display = CouponDisplay(
                 initial = exclusiveCoupon.brandName.firstOrNull()?.toString() ?: "?",
                 daysUntilExpiry = exclusiveCoupon.daysUntilExpiry,
                 isExpiringSoon = (exclusiveCoupon.daysUntilExpiry ?: 0) <= 7,
                 formattedExpiry = exclusiveCoupon.daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
-                expiryStatusColor = when {
-                    exclusiveCoupon.daysUntilExpiry == null -> "gray"
-                    exclusiveCoupon.daysUntilExpiry <= 3 -> "red"
-                    exclusiveCoupon.daysUntilExpiry <= 7 -> "orange"
-                    else -> "green"
-                },
-                badgeLabels = listOfNotNull(
-                    exclusiveCoupon.category,
-                    "Exclusive Coupon",
-                    exclusiveCoupon.source?.let { "Source: $it" },
-                    exclusiveCoupon.stackable?.let { if (it == "yes" || it == "true") "Stackable" else null }
-                ),
+                expiryStatusColor = "gray",
+                badgeLabels = listOfNotNull(exclusiveCoupon.category, "Exclusive Coupon"),
                 redemptionType = "online",
                 isStackable = exclusiveCoupon.stackable?.lowercase()?.let { it == "yes" || it == "true" } ?: false
             ),
-            actions = CouponActions(
-                canEdit = false,
-                canDelete = false,
-                canRedeem = false, // Exclusive coupons are not redeemable through the app
-                canShare = true
-            )
+            actions = CouponActions(canEdit = false, canDelete = false, canRedeem = false, canShare = true)
         )
+    }
+
+    private fun computeDaysUntilExpiry(expiryDateStr: String?): Int? {
+        if (expiryDateStr.isNullOrBlank()) return null
+        return try {
+            val datePart = expiryDateStr.substringBefore("T").trim()
+            val parts = datePart.split("-")
+            if (parts.size < 3) return null
+            val expiry = java.util.Calendar.getInstance().apply {
+                set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt(), 0, 0, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val today = java.util.Calendar.getInstance().apply {
+                set(get(java.util.Calendar.YEAR), get(java.util.Calendar.MONTH), get(java.util.Calendar.DAY_OF_MONTH), 0, 0, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            ((expiry.timeInMillis - today.timeInMillis) / (1000L * 60 * 60 * 24)).toInt()
+        } catch (e: Exception) { null }
     }
 }
 
-/**
- * UI State for CouponDetailsScreen
- */
 sealed class CouponDetailsUiState {
     data object Loading : CouponDetailsUiState()
     data class Success(val coupon: CouponDetail) : CouponDetailsUiState()
     data class Error(val message: String) : CouponDetailsUiState()
 }
-
