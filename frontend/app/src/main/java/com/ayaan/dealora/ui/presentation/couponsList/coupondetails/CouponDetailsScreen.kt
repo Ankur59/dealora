@@ -52,7 +52,6 @@ import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.Bo
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.Chip
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.CouponCodeCard
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.DetailsContent
-import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.FleetFeedbackPopup
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.HowToRedeemContent
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.OfferTitle
 import com.ayaan.dealora.ui.presentation.couponsList.coupondetails.components.TabRow
@@ -187,17 +186,6 @@ fun CouponDetailsContent(
     isPrivateMode: Boolean = false,
     viewModel: CouponDetailsViewModel
 ) {
-    val pendingInteractions by viewModel.pendingInteractions.collectAsState()
-    
-    // Show feedback popup for the first pending interaction if available
-    pendingInteractions.firstOrNull()?.let { interaction ->
-        FleetFeedbackPopup(
-            interaction = interaction,
-            onResolve = { outcome ->
-                viewModel.resolveInteraction(interaction.id, outcome)
-            }
-        )
-    }
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Details", "How to redeem", "Terms & conditions")
     val clipboardManager = LocalClipboardManager.current

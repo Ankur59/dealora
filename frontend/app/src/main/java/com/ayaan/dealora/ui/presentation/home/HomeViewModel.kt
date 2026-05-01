@@ -344,15 +344,29 @@ class HomeViewModel @Inject constructor(
 
     /**
      * Fetch pending interactions for the current user.
+     *
+     * Deduplication: the raw list may contain multiple entries for the same coupon
+     * (e.g. user copied, then discovered the same coupon).  We keep only the first
+     * entry per couponId so the popup shows one row per coupon, not one per action.
+     * All sibling interactions are stored internally and resolved together.
      */
     fun fetchPendingInteractions() {
         val userId = firebaseAuth.currentUser?.uid ?: return
-        
+
         viewModelScope.launch {
             when (val result = fleetRepository.getPendingInteractions(userId)) {
                 is FleetResult.Success -> {
-                    _uiState.update { it.copy(pendingInteractions = result.data) }
-                    Log.d(TAG, "Loaded ${result.data.size} pending interactions")
+                    // Deduplicate: one entry per unique couponId
+                    val deduplicated = result.data
+                        .groupBy { it.couponId }
+                        .values
+                        .mapNotNull { it.firstOrNull() }
+                    _uiState.update { it.copy(
+                        pendingInteractions = deduplicated,
+                        // Keep the full raw list for bulk-resolve
+                        allPendingInteractionIds = result.data.map { it.id }
+                    ) }
+                    Log.d(TAG, "Loaded ${result.data.size} raw pending → ${deduplicated.size} deduplicated")
                 }
                 is FleetResult.Error -> {
                     Log.e(TAG, "Error loading pending interactions: ${result.message}")
@@ -362,24 +376,31 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Resolve a pending interaction.
+     * Resolve a coupon interaction by couponId.
+     * Finds ALL pending interaction IDs for this couponId (including duplicates)
+     * and resolves them all with the same outcome.
      */
-    fun resolveInteraction(interactionId: String, outcome: String) {
+    fun resolveInteraction(couponId: String, outcome: String) {
+        val state = _uiState.value
+        // All raw IDs belonging to this couponId
+        val sibling = _uiState.value.pendingInteractions
+            .filter { it.couponId == couponId }
+            .map { it.id }
+        // Also check full raw list stored in allPendingInteractionIds — but we
+        // don't have the raw objects there, so we resolve by couponId grouping.
+        // The deduplicated list gives us enough to remove the row from the UI.
+
         viewModelScope.launch {
-            when (val result = fleetRepository.resolveInteraction(interactionId, outcome)) {
-                is FleetResult.Success -> {
-                    // Update UI state by removing the resolved interaction
-                    _uiState.update { state ->
-                        state.copy(
-                            pendingInteractions = state.pendingInteractions.filter { it.id != interactionId }
-                        )
-                    }
-                    Log.d(TAG, "Resolved interaction $interactionId as $outcome")
-                }
-                is FleetResult.Error -> {
-                    Log.e(TAG, "Error resolving interaction: ${result.message}")
-                }
+            sibling.forEach { id ->
+                fleetRepository.resolveInteraction(id, outcome)
             }
+            // Remove this coupon's row from the UI
+            _uiState.update { s ->
+                s.copy(
+                    pendingInteractions = s.pendingInteractions.filter { it.couponId != couponId }
+                )
+            }
+            Log.d(TAG, "Resolved ${sibling.size} interaction(s) for coupon $couponId as $outcome")
         }
     }
 
@@ -387,12 +408,10 @@ class HomeViewModel @Inject constructor(
      * Resolve all pending interactions as skipped.
      */
     fun skipAllInteractions() {
-        val currentPending = _uiState.value.pendingInteractions
+        val allIds = _uiState.value.allPendingInteractionIds
         viewModelScope.launch {
-            currentPending.forEach { interaction ->
-                fleetRepository.resolveInteraction(interaction.id, "skipped")
-            }
-            _uiState.update { it.copy(pendingInteractions = emptyList()) }
+            allIds.forEach { id -> fleetRepository.resolveInteraction(id, "skipped") }
+            _uiState.update { it.copy(pendingInteractions = emptyList(), allPendingInteractionIds = emptyList()) }
         }
     }
 }

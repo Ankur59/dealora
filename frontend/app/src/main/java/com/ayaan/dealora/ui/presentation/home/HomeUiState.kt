@@ -15,6 +15,9 @@ data class HomeUiState(
     val errorMessage: String? = null,
     val exploreCoupons: List<PrivateCoupon> = emptyList(),
     val isLoadingCoupons: Boolean = false,
-    val pendingInteractions: List<PendingInteraction> = emptyList()
+    // Deduplicated list (one row per coupon) shown in the feedback popup
+    val pendingInteractions: List<PendingInteraction> = emptyList(),
+    // All raw interaction IDs — needed so skipAll resolves every duplicate too
+    val allPendingInteractionIds: List<String> = emptyList()
 )
 

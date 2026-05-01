@@ -81,8 +81,8 @@ fun MultiFleetFeedbackPopup(
                     items(displayList) { interaction ->
                         FeedbackItem(
                             interaction = interaction,
-                            onSuccess = { onResolve(interaction.id, "success") },
-                            onFailure = { onResolve(interaction.id, "failure") }
+                            onSuccess = { onResolve(interaction.couponId, "success") },
+                            onFailure = { onResolve(interaction.couponId, "failure") }
                         )
                     }
                 }
