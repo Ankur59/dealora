@@ -56,6 +56,12 @@ class CouponDetailsViewModel @Inject constructor(
     private val _pendingInteractions = MutableStateFlow<List<PendingInteraction>>(emptyList())
     val pendingInteractions: StateFlow<List<PendingInteraction>> = _pendingInteractions.asStateFlow()
 
+    /**
+     * Session-level guard: tracks "couponId:action" keys already sent to the backend
+     * this ViewModel session.  Prevents spam-copying from creating duplicate DB entries.
+     */
+    private val recordedInteractionKeys = mutableSetOf<String>()
+
     init {
         Log.d(TAG, "========== ViewModel Initialized ==========")
         Log.d(TAG, "Coupon ID: $couponId")
@@ -195,21 +201,33 @@ class CouponDetailsViewModel @Inject constructor(
     /**
      * Record a user interaction with an exclusive coupon (copy, discover, redeem).
      * Only works for non-private mode.
+     *
+     * Deduplication: each coupon+action pair is only sent to the backend ONCE per
+     * ViewModel session, regardless of how many times the user taps the button.
      */
     fun recordInteraction(action: String) {
         if (_isPrivate) return // Only for exclusive coupons
-        
+
         val currentState = _uiState.value
         if (currentState !is CouponDetailsUiState.Success) return
-        
+
         val coupon = currentState.coupon
+        val couponId = coupon.id.toString()
+        val sessionKey = "$couponId:$action"
+
+        // Skip if this coupon+action was already recorded this session
+        if (!recordedInteractionKeys.add(sessionKey)) {
+            Log.d(TAG, "Interaction already recorded this session, skipping: $sessionKey")
+            return
+        }
+
         val userId = firebaseAuth.currentUser?.uid ?: "anonymous"
-        
+
         viewModelScope.launch {
-            Log.d(TAG, "Recording interaction: $action for coupon: ${coupon.id}")
+            Log.d(TAG, "Recording interaction: $action for coupon: $couponId")
             fleetRepository.recordInteraction(
                 userId = userId,
-                couponId = coupon.id.toString(),
+                couponId = couponId,
                 brandName = coupon.brandName.toString(),
                 couponCode = coupon.couponCode?.toString(),
                 couponLink = coupon.websiteLink?.toString(),

@@ -45,8 +45,8 @@ fun HomeScreen(
     if (uiState.pendingInteractions.isNotEmpty()) {
         MultiFleetFeedbackPopup(
             interactions = uiState.pendingInteractions,
-            onResolve = { id, outcome ->
-                viewModel.resolveInteraction(id, outcome)
+            onResolve = { couponId, outcome ->
+                viewModel.resolveInteraction(couponId, outcome)
             },
             onDismissAll = {
                 viewModel.skipAllInteractions()
