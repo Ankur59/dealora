@@ -2,6 +2,7 @@ import browserService, { BrowserService } from '../services/browser.service.js';
 import geminiService from '../services/gemini.service.js';
 import Merchant from '../models/merchant.model.js';
 import MerchantCredential from '../models/merchantCredential.model.js';
+import proxyManager from '../services/proxyManager.service.js';
 import { io } from '../index.js';
 
 /**
@@ -352,7 +353,16 @@ export async function runAutomationLoop(merchantId, goal, res, mode) {
       if (suggestion.action === 'blocked') {
         if (blockRetries < maxBlockRetries) {
           blockRetries++;
-          await browserService.emitLog(merchantId, `🔄 Site blocked access (retry ${blockRetries}/${maxBlockRetries}). Recreating session with fresh fingerprint…`, 'warning');
+
+          // Retry 1: fresh fingerprint (direct). Retry 2+: escalate to proxy.
+          const useProxy = blockRetries >= 2;
+
+          if (useProxy) {
+            await browserService.emitLog(merchantId, `🌐 Block retry ${blockRetries}/${maxBlockRetries}: escalating to scrape.do proxy…`, 'warning');
+            proxyManager.markBlocked(targetUrl);
+          } else {
+            await browserService.emitLog(merchantId, `🔄 Block retry ${blockRetries}/${maxBlockRetries}: fresh fingerprint…`, 'warning');
+          }
 
           // Destroy current context and wait (exponential backoff)
           await browserService.recreateContext(merchantId);
@@ -360,8 +370,8 @@ export async function runAutomationLoop(merchantId, goal, res, mode) {
           await browserService.emitLog(merchantId, `⏳ Waiting ${waitSec}s before retry…`);
           await BrowserService.randomDelay(waitSec * 1000, waitSec * 1000 + 2000);
 
-          // Get a brand-new page with different UA / fingerprint
-          const fresh = await browserService.getPageWithSession(merchantId);
+          // Get new page — will auto-use proxy if domain is marked blocked
+          const fresh = await browserService.getPageWithSession(merchantId, { forceProxy: useProxy });
           page = fresh.page;
           context = fresh.context;
           merchant = fresh.merchant;
@@ -375,10 +385,10 @@ export async function runAutomationLoop(merchantId, goal, res, mode) {
           await BrowserService.warmUpPage(page);
           continue; // re-enter the loop and let the AI re-analyze
         } else {
-          await browserService.emitLog(merchantId, `❌ Site continues to block after ${maxBlockRetries} retries.`, 'error');
+          await browserService.emitLog(merchantId, `❌ Site continues to block after ${maxBlockRetries} retries (including proxy).`, 'error');
           await Merchant.findByIdAndUpdate(merchantId, {
             'lastLoginAttempt.status': 'failed',
-            'lastLoginAttempt.message': 'Site blocked automation after multiple retry attempts',
+            'lastLoginAttempt.message': 'Site blocked automation after multiple retry attempts (proxy included)',
           });
           currentMacro = [];
           break;

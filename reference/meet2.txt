@@ -1,0 +1,110 @@
+● Weighted scoring system finalized with 12 parameters, total weight 100. Key factors include success score, trust score, and failure rates.
+● AI engine validates about 1,000 coupons in 7 to 10 hours. Coupons validated in batches of three due to website throttling.
+● Switching to partner coupon ingestion for better data quality. Current scraped data unreliable; partnerships with V Commission and others are prioritized.
+● Manual validation planned every 3–4 days for accuracy. Adjustments based on feedback will aim to refine scoring formulas and improve results.
+● Next steps include finalizing partner onboarding discussion. Focus on subscription models and integration details for improved data quality.
+ 
+Notes
+Coupon Scoring and Validation Engine
+The team has developed a weighted scoring system to evaluate coupons using multiple parameters, improving coupon quality filtration before AI validation.
+● Weighted parameter scoring system finalized with 12 key parameters and total weightage of 100 (04:49)
+○ Parameters include live success score (weight 25–30), trust score, recency, and failure rates, though some are not yet active
+○ Scores are normalized by coverage factor to fairly compare coupons with different available parameters
+○ This weighted approach helps identify the best coupons fairly even if providers supply varying data points
+○ The system calculates an average score per merchant and filters coupons above a set threshold for AI validation
+● AI validation engine verifies coupons in batches with auto-login and condition checking (15:18)
+○ AI agent performs auto-login, applies coupons, and updates validity status in the database
+○ Due to website throttling, only about three coupons are validated concurrently, requiring a cooldown period
+○ The engine can validate roughly 1,000 coupons in 7 to 10 hours, running every 12 hours to keep coupon status updated
+○ Verified coupons are marked valid; invalid ones are retained with labels instead of deletion to save resources and avoid re-checking
+● Manual testing and live running of validation demonstrated on Muscle Blaze and other merchants (29:17)
+○ AI attempts coupon application and logs results for each coupon
+○ Challenges with OTP submission and cookie conflicts noted, requiring credential management improvements
+○ Team plans to start manual feeding of top-ranked coupons into AI while automation matures
+● Filtering and sorting logic separates validation from user-facing coupon ranking (40:03)
+○ Validation engine’s role is binary: confirm if coupon is valid or not
+○ Coupon ranking and sorting by value or user preference happens after validation in the system
+○ Plans include filtering coupons based on user cart value and sorting validated coupons by maximum discount or relevance
+Data Ingestion Strategy and Partner Integration
+The current approach balances scraped coupons for AI training with a planned shift to partner-based ingestion to improve coupon quality and revenue potential.
+● Scraped coupons used primarily for AI training and worst-case testing; partner coupon ingestion is preferred long-term (57:01)
+○ Scraping sites like GrabOn and CouponSonia provide coupon samples but have inconsistent data and limited reliability
+○ Partner APIs (V Commission, Coupon Method, Admitad) offer cleaner data but require launch and subscription agreements
+○ Team clarified architecture will support multiple ingestion sources but aims to onboard partners for higher-quality data
+● Subscription and access models with partners are under review; V Commission seen as most promising (52:38)
+○ V Commission requires product launch before full API access; free trials are limited and coupons restricted
+○ Coupon Method API considered more reliable, and subscription cost depends on chosen model
+○ Discussions planned to finalize subscription models and onboard partners after evaluating pricing and data access
+● Flexible architecture planned to handle multiple ingestion streams without locking into one model (01:03:39)
+○ Aman Agarwal emphasized flexibility to adapt if business model or ingestion sources change in future
+○ Current focus is on collecting sufficient data to train AI, regardless of source
+○ Integration with partner APIs and ingestion engines will evolve as partners onboard and system stabilizes
+Operational Workflow and Process Improvements
+The team outlined workflows to manage coupon lifecycle, improve validation efficiency, and maintain system accuracy under load.
+● Coupon filtering uses average scoring per merchant and threshold-based selection for AI validation (12:02)
+○ For each merchant, all coupons are scored and an average score is calculated
+○ Only coupons scoring above a configurable threshold proceed to AI validation, reducing validation load
+○ This prevents providers with fewer parameters from being unfairly penalized
+● Retention of invalid coupons with labels rather than deletion to reduce redundant validations (01:07:56)
+○ Invalid coupons are marked instead of hard deletion to save resources and API token usage
+○ This approach allows the system to skip rechecking known invalid coupons, improving efficiency
+● Validation batch size limited to three concurrent coupons to avoid website lockout (37:04)
+○ System runs validation batches spaced out with cooldown periods to stay within website limits
+○ This leads to a typical validation cycle of up to 12 hours for large coupon sets
+○ Concurrent validation across multiple merchants increases throughput
+● Manual overrides and feedback loops suggested for coupon health and ranking adjustment (48:24)
+○ Coupons flagged invalid by multiple users get downgraded in ranking but are not immediately removed
+○ AI validation results will ultimately dictate coupon kill decisions to prevent premature deletion
+○ Weightages and parameters will be adjusted based on trial and error and manual checks every 3–4 days
+Accuracy and Quality Assurance
+The team prioritizes continuous testing and refinement of scoring parameters to ensure coupon recommendations are reliable and valuable.
+● Regular manual validation of parameter-based filtration accuracy planned every 3–4 days (01:11:32)
+○ Manual checks will verify if rejected coupons are truly invalid or if parameter weights need adjustment
+○ Trial-and-error approach will refine scoring formulas to improve accuracy over time
+○ This feedback loop will help balance false positives and negatives in coupon selection
+● Focus on ensuring high-intent, high-value coupons are prioritized in final ranking (01:21:18)
+○ Parameters and formulas will be tweaked to ensure coupons with maximum user benefit rank higher
+○ User intent and coupon value will be important considerations in future ranking enhancements
+○ Additional parameters may be introduced as part of ongoing tuning efforts
+● Development of metrics like confidence score, precision, and accuracy planned for internal dashboard monitoring (01:04:52)
+○ These metrics will track model performance and trustworthiness of coupon validation results
+○ Dashboard will enable quick identification of issues and support data-driven parameter adjustment
+○ This will support transparency and continuous improvement of AI validation engine
+Next Steps and Roadmap
+The team outlined immediate priorities and timelines for integration, partner onboarding, and system deployment.
+● Finalize accuracy testing on existing parameters using scraped coupons as temporary data source (01:01:12)
+○ Continue parameter testing and manual validation to confirm scoring reliability before launch
+○ Use scraped coupons to simulate worst-case scenarios and refine AI validation before partner data is available
+● Plan partner onboarding discussion scheduled for Monday to finalize subscription and integration details (01:24:18)
+○ Meeting to cover Kubernetes deployment, payment models, and partner API access
+○ Decision on whether to onboard Coupon Method or V Commission to be finalized
+○ Partner onboarding dependent on pricing models and coupon data quality
+● Phase two development to focus on front-end integration, health score introduction, and search/filter features (01:28:33)
+○ Health score system to complement AI validation for better coupon ranking and filtering
+○ Front-end integration includes deployment on iOS and improved user experience
+○ Search engine enhancements to allow sorting by coupon value, user preferences, and merchant
+● Documentation and knowledge sharing emphasized for parameter formulas and ingestion processes (01:27:42)
+○ Ankur Kumar to share detailed documentation of parameter weights and scoring formulas with Aman Agarwal
+○ Documentation will support transparency and ongoing tuning by product and engineering teams
+○ Team to maintain flexible ingestion architecture to accommodate evolving data sources and business models
+ 
+Action items
+Ankur Kumar
+● Run parameter scoring on coupons from a single brand and demonstrate coupon validation results (21:50)
+● Share documented parameter feeding formulas with Aman Agarwal for transparency and collaborative review (01:27:46)
+● Set up ingestion linkage and ensure smooth parameter integration for scraped coupons and partner coupons (56:50)
+● Continue iterative adjustment of scoring weights based on manual verification feedback every 3-4 days (01:11:30)
+Utkarsh Kumar
+● Provide environment files and API keys needed to configure the validation engine for demo/testing (18:10)
+● Show and troubleshoot the AI agent auto-login and coupon application demo, including OTP verification flow improvements (29:00)
+● Assist with setting up multiple accounts and credentials for merchant coupon validation (33:56)
+Aman Agarwal
+● Assess and finalize partner subscription models with coupon data providers (vCommission, CouponMatic) to onboard partners or continue with scraped data (52:15)
+● Implement measurement metrics in internal dashboards for AI validation model accuracy and confidence (01:04:52)
+● Manage next phase integration plans involving search, health scoring, and front-end deployment (01:28:26)
+● Attend upcoming meeting with coupon partners to discuss payment and subscription models (01:24:10)
+Shourya Bhatta
+● Coordinate manual verification tests for coupon validation outputs and support adjusting scoring parameter weights for accuracy (01:11:57)
+● Lead engagement and meetings with coupon partners for integrating real-time coupons and APIs (01:27:09)
+● Ensure documentation of parameter formulas is reviewed and validated for correctness by team (01:27:42)
+ 
