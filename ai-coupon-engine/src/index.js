@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import app from "./app.js";
 import { connectDB } from "./db/connectDB.js";
 import verificationSchedulerService from './services/verificationScheduler.service.js';
+import { fetchAndNormalizePartnerData } from "./services/normalization.service.js";
 
 const server = http.createServer(app);
 const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
@@ -35,7 +36,8 @@ connectDB(process.env.MONGODB_URI)
 
     server.listen(process.env.PORT || 8000, () => {
       console.log("Server started at port: ", process.env.PORT || 8000);
-    });
+    })
+    fetchAndNormalizePartnerData("coupomated", "coupons")
   })
   .catch((err) => {
     console.log("MONGO db connection failed !!! ", err);

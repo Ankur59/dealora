@@ -3,16 +3,22 @@
  *
  * Auth:       API Key (query param 'apikey')
  * Campaigns:  Not provided by Coupomated
- * Coupons:    Single request (no pagination) → https://api.coupomated.com/coupons/all
+ * Coupons:    Single request (no pagination)
+ *   all     → https://api.coupomated.com/coupons/all
+ *   new     → https://api.coupomated.com/coupons/new
+ *   updated → https://api.coupomated.com/coupons/updated
+ * Merchants:  Single request                → https://api.coupomated.com/merchants
  * Categories: Single request                → https://api.coupomated.com/categories/coupon
  */
 
-import { apiKeyAuth }       from '../shared/auth/apiKey.js';
-import { paginateNone }     from '../shared/paginator.js';
-import { bulkWriteChunked } from '../shared/chunkedWrite.js';
-import Coupon               from '../models/coupon.model.js';
-import { Category }         from '../models/category.model.js';
-import normalizeCoupomated  from '../services/coupomated/helpers/normalize.js';
+import { apiKeyAuth }           from '../shared/auth/apiKey.js';
+import { paginateNone }         from '../shared/paginator.js';
+import { bulkWriteChunked }     from '../shared/chunkedWrite.js';
+import Coupon                   from '../models/coupon.model.js';
+import PartnerMerchant          from '../models/partnerMerchant.model.js';
+import { Category }             from '../models/category.model.js';
+import normalizeCoupomated      from '../services/coupomated/helpers/normalize.js';
+import normalizeCoupomatedMerchant from '../services/coupomated/helpers/normalizeMerchant.js';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -38,6 +44,58 @@ export default {
                 normalize:  normalizeCoupomated,
                 Model:      Coupon,
                 getFilter:  (n) => ({ partner: 'coupomated', couponId: n.couponId }),
+            }),
+        });
+    },
+
+    /**
+     * Fetches coupons that were newly added since the last sync.
+     * Uses the same normalization and upsert pipeline as syncCoupons().
+     */
+    async syncNewCoupons() {
+        await paginateNone({
+            endpoint: 'https://api.coupomated.com/coupons/new',
+            getAuth,
+            onBatch: (items) => bulkWriteChunked({
+                items,
+                normalize:  normalizeCoupomated,
+                Model:      Coupon,
+                getFilter:  (n) => ({ partner: 'coupomated', couponId: n.couponId }),
+            }),
+        });
+    },
+
+    /**
+     * Fetches coupons that were recently updated and patches existing documents.
+     * Uses upsert: false so only already-imported coupons are touched — no ghost inserts.
+     */
+    async syncUpdatedCoupons() {
+        await paginateNone({
+            endpoint: 'https://api.coupomated.com/coupons/updated',
+            getAuth,
+            onBatch: (items) => bulkWriteChunked({
+                items,
+                normalize:  normalizeCoupomated,
+                Model:      Coupon,
+                getFilter:  (n) => ({ partner: 'coupomated', couponId: n.couponId }),
+                upsert:     false,   // update-only: never create docs that don't exist yet
+            }),
+        });
+    },
+
+    /**
+     * Fetches all merchants from Coupomated and upserts them into the
+     * partnermerchant collection, keyed on partner + merchantId.
+     */
+    async syncMerchants() {
+        await paginateNone({
+            endpoint: 'https://api.coupomated.com/merchants',
+            getAuth,
+            onBatch: (items) => bulkWriteChunked({
+                items,
+                normalize:  normalizeCoupomatedMerchant,
+                Model:      PartnerMerchant,
+                getFilter:  (n) => ({ partner: 'coupomated', merchantId: n.merchantId }),
             }),
         });
     },
