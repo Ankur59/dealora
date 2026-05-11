@@ -1,3 +1,5 @@
+import { computeDiscountWeight } from '../../../shared/discountWeight.js';
+
 /** Known couponType values accepted by the schema. */
 const KNOWN_COUPON_TYPES = ["FREE TRIAL", "Buy 1 Get 1 Free", "No cost EMI"];
 
@@ -70,6 +72,11 @@ const normalizeCoupomatedCoupon = (coupon) => {
         couponType: resolveCouponType(coupon.discount),
         isInStore: detectIsInStore(description),
         isNewUser: detectIsNewUser(description),
+        title: coupon.title ?? null,
+        networkId: coupon.network_id ?? null,
+        merchantId: coupon.merchant_id ?? null,
+        metchantLogo: coupon.merchant_logo ?? null,
+        discountWeight: computeDiscountWeight(coupon.discount),
         meta: {
             title: coupon.title ?? null,
             exclusive: coupon.exclusive ?? null,

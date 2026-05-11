@@ -87,18 +87,23 @@ const couponSchema = new Schema({
         type: Boolean,
         default: false,
     },
-    // AI Coupon Scoring Parameters
-    // liveSuccessRate: { type: Number, default: 0 },
-    // recencyScore: { type: Number, default: 0 },
-    // failureRate: { type: Number, default: 0 },
-    // trustScore: { type: Number, default: 0 },
-    // usedByCount: { type: Number, default: 0 },
-    // confidenceScore: { type: Number, default: 0 },
-    // contextMatchScore: { type: Number, default: 0 },
-    // sourceCredibilityScore: { type: Number, default: 0 },
-    // trendVelocity: { type: Number, default: 0 },
-    // finalScore: { type: Number, default: 0 },
-
+    title: {
+        type: String,
+    },
+    networkId: {
+        type: String
+    },
+    merchantId: {
+        type: String
+    },
+    metchantLogo: {
+        type: String
+    },
+    discountWeight: {
+        type: Number,
+        default: 0,
+        index: true,        // enables fast sort by discount value
+    }
 }, { timestamps: true });
 
 
@@ -125,6 +130,7 @@ couponSchema.index(
 
 couponSchema.index({ partner: 1, isVerified: 1, verifiedOn: -1 });
 couponSchema.index({ verifiedOn: -1, updatedAt: -1 });
+couponSchema.index({ discountWeight: -1 });   // sort high-value coupons first
 
 const coupon = model("partnercoupon", couponSchema)
 
