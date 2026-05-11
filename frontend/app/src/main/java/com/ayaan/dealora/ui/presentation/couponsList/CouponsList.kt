@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -31,11 +33,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.ayaan.dealora.data.api.models.PartnerCoupon
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
@@ -61,6 +65,12 @@ fun CouponsList(
     val isPublicMode by viewModel.isPublicMode.collectAsState()
     val syncedBrands by viewModel.syncedBrands.collectAsState()
     val isLoadingPrivateCoupons by viewModel.isLoadingPrivateCoupons.collectAsState()
+    // Partner coupons (exclusive toggle ON)
+    val partnerCouponsActive   by viewModel.partnerCouponsActive.collectAsState()
+    val partnerCouponsRedeemed by viewModel.partnerCouponsRedeemed.collectAsState()
+    val partnerCouponsExpired  by viewModel.partnerCouponsExpired.collectAsState()
+    val isLoadingPartnerCoupons by viewModel.isLoadingPartnerCoupons.collectAsState()
+    val exclusiveTab            by viewModel.exclusiveTab.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
@@ -191,85 +201,107 @@ fun CouponsList(
                             }
                         }
                     } else {
-                        // Exclusive Mode (Public)
-                        if (isLoadingRawCoupons && rawCoupons.isEmpty()) {
+                        // ── Exclusive Mode — Partner Coupons (ai-coupon-engine) ─────────────
+
+                        // Active / Redeemed / Expired tab row
+                        ExclusiveTabRow(
+                            currentTab    = exclusiveTab,
+                            onTabSelected = { viewModel.onExclusiveTabChanged(it) }
+                        )
+
+                        val displayCoupons: List<PartnerCoupon> = when (exclusiveTab) {
+                            ExclusiveTab.ACTIVE   -> partnerCouponsActive
+                            ExclusiveTab.REDEEMED -> partnerCouponsRedeemed
+                            ExclusiveTab.EXPIRED  -> partnerCouponsExpired
+                        }
+
+                        if (isLoadingPartnerCoupons && displayCoupons.isEmpty()) {
                             LoadingContent()
-                        } else if (rawCoupons.isEmpty()) {
-                            EmptyContent()
+                        } else if (displayCoupons.isEmpty()) {
+                            EmptyContent(tab = exclusiveTab)
                         } else {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                                 contentPadding = PaddingValues(16.dp)
                             ) {
-                                itemsIndexed(rawCoupons, key = { _, c -> c.id }) { index, coupon ->
+                                itemsIndexed(displayCoupons, key = { _, c -> c.id }) { index, coupon ->
                                     var showSuccessDialog by remember { mutableStateOf(false) }
-                                    var showErrorDialog by remember { mutableStateOf(false) }
-                                    var errorMessage by remember { mutableStateOf("") }
-                                    var isRedeemedLocal by remember { mutableStateOf(false) }
+                                    var showErrorDialog   by remember { mutableStateOf(false) }
+                                    var errorMessage      by remember { mutableStateOf("") }
+
+                                    val isAlreadyRedeemed =
+                                        exclusiveTab == ExclusiveTab.REDEEMED ||
+                                        coupon.isRedeemed == true
 
                                     CouponCard(
-                                        brandName = coupon.brandName.uppercase().replace(" ", "\n"),
-                                        couponTitle = coupon.couponTitle ?: "Exclusive Offer",
-                                        description = coupon.description ?: "",
-                                        category = coupon.category,
-                                        expiryDays = coupon.daysUntilExpiry,
-                                        couponCode = coupon.couponCode ?: "",
-                                        couponId = coupon.id,
-                                        isRedeemed = isRedeemedLocal,
-                                        isSaved = savedCouponIds.contains(coupon.id),
-                                        source = coupon.couponLink,
+                                        brandName     = coupon.brandName.uppercase().replace(" ", "\n"),
+                                        couponTitle   = coupon.couponTitle ?: coupon.discount ?: "Partner Offer",
+                                        description   = coupon.description ?: "",
+                                        category      = coupon.category,
+                                        expiryDays    = coupon.daysUntilExpiry,
+                                        couponCode    = coupon.couponCode ?: "",
+                                        couponId      = coupon.id,
+                                        isRedeemed    = isAlreadyRedeemed,
+                                        isSaved       = savedCouponIds.contains(coupon.id),
+                                        source        = coupon.couponLink,
                                         showActionButtons = true,
-                                        onSave = { _ -> viewModel.saveRawCoupon(coupon) },
-                                        onRemoveSave = { couponId -> viewModel.removeSavedCoupon(couponId) },
-                                        onRedeem = { _ ->
-                                            viewModel.redeemRawCoupon(
-                                                coupon.id,
-                                                onSuccess = {
-                                                    isRedeemedLocal = true
-                                                    showSuccessDialog = true
-                                                },
-                                                onError = { err ->
-                                                    errorMessage = err
-                                                    showErrorDialog = true
-                                                }
-                                            )
+                                        onSave        = { _ -> viewModel.savePartnerCoupon(coupon) },
+                                        onRemoveSave  = { id -> viewModel.removeSavedCoupon(id) },
+                                        onRedeem      = { _ ->
+                                            if (!isAlreadyRedeemed) {
+                                                viewModel.redeemPartnerCoupon(
+                                                    couponId  = coupon.id,
+                                                    onSuccess = { showSuccessDialog = true },
+                                                    onError   = { err ->
+                                                        errorMessage  = err
+                                                        showErrorDialog = true
+                                                    }
+                                                )
+                                            }
                                         },
                                         onDetailsClick = {
-                                            val couponJson = viewModel.moshi.adapter(RawScrapedCoupon::class.java).toJson(coupon)
+                                            val couponJson = viewModel.moshi
+                                                .adapter(PartnerCoupon::class.java)
+                                                .toJson(coupon)
                                             navController.navigate(
                                                 Route.CouponDetails.createRoute(
-                                                    couponId = coupon.id,
-                                                    isPrivate = false,
+                                                    couponId   = coupon.id,
+                                                    isPrivate  = false,
                                                     couponCode = coupon.couponCode ?: "",
                                                     couponData = Uri.encode(couponJson)
                                                 )
                                             )
                                         },
+                                        // Discover — opens the affiliate tracking link
                                         onDiscoverClick = {
                                             openUrl(context, coupon.couponLink)
                                         }
                                     )
 
                                     RedeemResultDialogs(
-                                        showSuccess = showSuccessDialog,
-                                        showError = showErrorDialog,
-                                        errorMessage = errorMessage,
+                                        showSuccess      = showSuccessDialog,
+                                        showError        = showErrorDialog,
+                                        errorMessage     = errorMessage,
                                         onSuccessDismiss = { showSuccessDialog = false },
-                                        onErrorDismiss = { showErrorDialog = false }
+                                        onErrorDismiss   = { showErrorDialog   = false }
                                     )
 
-                                    // Trigger pagination
-                                    if (index == rawCoupons.size - 1 && viewModel.getRawCouponsPage() < viewModel.getRawCouponsPages()) {
-                                        viewModel.loadNextRawPage()
+                                    // Pagination trigger
+                                    if (index == displayCoupons.size - 1 &&
+                                        viewModel.getPartnerCouponsPage() < viewModel.getPartnerCouponsPages()
+                                    ) {
+                                        viewModel.loadNextPartnerPage()
                                     }
                                 }
 
-                                if (isLoadingRawCoupons && rawCoupons.isNotEmpty()) {
+                                // Inline loading spinner at bottom during pagination
+                                if (isLoadingPartnerCoupons && displayCoupons.isNotEmpty()) {
                                     item {
-                                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                            CircularProgressIndicator()
-                                        }
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) { CircularProgressIndicator() }
                                     }
                                 }
                             }
@@ -404,14 +436,79 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun EmptyContent() {
+private fun EmptyContent(tab: ExclusiveTab = ExclusiveTab.ACTIVE) {
+    val emoji = when (tab) {
+        ExclusiveTab.REDEEMED -> "✅"
+        ExclusiveTab.EXPIRED  -> "⏰"
+        else                  -> "🎟️"
+    }
+    val title = when (tab) {
+        ExclusiveTab.REDEEMED -> "No redeemed coupons yet"
+        ExclusiveTab.EXPIRED  -> "No expired coupons"
+        else                  -> "No partner coupons found"
+    }
+    val subtitle = when (tab) {
+        ExclusiveTab.REDEEMED -> "Redeem a coupon from the Active tab and it will appear here."
+        ExclusiveTab.EXPIRED  -> "All your coupons are still active — great!"
+        else                  -> "Try adjusting your filters or check back later."
+    }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.padding(24.dp)) {
-            Text(text = "🎟️", style = MaterialTheme.typography.displayMedium)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Text(text = emoji, style = MaterialTheme.typography.displayMedium)
             Spacer(Modifier.height(16.dp))
-            Text(text = "No exclusive coupons found", style = MaterialTheme.typography.titleMedium, color = Color.Black)
+            Text(text = title, style = MaterialTheme.typography.titleMedium, color = Color.Black)
             Spacer(Modifier.height(8.dp))
-            Text(text = "Try adjusting your filters or check back later.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = Color.Gray)
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = Color.Gray
+            )
+        }
+    }
+}
+
+/** Tab row shown at the top of the exclusive partner coupon list. */
+@Composable
+private fun ExclusiveTabRow(
+    currentTab: ExclusiveTab,
+    onTabSelected: (ExclusiveTab) -> Unit
+) {
+    val tabs = listOf(
+        ExclusiveTab.ACTIVE   to "Active",
+        ExclusiveTab.REDEEMED to "Redeemed",
+        ExclusiveTab.EXPIRED  to "Expired"
+    )
+    val activeColor   = Color(0xFF6200EE)
+    val inactiveColor = Color(0xFF6200EE).copy(alpha = 0.12f)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        tabs.forEach { (tab, label) ->
+            val selected = currentTab == tab
+            Button(
+                onClick = { onTabSelected(tab) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (selected) activeColor else inactiveColor,
+                    contentColor   = if (selected) Color.White else activeColor
+                ),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                Text(
+                    text       = label,
+                    fontSize   = 13.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                )
+            }
         }
     }
 }

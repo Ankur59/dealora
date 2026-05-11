@@ -277,19 +277,21 @@ fun CouponDetailsContent(
 
             // Minimum Order Chip
             item {
-                val minOrderText = coupon.minimumOrder?.toString()?.trim()?.let { raw ->
-                    val num = raw.toDoubleOrNull()
-                    when {
-                        num == null || num <= 0.0 -> "No minimum spend"
-                        else -> "Min. spend \u20B9${num.toInt()}"
-                    }
-                } ?: "No minimum spend"
+                if (coupon.userId != "partner_coupon") {
+                    val minOrderText = coupon.minimumOrder?.toString()?.trim()?.let { raw ->
+                        val num = raw.toDoubleOrNull()
+                        when {
+                            num == null || num <= 0.0 -> "No minimum spend"
+                            else -> "Min. spend \u20B9${num.toInt()}"
+                        }
+                    } ?: "No minimum spend"
 
-                val isNoMin = minOrderText == "No minimum spend"
-                Chip(
-                    text = minOrderText,
-                    backgroundColor = if (isNoMin) Color(0xFFD1F5D3) else Color(0xFFFFE8C8)
-                )
+                    val isNoMin = minOrderText == "No minimum spend"
+                    Chip(
+                        text = minOrderText,
+                        backgroundColor = if (isNoMin) Color(0xFFD1F5D3) else Color(0xFFFFE8C8)
+                    )
+                }
             }
 
             item {

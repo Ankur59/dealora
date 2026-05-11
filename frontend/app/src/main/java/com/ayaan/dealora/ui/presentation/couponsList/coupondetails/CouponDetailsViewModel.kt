@@ -8,6 +8,7 @@ import com.ayaan.dealora.data.api.models.CouponDetail
 import com.ayaan.dealora.data.api.models.CouponDisplay
 import com.ayaan.dealora.data.api.models.CouponActions
 import com.ayaan.dealora.data.api.models.ExclusiveCoupon
+import com.ayaan.dealora.data.api.models.PartnerCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
@@ -87,6 +88,15 @@ class CouponDetailsViewModel @Inject constructor(
                     loadCouponDetails()
                 }
             } else {
+                // Try PartnerCoupon (New Private/Exclusive pipeline)
+                val partnerAdapter = moshi.adapter(PartnerCoupon::class.java)
+                val partnerCoupon = partnerAdapter.fromJson(json)
+                if (partnerCoupon != null && partnerCoupon.brandName.isNotBlank()) {
+                    Log.d(TAG, "✓ Successfully deserialized PartnerCoupon")
+                    _uiState.value = CouponDetailsUiState.Success(convertPartnerCouponToCouponDetail(partnerCoupon))
+                    return
+                }
+
                 // Try RawScrapedCoupon first (Exclusive mode)
                 val rawAdapter = moshi.adapter(RawScrapedCoupon::class.java)
                 val rawCoupon = rawAdapter.fromJson(json)
@@ -339,7 +349,7 @@ class CouponDetailsViewModel @Inject constructor(
             couponVisitingLink = null,
             websiteLink = brandWebsite,
             couponDetails = rawCoupon.description ?: "Redeem this exclusive coupon on the brand website.",
-            terms = "• Scraped from public source\n• Verified: ${rawCoupon.verified ?: "Unknown"}\n• Subject to brand terms",
+            terms = resolvedTerms,
             status = "active",
             addedMethod = "exclusive",
             userType = null,
@@ -356,6 +366,49 @@ class CouponDetailsViewModel @Inject constructor(
                 redemptionType = "online"
             ),
             actions = CouponActions(canEdit = false, canDelete = false, canRedeem = false, canShare = true)
+        )
+    }
+
+    private fun convertPartnerCouponToCouponDetail(partnerCoupon: PartnerCoupon): CouponDetail {
+        return CouponDetail(
+            id = partnerCoupon.id,
+            userId = "partner_coupon", // Marker for UI to identify partner coupons
+            couponName = partnerCoupon.brandName,
+            brandName = partnerCoupon.brandName,
+            couponTitle = partnerCoupon.couponTitle ?: partnerCoupon.discount,
+            description = partnerCoupon.description,
+            expireBy = partnerCoupon.expiryDate,
+            categoryLabel = partnerCoupon.category,
+            useCouponVia = "Online",
+            discountType = partnerCoupon.couponType ?: "exclusive",
+            discountValue = partnerCoupon.discount,
+            minimumOrder = null, // Always hide min spend for partner coupons
+            couponCode = partnerCoupon.couponCode,
+            couponVisitingLink = partnerCoupon.couponLink, // Discover link
+            websiteLink = partnerCoupon.couponLink,        // Primary CTA link
+            couponDetails = partnerCoupon.description ?: "Redeem this partner coupon on the brand website.",
+            terms = "These are subject to brand availability.",
+            status = if (partnerCoupon.isExpired == true) "expired" else "active",
+            addedMethod = "exclusive",
+            userType = if (partnerCoupon.isNewUser == true) "new" else "all",
+            base64ImageUrl = null,
+            createdAt = partnerCoupon.createdAt ?: "",
+            updatedAt = partnerCoupon.updatedAt ?: "",
+            display = CouponDisplay(
+                initial = partnerCoupon.brandName.firstOrNull()?.toString() ?: "?",
+                daysUntilExpiry = partnerCoupon.daysUntilExpiry,
+                isExpiringSoon = (partnerCoupon.daysUntilExpiry ?: Int.MAX_VALUE) <= 7,
+                formattedExpiry = partnerCoupon.daysUntilExpiry?.let { "$it days remaining" } ?: "No expiry",
+                expiryStatusColor = if (partnerCoupon.isExpired == true) "red" else "gray",
+                badgeLabels = listOfNotNull(partnerCoupon.category, "Partner Offer"),
+                redemptionType = "online"
+            ),
+            actions = CouponActions(
+                canEdit = false,
+                canDelete = false,
+                canRedeem = partnerCoupon.isRedeemed != true,
+                canShare = true
+            )
         )
     }
 

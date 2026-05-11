@@ -10,6 +10,8 @@ import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.ExclusiveCouponDetailResponseData
 import com.ayaan.dealora.data.api.models.RawCouponListResponseData
 import com.ayaan.dealora.data.api.models.ExclusiveCouponListResponseData
+import com.ayaan.dealora.data.api.models.PartnerCouponListResponseData
+import com.ayaan.dealora.data.api.models.PartnerCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
@@ -97,4 +99,33 @@ interface CouponApiService {
         @Query("page") page: Int? = null,
         @Query("limit") limit: Int? = null
     ): Response<ApiResponse<RawCouponListResponseData>>
+
+    // ── Partner coupons (exclusive toggle — sourced from ai-coupon-engine) ──────────
+
+    /** Active or expired partner coupons, sorted by discountWeight DESC by default. */
+    @GET("api/partner-coupons")
+    suspend fun getPartnerCoupons(
+        @Query("category")      category:     String? = null,
+        @Query("brand")         brand:        String? = null,
+        @Query("search")        search:       String? = null,
+        @Query("sortBy")        sortBy:       String? = null,
+        @Query("discountType")  discountType: String? = null,
+        @Query("validity")      validity:     String? = null,
+        @Query("page")          page:         Int?    = null,
+        @Query("limit")         limit:        Int?    = null,
+        @Query("tab")           tab:          String? = null  // "active" | "expired"
+    ): Response<ApiResponse<PartnerCouponListResponseData>>
+
+    /** Partner coupons this user has already redeemed. */
+    @GET("api/partner-coupons/redeemed")
+    suspend fun getRedeemedPartnerCoupons(
+        @Query("page")  page:  Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResponse<PartnerCouponListResponseData>>
+
+    /** Mark a partner coupon as redeemed — writes to Redemption collection. */
+    @POST("api/partner-coupons/{id}/redeem")
+    suspend fun redeemPartnerCoupon(
+        @Path("id") couponId: String
+    ): Response<ApiResponse<PartnerCouponRedeemResponseData>>
 }
