@@ -1,0 +1,459 @@
+package com.ayaan.dealora.ui.presentation.dashboard
+
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.ayaan.dealora.R
+import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.ui.presentation.common.components.CouponCard
+import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
+import com.ayaan.dealora.ui.presentation.couponsList.components.FiltersBottomSheet
+import com.ayaan.dealora.ui.presentation.couponsList.components.SortBottomSheet
+import com.ayaan.dealora.ui.presentation.navigation.Route
+import com.ayaan.dealora.ui.theme.DealoraGray
+import com.ayaan.dealora.ui.theme.DealoraPrimary
+
+@Composable
+fun Dashboard(
+    navController: NavController, viewModel: DashboardViewModel = hiltViewModel()
+) {
+    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val filteredCoupons by viewModel.filteredCoupons.collectAsState()
+    val savedCouponIds by viewModel.savedCouponIds.collectAsState()
+    val currentSortOption by viewModel.currentSortOption.collectAsState()
+    val currentCategory by viewModel.currentCategory.collectAsState()
+    val currentFilters by viewModel.currentFilters.collectAsState()
+    val currentStatusFilter by viewModel.statusFilter.collectAsState()
+    val syncedBrands by viewModel.syncedBrands.collectAsState()
+
+    // Get tab parameter from navigation
+    val tabParam = navController.currentBackStackEntry?.arguments?.getString("tab") ?: "active"
+
+    var showSortDialog by remember { mutableStateOf(false) }
+    var showFiltersDialog by remember { mutableStateOf(false) }
+    var showCategoryDialog by remember { mutableStateOf(false) }
+
+    // Update ViewModel status filter when tab parameter changes
+    LaunchedEffect(tabParam) {
+        viewModel.onStatusFilterChanged(tabParam)
+    }
+
+    // Local state for UI (displays the current filter buttons state)
+    var selectedStatusFilter by remember(currentStatusFilter) { mutableStateOf(currentStatusFilter) }
+
+    Scaffold(
+        containerColor = Color.White, topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .border(
+                            width = 1.5.dp, color = DealoraGray, shape = CircleShape
+                        )
+                        .clickable {
+                            navController.popBackStack()
+                        }, contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.arrow_left),
+                        contentDescription = "Back",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Text(
+                    text = "Dashboard",
+                    color = Color.Black,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.size(24.dp))
+            }
+        }) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .background(Color.White)
+                .fillMaxSize()
+        ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Search Bar
+            TextField(
+                value = searchQuery,
+                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                placeholder = {
+                    Text(
+                        text = "Search coupons...", color = Color.Gray
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = Color.Gray
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear search",
+                                tint = Color.Gray
+                            )
+                        }
+                    }
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF5F5F5),
+                    unfocusedContainerColor = Color(0xFFF5F5F5),
+                    disabledContainerColor = Color(0xFFF5F5F5),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Filter section
+            Box(modifier = Modifier) {
+                CouponsFilterSection(
+                    onSortClick = { showSortDialog = true },
+                    onCategoryClick = { showCategoryDialog = true },
+                    onFiltersClick = { showFiltersDialog = true })
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) {
+                items(4) { index ->
+                    val (label, value) = when (index) {
+                        0 -> "Active Coupons" to "active"
+                        1 -> "Redeemed Coupons" to "redeemed"
+                        2 -> "Expired Coupons" to "expired"
+                        else -> "Saved Coupons" to "saved"
+                    }
+
+                    val isSelected = selectedStatusFilter == value
+
+                    Button(
+                        onClick = {
+                            selectedStatusFilter = value
+                            viewModel.onStatusFilterChanged(value)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isSelected) DealoraPrimary else Color(0xFFE8E8E8),
+                            contentColor = if (isSelected) Color.White else Color(0xFF666666)
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = label, fontSize = 13.sp, fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+//            Spacer(modifier = Modifier.height(12.dp))
+
+            // Content
+            when (uiState) {
+                is DashboardUiState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Loading your saved coupons...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
+
+                is DashboardUiState.Error -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "😕", style = MaterialTheme.typography.displayMedium
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = (uiState as DashboardUiState.Error).message,
+                                style = MaterialTheme.typography.bodyLarge,
+                                textAlign = TextAlign.Center,
+                                color = Color.Gray
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Button(onClick = { viewModel.retry() }) {
+                                Text("Try Again")
+                            }
+                        }
+                    }
+                }
+
+                is DashboardUiState.Success -> {
+                    if (filteredCoupons.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text(
+                                    text = "🎟️", style = MaterialTheme.typography.displayMedium
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "No saved coupons yet",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Save your favorite coupons to see them here!",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(16.dp)
+                        ) {
+                            items(
+                                count = filteredCoupons.size,
+                                key = { index -> filteredCoupons[index].id }) { index ->
+                                val coupon = filteredCoupons[index]
+
+                                // State for this specific card
+                                var showSuccessDialog by remember { mutableStateOf(false) }
+                                var showErrorDialog by remember { mutableStateOf(false) }
+                                var errorMessage by remember { mutableStateOf("") }
+
+                                CouponCard(
+                                    brandName = coupon.brandName.uppercase().replace(" ", "\n"),
+                                    couponTitle = coupon.couponTitle ?: coupon.brandName.uppercase()+" coupon",
+                                    description = coupon.description ?: "",
+                                    category = coupon.category,
+                                    expiryDays = coupon.daysUntilExpiry,
+                                    couponCode = coupon.couponCode ?: "",
+                                    couponId = coupon.id,
+                                    isRedeemed = coupon.status == "redeemed",
+                                    isSaved = savedCouponIds.contains(coupon.id),
+                                    source = coupon.source,
+                                    showActionButtons = coupon.couponType == "private" && (coupon.status == "active"), // Hide for public or non-active coupons
+                                    onRemoveSave = { couponId ->
+                                        // Remove from saved but keep showing in list with unsaved state
+                                        viewModel.removeSavedCoupon(couponId)
+                                    },
+                                    onSave = { _ ->
+                                        viewModel.saveCoupon(coupon)
+                                    },
+                                    onRedeem = { couponId ->
+                                        Log.d("Dashboard", "Redeem clicked for coupon: $couponId")
+                                        viewModel.redeemCoupon(couponId = couponId, onSuccess = {
+                                            Log.d("Dashboard", "Coupon redeemed successfully")
+                                            showSuccessDialog = true
+                                        }, onError = { error ->
+                                            Log.e(
+                                                "Dashboard",
+                                                "Failed to redeem coupon: $error"
+                                            )
+                                            errorMessage = error
+                                            showErrorDialog = true
+                                        })
+                                    },
+                                    onDetailsClick = {
+                                        val couponJson = viewModel.moshi.adapter(PrivateCoupon::class.java).toJson(coupon)
+                                        navController.navigate(
+                                            Route.CouponDetails.createRoute(
+                                                couponId = coupon.id,
+                                                isPrivate = coupon.couponType != "public",
+                                                couponCode = coupon.couponCode ?: "WELCOME100",
+                                                couponData = Uri.encode(couponJson)
+                                            )
+                                        )
+                                    },
+
+                                    onDiscoverClick = {
+                                        val websiteUrl = coupon.couponLink?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                                        if (websiteUrl != null) {
+                                            try {
+                                                val uri = Uri.parse(
+                                                    if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
+                                                        websiteUrl
+                                                    else
+                                                        "https://$websiteUrl"
+                                                )
+                                                val linkIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(linkIntent)
+                                            } catch (e: Exception) {
+                                                Log.e("Dashboard", "Could not open brand link: ${e.message}", e)
+                                            }
+                                        } else {
+                                            Log.w("Dashboard", "No website link available for this coupon")
+                                        }
+                                    })
+
+                                // Success Dialog
+                                if (showSuccessDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showSuccessDialog = false },
+                                        title = { Text("Success") },
+                                        text = { Text("Coupon redeemed successfully!") },
+                                        confirmButton = {
+                                            TextButton(onClick = { showSuccessDialog = false }) {
+                                                Text("OK")
+                                            }
+                                        })
+                                }
+
+                                // Error Dialog
+                                if (showErrorDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showErrorDialog = false },
+                                        title = { Text("Error") },
+                                        text = { Text(errorMessage) },
+                                        confirmButton = {
+                                            TextButton(onClick = { showErrorDialog = false }) {
+                                                Text("OK")
+                                            }
+                                        })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort Bottom Sheet
+        if (showSortDialog) {
+            SortBottomSheet(
+                currentSort = currentSortOption,
+                onDismiss = { showSortDialog = false },
+                onSortSelected = { sortOption ->
+                    viewModel.onSortOptionChanged(sortOption)
+                })
+        }
+
+        // Filters Bottom Sheet
+        if (showFiltersDialog) {
+            FiltersBottomSheet(
+                currentFilters = currentFilters,
+                syncedBrands = syncedBrands,
+                onDismiss = { showFiltersDialog = false },
+                onApplyFilters = { filters ->
+                    viewModel.onFiltersChanged(filters)
+                })
+        }
+
+        // Category Bottom Sheet
+        if (showCategoryDialog) {
+            CategoryBottomSheet(
+                currentCategory = currentCategory,
+                onDismiss = { showCategoryDialog = false },
+                onCategorySelected = { category ->
+                    viewModel.onCategoryChanged(category)
+                })
+        }
+    }
+}

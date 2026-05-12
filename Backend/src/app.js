@@ -1,0 +1,163 @@
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const morgan = require('morgan');
+const compression = require('compression');
+const mongoose = require('mongoose');
+const { globalErrorHandler } = require('./middlewares/errorHandler');
+const { errorResponse } = require('./utils/responseHandler');
+const { STATUS_CODES, ERROR_MESSAGES } = require('./config/constants');
+const logger = require('./utils/logger');
+const requestId = require('./middlewares/requestId');
+const sanitize = require('./middlewares/sanitize');
+const authRoutes = require('./routes/authRoutes');
+const couponRoutes = require('./routes/couponRoutes');
+const privateCouponRoutes = require('./routes/privateCouponRoutes');
+const featureRoutes = require('./routes/featureRoutes');
+const exclusiveCouponRoutes = require('./routes/exclusiveCouponRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const connectEmailRoutes = require('./routes/connectEmailRoutes');
+const termsRoutes = require('./routes/termsRoutes');
+const rawCouponRoutes = require('./routes/rawCouponRoutes');
+const fleetRoutes = require('./routes/fleetRoutes');
+const partnerCouponRoutes = require('./routes/partnerCouponRoutes');
+
+
+const app = express();
+
+app.set('trust proxy', 1);
+
+app.use(helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+}));
+
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+
+        // In development, allow all origins
+        if (process.env.NODE_ENV === 'development') {
+            return callback(null, true);
+        }
+
+        // In production, check against allowed origins
+        const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
+        if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+};
+app.use(cors(corsOptions));
+
+app.use(compression());
+app.use(requestId);
+app.use(sanitize);
+
+app.use(express.json({ limit: '10mb', strict: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Middleware to handle duplicate query parameters (convert to array)
+app.use((req, res, next) => {
+    // Parse raw query string to handle duplicate parameters
+    if (req.url.includes('?')) {
+        const urlParts = req.url.split('?');
+        if (urlParts[1]) {
+            const params = new URLSearchParams(urlParts[1]);
+            const paramMap = {};
+
+            params.forEach((value, key) => {
+                if (paramMap[key]) {
+                    // If key already exists, convert to array
+                    if (Array.isArray(paramMap[key])) {
+                        paramMap[key].push(value);
+                    } else {
+                        paramMap[key] = [paramMap[key], value];
+                    }
+                } else {
+                    paramMap[key] = value;
+                }
+            });
+
+            // Merge with existing req.query
+            req.query = { ...req.query, ...paramMap };
+        }
+    }
+    next();
+});
+
+app.use((req, res, next) => {
+    // Default timeout: 180 s
+    // Gmail coupon-sync processes up to 20 emails sequentially through Gemini AI.
+    // Each email takes ~5-8 s on average → worst-case ~160 s.
+    // Per-email AI hard limit is 20 s, so absolute worst-case is 20 × 20 s = 400 s,
+    // but the 180 s socket window covers the vast majority of real scans comfortably.
+    req.setTimeout(300000);
+    res.setTimeout(300000);
+    next();
+});
+
+if (process.env.NODE_ENV === 'development') {
+    app.use(morgan('dev'));
+} else {
+    app.use(morgan('combined', { stream: logger.stream }));
+}
+
+app.get('/health', (req, res) => {
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+
+    const health = {
+        success: true,
+        message: 'Server is running',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || 'development',
+        database: dbStatus,
+        version: '1.0.0',
+    };
+
+    const statusCode = dbStatus === 'connected' ? STATUS_CODES.OK : STATUS_CODES.SERVICE_UNAVAILABLE;
+    res.status(statusCode).json(health);
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/private-coupons', privateCouponRoutes);
+app.use('/api/features', featureRoutes);
+app.use('/api/exclusive-coupons', exclusiveCouponRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/connect-email', connectEmailRoutes);
+app.use('/api/terms', termsRoutes);
+app.use('/api/raw-coupons', rawCouponRoutes);
+app.use('/api/fleet', fleetRoutes);
+app.use('/api/partner-coupons', partnerCouponRoutes);
+
+// ── Dev-only scraper routes (not mounted in production) ──────────────────────
+if (process.env.NODE_ENV === 'development') {
+    const devScraperRoutes = require('./routes/devScraperRoutes');
+    app.use('/api/dev/scraper', devScraperRoutes);
+    logger.info('DEV: /api/dev/scraper routes mounted');
+}
+
+app.get('/', (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: 'Welcome to Dealora API',
+        version: '1.0.0',
+    });
+});
+
+app.use('*', (req, res) => {
+    logger.warn(`404: ${req.method} ${req.originalUrl}`);
+    errorResponse(res, STATUS_CODES.NOT_FOUND, ERROR_MESSAGES.ROUTE_NOT_FOUND);
+});
+
+app.use(globalErrorHandler);
+
+module.exports = app;

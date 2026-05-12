@@ -1,0 +1,70 @@
+package com.ayaan.dealora.ui.presentation.home.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ayaan.dealora.ui.theme.DealoraWhite
+
+@Composable
+fun CouponDigit(digit: String, fontSize: Int = 26) {
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .fillMaxWidth()
+            .background(
+                DealoraWhite.copy(alpha = 0.2f),
+                RoundedCornerShape(8.dp)
+            )
+            .border(
+                1.dp,
+                DealoraWhite.copy(alpha = 0.3f),
+                RoundedCornerShape(8.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = digit,
+            fontSize = fontSize.sp,
+            fontWeight = FontWeight.Bold,
+            color = DealoraWhite
+        )
+    }
+}
+@Composable
+fun CouponDigitSaving(couponDigit: String, fontSize: Int = 26){
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(
+                DealoraWhite.copy(alpha = 0.2f),
+                RoundedCornerShape(8.dp)
+            )
+            .border(
+                1.dp,
+                DealoraWhite.copy(alpha = 0.3f),
+                RoundedCornerShape(8.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = couponDigit,
+            fontSize = fontSize.sp,
+            fontWeight = FontWeight.Bold,
+            color = DealoraWhite
+        )
+    }
+}

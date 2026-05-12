@@ -1,0 +1,68 @@
+package com.ayaan.dealora.data.api.models
+
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+
+/**
+ * A single linked Gmail account entry returned by GET /api/connect-email/linked-emails
+ */
+@JsonClass(generateAdapter = true)
+data class LinkedEmail(
+    @Json(name = "email") val email: String,
+    @Json(name = "linkedAt") val linkedAt: String? = null,
+    @Json(name = "lastSynced") val lastSynced: String? = null
+)
+
+/**
+ * Top-level response from GET /api/connect-email/linked-emails
+ */
+@JsonClass(generateAdapter = true)
+data class LinkedEmailsResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "count") val count: Int = 0,
+    @Json(name = "data") val data: List<LinkedEmail> = emptyList(),
+    @Json(name = "termsAccepted") val termsAccepted: Boolean = false,
+    @Json(name = "termsVersion") val termsVersion: String? = null,
+    @Json(name = "termsAcceptedAt") val termsAcceptedAt: String? = null
+)
+
+/**
+ * Request body for POST /api/connect-email/link-gmail
+ * serverAuthCode — the one-time code returned by Google Sign-In on the device.
+ * The backend exchanges this for a refresh_token.
+ */
+@JsonClass(generateAdapter = true)
+data class LinkGmailRequest(
+    @Json(name = "serverAuthCode") val serverAuthCode: String,
+    @Json(name = "userId") val userId: String
+)
+
+/**
+ * Response from POST /api/connect-email/link-gmail
+ */
+@JsonClass(generateAdapter = true)
+data class LinkGmailResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "message") val message: String,
+    @Json(name = "email") val email: String? = null,
+    @Json(name = "updated") val updated: Boolean = false  // true = refresh-token refresh only
+)
+
+/**
+ * Request body for DELETE /api/connect-email/remove-email
+ */
+@JsonClass(generateAdapter = true)
+data class RemoveEmailRequest(
+    @Json(name = "userId") val userId: String,
+    @Json(name = "email") val email: String
+)
+
+/**
+ * Response from DELETE /api/connect-email/remove-email
+ */
+@JsonClass(generateAdapter = true)
+data class RemoveEmailResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "message") val message: String,
+    @Json(name = "email") val email: String? = null
+)

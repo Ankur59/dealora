@@ -1,0 +1,275 @@
+package com.ayaan.dealora.ui.presentation.home
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.ayaan.dealora.ui.presentation.home.components.CategoryGrid
+import com.ayaan.dealora.ui.presentation.home.components.ExclusiveBannerCard
+import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
+import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
+import com.ayaan.dealora.ui.presentation.home.components.MultiFleetFeedbackPopup
+import com.ayaan.dealora.ui.presentation.navigation.Route
+import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
+import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
+import com.ayaan.dealora.ui.theme.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    navController: NavController, viewModel: HomeViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val savedCouponIds by viewModel.savedCouponIds.collectAsState()
+    
+    // Show multi-coupon feedback popup if there are pending interactions
+    if (uiState.pendingInteractions.isNotEmpty()) {
+        MultiFleetFeedbackPopup(
+            interactions = uiState.pendingInteractions,
+            onResolve = { couponId, outcome ->
+                viewModel.resolveInteraction(couponId, outcome)
+            },
+            onDismissAll = {
+                viewModel.skipAllInteractions()
+            }
+        )
+    }
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit){
+        viewModel.fetchProfile()
+        viewModel.fetchStatistics()
+        viewModel.fetchExploreCoupons()
+        viewModel.updateFcmToken()
+    }
+    Scaffold(
+        topBar = {
+            AppTopBar(navController)
+        },
+        contentWindowInsets = WindowInsets(0),
+        containerColor = DealoraBackground,
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        },
+        floatingActionButton = {
+            DealoraBottomBar(
+                navController = navController
+            )
+        },
+        floatingActionButtonPosition = FabPosition.Center
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Welcome Text with dynamic user name
+            when {
+                uiState.isLoading -> {
+                    // Show loading state
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Hey, ",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.W400
+                        )
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = DealoraPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+                uiState.errorMessage != null -> {
+                    // Show error state with retry
+                    Column {
+                        val errorText = buildAnnotatedString {
+                            append("Hey, ")
+                            withStyle(style = SpanStyle(color = DealoraPrimary, fontWeight = FontWeight.Bold)) {
+                                append("User")
+                            }
+                        }
+                        Text(
+                            text = errorText,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.W400
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = uiState.errorMessage ?: "Error loading profile",
+                                fontSize = 12.sp,
+                                color = Color.Red,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = { viewModel.retry() },
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Retry",
+                                    fontSize = 12.sp,
+                                    color = DealoraPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    // Show user name from API
+                    val userName = if(uiState.user?.name!=null)(", "+uiState.user?.name ) else ("")
+                    val welcomeText = buildAnnotatedString {
+                        append("Hey")
+                        withStyle(style = SpanStyle(color = DealoraPrimary, fontWeight = FontWeight.Bold)) {
+                            append(userName)
+                        }
+                    }
+                    Text(
+                        text = welcomeText,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.W400
+                    )
+                }
+            }
+
+            Text(
+                text = "Your smart savings dashboard is ready.",
+                fontSize = 14.sp,
+                color = DealoraTextGray,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+//            SearchBar(
+////                onClick = {
+////                    navController.navigate(Route.Dashboard.createRoute())
+////                }
+//            )
+//
+//            Spacer(modifier = Modifier.height(20.dp))
+
+            // Coupons Card
+            StatisticsCard(
+                activeCouponsCount = uiState.statistics?.activeCouponsCount ?: 0,
+                totalSavings = uiState.statistics?.totalSavings ?: 0,
+                onClick = {
+                    navController.navigate(Route.Dashboard.createRoute())
+                }
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+            ExclusiveBannerCard(
+                onSyncClick = {
+                    navController.navigate(Route.ExploreCoupons.createRoute(isPublic = true))
+                }
+            )
+//            SyncBannerCard(
+//                onSyncClick = {
+//                    coroutineScope.launch {
+//                        val allAppsSynced = viewModel.areAllAppsSynced()
+//                        if (allAppsSynced) {
+//                            // Show snackbar if all apps are synced
+//                            snackbarHostState.showSnackbar(
+//                                message = "All apps are already synced!",
+//                                duration = SnackbarDuration.Short
+//                            )
+//                        } else {
+//                            // Navigate to sync screen if not all apps are synced
+//                            navController.navigate(Route.SyncAppsStart.path)
+//                        }
+//                    }
+//                }
+//            )
+            // Sync Apps Card
+//            Image(
+//                painter = painterResource(id = R.drawable.sync_banner),
+//                contentDescription = "Sync Apps",
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(180.dp)
+//                    .clickable {
+//                        navController.navigate(Route.SyncAppsStart.path)
+//                    }
+//            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Explore Category
+            Text(
+                text = "Explore Category",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Category Grid
+            CategoryGrid(navController)
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 2.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Explore Coupons",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Text(
+                    text = "See all",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.W600,
+                    color = DealoraPrimary,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable(onClick = {
+                        navController.navigate(Route.ExploreCoupons.createRoute(sortBy = "expiring_soon"))
+                    })
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            ExploringCoupons(
+                navController = navController,
+                coupons = uiState.exploreCoupons,
+                isLoading = uiState.isLoadingCoupons,
+                savedCouponIds = savedCouponIds,
+                viewModel = viewModel
+            )
+            Spacer(modifier = Modifier.height(120.dp))
+        }
+    }
+}
