@@ -49,7 +49,7 @@ function shapeDoc(doc, isRedeemed = false) {
         isRedeemed,
         redeemedAt: doc.redeemedAt ?? null,
         merchantName: doc.merchantName ?? doc.brandName ?? null,
-        merchantLogo: doc.metchantLogo ?? null,
+        merchantLogo: doc.merchantLogo ?? doc.metchantLogo ?? null,
         couponType: doc.couponType ?? null,
         isInStore: doc.isInStore ?? false,
         isNewUser: doc.isNewUser ?? false,

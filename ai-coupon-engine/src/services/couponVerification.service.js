@@ -8,6 +8,26 @@ import proxyManager from './proxyManager.service.js';
 
 export class CouponVerificationService {
   /**
+   * Check if a coupon should be skipped from verification.
+   * Skip if: no coupon code, couponType is "No cost EMI", isInStore is true, isNewUser is true
+   */
+  shouldSkipVerification(coupon) {
+    if (!coupon.code || coupon.code.trim() === '') {
+      return { skip: true, reason: 'No coupon code' };
+    }
+    if (coupon.couponType === 'No cost EMI') {
+      return { skip: true, reason: 'Coupon type: No cost EMI' };
+    }
+    if (coupon.isInStore === true) {
+      return { skip: true, reason: 'In-store only coupon' };
+    }
+    if (coupon.isNewUser === true) {
+      return { skip: true, reason: 'New user only coupon' };
+    }
+    return { skip: false, reason: null };
+  }
+
+  /**
    * Main entry point to verify all pending coupons for a merchant.
    * Assumes the page already has a valid session (restored from cookies).
    */
@@ -20,9 +40,36 @@ export class CouponVerificationService {
     if (!merchant) {
       throw new Error(`Merchant not found: ${merchantId}`);
     }
-    const coupons = await Coupon.find({ brandName: merchant.merchantName, status: 'active' });
+    const allCoupons = await Coupon.find({
+      brandName: merchant.merchantName,
+      $or: [
+        { status: 'active' },
+        { status: { $exists: false } },
+        { status: null },
+      ],
+    });
 
-    await browserService.emitLog(merchantId, `🔍 Starting verification for ${coupons.length} coupons…`);
+    const skippedCoupons = [];
+    const coupons = allCoupons.filter(coupon => {
+      const { skip, reason } = this.shouldSkipVerification(coupon);
+      if (skip) {
+        skippedCoupons.push({ code: coupon.code, reason });
+        return false;
+      }
+      return true;
+    });
+
+    if (skippedCoupons.length > 0) {
+      const skipList = skippedCoupons.map(s => `  \u2022 ${s.code || 'N/A'} \u2014 ${s.reason}`).join('\n');
+      await browserService.emitLog(merchantId, `\u23ED\uFE0F Skipping ${skippedCoupons.length} coupon(s) from verification:\n${skipList}`);
+    }
+
+    await browserService.emitLog(merchantId, `\uD83D\uDD0D Starting verification for ${coupons.length} coupons\u2026`);
+
+    if (coupons.length === 0) {
+      await browserService.emitLog(merchantId, `\u2705 No coupons to verify after filtering.`);
+      return;
+    }
 
     // Check for block right at the start
     const blockResult = await browserService.checkAndHandleBlock(merchantId, page);
@@ -86,7 +133,30 @@ export class CouponVerificationService {
       throw new Error(`Merchant not found: ${merchantId}`);
     }
 
-    const allCoupons = await Coupon.find({ brandName: merchant.merchantName, status: 'active' }).sort({ _id: 1 });
+    const rawCoupons = await Coupon.find({
+      brandName: merchant.merchantName,
+      $or: [
+        { status: 'active' },
+        { status: { $exists: false } },
+        { status: null },
+      ],
+    }).sort({ _id: 1 });
+
+    const skippedCoupons = [];
+    const allCoupons = rawCoupons.filter(coupon => {
+      const { skip, reason } = this.shouldSkipVerification(coupon);
+      if (skip) {
+        skippedCoupons.push({ code: coupon.code, reason });
+        return false;
+      }
+      return true;
+    });
+
+    if (skippedCoupons.length > 0) {
+      const skipList = skippedCoupons.map(s => `  \u2022 ${s.code || 'N/A'} \u2014 ${s.reason}`).join('\n');
+      await browserService.emitLog(merchantId, `\u23ED\uFE0F Skipping ${skippedCoupons.length} coupon(s) from verification:\n${skipList}`);
+    }
+
     if (allCoupons.length === 0) {
       await browserService.emitLog(merchantId, `ℹ️ No active coupons to verify.`);
       return { processed: 0, remaining: 0, done: true };

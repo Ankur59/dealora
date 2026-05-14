@@ -65,24 +65,36 @@ const normalizeCampaign = (raw) => ({
     meta:         {},
 });
 
-const normalizeCoupon = (raw) => ({
-    partner:      '[partnerName]',
-    couponId:     String(raw.id),
-    code:         raw.code        ?? null,
-    description:  raw.description ?? null,
-    discount:     raw.discount    ?? null,
-    start:        raw.startDate   ? new Date(raw.startDate) : null,
-    end:          raw.endDate     ? new Date(raw.endDate)   : null,
-    trackingLink: raw.trackUrl    ?? null,
-    brandName:    raw.brandName   ?? 'Unknown',
-    campaignId:   raw.campaignId  ? String(raw.campaignId) : null,
-    isVerified:   false,
-    status:       'pending',
-    type:         'generic',
-    categories:   [],
-    countries:    [],
-    meta:         {},
-});
+const normalizeCoupon = (raw) => {
+    const endDate = raw.endDate ? new Date(raw.endDate) : null;
+    const now = new Date();
+    return {
+        partner:            '[partnerName]',
+        couponId:           String(raw.id),
+        code:               raw.code        ?? null,
+        description:        raw.description ?? null,
+        type:               'generic',
+        status:             endDate && endDate < now ? 'expired' : 'active',
+        discount:           raw.discount    ?? null,
+        start:              raw.startDate   ? new Date(raw.startDate) : null,
+        end:                endDate,
+        trackingLink:       raw.trackUrl    ?? null,
+        couponVisitingLink: raw.trackUrl    ?? null,
+        brandName:          raw.brandName   ?? 'Unknown',
+        merchantName:       raw.merchantName ?? raw.brandName ?? 'Unknown',
+        campaignId:         raw.campaignId  ? String(raw.campaignId) : null,
+        isVerified:         false,
+        isInStore:          false,
+        isNewUser:          false,
+        title:              raw.name ?? raw.description?.slice(0, 100) ?? null,
+        merchantLogo:       raw.logo ?? raw.image ?? null,
+        couponType:         raw.couponType  ?? null,
+        discountWeight:     0,
+        categories:         [],
+        countries:          [],
+        meta:               {},
+    };
+};
 
 // ── Adapter (this is what gets registered) ────────────────────────────────────
 

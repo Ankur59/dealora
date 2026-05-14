@@ -13,6 +13,7 @@
  *   species        → type  (promocode → generic | action → generic/deal)
  *   promocode      → code  (only present when species === 'promocode')
  *   goto_link      → trackingLink + couponVisitingLink
+ *   image          → merchantLogo
  *
  * @param {Object} item - Raw coupon object from Admitad API
  * @returns {Object} Normalized coupon matching the internal coupon schema
@@ -24,8 +25,9 @@ const normalizeAdmitadCoupon = (item) => {
         return isNaN(parsed.getTime()) ? null : parsed;
     };
 
-    // Admitad species values: "promocode" (has a code) or "action" (deal, no code)
     const hasCode = item.species === 'promocode' && !!item.promocode;
+    const endDate = parseDate(item.date_end);
+    const now = new Date();
 
     return {
         partner:            'admitad',
@@ -34,17 +36,22 @@ const normalizeAdmitadCoupon = (item) => {
         description:        item.description ?? null,
         discount:           item.discount     ?? null,
         start:              parseDate(item.date_start),
-        end:                parseDate(item.date_end),
+        end:                endDate,
         trackingLink:       item.goto_link    ?? null,
         couponVisitingLink: item.goto_link    ?? null,
         brandName:          item.campaign?.name ?? item.campaign_name ?? 'Unknown',
+        merchantName:       item.campaign?.name ?? item.campaign_name ?? 'Unknown',
         campaignId:         item.campaign?.id   != null ? String(item.campaign.id) : null,
         isVerified:         false,
         verifiedOn:         null,
-        status:             'pending',
-        // species → type mapping
-        // Admitad doesn't directly map to exclusive/one_time; default to 'generic'
+        status:             endDate && endDate < now ? 'expired' : 'active',
         type:               'generic',
+        couponType:         item.discount ?? null,
+        isInStore:          false,
+        isNewUser:          false,
+        title:              item.name ?? item.description?.slice(0, 100) ?? null,
+        merchantLogo:       item.image ?? null,
+        discountWeight:     0,
         categories:         (item.categories ?? []).map(c => c.name ?? c),
         categoriesId:       (item.categories ?? []).map(c => String(c.id ?? c)),
         countries:          item.regions ? item.regions.map(r => r.region ?? r) : [],
@@ -56,6 +63,7 @@ const normalizeAdmitadCoupon = (item) => {
             exclusive:     item.exclusive    ?? null,
             campaign_id:   item.campaign?.id ?? null,
             modified:      item.date_modified ?? null,
+            image:         item.image        ?? null,
         },
     };
 };
