@@ -1,4 +1,5 @@
 import Merchant from '../models/merchant.model.js';
+import PartnerMerchant from '../models/partnerMerchant.model.js';
 import Coupon from '../models/coupon.model.js';
 import CouponVerification from '../models/couponVerification.model.js';
 import VerificationJob from '../models/verificationJob.model.js';
@@ -248,7 +249,11 @@ class HealthScoreService {
    */
   async computeAllHealthScores() {
     try {
-      const merchants = await Merchant.find({ autoVerificationEnabled: true }).lean();
+      const activePartnerMerchants = await PartnerMerchant.find({ isActive: true }).lean();
+      const activeNames = [...new Set(activePartnerMerchants.map(pm => pm.merchantName))];
+      const merchants = activeNames.length > 0
+        ? await Merchant.find({ merchantName: { $in: activeNames } }).lean()
+        : [];
       const merchantHealthScores = [];
 
       for (const merchant of merchants) {
