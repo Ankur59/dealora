@@ -560,13 +560,14 @@ class CouponRepository @Inject constructor(
         validity:     String? = null,
         page:         Int?    = null,
         limit:        Int?    = null,
-        tab:          String? = "active"
+        tab:          String? = "active",
+        offerType:    String? = null  // "Coupon" | "Offer"
     ): PartnerCouponResult {
         return try {
             val response = couponApiService.getPartnerCoupons(
                 category = category, brand = brand, search = search,
                 sortBy = sortBy, discountType = discountType, validity = validity,
-                page = page, limit = limit, tab = tab
+                page = page, limit = limit, tab = tab, offerType = offerType
             )
             if (response.isSuccessful) {
                 val body = response.body()
@@ -626,6 +627,31 @@ class CouponRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "redeemPartnerCoupon exception", e)
             PartnerCouponRedeemResult.Error(NetworkErrorMapper.from(e))
+        }
+    }
+
+    /** Directly update success/failed counts for a partner coupon (immediate feedback). */
+    suspend fun votePartnerCoupon(couponId: String, outcome: String): Boolean {
+        return try {
+            Log.d(TAG, "Voting for partner coupon: $couponId, outcome: $outcome")
+            val body = mapOf("outcome" to outcome)
+            val response = couponApiService.votePartnerCoupon(couponId, body)
+            response.isSuccessful && response.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "votePartnerCoupon exception", e)
+            false
+        }
+    }
+
+    /** Track a Discover button click for partner coupon trend analytics. */
+    suspend fun trackPartnerDiscover(couponId: String): Boolean {
+        return try {
+            Log.d(TAG, "Tracking discover for partner coupon: $couponId")
+            val response = couponApiService.trackPartnerDiscover(couponId)
+            response.isSuccessful && response.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "trackPartnerDiscover exception", e)
+            false
         }
     }
 }

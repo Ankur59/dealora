@@ -79,6 +79,12 @@ const couponSchema = new Schema({
         type: String,
         enum: ["FREE TRIAL", "Buy 1 Get 1 Free", "No cost EMI", "Other"],
     },
+    offerType: {
+        type: String,
+        enum: ["Offer", "Coupon"],
+        default: "Offer",
+        index: true,
+    },
     isInStore: {
         type: Boolean,
         default: false,
@@ -103,6 +109,43 @@ const couponSchema = new Schema({
         type: Number,
         default: 0,
         index: true,        // enables fast sort by discount value
+    },
+    successCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    failedCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    trend: {
+        discoverCount: {
+            type: Number,
+            default: 0
+        },
+        lastDiscoverAt: {
+            type: Date,
+            default: null
+        },
+        reliabilityScore: {
+            type: Number,
+            default: 50,  // neutral score for new coupons
+            min: 0,
+            max: 100
+        },
+        trendScore: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 100
+        },
+        healthScore: {
+            type: Number,
+            default: 0,
+            index: true   // enables fast sorting by health
+        }
     }
 }, { timestamps: true });
 

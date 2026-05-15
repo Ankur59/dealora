@@ -41,6 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
+import com.ayaan.dealora.ui.presentation.common.components.CouponVerificationDialog
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
@@ -361,6 +362,8 @@ private fun ExclusiveCouponsList(
                     var errorMsg by remember { mutableStateOf("") }
                     // Track local redeemed state (raw coupons have no backend redeem status)
                     var isRedeemedLocal by remember { mutableStateOf(false) }
+                    // Track verification dialog state
+                    var showVerificationDialog by remember { mutableStateOf(false) }
 
                     CouponCard(
                         brandName = coupon.brandName.uppercase().replace(" ", "\n"),
@@ -379,6 +382,21 @@ private fun ExclusiveCouponsList(
                         onSave = { onSave(coupon) },
                         onRemoveSave = { onRemoveSave(coupon.id) },
                         onRedeem = { _ ->
+                            // Show verification dialog first
+                            showVerificationDialog = true
+                        },
+                        onDetailsClick = { onDetailsClick(coupon) },
+                        onDiscoverClick = { onDiscoverClick(coupon) }
+                    )
+
+                    // Coupon verification dialog
+                    CouponVerificationDialog(
+                        showDialog = showVerificationDialog,
+                        couponBrand = coupon.brandName,
+                        couponCode = coupon.couponCode,
+                        onSuccess = {
+                            showVerificationDialog = false
+                            // Record success and mark as redeemed
                             onRedeem(
                                 coupon,
                                 {
@@ -391,8 +409,24 @@ private fun ExclusiveCouponsList(
                                 }
                             )
                         },
-                        onDetailsClick = { onDetailsClick(coupon) },
-                        onDiscoverClick = { onDiscoverClick(coupon) }
+                        onFailure = {
+                            showVerificationDialog = false
+                            // Record failure and mark as redeemed
+                            onRedeem(
+                                coupon,
+                                {
+                                    isRedeemedLocal = true
+                                    showSuccessDialog = true
+                                },
+                                { err ->
+                                    errorMsg = err
+                                    showErrorDialog = true
+                                }
+                            )
+                        },
+                        onDismiss = {
+                            showVerificationDialog = false
+                        }
                     )
 
                     RedeemResultDialogs(

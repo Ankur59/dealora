@@ -27,6 +27,8 @@ import com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.data.repository.FleetRepository
 import com.ayaan.dealora.data.repository.FleetResult
+import com.ayaan.dealora.data.repository.PartnerCouponInteractionRepository
+import com.ayaan.dealora.data.repository.PartnerInteractionResult
 import kotlinx.coroutines.tasks.await
 
 @HiltViewModel
@@ -37,6 +39,7 @@ class HomeViewModel @Inject constructor(
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
     private val fleetRepository: FleetRepository,
+    private val partnerInteractionRepository: PartnerCouponInteractionRepository,
     private val backendAuthRepository: BackendAuthRepository,
     private val firebaseAuth: FirebaseAuth,
     val moshi: Moshi
@@ -56,6 +59,7 @@ class HomeViewModel @Inject constructor(
     init {
         observeSavedCoupons()
         fetchPendingInteractions()
+        fetchPendingPartnerInteractions()
     }
 
     private fun observeSavedCoupons() {
@@ -412,6 +416,71 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             allIds.forEach { id -> fleetRepository.resolveInteraction(id, "skipped") }
             _uiState.update { it.copy(pendingInteractions = emptyList(), allPendingInteractionIds = emptyList()) }
+        }
+    }
+
+    // ── Partner Coupon Interactions ────────────────────────────────────────────
+
+    /**
+     * Fetch pending PARTNER coupon interactions for the current user.
+     * These are recorded when the user taps "Discover" on an exclusive/partner
+     * coupon in CouponsList. On next app open the popup asks "did it work?".
+     */
+    fun fetchPendingPartnerInteractions() {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+
+        viewModelScope.launch {
+            when (val result = partnerInteractionRepository.getPendingInteractions(userId)) {
+                is PartnerInteractionResult.Success -> {
+                    val deduplicated = result.data
+                        .groupBy { it.couponId }
+                        .values
+                        .mapNotNull { it.firstOrNull() }
+                    _uiState.update { it.copy(
+                        pendingPartnerInteractions = deduplicated,
+                        allPendingPartnerInteractionIds = result.data.map { it.id }
+                    ) }
+                    Log.d(TAG, "Loaded ${result.data.size} raw partner pending → ${deduplicated.size} deduplicated")
+                }
+                is PartnerInteractionResult.Error -> {
+                    Log.e(TAG, "Error loading pending partner interactions: ${result.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve a PARTNER coupon interaction by couponId.
+     * Resolves all sibling interactions for the same couponId.
+     */
+    fun resolvePartnerInteraction(couponId: String, outcome: String) {
+        val siblings = _uiState.value.pendingPartnerInteractions
+            .filter { it.couponId == couponId }
+            .map { it.id }
+
+        viewModelScope.launch {
+            siblings.forEach { id ->
+                partnerInteractionRepository.resolveInteraction(id, outcome)
+            }
+            _uiState.update { s ->
+                s.copy(
+                    pendingPartnerInteractions = s.pendingPartnerInteractions.filter { it.couponId != couponId }
+                )
+            }
+            Log.d(TAG, "Resolved ${siblings.size} partner interaction(s) for coupon $couponId as $outcome")
+        }
+    }
+
+    /**
+     * Skip all pending partner interactions.
+     */
+    fun skipAllPartnerInteractions() {
+        val allIds = _uiState.value.allPendingPartnerInteractionIds
+        viewModelScope.launch {
+            allIds.forEach { id -> partnerInteractionRepository.resolveInteraction(id, "skipped") }
+            _uiState.update {
+                it.copy(pendingPartnerInteractions = emptyList(), allPendingPartnerInteractionIds = emptyList())
+            }
         }
     }
 }

@@ -1,5 +1,34 @@
 import { computeDiscountWeight } from '../../../shared/discountWeight.js';
 
+/**
+ * Detects whether a link is an affiliate tracking link (Coupon) or a generic offer link (Offer).
+ * Tracking links contain parameters like offer_id and aff_id.
+ * @param {string|null|undefined} link - The affiliate_link from the API
+ * @returns {string} Either "Coupon" or "Offer"
+ */
+const detectOfferType = (link) => {
+    if (!link) return "Offer";
+
+    try {
+        const url = new URL(link);
+        const params = url.searchParams;
+
+        // Check for tracking parameters: if both offer_id and aff_id exist, it's a Coupon
+        const hasOfferIdParam = params.has('offer_id') || params.has('offerid');
+        const hasAffIdParam = params.has('aff_id') || params.has('affid');
+
+        // If it has tracking parameters, it's a Coupon, otherwise it's an Offer
+        if (hasOfferIdParam && hasAffIdParam) {
+            return "Coupon";
+        }
+
+        return "Offer";
+    } catch (e) {
+        // If URL parsing fails, default to "Offer"
+        return "Offer";
+    }
+};
+
 /** Known couponType values accepted by the schema. */
 const KNOWN_COUPON_TYPES = ["FREE TRIAL", "Buy 1 Get 1 Free", "No cost EMI"];
 
@@ -70,6 +99,7 @@ const normalizeCoupomatedCoupon = (coupon) => {
         categories: coupon.category_names ?? [],
         categoriesId: (coupon.category_ids ?? []).map(String),
         couponType: resolveCouponType(coupon.discount),
+        offerType: detectOfferType(coupon.affiliate_link),
         isInStore: detectIsInStore(description),
         isNewUser: detectIsNewUser(description),
         title: coupon.title ?? null,

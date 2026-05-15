@@ -14,6 +14,7 @@ import com.ayaan.dealora.data.repository.PartnerCouponRedeemResult
 import com.ayaan.dealora.data.repository.PartnerCouponResult
 import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.ayaan.dealora.data.repository.RawCouponResult
+import com.ayaan.dealora.data.repository.PartnerCouponInteractionRepository
 import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
@@ -42,6 +43,7 @@ class CouponsListViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
+    private val partnerInteractionRepository: PartnerCouponInteractionRepository,
     private val firebaseAuth: FirebaseAuth,
     val moshi: Moshi
 ) : ViewModel() {
@@ -346,7 +348,8 @@ class CouponsListViewModel @Inject constructor(
                             validity     = validityApi,
                             page         = currentPage,
                             limit        = PARTNER_PAGE_SIZE,
-                            tab          = tabApi
+                            tab          = tabApi,
+                            offerType    = "Coupon"  // Filter to show only tracked coupons, not generic offers
                         )) {
                             is PartnerCouponResult.Success -> {
                                 if (_exclusiveTab.value == ExclusiveTab.EXPIRED) {
@@ -400,6 +403,47 @@ class CouponsListViewModel @Inject constructor(
             } catch (e: Exception) {
                 onError("Unable to mark coupon as redeemed.")
             }
+        }
+    }
+
+    /**
+     * Directly vote on a partner coupon's reliability.
+     * outcome: "success" | "failure"
+     */
+    fun votePartnerCoupon(couponId: String, outcome: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "Voting for partner coupon $couponId: $outcome")
+            couponRepository.votePartnerCoupon(couponId, outcome)
+        }
+    }
+
+
+    /**
+     * Record a "discover" interaction when the user taps the Discover button
+     * on a partner coupon in exclusive mode. Fire-and-forget — does not block the UI.
+     * Also tracks the discover click for trend analytics.
+     */
+    fun recordPartnerDiscover(coupon: PartnerCoupon) {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                partnerInteractionRepository.recordInteraction(
+                    userId     = userId,
+                    couponId   = coupon.couponId ?: coupon.id,
+                    brandName  = coupon.brandName,
+                    couponCode = coupon.couponCode,
+                    couponLink = coupon.couponLink,
+                    action     = "discover"
+                )
+                Log.d(TAG, "Partner discover interaction recorded for ${coupon.brandName}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to record partner discover interaction", e)
+            }
+        }
+        // Fire-and-forget: track discover for trend analytics
+        viewModelScope.launch {
+            couponRepository.trackPartnerDiscover(coupon.id)
+            Log.d(TAG, "Trend discover tracked for partner coupon: ${coupon.id}")
         }
     }
 

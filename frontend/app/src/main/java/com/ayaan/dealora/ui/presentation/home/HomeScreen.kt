@@ -28,6 +28,7 @@ import com.ayaan.dealora.ui.presentation.home.components.ExclusiveBannerCard
 import com.ayaan.dealora.ui.presentation.home.components.StatisticsCard
 import com.ayaan.dealora.ui.presentation.home.components.ExploringCoupons
 import com.ayaan.dealora.ui.presentation.home.components.MultiFleetFeedbackPopup
+import com.ayaan.dealora.ui.presentation.home.components.MultiPartnerFeedbackPopup
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.presentation.navigation.navbar.AppTopBar
 import com.ayaan.dealora.ui.presentation.navigation.navbar.DealoraBottomBar
@@ -41,7 +42,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
     
-    // Show multi-coupon feedback popup if there are pending interactions
+    // Show fleet coupon feedback popup (scraped/exclusive coupons)
     if (uiState.pendingInteractions.isNotEmpty()) {
         MultiFleetFeedbackPopup(
             interactions = uiState.pendingInteractions,
@@ -50,6 +51,20 @@ fun HomeScreen(
             },
             onDismissAll = {
                 viewModel.skipAllInteractions()
+            }
+        )
+    }
+
+    // Show partner coupon feedback popup (exclusive toggle / ai-coupon-engine coupons)
+    // Shown only when there are no fleet interactions pending (so they don't stack)
+    if (uiState.pendingPartnerInteractions.isNotEmpty() && uiState.pendingInteractions.isEmpty()) {
+        MultiPartnerFeedbackPopup(
+            interactions = uiState.pendingPartnerInteractions,
+            onResolve    = { couponId, outcome ->
+                viewModel.resolvePartnerInteraction(couponId, outcome)
+            },
+            onDismissAll = {
+                viewModel.skipAllPartnerInteractions()
             }
         )
     }

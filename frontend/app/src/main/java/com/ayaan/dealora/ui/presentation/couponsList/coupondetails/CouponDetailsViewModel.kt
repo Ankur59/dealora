@@ -15,6 +15,7 @@ import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.data.repository.FleetRepository
 import com.ayaan.dealora.data.repository.FleetResult
+import com.ayaan.dealora.data.repository.PartnerCouponInteractionRepository
 import com.ayaan.dealora.data.api.models.PendingInteraction
 import com.google.firebase.auth.FirebaseAuth
 import com.squareup.moshi.Moshi
@@ -34,6 +35,7 @@ class CouponDetailsViewModel @Inject constructor(
     private val couponRepository: CouponRepository,
     private val syncedAppRepository: SyncedAppRepository,
     private val fleetRepository: FleetRepository,
+    private val partnerInteractionRepository: PartnerCouponInteractionRepository,
     private val firebaseAuth: FirebaseAuth,
     private val moshi: Moshi,
     savedStateHandle: SavedStateHandle
@@ -167,6 +169,19 @@ class CouponDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (!_isPrivate) {
+                    val currentState = _uiState.value
+                    if (currentState is CouponDetailsUiState.Success && currentState.coupon.userId == "partner_coupon") {
+                        // Partner coupon — call specific backend endpoint
+                        when (val result = couponRepository.redeemPartnerCoupon(couponId)) {
+                            is com.ayaan.dealora.data.repository.PartnerCouponRedeemResult.Success -> {
+                                onSuccess()
+                                loadCouponDetails()
+                            }
+                            is com.ayaan.dealora.data.repository.PartnerCouponRedeemResult.Error -> onError(result.message)
+                        }
+                        return@launch
+                    }
+                    
                     // Exclusive/scraped coupon — delegate to local-only path
                     redeemRawCoupon(onSuccess = onSuccess, onError = onError)
                     return@launch
@@ -199,6 +214,9 @@ class CouponDetailsViewModel @Inject constructor(
                 // Record the redeem interaction first (explicit redeem press)
                 recordInteraction("redeem")
                 
+                // Note: recordPartnerInteraction("redeem") is removed here because 
+                // the user now provides immediate feedback via the "Did it work?" dialog.
+                
                 // No backend endpoint for scraped-coupon redemption (other than fleet stats).
                 // Just signal success so the UI can show a confirmation.
                 onSuccess()
@@ -210,7 +228,7 @@ class CouponDetailsViewModel @Inject constructor(
 
     /**
      * Record a user interaction with an exclusive coupon (copy, discover, redeem).
-     * Only works for non-private mode.
+     * Only works for fleet/raw/exclusive coupons (non-private, non-partner).
      *
      * Deduplication: each coupon+action pair is only sent to the backend ONCE per
      * ViewModel session, regardless of how many times the user taps the button.
@@ -222,6 +240,10 @@ class CouponDetailsViewModel @Inject constructor(
         if (currentState !is CouponDetailsUiState.Success) return
 
         val coupon = currentState.coupon
+
+        // Partner coupons use a separate endpoint — skip fleet recording for them
+        if (coupon.userId == "partner_coupon") return
+
         val couponId = coupon.id.toString()
         val sessionKey = "$couponId:$action"
 
@@ -234,7 +256,7 @@ class CouponDetailsViewModel @Inject constructor(
         val userId = firebaseAuth.currentUser?.uid ?: "anonymous"
 
         viewModelScope.launch {
-            Log.d(TAG, "Recording interaction: $action for coupon: $couponId")
+            Log.d(TAG, "Recording fleet interaction: $action for coupon: $couponId")
             fleetRepository.recordInteraction(
                 userId = userId,
                 couponId = couponId,
@@ -245,6 +267,67 @@ class CouponDetailsViewModel @Inject constructor(
             )
         }
     }
+
+    /**
+     * Record an interaction specifically for PARTNER coupons.
+     * action: "discover" | "redeem"
+     *
+     * Deduplication: only one per action per ViewModel session per coupon.
+     */
+    fun recordPartnerInteraction(action: String) {
+        val currentState = _uiState.value
+        if (currentState !is CouponDetailsUiState.Success) return
+
+        val coupon = currentState.coupon
+        if (coupon.userId != "partner_coupon") return  // Guard: only for partner coupons
+
+        val couponId = coupon.id.toString()
+        val sessionKey = "$couponId:partner_$action"
+
+        // Deduplicate within this ViewModel session
+        if (!recordedInteractionKeys.add(sessionKey)) {
+            Log.d(TAG, "Partner $action already recorded this session, skipping: $sessionKey")
+            return
+        }
+
+        val userId = firebaseAuth.currentUser?.uid ?: return
+
+        viewModelScope.launch {
+            Log.d(TAG, "Recording partner interaction: $action for coupon: $couponId (${coupon.brandName})")
+            partnerInteractionRepository.recordInteraction(
+                userId     = userId,
+                couponId   = couponId,
+                brandName  = coupon.brandName.toString(),
+                couponCode = coupon.couponCode?.toString(),
+                couponLink = coupon.websiteLink?.toString(),
+                action     = action
+            )
+        }
+
+        // Also track discover clicks for trend analytics
+        if (action == "discover") {
+            viewModelScope.launch {
+                couponRepository.trackPartnerDiscover(couponId)
+                Log.d(TAG, "Trend discover tracked for partner coupon: $couponId")
+            }
+        }
+    }
+
+    /**
+     * Directly vote on a partner coupon's reliability.
+     * outcome: "success" | "failure"
+     */
+    fun votePartnerCoupon(outcome: String) {
+        val currentState = _uiState.value
+        if (currentState !is CouponDetailsUiState.Success) return
+
+        val couponId = currentState.coupon.id.toString()
+        viewModelScope.launch {
+            Log.d(TAG, "Voting for partner coupon $couponId: $outcome")
+            couponRepository.votePartnerCoupon(couponId, outcome)
+        }
+    }
+
 
     /**
      * Fetch pending interactions for the current user.

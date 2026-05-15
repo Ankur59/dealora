@@ -60,7 +60,7 @@ function shapeDoc(doc, isRedeemed = false) {
 }
 
 /** Build the MongoDB filter object for the list endpoint. */
-function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity }) {
+function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType }) {
     const now = new Date();
     const filter = {};
 
@@ -80,6 +80,7 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
 
     if (category) filter.categories = category;
     if (brand) filter.brandName = { $regex: brand, $options: 'i' };
+    if (offerType) filter.offerType = offerType;
 
     // New filters for PartnerCoupon
     if (discountType) {
@@ -129,15 +130,15 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
 function buildSort(sortBy) {
     switch (sortBy) {
         case 'newest':
-        case 'newest_first': return { createdAt: -1, discountWeight: -1 };
+        case 'newest_first': return { createdAt: -1, 'trend.healthScore': -1 };
         case 'oldest':
-        case 'oldest_first': return { createdAt: 1, discountWeight: -1 };
-        case 'expiring_soon': return { end: 1, discountWeight: -1 };
-        case 'a_z': return { brandName: 1, discountWeight: -1 };
-        case 'z_a': return { brandName: -1, discountWeight: -1 };
+        case 'oldest_first': return { createdAt: 1, 'trend.healthScore': -1 };
+        case 'expiring_soon': return { end: 1, 'trend.healthScore': -1 };
+        case 'a_z': return { brandName: 1, 'trend.healthScore': -1 };
+        case 'z_a': return { brandName: -1, 'trend.healthScore': -1 };
         case 'highest_discount':
-        case 'discountWeight':
-        default: return { discountWeight: -1, createdAt: -1 }; // best discount first
+        case 'discountWeight': return { discountWeight: -1, createdAt: -1 }; // explicit discount-only sort
+        default: return { 'trend.healthScore': -1, createdAt: -1 }; // best health score first (default)
     }
 }
 
@@ -164,6 +165,7 @@ exports.getPartnerCoupons = async (req, res) => {
             tab = 'active',
             discountType,
             validity,
+            offerType,
         } = req.query;
 
         const userId = req.user._id;
@@ -175,7 +177,7 @@ exports.getPartnerCoupons = async (req, res) => {
         const redemptions = await Redemption.find({ userId }).select('couponId').lean();
         const redeemedIds = redemptions.map(r => r.couponId);   // already ObjectIds
 
-        const filter = buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity });
+        const filter = buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType });
         const sort = buildSort(sortBy);
 
         const [docs, total] = await Promise.all([
@@ -253,7 +255,8 @@ exports.getRedeemedPartnerCoupons = async (req, res) => {
 exports.redeemPartnerCoupon = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { ObjectId } = require('mongodb');
+        const { Types } = require('mongoose');
+        const { ObjectId } = Types;
 
         let couponObjId;
         try {
@@ -287,5 +290,111 @@ exports.redeemPartnerCoupon = async (req, res) => {
     } catch (err) {
         logger.error(`[PartnerCoupon] redeemPartnerCoupon: ${err.message}`);
         return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to redeem coupon');
+    }
+};
+
+/**
+ * @route   POST /api/partner-coupons/:id/vote
+ * @desc    Directly increment successCount or failedCount for a coupon.
+ *          Used for immediate feedback when a user marks a coupon as redeemed.
+ * @access  Private
+ */
+exports.votePartnerCoupon = async (req, res) => {
+    try {
+        const { outcome } = req.body;
+        const couponId = req.params.id;
+
+        if (!['success', 'failure'].includes(outcome)) {
+            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Outcome must be success | failure');
+        }
+
+        const updateField = outcome === 'success' ? 'successCount' : 'failedCount';
+
+        const { Types } = require('mongoose');
+        const { ObjectId } = Types;
+        let couponObjId;
+        try {
+            couponObjId = new ObjectId(couponId);
+        } catch {
+            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Invalid coupon ID');
+        }
+
+        const result = await col().updateOne(
+            { _id: couponObjId },
+            { $inc: { [updateField]: 1 } }
+        );
+
+        if (result.matchedCount === 0) {
+            return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Coupon not found in partner collection');
+        }
+
+        return successResponse(res, STATUS_CODES.OK, `Vote recorded: ${outcome}`);
+    } catch (err) {
+        logger.error(`[PartnerCoupon] votePartnerCoupon: ${err.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to record vote');
+    }
+};
+
+/**
+ * @route   POST /api/partner-coupons/:id/discover
+ * @desc    Atomically increment discoverCount on every click.
+ *          Updates lastDiscoverAt only if 5+ minutes have passed since last update (debounce).
+ *          Called every time a user taps the Discover button for a partner coupon.
+ * @access  Private
+ */
+exports.trackDiscover = async (req, res) => {
+    try {
+        const { Types } = require('mongoose');
+        const { ObjectId } = Types;
+        const couponId = req.params.id;
+
+        let couponObjId;
+        try {
+            couponObjId = new ObjectId(couponId);
+        } catch {
+            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Invalid coupon ID');
+        }
+
+        const FIVE_MINUTES_MS = 5 * 60 * 1000;
+        const now = new Date();
+
+        // Fetch current document to check if we should update lastDiscoverAt
+        const coupon = await col().findOne({ _id: couponObjId });
+
+        if (!coupon) {
+            return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Coupon not found');
+        }
+
+        // Determine if we should update lastDiscoverAt
+        const lastDiscover = coupon.trend?.lastDiscoverAt;
+        const shouldUpdateTimestamp = !lastDiscover || (now - new Date(lastDiscover)) >= FIVE_MINUTES_MS;
+
+        // Build update object
+        const updateObj = {
+            $inc: {
+                'trend.discoverCount': 1
+            }
+        };
+
+        // Only set lastDiscoverAt if conditions are met
+        if (shouldUpdateTimestamp) {
+            updateObj.$set = {
+                'trend.lastDiscoverAt': now
+            };
+        }
+
+        const result = await col().updateOne(
+            { _id: couponObjId },
+            updateObj
+        );
+
+        if (result.matchedCount === 0) {
+            return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Coupon not found');
+        }
+
+        return successResponse(res, STATUS_CODES.OK, 'Discover tracked');
+    } catch (err) {
+        logger.error(`[PartnerCoupon] trackDiscover: ${err.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to track discover');
     }
 };

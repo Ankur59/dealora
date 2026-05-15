@@ -16,12 +16,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -227,6 +231,7 @@ fun CouponsList(
                             ) {
                                 itemsIndexed(displayCoupons, key = { _, c -> c.id }) { index, coupon ->
                                     var showSuccessDialog by remember { mutableStateOf(false) }
+                                    var showFeedbackDialog by remember { mutableStateOf(false) }
                                     var showErrorDialog   by remember { mutableStateOf(false) }
                                     var errorMessage      by remember { mutableStateOf("") }
 
@@ -246,18 +251,12 @@ fun CouponsList(
                                         isSaved       = savedCouponIds.contains(coupon.id),
                                         source        = coupon.couponLink,
                                         showActionButtons = true,
+                                        merchantLogoUrl = coupon.merchantLogo,
                                         onSave        = { _ -> viewModel.savePartnerCoupon(coupon) },
                                         onRemoveSave  = { id -> viewModel.removeSavedCoupon(id) },
                                         onRedeem      = { _ ->
                                             if (!isAlreadyRedeemed) {
-                                                viewModel.redeemPartnerCoupon(
-                                                    couponId  = coupon.id,
-                                                    onSuccess = { showSuccessDialog = true },
-                                                    onError   = { err ->
-                                                        errorMessage  = err
-                                                        showErrorDialog = true
-                                                    }
-                                                )
+                                                showFeedbackDialog = true
                                             }
                                         },
                                         onDetailsClick = {
@@ -274,7 +273,10 @@ fun CouponsList(
                                             )
                                         },
                                         // Discover — opens the affiliate tracking link
+                                        // Also records a "discover" interaction so the
+                                        // feedback popup can ask if the coupon worked.
                                         onDiscoverClick = {
+                                            viewModel.recordPartnerDiscover(coupon)
                                             openUrl(context, coupon.couponLink)
                                         }
                                     )
@@ -286,6 +288,83 @@ fun CouponsList(
                                         onSuccessDismiss = { showSuccessDialog = false },
                                         onErrorDismiss   = { showErrorDialog   = false }
                                     )
+
+                                    if (showFeedbackDialog) {
+                                        AlertDialog(
+                                            onDismissRequest = { showFeedbackDialog = false },
+                                            containerColor = Color.White,
+                                            shape = RoundedCornerShape(16.dp),
+                                            title = {
+                                                Text(
+                                                    text = "Did this coupon work?",
+                                                    fontSize = 20.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black
+                                                )
+                                            },
+                                            text = {
+                                                Text(
+                                                    text = "Your feedback helps us keep the best deals for everyone!",
+                                                    fontSize = 14.sp,
+                                                    color = Color(0xFF666666)
+                                                )
+                                            },
+                                            confirmButton = {
+                                                Button(
+                                                    onClick = {
+                                                        showFeedbackDialog = false
+                                                        viewModel.votePartnerCoupon(coupon.id, "success")
+                                                        viewModel.redeemPartnerCoupon(
+                                                            couponId = coupon.id,
+                                                            onSuccess = { showSuccessDialog = true },
+                                                            onError = { err ->
+                                                                errorMessage = err
+                                                                showErrorDialog = true
+                                                            }
+                                                        )
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFF4CAF50)
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                                ) {
+                                                    Text("Yes, it worked!", color = Color.White)
+                                                }
+                                            },
+                                            dismissButton = {
+                                                Column {
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            showFeedbackDialog = false
+                                                            viewModel.votePartnerCoupon(coupon.id, "failure")
+                                                            viewModel.redeemPartnerCoupon(
+                                                                couponId = coupon.id,
+                                                                onSuccess = { showSuccessDialog = true },
+                                                                onError = { err ->
+                                                                    errorMessage = err
+                                                                    showErrorDialog = true
+                                                                }
+                                                            )
+                                                        },
+                                                        colors = ButtonDefaults.outlinedButtonColors(
+                                                            contentColor = Color(0xFFE53935)
+                                                        ),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                                    ) {
+                                                        Text("No, it didn't work")
+                                                    }
+                                                    TextButton(
+                                                        onClick = { showFeedbackDialog = false },
+                                                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                                                    ) {
+                                                        Text("Cancel", color = Color.Gray)
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
 
                                     // Pagination trigger
                                     if (index == displayCoupons.size - 1 &&

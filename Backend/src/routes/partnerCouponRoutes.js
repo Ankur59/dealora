@@ -15,4 +15,10 @@ router.get('/redeemed', partnerCouponController.getRedeemedPartnerCoupons);
 // POST /api/partner-coupons/:id/redeem → create a Redemption entry
 router.post('/:id/redeem', partnerCouponController.redeemPartnerCoupon);
 
+// POST /api/partner-coupons/:id/vote   → directly update success/failed counts
+router.post('/:id/vote', partnerCouponController.votePartnerCoupon);
+
+// POST /api/partner-coupons/:id/discover → track discover click for trend analytics
+router.post('/:id/discover', partnerCouponController.trackDiscover);
+
 module.exports = router;

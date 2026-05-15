@@ -113,7 +113,8 @@ interface CouponApiService {
         @Query("validity")      validity:     String? = null,
         @Query("page")          page:         Int?    = null,
         @Query("limit")         limit:        Int?    = null,
-        @Query("tab")           tab:          String? = null  // "active" | "expired"
+        @Query("tab")           tab:          String? = null,  // "active" | "expired"
+        @Query("offerType")     offerType:    String? = null   // "Coupon" | "Offer"
     ): Response<ApiResponse<PartnerCouponListResponseData>>
 
     /** Partner coupons this user has already redeemed. */
@@ -128,4 +129,17 @@ interface CouponApiService {
     suspend fun redeemPartnerCoupon(
         @Path("id") couponId: String
     ): Response<ApiResponse<PartnerCouponRedeemResponseData>>
+
+    /** Directly update success/failed counts for a partner coupon (immediate feedback). */
+    @POST("api/partner-coupons/{id}/vote")
+    suspend fun votePartnerCoupon(
+        @Path("id") couponId: String,
+        @Body body: Map<String, String> // { "outcome": "success" | "failure" }
+    ): Response<ApiResponse<Any>>
+
+    /** Track a Discover button click for trend analytics. */
+    @POST("api/partner-coupons/{id}/discover")
+    suspend fun trackPartnerDiscover(
+        @Path("id") couponId: String
+    ): Response<ApiResponse<Any>>
 }

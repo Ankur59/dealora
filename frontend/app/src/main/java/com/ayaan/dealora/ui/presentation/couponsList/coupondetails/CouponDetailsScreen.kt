@@ -19,9 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -193,6 +195,7 @@ fun CouponDetailsContent(
 
     // State for redeem dialog
     var showRedeemDialog by remember { mutableStateOf(false) }
+    var showPartnerVoteDialog by remember { mutableStateOf(false) }
     var showRedeemSuccess by remember { mutableStateOf(false) }
     var redeemError by remember { mutableStateOf<String?>(null) }
 
@@ -207,16 +210,23 @@ fun CouponDetailsContent(
         //   (local-only removal, no backend call needed for scraped coupons).
         // The websiteLink / couponVisitingLink fields are populated for both types.
         BottomActionButtons(couponLink = coupon.websiteLink?.toString(), onRedeemed = {
-            // Show confirmation dialog — VM decides how to handle based on coupon type
-            showRedeemDialog = true
+            // For partner coupons, we show the "Did it work?" dialog immediately.
+            // For others, we show the generic "Mark as Redeemed?" dialog.
+            if (coupon.userId == "partner_coupon") {
+                showPartnerVoteDialog = true
+            } else {
+                showRedeemDialog = true
+            }
         }, onDiscoverClick = {
             val websiteUrl = coupon.websiteLink?.toString()?.trim()
                 ?.takeIf { it.isNotEmpty() }
 
             if (websiteUrl != null) {
-                // Record discovery interaction for fleet engine
+                // Record for fleet engine (scraped/exclusive coupons — no-ops for partner)
                 viewModel.recordInteraction("discover")
-                
+                // Record for partner coupon interaction engine (no-ops for non-partner)
+                viewModel.recordPartnerInteraction("discover")
+
                 try {
                     val uri = Uri.parse(
                         if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
@@ -314,6 +324,7 @@ fun CouponDetailsContent(
                         // For links that also copy code
                         viewModel.recordInteraction("copy")
                         viewModel.recordInteraction("discover")
+                        viewModel.recordPartnerInteraction("discover")
                         
                         coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let { link ->
                             try {
@@ -430,11 +441,83 @@ fun CouponDetailsContent(
                         text = "Cancel",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF666666)
                     )
                 }
             })
     }
+
+    // --- Partner Feedback Dialog (Immediate) ---
+    if (showPartnerVoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showPartnerVoteDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    text = "Did this coupon work?",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Text(
+                    text = "Your feedback helps us keep the best deals for everyone!",
+                    fontSize = 14.sp,
+                    color = Color(0xFF666666)
+                )
+            },
+            confirmButton = {
+                // "Yes, it worked" button
+                Button(
+                    onClick = {
+                        showPartnerVoteDialog = false
+                        viewModel.votePartnerCoupon("success")
+                        viewModel.redeemCoupon(onSuccess = {
+                            showRedeemSuccess = true
+                        }, onError = { error ->
+                            redeemError = error
+                        })
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Text("Yes, it worked!", color = Color.White)
+                }
+            },
+            dismissButton = {
+                Column {
+                    // "No, it failed" button
+                    OutlinedButton(
+                        onClick = {
+                            showPartnerVoteDialog = false
+                            viewModel.votePartnerCoupon("failure")
+                            viewModel.redeemCoupon(onSuccess = {
+                                showRedeemSuccess = true
+                            }, onError = { error ->
+                                redeemError = error
+                            })
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE53935)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        Text("No, it didn't work")
+                    }
+
+                    // "Cancel" button
+                    TextButton(
+                        onClick = { showPartnerVoteDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                }
+            }
+        )
+    }
+
 
     // Success Dialog
     if (showRedeemSuccess) {

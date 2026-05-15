@@ -37,7 +37,7 @@ connectDB(process.env.MONGODB_URI)
     server.listen(process.env.PORT || 8000, () => {
       console.log("Server started at port: ", process.env.PORT || 8000);
     })
-    // fetchAndNormalizePartnerData("coupomated", "coupons")
+    fetchAndNormalizePartnerData("coupomated", "Coupons")
   })
   .catch((err) => {
     console.log("MONGO db connection failed !!! ", err);
