@@ -379,6 +379,7 @@ private fun ExclusiveCouponsList(
                         isSaved = isSaved,
                         source = coupon.couponLink, // header colour fallback
                         showActionButtons = true,
+                        discoverButtonLabel = "Use Now",
                         onSave = { onSave(coupon) },
                         onRemoveSave = { onRemoveSave(coupon.id) },
                         onRedeem = { _ ->

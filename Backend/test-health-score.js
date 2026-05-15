@@ -27,7 +27,7 @@ async function testHealthScoreCalculation() {
 
         // 1. Connect to database
         console.log('📡 Connecting to database...');
-        const mongoUri = 'password';
+        const mongoUri = "credential";
         await mongoose.connect(mongoUri);
         console.log('✅ Connected to database\n');
 

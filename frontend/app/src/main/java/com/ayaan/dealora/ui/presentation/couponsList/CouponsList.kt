@@ -252,6 +252,7 @@ fun CouponsList(
                                         source        = coupon.couponLink,
                                         showActionButtons = true,
                                         merchantLogoUrl = coupon.merchantLogo,
+                                        discoverButtonLabel = "Use Now",
                                         onSave        = { _ -> viewModel.savePartnerCoupon(coupon) },
                                         onRemoveSave  = { id -> viewModel.removeSavedCoupon(id) },
                                         onRedeem      = { _ ->
@@ -272,7 +273,7 @@ fun CouponsList(
                                                 )
                                             )
                                         },
-                                        // Discover — opens the affiliate tracking link
+                                        // Use Now — opens the affiliate tracking link
                                         // Also records a "discover" interaction so the
                                         // feedback popup can ask if the coupon worked.
                                         onDiscoverClick = {

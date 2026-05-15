@@ -90,6 +90,7 @@ fun CouponCard(
     showActionButtons: Boolean = true,
     merchantLogoUrl: String? = null,
     onDetailsClick: () -> Unit = {},
+    discoverButtonLabel: String = "Discover",
     onDiscoverClick: () -> Unit = {},
     onRedeem: ((String) -> Unit)? = null,
     onSave: ((String) -> Unit)? = null,
@@ -377,7 +378,7 @@ fun CouponCard(
                             enabled = !isRedeemed && !isExpired
                         ) {
                             Text(
-                                text = "Discover",
+                                text = discoverButtonLabel,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

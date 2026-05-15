@@ -140,18 +140,21 @@ const couponSchema = new Schema({
             type: Date,
             default: null
         },
+        //calculated form success count and failed count which user has voted for fleet engine
         reliabilityScore: {
             type: Number,
             default: 50,  // neutral score for new coupons
             min: 0,
             max: 100
         },
+        // based on last discover at and discovery count
         trendScore: {
             type: Number,
             default: 0,
             min: 0,
             max: 100
         },
+        // final score calculated from the health parameters
         healthScore: {
             type: Number,
             default: 0,
