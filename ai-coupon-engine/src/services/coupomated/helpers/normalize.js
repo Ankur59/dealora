@@ -83,15 +83,19 @@ const normalizeCoupomatedCoupon = (coupon) => {
     };
 
     const description = coupon.description ?? null;
+    const endDate = parseDate(coupon.end_date);
+    const now = new Date();
 
     return {
         partner: "coupomated",
         couponId: String(coupon.coupon_id),
         code: coupon.coupon_code ?? null,
         description,
+        type: "generic",
+        status: endDate && endDate < now ? "expired" : "active",
         discount: coupon.discount ?? null,
         start: parseDate(coupon.start_date),
-        end: parseDate(coupon.end_date),
+        end: endDate,
         trackingLink: coupon.affiliate_link,
         couponVisitingLink: coupon.plain_link ?? null,
         brandName: coupon.merchant_name,
@@ -102,10 +106,11 @@ const normalizeCoupomatedCoupon = (coupon) => {
         offerType: detectOfferType(coupon.affiliate_link),
         isInStore: detectIsInStore(description),
         isNewUser: detectIsNewUser(description),
+        isVerified: false,
         title: coupon.title ?? null,
         networkId: coupon.network_id ?? null,
         merchantId: coupon.merchant_id ?? null,
-        metchantLogo: coupon.merchant_logo ?? null,
+        merchantLogo: coupon.merchant_logo ?? null,
         discountWeight: computeDiscountWeight(coupon.discount),
         meta: {
             title: coupon.title ?? null,

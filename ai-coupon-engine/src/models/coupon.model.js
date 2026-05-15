@@ -18,11 +18,14 @@ const couponSchema = new Schema({
     },
     type: {
         type: String,
-        enum: ["generic", "exclusive", "one_time"]
+        enum: ["generic", "exclusive", "one_time"],
+        default: "generic"
     },
     status: {
         type: String,
-        enum: ["active", "pending", "expired"]
+        enum: ["active", "pending", "expired"],
+        default: "active",
+        index: true
     },
     start: {
         type: Date
@@ -35,17 +38,20 @@ const couponSchema = new Schema({
     },
     brandName: {
         type: String,
-        required: true
+        required: true,
+        index: true
     },
     verifiedOn: {
         type: Date
     },
     verifiedAt: {
-        type: Date
+        type: Date,
+        index: true
     },
     isVerified: {
         type: Boolean,
-        default: false
+        default: false,
+        index: true
     },
     campaignId: {
         type: String,
@@ -74,6 +80,7 @@ const couponSchema = new Schema({
     },
     merchantName: {
         type: String,
+        index: true
     },
     couponType: {
         type: String,
@@ -100,6 +107,10 @@ const couponSchema = new Schema({
         type: String
     },
     merchantId: {
+        type: String,
+        index: true
+    },
+    merchantLogo: {
         type: String
     },
     metchantLogo: {
