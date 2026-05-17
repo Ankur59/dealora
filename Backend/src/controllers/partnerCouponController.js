@@ -61,7 +61,7 @@ function shapeDoc(doc, isRedeemed = false) {
 }
 
 /** Build the MongoDB filter object for the list endpoint. */
-function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType }) {
+function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified }) {
     const now = new Date();
     const filter = {};
 
@@ -82,6 +82,10 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
     if (category) filter.categories = category;
     if (brand) filter.brandName = { $regex: brand, $options: 'i' };
     if (offerType) filter.offerType = offerType;
+
+    if (verified === 'true' || verified === true) {
+        filter.isVerified = true;
+    }
 
     // New filters for PartnerCoupon
     if (discountType) {
@@ -116,6 +120,7 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
         const rx = { $regex: search, $options: 'i' };
         const searchOr = [
             { brandName: rx },
+            { categories: rx },
             { title: rx },
             { description: rx },
             { code: rx },
@@ -167,6 +172,7 @@ exports.getPartnerCoupons = async (req, res) => {
             discountType,
             validity,
             offerType,
+            verified,
         } = req.query;
 
         const userId = req.user._id;
@@ -178,7 +184,7 @@ exports.getPartnerCoupons = async (req, res) => {
         const redemptions = await Redemption.find({ userId }).select('couponId').lean();
         const redeemedIds = redemptions.map(r => r.couponId);   // already ObjectIds
 
-        const filter = buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType });
+        const filter = buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified });
         const sort = buildSort(sortBy);
 
         const [docs, total] = await Promise.all([

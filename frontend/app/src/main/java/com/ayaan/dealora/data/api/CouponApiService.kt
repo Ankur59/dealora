@@ -114,7 +114,8 @@ interface CouponApiService {
         @Query("page")          page:         Int?    = null,
         @Query("limit")         limit:        Int?    = null,
         @Query("tab")           tab:          String? = null,  // "active" | "expired"
-        @Query("offerType")     offerType:    String? = null   // "Coupon" | "Offer"
+        @Query("offerType")     offerType:    String? = null,  // "Coupon" | "Offer"
+        @Query("verified")      verified:     String? = null
     ): Response<ApiResponse<PartnerCouponListResponseData>>
 
     /** Partner coupons this user has already redeemed. */

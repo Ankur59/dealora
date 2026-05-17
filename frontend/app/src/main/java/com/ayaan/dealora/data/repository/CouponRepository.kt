@@ -561,13 +561,15 @@ class CouponRepository @Inject constructor(
         page:         Int?    = null,
         limit:        Int?    = null,
         tab:          String? = "active",
-        offerType:    String? = null  // "Coupon" | "Offer"
+        offerType:    String? = null,  // "Coupon" | "Offer"
+        verified:     String? = null
     ): PartnerCouponResult {
         return try {
             val response = couponApiService.getPartnerCoupons(
                 category = category, brand = brand, search = search,
                 sortBy = sortBy, discountType = discountType, validity = validity,
-                page = page, limit = limit, tab = tab, offerType = offerType
+                page = page, limit = limit, tab = tab, offerType = offerType,
+                verified = verified
             )
             if (response.isSuccessful) {
                 val body = response.body()

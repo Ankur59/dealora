@@ -21,14 +21,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.api.models.PartnerCoupon
+import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.data.repository.FleetRepository
 import com.ayaan.dealora.data.repository.FleetResult
+import com.ayaan.dealora.data.repository.PartnerCouponResult
+import com.ayaan.dealora.data.repository.PartnerCouponRedeemResult
 import com.ayaan.dealora.data.repository.PartnerCouponInteractionRepository
 import com.ayaan.dealora.data.repository.PartnerInteractionResult
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 
 @HiltViewModel
@@ -55,6 +60,9 @@ class HomeViewModel @Inject constructor(
 
     private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
     val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
+
+    private var searchJob: Job? = null
+    val searchQuery = MutableStateFlow("")
 
     init {
         observeSavedCoupons()
@@ -481,6 +489,139 @@ class HomeViewModel @Inject constructor(
             _uiState.update {
                 it.copy(pendingPartnerInteractions = emptyList(), allPendingPartnerInteractionIds = emptyList())
             }
+        }
+    }
+
+    // ── Search & Partner Coupon Operations ───────────────────────────────────
+
+    fun onSearchQueryChanged(query: String) {
+        searchQuery.value = query
+        if (query.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    searchCoupons = emptyList(),
+                    searchCouponsTotal = 0,
+                    searchCouponsPage = 1,
+                    searchCouponsPages = 1,
+                    isLoadingSearchCoupons = false,
+                    searchError = null
+                )
+            }
+            return
+        }
+        // Debounce search API calls
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(300) // 300ms debounce
+            loadSearchCoupons(resetPage = true)
+        }
+    }
+
+    fun loadSearchCoupons(resetPage: Boolean = true) {
+        val query = searchQuery.value
+        if (query.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val currentPage = if (resetPage) 1 else (_uiState.value.searchCouponsPage + 1)
+                if (resetPage) {
+                    _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null, searchCoupons = emptyList()) }
+                } else {
+                    _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null) }
+                }
+
+                Log.d(TAG, "loadSearchCoupons page=$currentPage query=$query")
+
+                when (val result = couponRepository.getPartnerCoupons(
+                    search       = query,
+                    sortBy       = null, // triggers trend.healthScore DESC default sorting!
+                    page         = currentPage,
+                    limit        = 20,
+                    tab          = "active",
+                    offerType    = "Coupon", // standard coupon filter like CouponsList.kt
+                    verified     = "true" // strictly search verified true coupons!
+                )) {
+                    is PartnerCouponResult.Success -> {
+                        val newCoupons = if (resetPage) result.coupons
+                                         else _uiState.value.searchCoupons + result.coupons
+                        _uiState.update {
+                            it.copy(
+                                searchCoupons = newCoupons,
+                                searchCouponsTotal = result.total,
+                                searchCouponsPage = result.page,
+                                searchCouponsPages = result.pages,
+                                isLoadingSearchCoupons = false,
+                                searchError = if (newCoupons.isEmpty()) "No verified coupons found" else null
+                            )
+                        }
+                    }
+                    is PartnerCouponResult.Error -> {
+                        Log.e(TAG, "Search coupons error: ${result.message}")
+                        _uiState.update {
+                            it.copy(isLoadingSearchCoupons = false, searchError = result.message)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "loadSearchCoupons exception", e)
+                _uiState.update { it.copy(isLoadingSearchCoupons = false, searchError = e.message) }
+            }
+        }
+    }
+
+    fun loadNextSearchPage() {
+        val state = _uiState.value
+        if (state.isLoadingSearchCoupons) return
+        if (state.searchCouponsPage >= state.searchCouponsPages) return
+        loadSearchCoupons(resetPage = false)
+    }
+
+    fun savePartnerCoupon(coupon: PartnerCoupon) {
+        viewModelScope.launch {
+            try {
+                val adapter = moshi.adapter(PartnerCoupon::class.java)
+                savedCouponRepository.saveCoupon(
+                    couponId = coupon.id,
+                    couponJson = adapter.toJson(coupon),
+                    couponType = "raw"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "savePartnerCoupon error", e)
+            }
+        }
+    }
+
+    fun redeemPartnerCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                when (val result = couponRepository.redeemPartnerCoupon(couponId)) {
+                    is PartnerCouponRedeemResult.Success -> {
+                        // Mark as redeemed locally/optimistically
+                        _uiState.update { state ->
+                            state.copy(searchCoupons = state.searchCoupons.map {
+                                if (it.id == couponId) it.copy(isRedeemed = true) else it
+                            })
+                        }
+                        onSuccess()
+                    }
+                    is PartnerCouponRedeemResult.Error -> onError(result.message)
+                }
+            } catch (e: Exception) {
+                onError("Unable to redeem coupon. Please try again.")
+            }
+        }
+    }
+
+    fun trackPartnerDiscover(couponId: String) {
+        viewModelScope.launch {
+            couponRepository.trackPartnerDiscover(couponId)
+        }
+    }
+
+    fun votePartnerCoupon(couponId: String, outcome: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "Voting for partner coupon $couponId: $outcome")
+            couponRepository.votePartnerCoupon(couponId, outcome)
         }
     }
 }
