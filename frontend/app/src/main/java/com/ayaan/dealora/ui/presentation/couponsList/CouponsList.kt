@@ -252,6 +252,7 @@ fun CouponsList(
                                         source        = coupon.couponLink,
                                         showActionButtons = true,
                                         merchantLogoUrl = coupon.merchantLogo,
+                                        healthScore   = coupon.healthScore,
                                         discoverButtonLabel = "Use Now",
                                         onSave        = { _ -> viewModel.savePartnerCoupon(coupon) },
                                         onRemoveSave  = { id -> viewModel.removeSavedCoupon(id) },

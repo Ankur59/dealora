@@ -43,6 +43,7 @@ data class PartnerCoupon(
     @Json(name = "isVerified")      val isVerified: Boolean?    = false,
     @Json(name = "createdAt")       val createdAt: String?      = null,
     @Json(name = "updatedAt")       val updatedAt: String?      = null,
+    @Json(name = "healthScore")     val healthScore: Double?    = null,
 )
 
 /** Response for POST /api/partner-coupons/:id/redeem */

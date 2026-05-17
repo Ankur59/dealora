@@ -54,6 +54,7 @@ function shapeDoc(doc, isRedeemed = false) {
         isInStore: doc.isInStore ?? false,
         isNewUser: doc.isNewUser ?? false,
         isVerified: doc.isVerified ?? false,
+        healthScore: doc.trend?.healthScore ?? null,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
     };

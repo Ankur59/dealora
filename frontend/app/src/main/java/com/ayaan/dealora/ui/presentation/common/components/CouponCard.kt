@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -94,7 +95,8 @@ fun CouponCard(
     onDiscoverClick: () -> Unit = {},
     onRedeem: ((String) -> Unit)? = null,
     onSave: ((String) -> Unit)? = null,
-    onRemoveSave: ((String) -> Unit)? = null
+    onRemoveSave: ((String) -> Unit)? = null,
+    healthScore: Double? = null
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
     var isSavedLocal by remember(isSaved) { mutableStateOf(isSaved) }
@@ -141,14 +143,16 @@ fun CouponCard(
                         contentAlignment = Alignment.Center
                     ) {
                         if (!merchantLogoUrl.isNullOrEmpty()) {
-                            // Load merchant logo from URL
+                            // Load merchant logo from URL with fit scale and padding
                             AsyncImage(
                                 model = merchantLogoUrl,
                                 contentDescription = null,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .padding(4.dp),
+                                contentScale = ContentScale.Fit
                             )
                         } else {
                             // Fall back to local resource
@@ -160,14 +164,6 @@ fun CouponCard(
                                     .clip(CircleShape)
                             )
                         }
-//                        Text(
-//                            text = brandName,
-//                            color = Color.White,
-//                            fontSize = 7.sp,
-//                            fontWeight = FontWeight.Bold,
-//                            lineHeight = 8.sp,
-//                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-//                        )
                     }
 
                     // Center Content
@@ -193,49 +189,74 @@ fun CouponCard(
                                 Chip(text = category)
                             }
                             if (expiryDays != null) {
-                                if (expiryDays>0) {
+                                if (expiryDays > 0) {
                                     Chip(text = "Expiry in $expiryDays days")
-                                }else if(expiryDays<0){
+                                } else if (expiryDays < 0) {
                                     Chip(text = "Expired")
-                                }else{
+                                } else {
                                     Chip(text = "Expiring Today")
                                 }
                             }
                         }
                     }
 
-                    // Bookmark Icon with Save Status
+                    // Bookmark Icon and optional Health Score Badge
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clickable {
-                                if (couponId != null) {
-                                    if (isSavedLocal) {
-                                        isSavedLocal = false
-                                        onRemoveSave?.invoke(couponId)
-                                    } else {
-                                        isSavedLocal = true
-                                        onSave?.invoke(couponId)
+                        modifier = Modifier.width(60.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .clickable {
+                                    if (couponId != null) {
+                                        if (isSavedLocal) {
+                                            isSavedLocal = false
+                                            onRemoveSave?.invoke(couponId)
+                                        } else {
+                                            isSavedLocal = true
+                                            onSave?.invoke(couponId)
+                                        }
                                     }
                                 }
-                            }
-                    ) {
-                        Icon(
-                            imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = "Save coupon",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        if (isSavedLocal) {
-                            Text(
-                                text = "Saved",
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                                lineHeight = 10.sp
+                        ) {
+                            Icon(
+                                imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = "Save coupon",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
                             )
+                            if (isSavedLocal) {
+                                Text(
+                                    text = "Saved",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                        }
+
+                        if (healthScore != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val badgeColor = if (healthScore >= 70.0) Color(0xFF4CAF50) else Color(0xFFFFB300)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(badgeColor)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${healthScore.toInt()}",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 12.sp
+                                )
+                            }
                         }
                     }
                 }

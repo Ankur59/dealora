@@ -1,5 +1,48 @@
 import { computeDiscountWeight } from '../../../shared/discountWeight.js';
 
+// ── Initial health-score helpers (mirrors Backend/src/cron/healthScoreCron.js) ──
+// Kept in-sync manually. Formula changes must be applied in both places.
+
+/**
+ * Laplace-smoothed reliability score from community votes.
+ * Formula: ((s + 5) / (s + f + 10)) * 100
+ */
+function calcReliability(successCount = 0, failedCount = 0) {
+    return ((successCount + 5) / (successCount + failedCount + 10)) * 100;
+}
+
+/**
+ * Freshness score based on coupon age.
+ * Formula: 100 / (1 + daysOld)
+ */
+function calcFreshness(createdAt, now = new Date()) {
+    const daysOld = (now - new Date(createdAt)) / (1000 * 60 * 60 * 24);
+    return 100 / (1 + daysOld);
+}
+
+/**
+ * Trend score from recent discover activity.
+ * Formula: discoverCount / (1 + hoursSinceDiscover), clamped to 100
+ */
+function calcTrend(discoverCount = 0, lastDiscoverAt = null, now = new Date()) {
+    if (!lastDiscoverAt || discoverCount === 0) return 0;
+    const hrs = (now - new Date(lastDiscoverAt)) / (1000 * 60 * 60);
+    return Math.min(discoverCount / (1 + hrs), 100);
+}
+
+/**
+ * Final weighted health score.
+ * Formula: (discountWeight×0.4) + (reliability×0.4) + (freshness×0.15) + (trend×0.05)
+ */
+function calcHealthScore(discountWeight = 0, reliability, freshness, trend = 0) {
+    return (
+        (discountWeight * 0.4) +
+        (reliability   * 0.4) +
+        (freshness     * 0.15) +
+        (trend         * 0.05)
+    );
+}
+
 /**
  * Detects whether a link is an affiliate tracking link (Coupon) or a generic offer link (Offer).
  * Tracking links contain parameters like offer_id and aff_id.
@@ -86,6 +129,15 @@ const normalizeCoupomatedCoupon = (coupon) => {
     const endDate = parseDate(coupon.end_date);
     const now = new Date();
 
+    // ── Compute initial health score at insert time ──────────────────────────
+    // createdAt will be set to `now` by Mongoose timestamps on first insert.
+    // We mirror that here so freshness = 100 for a brand-new coupon.
+    const discountWeight   = computeDiscountWeight(coupon.discount);
+    const reliabilityScore = calcReliability(0, 0);              // 50 — neutral for new coupon
+    const freshnessScore   = calcFreshness(now, now);            // 100 — just created
+    const trendScore       = calcTrend(0, null, now);            // 0   — no discovers yet
+    const healthScore      = calcHealthScore(discountWeight, reliabilityScore, freshnessScore, trendScore);
+
     return {
         partner: "coupomated",
         couponId: String(coupon.coupon_id),
@@ -111,7 +163,16 @@ const normalizeCoupomatedCoupon = (coupon) => {
         networkId: coupon.network_id ?? null,
         merchantId: coupon.merchant_id ?? null,
         merchantLogo: coupon.merchant_logo ?? null,
-        discountWeight: computeDiscountWeight(coupon.discount),
+        discountWeight,
+        // Seed trend sub-document so healthScore is never null on first insert.
+        // The 5-hour cron will continue to update these as real data accumulates.
+        trend: {
+            discoverCount:    0,
+            lastDiscoverAt:   null,
+            reliabilityScore,   // 50  (Laplace-smoothed, zero votes)
+            trendScore,         // 0   (no discover activity)
+            healthScore,        // (discountWeight×0.4) + 20 + 15 + 0
+        },
         meta: {
             title: coupon.title ?? null,
             exclusive: coupon.exclusive ?? null,

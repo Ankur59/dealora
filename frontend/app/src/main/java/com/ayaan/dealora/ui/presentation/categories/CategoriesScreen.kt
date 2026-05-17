@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
+import com.ayaan.dealora.data.api.models.PartnerCoupon
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
 import com.ayaan.dealora.ui.presentation.common.components.CouponVerificationDialog
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
@@ -120,7 +121,7 @@ fun CategoriesScreen(
                             onDetailsClick = { coupon ->
                                 // Encode coupon as JSON and navigate to details page
                                 val couponJson = viewModel.moshi
-                                    .adapter(RawScrapedCoupon::class.java)
+                                    .adapter(PartnerCoupon::class.java)
                                     .toJson(coupon)
                                 navController.navigate(
                                     Route.CouponDetails.createRoute(
@@ -132,6 +133,9 @@ fun CategoriesScreen(
                                 )
                             },
                             onDiscoverClick = { coupon ->
+                                // Track the discover action for trend/health scoring
+                                viewModel.trackPartnerDiscover(coupon.id)
+
                                 val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
                                 if (url != null) {
                                     try {
@@ -148,7 +152,7 @@ fun CategoriesScreen(
                                         Log.e("CategoriesScreen", "Could not open url: ${e.message}", e)
                                     }
                                 } else {
-                                    Log.w("CategoriesScreen", "No link for raw coupon ${coupon.id}")
+                                    Log.w("CategoriesScreen", "No link for partner coupon ${coupon.id}")
                                 }
                             }
                         )
@@ -303,18 +307,18 @@ fun CategoriesScreen(
 
 @Composable
 private fun ExclusiveCouponsList(
-    coupons: List<RawScrapedCoupon>,
+    coupons: List<PartnerCoupon>,
     isLoading: Boolean,
     errorMessage: String?,
     currentPage: Int,
     totalPages: Int,
     savedCouponIds: Set<String>,
     onLoadMore: () -> Unit,
-    onSave: (RawScrapedCoupon) -> Unit,
+    onSave: (PartnerCoupon) -> Unit,
     onRemoveSave: (String) -> Unit,
-    onRedeem: (RawScrapedCoupon, () -> Unit, (String) -> Unit) -> Unit,
-    onDetailsClick: (RawScrapedCoupon) -> Unit,
-    onDiscoverClick: (RawScrapedCoupon) -> Unit
+    onRedeem: (PartnerCoupon, () -> Unit, (String) -> Unit) -> Unit,
+    onDetailsClick: (PartnerCoupon) -> Unit,
+    onDiscoverClick: (PartnerCoupon) -> Unit
 ) {
     when {
         isLoading && coupons.isEmpty() -> {
@@ -360,14 +364,14 @@ private fun ExclusiveCouponsList(
                     var showSuccessDialog by remember { mutableStateOf(false) }
                     var showErrorDialog by remember { mutableStateOf(false) }
                     var errorMsg by remember { mutableStateOf("") }
-                    // Track local redeemed state (raw coupons have no backend redeem status)
+                    // Track local redeemed state
                     var isRedeemedLocal by remember { mutableStateOf(false) }
                     // Track verification dialog state
                     var showVerificationDialog by remember { mutableStateOf(false) }
 
                     CouponCard(
                         brandName = coupon.brandName.uppercase().replace(" ", "\n"),
-                        couponTitle = coupon.couponTitle ?: "Exclusive Offer",
+                        couponTitle = coupon.couponTitle ?: coupon.discount ?: "Exclusive Offer",
                         description = coupon.description ?: "",
                         category = coupon.category,
                         expiryDays = coupon.daysUntilExpiry,
@@ -375,10 +379,12 @@ private fun ExclusiveCouponsList(
                         couponId = coupon.id,
                         isRedeemed = isRedeemedLocal,
                         couponLink = coupon.couponLink,
-                        discountType = coupon.discountType,
+                        discountType = coupon.couponType,
                         isSaved = isSaved,
                         source = coupon.couponLink, // header colour fallback
                         showActionButtons = true,
+                        merchantLogoUrl = coupon.merchantLogo,
+                        healthScore = coupon.healthScore,
                         discoverButtonLabel = "Use Now",
                         onSave = { onSave(coupon) },
                         onRemoveSave = { onRemoveSave(coupon.id) },
