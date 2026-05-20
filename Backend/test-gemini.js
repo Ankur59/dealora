@@ -8,12 +8,7 @@ async function testModels() {
     console.log('Testing Gemini API models...\n');
     
     const modelsToTest = [
-        'models/gemini-2.0-flash-exp',
-        'models/gemini-1.5-flash-8b-latest', 
-        'models/gemini-1.5-flash',
-        'models/gemini-1.5-pro',
-        'gemini-1.5-flash',
-        'gemini-pro'
+        'gemini-3-flash-preview'
     ];
     
     for (const modelName of modelsToTest) {

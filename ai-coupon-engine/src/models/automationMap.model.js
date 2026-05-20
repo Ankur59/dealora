@@ -30,5 +30,5 @@ const automationMapSchema = new Schema({
 // Ensure unique mapping per domain per flow type
 automationMapSchema.index({ domain: 1, flowType: 1 }, { unique: true });
 
-const AutomationMap = new model('automationMap', automationMapSchema);
+const AutomationMap = model('automationMap', automationMapSchema);
 export default AutomationMap;

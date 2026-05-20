@@ -8,7 +8,7 @@ import PartnerMerchant from "../models/partnerMerchant.model.js";
 export const getMerchants = async (req, res) => {
     try {
         const { search } = req.query;
-        const filter = { isActive: true };
+        const filter = {};
         if (search) {
             filter.merchantName = { $regex: search, $options: "i" };
         }
@@ -67,7 +67,7 @@ export const upsertMerchant = async (req, res) => {
         };
 
         const merchant = await Merchant.findOneAndUpdate(
-            { merchantName:Updates.merchantName },
+            { merchantName: updates.merchantName },
             updates,
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );

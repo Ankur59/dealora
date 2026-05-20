@@ -1,35 +1,29 @@
 import Coupon from "../models/coupon.model.js";
 
-/**
- * Get a batch of coupons that need verification by the AI Agent.
- */
 export const getPendingTasks = async (req, res) => {
     try {
-        // Find up to 5 coupons that have a code but are not yet verified,
-        // or haven't been verified in a long time.
         const coupons = await Coupon.find({
-            code: { $exists: true, $ne: "" },
+            couponCode: { $exists: true, $nin: [null, ""] },
+            couponVisitingLink: { $exists: true, $nin: [null, ""] },
             $or: [
+                { verified: false },
+                { verified: null },
+                { verified: { $exists: false } },
                 { isVerified: false },
-                { verifiedOn: { $exists: false } },
-                // You can add logic here to re-verify older coupons:
-                // { verifiedOn: { $lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } 
-            ],
-            // We only want to verify coupons that have a link to visit
-            $or: [
-                { couponVisitingLink: { $exists: true, $ne: "" } },
-                { trackingLink: { $exists: true, $ne: "" } }
+                { isVerified: { $exists: false } }
             ]
-        }).limit(5);
+        }).limit(20);
 
-        // Format for the Chrome Extension
-        const tasks = coupons.map(c => ({
-            id: c._id.toString(),
-            url: c.couponVisitingLink || c.trackingLink,
-            code: c.code,
-            conditions: c.description || `Verify if the coupon code ${c.code} works on checkout.`,
-            brand: c.brandName
-        }));
+        const tasks = coupons.map(c => {
+            const code = c.couponCode || c.code || "";
+            return {
+                id: c._id.toString(),
+                url: c.couponVisitingLink,
+                code,
+                conditions: c.description || c.terms || `Verify coupon code ${code} works on checkout.`,
+                brand: c.brandName
+            };
+        });
 
         res.status(200).json({ success: true, coupons: tasks });
     } catch (error) {
@@ -38,21 +32,17 @@ export const getPendingTasks = async (req, res) => {
     }
 };
 
-/**
- * Receive verification result from the AI Agent and update the database.
- */
 export const submitTaskResult = async (req, res) => {
     try {
         const { taskId } = req.params;
-        const { status, reason } = req.body; // status: "valid" | "invalid" | "expired"
+        const { status, reason } = req.body;
 
-        // Find and update the coupon
         const updatedCoupon = await Coupon.findByIdAndUpdate(
             taskId,
             {
+                verified: true,
                 isVerified: true,
                 verifiedOn: new Date(),
-                // If it's valid, map to 'active'. Otherwise map 'invalid'/'expired'.
                 status: status === "valid" ? "active" : status,
                 verificationReason: reason || "Verified by AI Agent"
             },

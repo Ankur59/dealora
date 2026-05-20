@@ -27,5 +27,5 @@ const merchantAccountSchema = new Schema({
     }
 }, { timestamps: true });
 
-const MerchantAccount = new model('merchantAccount', merchantAccountSchema);
+const MerchantAccount = model('merchantAccount', merchantAccountSchema);
 export default MerchantAccount;

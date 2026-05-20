@@ -344,16 +344,17 @@ function renderCoupons() {
     let filtered = dbCoupons;
     if (searchTerm) {
         filtered = dbCoupons.filter(c =>
-            (c.code || '').toLowerCase().includes(searchTerm) ||
+            (c.couponCode || c.code || '').toLowerCase().includes(searchTerm) ||
             (c.brandName || '').toLowerCase().includes(searchTerm) ||
-            (c.description || '').toLowerCase().includes(searchTerm)
+            (c.description || c.couponDetails || c.terms || '').toLowerCase().includes(searchTerm)
         );
     }
 
-    // Stats
+    const isVerified = c => c.verified === true || c.isVerified === true;
+
     document.getElementById('totalCoupons').textContent = dbCoupons.length;
-    document.getElementById('verifiedCoupons').textContent = dbCoupons.filter(c => c.isVerified).length;
-    document.getElementById('pendingCoupons').textContent = dbCoupons.filter(c => !c.isVerified).length;
+    document.getElementById('verifiedCoupons').textContent = dbCoupons.filter(c => isVerified(c)).length;
+    document.getElementById('pendingCoupons').textContent = dbCoupons.filter(c => !isVerified(c)).length;
 
     if (filtered.length === 0) {
         container.innerHTML = '<p class="small-text">No coupons found.</p>';
@@ -364,26 +365,32 @@ function renderCoupons() {
         const card = document.createElement('div');
         card.className = 'coupon-card';
 
+        const isV = isVerified(c);
         const statusClass = `badge-${c.status || 'pending'}`;
-        const verifiedClass = c.isVerified ? 'badge-verified' : 'badge-unverified';
+        const verifiedClass = isV ? 'badge-verified' : 'badge-unverified';
+        const code = c.couponCode || c.code || 'NO CODE';
+        const desc = c.description || c.couponDetails || c.terms || '';
+        const disc = c.discountValue || c.discount || '';
+        const label = c.couponName || c.couponTitle || '';
 
         card.innerHTML = `
             <div class="coupon-card-header">
                 <div>
-                    <span class="coupon-code">${c.code || 'NO CODE'}</span>
+                    <span class="coupon-code">${code}</span>
                     <span class="coupon-brand" style="margin-left: 6px;">${c.brandName || ''}</span>
                 </div>
             </div>
-            ${c.description ? `<div class="coupon-desc">${c.description}</div>` : ''}
-            ${c.discount ? `<div style="font-size: 12px; color: #059669; font-weight: 600; margin-bottom: 4px;">💰 ${c.discount}</div>` : ''}
+            ${label && code === 'NO CODE' ? `<div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">${label}</div>` : ''}
+            ${desc ? `<div class="coupon-desc">${desc}</div>` : ''}
+            ${disc ? `<div style="font-size: 12px; color: #059669; font-weight: 600; margin-bottom: 4px;">💰 ${disc}</div>` : ''}
             <div class="coupon-meta">
                 <span class="coupon-badge ${statusClass}">${c.status || 'pending'}</span>
-                <span class="coupon-badge ${verifiedClass}">${c.isVerified ? '✓ Verified' : 'Unverified'}</span>
+                <span class="coupon-badge ${verifiedClass}">${isV ? '✓ Verified' : 'Unverified'}</span>
                 ${c.partner ? `<span style="font-size: 10px; color: #9ca3af;">${c.partner}</span>` : ''}
             </div>
             ${c.verificationReason ? `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; font-style: italic;">AI: ${c.verificationReason}</div>` : ''}
             <div class="coupon-actions">
-                <button class="btn-verify" data-coupon-id="${c._id}" ${c.isVerified ? '' : ''}>🤖 Verify Now</button>
+                <button class="btn-verify" data-coupon-id="${c._id}">🤖 Verify Now</button>
                 <button class="btn-sm-danger btn-delete-coupon" data-coupon-id="${c._id}">Delete</button>
             </div>
         `;
@@ -418,14 +425,12 @@ function renderCoupons() {
 // ─── Manual Verification Trigger ─────────────────────────────
 async function triggerManualVerification(couponId) {
     try {
-        // First, reset the coupon to unverified so it becomes a pending task
         await fetch(`${CONFIG.BACKEND_URL}/coupons/${couponId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isVerified: false, verifiedOn: null, status: 'pending' })
+            body: JSON.stringify({ isVerified: false, verified: false, verifiedOn: null, status: 'pending' })
         });
 
-        // Then, tell the background script to pick up a new task immediately
         chrome.runtime.sendMessage({ type: 'TRIGGER_VERIFY', couponId }, (resp) => {
             console.log('[Popup] Manual verify triggered:', resp);
         });
@@ -456,11 +461,14 @@ async function handleSaveCoupon() {
         couponId: `manual_${Date.now()}`,
         brandName,
         code,
+        couponCode: code,
         description,
         discount,
+        discountValue: discount,
         type,
         status: 'pending',
         isVerified: false,
+        verified: false,
         couponVisitingLink,
         trackingLink: couponVisitingLink
     };

@@ -7,11 +7,11 @@ const campaignSchema = new Schema({
     },
     campaignId: {
         type: Number,
-        require: true,
+        required: true,
     },
     title: {
         type: String,
-        require: true,
+        required: true,
     },
     categories: {
         type: [String],
@@ -50,6 +50,6 @@ campaignSchema.index(
     { unique: true }
 );
 
-const campaign = new model("campaign", campaignSchema)
+const campaign = model("campaign", campaignSchema)
 
 export default campaign

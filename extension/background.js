@@ -227,8 +227,10 @@ async function triggerSingleVerification(couponId) {
     const res = await fetch(`${BACKEND_URL}/coupons/${couponId}`, { headers });
     const { data: coupon } = await res.json();
     const url = coupon.couponVisitingLink || coupon.trackingLink;
+    const code = coupon.couponCode || coupon.code;
     if (!url) throw new Error('No URL');
-    const task = { id: coupon._id, url, code: coupon.code, brand: coupon.brandName, status: 'running', type: 'verify', message: 'Starting...' };
+    if (!code) throw new Error('No coupon code');
+    const task = { id: coupon._id, url, code, brand: coupon.brandName, status: 'running', type: 'verify', message: 'Starting...' };
     currentTasks.push(task);
     chrome.storage.local.set({ currentTasks });
     runAgentSequence(task).finally(() => {

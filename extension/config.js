@@ -5,8 +5,7 @@
 export const CONFIG = {
     // Gemini API Keys — rotates through them on rate-limit/failure
     GEMINI_API_KEYS: [
-        "AIzaSyCl_E5A38tXZcmlKdupmxkuXnjPXgyC6Sg"
-    ],
+        "AIzaSyBoXUeucwDpBKkWf_RL7c1UR1o0sSAjITc",
 
     // Gemini model
     MODEL_NAME: "gemini-3-flash-preview",

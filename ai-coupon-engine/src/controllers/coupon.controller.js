@@ -7,11 +7,11 @@ import Coupon from "../models/coupon.model.js";
 export const getCoupons = async (req, res) => {
     try {
         const { brand, status, verified } = req.query;
-        const filter = {};
+        const filter = { couponCode: { $nin: [null, ""] } };
         if (brand) filter.brandName = { $regex: brand, $options: "i" };
         if (status) filter.status = status;
-        if (verified === 'true') filter.isVerified = true;
-        if (verified === 'false') filter.isVerified = false;
+        if (verified === 'true') filter.$or = [{ verified: true }, { isVerified: true }];
+        if (verified === 'false') filter.$or = [{ verified: false }, { isVerified: false }, { verified: { $exists: false } }, { isVerified: { $exists: false } }];
 
         const coupons = await Coupon.find(filter).sort({ createdAt: -1 }).limit(200).lean();
         res.status(200).json({ success: true, data: coupons });
