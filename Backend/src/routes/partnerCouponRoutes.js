@@ -6,6 +6,9 @@ const authenticate = require('../middlewares/authenticate');
 // All routes are private and require a valid Firebase token
 router.use(authenticate);
 
+// GET  /api/partner-coupons/search     → simple search by brandName & category (verified + not expired, sorted by healthScore)
+router.get('/search', partnerCouponController.searchPartnerCoupons);
+
 // GET  /api/partner-coupons            → paginated list sorted by discountWeight ↓
 router.get('/', partnerCouponController.getPartnerCoupons);
 

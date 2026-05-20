@@ -39,7 +39,8 @@ const couponSchema = new Schema({
     brandName: {
         type: String,
         required: true,
-        index: true
+        index: true,
+        lowercase: true
     },
     verifiedOn: {
         type: Date
@@ -66,7 +67,8 @@ const couponSchema = new Schema({
     },
     categories: {
         type: [String],
-        default: []
+        default: [],
+        set: (arr) => (arr ?? []).map(c => String(c).toLowerCase()),
     },
     categoriesId: {
         type: [String],

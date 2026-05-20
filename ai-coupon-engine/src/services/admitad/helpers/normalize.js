@@ -52,7 +52,7 @@ const normalizeAdmitadCoupon = (item) => {
         title:              item.name ?? item.description?.slice(0, 100) ?? null,
         merchantLogo:       item.image ?? null,
         discountWeight:     0,
-        categories:         (item.categories ?? []).map(c => c.name ?? c),
+        categories:         (item.categories ?? []).map(c => String(c.name ?? c).toLowerCase()),
         categoriesId:       (item.categories ?? []).map(c => String(c.id ?? c)),
         countries:          item.regions ? item.regions.map(r => r.region ?? r) : [],
         meta: {

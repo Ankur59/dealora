@@ -222,6 +222,53 @@ fun HomeScreen(
                         }
                     }
 
+                    // Check if search query exists but is too short (< 3 characters)
+                    searchQuery.isNotEmpty() && searchQuery.length < 3 -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .background(Color(0xFFF5F5F5), shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(44.dp),
+                                    tint = Color.LightGray
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text(
+                                text = "Keep Typing",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Enter at least ${3 - searchQuery.length} more character${if (3 - searchQuery.length > 1) "s" else ""}",
+                                fontSize = 14.sp,
+                                color = Color.Gray,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "\"$searchQuery\" (${searchQuery.length}/3)",
+                                fontSize = 12.sp,
+                                color = DealoraPrimary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
                     uiState.isLoadingSearchCoupons && uiState.searchCoupons.isEmpty() -> {
                         CircularProgressIndicator(
                             modifier = Modifier.align(Alignment.Center),
@@ -237,18 +284,43 @@ fun HomeScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .background(Color(0xFFF5F5F5), shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(44.dp),
+                                    tint = Color.LightGray
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
                             Text(
-                                text = uiState.searchError ?: "An error occurred",
+                                text = "No Coupons Found",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Try a different search term",
                                 fontSize = 14.sp,
-                                color = Color.Red,
+                                color = Color.Gray,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
                             Button(
                                 onClick = { viewModel.loadSearchCoupons(resetPage = true) },
-                                colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = DealoraPrimary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .height(44.dp)
+                                    .align(Alignment.CenterHorizontally)
                             ) {
-                                Text("Retry", color = Color.White)
+                                Text("Try Again", color = Color.White, fontSize = 14.sp)
                             }
                         }
                     }
@@ -261,10 +333,38 @@ fun HomeScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .background(Color(0xFFF5F5F5), shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(44.dp),
+                                    tint = Color.LightGray
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
                             Text(
-                                text = "No verified coupons found for \"$searchQuery\"",
+                                text = "No Coupons Found",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "We couldn't find any coupons for \"$searchQuery\"",
                                 fontSize = 14.sp,
                                 color = Color.Gray,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Try searching for popular brands like Nike, Myntra, or Flipkart",
+                                fontSize = 12.sp,
+                                color = Color(0xFFC0C0C0),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
@@ -626,7 +726,7 @@ fun PublicSearchBannerCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Public coupons that\nactually work.",
+                        text = "Coupons that\nactually work.",
                         color = Color(0xFF1E144B),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,

@@ -63,40 +63,56 @@ function shapeDoc(doc, isRedeemed = false) {
 /** Build the MongoDB filter object for the list endpoint. */
 function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified }) {
     const now = new Date();
-    const filter = {};
+    const andConditions = [];  // Collect all AND conditions
 
+    // ── 1. TAB FILTER (active/expired) ──
     if (tab === 'expired') {
-        filter.end = { $lt: now };
+        andConditions.push({ end: { $lt: now } });
     } else {
         // active: not expired (or no expiry set), and not already redeemed by user
-        filter.$or = [
-            { end: { $gte: now } },
-            { end: null },
-            { end: { $exists: false } },
-        ];
+        andConditions.push({
+            $or: [
+                { end: { $gte: now } },
+                { end: null },
+                { end: { $exists: false } },
+            ]
+        });
         if (redeemedIds.length > 0) {
-            filter._id = { $nin: redeemedIds };
+            andConditions.push({ _id: { $nin: redeemedIds } });
         }
     }
 
-    if (category) filter.categories = category;
-    if (brand) filter.brandName = { $regex: brand, $options: 'i' };
-    if (offerType) filter.offerType = offerType;
-
+    // ── 2. VERIFIED FILTER ──
     if (verified === 'true' || verified === true) {
-        filter.isVerified = true;
+        andConditions.push({ isVerified: true });
     }
 
-    // New filters for PartnerCoupon
+    // ── 3. CATEGORY FILTER ──
+    if (category) {
+        andConditions.push({ categories: category });
+    }
+
+    // ── 4. BRAND FILTER ──
+    if (brand) {
+        andConditions.push({ brandName: { $regex: brand, $options: 'i' } });
+    }
+
+    // ── 5. OFFER TYPE FILTER ──
+    if (offerType) {
+        andConditions.push({ offerType: offerType });
+    }
+
+    // ── 6. DISCOUNT TYPE FILTER ──
     if (discountType) {
-        const discountOr = [
-            { couponType: { $regex: discountType, $options: 'i' } },
-            { discount: { $regex: discountType, $options: 'i' } }
-        ];
-        filter.$and = filter.$and ? [...filter.$and, { $or: discountOr }] : [{ $or: discountOr }];
+        andConditions.push({
+            $or: [
+                { couponType: { $regex: discountType, $options: 'i' } },
+                { discount: { $regex: discountType, $options: 'i' } }
+            ]
+        });
     }
 
-
+    // ── 7. VALIDITY FILTER ──
     if (validity) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -104,49 +120,141 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
         if (validity === 'valid_today') {
             const tonight = new Date(today);
             tonight.setHours(23, 59, 59, 999);
-            filter.end = { $gte: today, $lte: tonight };
+            andConditions.push({ end: { $gte: today, $lte: tonight } });
         } else if (validity === 'valid_this_week') {
             const endOfWeek = new Date(today);
             endOfWeek.setDate(today.getDate() + 7);
-            filter.end = { $gte: today, $lte: endOfWeek };
+            andConditions.push({ end: { $gte: today, $lte: endOfWeek } });
         } else if (validity === 'valid_this_month') {
             const endOfMonth = new Date(today);
             endOfMonth.setMonth(today.getMonth() + 1);
-            filter.end = { $gte: today, $lte: endOfMonth };
+            endOfMonth.setDate(0);
+            andConditions.push({ end: { $gte: today, $lte: endOfMonth } });
         }
     }
 
+    // ── 8. SEARCH FILTER (most important - searches across 8 fields) ──
     if (search) {
-        const rx = { $regex: search, $options: 'i' };
-        const searchOr = [
-            { brandName: rx },
-            { categories: rx },
-            { title: rx },
-            { description: rx },
-            { code: rx },
-            { discount: rx },
-        ];
-        filter.$and = filter.$and ? [...filter.$and, { $or: searchOr }] : [{ $or: searchOr }];
+        const searchTerm = search.trim();
+        if (searchTerm !== '') {
+            const rx = { $regex: searchTerm, $options: 'i' }; // case-insensitive regex
+
+            andConditions.push({
+                $or: [
+                    { brandName: rx },          // PRIMARY: Brand name
+                    { categories: rx },         // PRIMARY: Category
+                    { title: rx },              // SECONDARY: Coupon title
+                    { couponTitle: rx },        // Alternative title
+                    { couponName: rx },         // Alternative name
+                    { description: rx },        // SECONDARY: Description
+                    { code: rx },               // SECONDARY: Coupon code
+                    { discount: rx }            // SECONDARY: Discount text
+                ]
+            });
+        }
     }
+
+    // ── BUILD FINAL FILTER ──
+    // If we have conditions, use $and. Otherwise, return empty filter (matches all)
+    const filter = andConditions.length > 0
+        ? { $and: andConditions }
+        : {};
 
     return filter;
 }
 
-/** Map the sortBy query string to a MongoDB sort spec. Always secondary sort by discountWeight ↓. */
+/** 
+ * Map the sortBy query string to a MongoDB sort spec. 
+ * ALWAYS includes healthScore as primary or secondary sort for result relevance.
+ */
 function buildSort(sortBy) {
+    // Handle null, undefined, or empty string -> default to healthScore
+    if (!sortBy || sortBy === 'null' || sortBy === '') {
+        return { 'trend.healthScore': -1, createdAt: -1 };
+    }
+
     switch (sortBy) {
         case 'newest':
-        case 'newest_first': return { createdAt: -1, 'trend.healthScore': -1 };
+        case 'newest_first':
+            return { createdAt: -1, 'trend.healthScore': -1 };
         case 'oldest':
-        case 'oldest_first': return { createdAt: 1, 'trend.healthScore': -1 };
-        case 'expiring_soon': return { end: 1, 'trend.healthScore': -1 };
-        case 'a_z': return { brandName: 1, 'trend.healthScore': -1 };
-        case 'z_a': return { brandName: -1, 'trend.healthScore': -1 };
+        case 'oldest_first':
+            return { createdAt: 1, 'trend.healthScore': -1 };
+        case 'expiring_soon':
+            return { end: 1, 'trend.healthScore': -1 };
+        case 'a_z':
+            return { brandName: 1, 'trend.healthScore': -1 };
+        case 'z_a':
+            return { brandName: -1, 'trend.healthScore': -1 };
         case 'highest_discount':
-        case 'discountWeight': return { discountWeight: -1, createdAt: -1 }; // explicit discount-only sort
-        default: return { 'trend.healthScore': -1, createdAt: -1 }; // best health score first (default)
+        case 'discountWeight':
+            return { discountWeight: -1, createdAt: -1 };
+        // DEFAULT: Health score descending (most relevant first)
+        // This ensures search results are always ranked by system accuracy
+        default:
+            return { 'trend.healthScore': -1, createdAt: -1 };
     }
 }
+
+// ── GET /api/partner-coupons/search ─────────────────────────────────────────
+
+/**
+ * @route   GET /api/partner-coupons/search
+ * @desc    Simple search across brandName and categories for coupons that
+ *          are not yet expired (end > now) and isVerified === true.
+ *          Results are sorted by trend.healthScore DESC.
+ * @query   q     – search term (min 3 chars enforced by frontend)
+ *          page  – page number (default 1)
+ *          limit – page size   (default 20, max 100)
+ * @access  Private
+ */
+exports.searchPartnerCoupons = async (req, res) => {
+    try {
+        const { q = '', page: pageStr = '1', limit: limitStr = '20' } = req.query;
+
+        const term = q.trim();
+        if (!term) {
+            return successResponse(res, STATUS_CODES.OK, 'Search results', {
+                total: 0, page: 1, pages: 1, count: 0, limit: 20, coupons: [],
+            });
+        }
+
+        const page  = Math.max(Number(pageStr)  || 1, 1);
+        const limit = Math.min(Math.max(Number(limitStr) || 20, 1), 100);
+        const skip  = (page - 1) * limit;
+        const now   = new Date();
+
+        // Lowercase the term to match stored data: brandName is stored lowercase
+        // (Mongoose schema) and categories are now also stored lowercase by all adapters.
+        const termLower = term.toLowerCase();
+        const rx = { $regex: termLower, $options: 'i' };  // $options:'i' kept as safety net for any legacy docs
+
+        const filter = {
+            $and: [
+                { isVerified: true },
+                { end: { $gt: now } },          // not expired
+                { $or: [ { brandName: rx }, { categories: rx } ] },
+            ],
+        };
+
+        const sort = { 'trend.healthScore': -1 };
+
+        const [docs, total] = await Promise.all([
+            col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
+            col().countDocuments(filter),
+        ]);
+
+        const coupons = docs.map(d => shapeDoc(d, false));
+        const pages   = Math.ceil(total / limit) || 1;
+
+        return successResponse(res, STATUS_CODES.OK, 'Search results', {
+            total, page, pages, count: coupons.length, limit, coupons,
+        });
+    } catch (err) {
+        logger.error(`[PartnerCoupon] searchPartnerCoupons: ${err.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Search failed');
+    }
+};
 
 // ── GET /api/partner-coupons ──────────────────────────────────────────────────
 
@@ -165,7 +273,7 @@ exports.getPartnerCoupons = async (req, res) => {
             category,
             brand,
             search,
-            sortBy = 'discountWeight',
+            sortBy,
             page: pageStr = '1',
             limit: limitStr = '20',
             tab = 'active',
@@ -187,10 +295,80 @@ exports.getPartnerCoupons = async (req, res) => {
         const filter = buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified });
         const sort = buildSort(sortBy);
 
+        // DEBUG LOGGING
+        logger.info(`[PartnerCoupon] Search Query:`, {
+            search,
+            verified,
+            tab,
+            category,
+            brand,
+            filter: JSON.stringify(filter, null, 2),
+            sort: JSON.stringify(sort, null, 2)
+        });
+
         const [docs, total] = await Promise.all([
             col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
             col().countDocuments(filter),
         ]);
+
+        // DETAILED DEBUG: Log sample coupon data for verification
+        if (docs.length > 0) {
+            logger.info(`[PartnerCoupon] First result sample:`, {
+                id: docs[0]._id,
+                brandName: docs[0].brandName,
+                isVerified: docs[0].isVerified,
+                end: docs[0].end,
+                title: docs[0].title,
+                healthScore: docs[0].trend?.healthScore
+            });
+        } else {
+            logger.warn(`[PartnerCoupon] NO RESULTS - Checking database state...`);
+
+            // Check how many total coupons exist (unfiltered)
+            const totalCoupons = await col().countDocuments({});
+            logger.warn(`Total coupons in collection: ${totalCoupons}`);
+
+            // Check how many verified coupons exist
+            const verifiedCount = await col().countDocuments({ isVerified: true });
+            logger.warn(`Verified coupons: ${verifiedCount}`);
+
+            // Check how many active (non-expired) coupons exist
+            const now = new Date();
+            const activeCount = await col().countDocuments({
+                $or: [
+                    { end: { $gte: now } },
+                    { end: null },
+                    { end: { $exists: false } }
+                ]
+            });
+            logger.warn(`Active (non-expired) coupons: ${activeCount}`);
+
+            // If search was used, check how many match just the search (ignoring verified/active)
+            if (search) {
+                const rx = { $regex: search, $options: 'i' };
+                const searchOnlyCount = await col().countDocuments({
+                    $or: [
+                        { brandName: rx },
+                        { categories: rx },
+                        { title: rx },
+                        { couponTitle: rx },
+                        { couponName: rx },
+                        { description: rx },
+                        { code: rx },
+                        { discount: rx }
+                    ]
+                });
+                logger.warn(`Coupons matching search "${search}" (any status): ${searchOnlyCount}`);
+            }
+        }
+
+        logger.info(`[PartnerCoupon] Search Results:`, {
+            search,
+            total,
+            found: docs.length,
+            page,
+            pages: Math.ceil(total / limit) || 1
+        });
 
         const coupons = docs.map(d => shapeDoc(d, false));
         const pages = Math.ceil(total / limit) || 1;

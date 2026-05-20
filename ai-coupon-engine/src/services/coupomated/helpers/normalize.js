@@ -126,8 +126,12 @@ const normalizeCoupomatedCoupon = (coupon) => {
     };
 
     const description = coupon.description ?? null;
-    const endDate = parseDate(coupon.end_date);
+    const parsedEnd = parseDate(coupon.end_date);
     const now = new Date();
+    // If no end_date is provided by the aggregator, default to 15 days from today
+    // so the coupon is discoverable through the search endpoint (end > now filter).
+    const fallbackEnd = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+    const endDate = parsedEnd ?? fallbackEnd;
 
     // ── Compute initial health score at insert time ──────────────────────────
     // createdAt will be set to `now` by Mongoose timestamps on first insert.
@@ -150,9 +154,9 @@ const normalizeCoupomatedCoupon = (coupon) => {
         end: endDate,
         trackingLink: coupon.affiliate_link,
         couponVisitingLink: coupon.plain_link ?? null,
-        brandName: coupon.merchant_name,
-        merchantName: coupon.merchant_name ?? null,
-        categories: coupon.category_names ?? [],
+        brandName: (coupon.merchant_name ?? '').toLowerCase(),
+        merchantName: coupon.merchant_name ? coupon.merchant_name.toLowerCase() : null,
+        categories: (coupon.category_names ?? []).map(c => String(c).toLowerCase()),
         categoriesId: (coupon.category_ids ?? []).map(String),
         couponType: resolveCouponType(coupon.discount),
         offerType: detectOfferType(coupon.affiliate_link),

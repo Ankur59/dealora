@@ -588,6 +588,34 @@ class CouponRepository @Inject constructor(
         }
     }
 
+    /**
+     * Search partner coupons by brandName or category.
+     * Only returns verified, non-expired coupons sorted by healthScore DESC.
+     */
+    suspend fun searchPartnerCoupons(
+        q:     String,
+        page:  Int? = null,
+        limit: Int? = null
+    ): PartnerCouponResult {
+        return try {
+            val response = couponApiService.searchPartnerCoupons(q = q, page = page, limit = limit)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    PartnerCouponResult.Success(
+                        coupons = body.data.coupons,
+                        total   = body.data.total,
+                        page    = body.data.page,
+                        pages   = body.data.pages
+                    )
+                } else PartnerCouponResult.Error(body?.message ?: "Failed")
+            } else PartnerCouponResult.Error("HTTP ${response.code()}")
+        } catch (e: Exception) {
+            Log.e(TAG, "searchPartnerCoupons exception", e)
+            PartnerCouponResult.Error(NetworkErrorMapper.from(e))
+        }
+    }
+
     /** Partner coupons this user has already redeemed. */
     suspend fun getRedeemedPartnerCoupons(
         page: Int? = null, limit: Int? = null

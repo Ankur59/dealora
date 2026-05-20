@@ -118,6 +118,14 @@ interface CouponApiService {
         @Query("verified")      verified:     String? = null
     ): Response<ApiResponse<PartnerCouponListResponseData>>
 
+    /** Simple search: matches brandName or categories, verified + not expired, sorted by healthScore. */
+    @GET("api/partner-coupons/search")
+    suspend fun searchPartnerCoupons(
+        @Query("q")     q:     String,
+        @Query("page")  page:  Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResponse<PartnerCouponListResponseData>>
+
     /** Partner coupons this user has already redeemed. */
     @GET("api/partner-coupons/redeemed")
     suspend fun getRedeemedPartnerCoupons(

@@ -34,6 +34,26 @@ import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.navigation.Route
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraWhite
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Wallet
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Luggage
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 fun CategoryGrid(navController: NavController) {
@@ -85,6 +105,23 @@ fun CategoryGrid(navController: NavController) {
     }
 }
 
+fun getCategoryIcon(name: String): ImageVector {
+    return when (name.lowercase()) {
+        "food" -> Icons.Default.Restaurant
+        "fashion" -> Icons.Default.ShoppingBag
+        "grocery" -> Icons.Default.ShoppingCart
+        "wallet rewards", "wallet" -> Icons.Default.Wallet
+        "beauty" -> Icons.Default.Spa
+        "travel" -> Icons.Default.Luggage
+        "entertainment" -> Icons.Default.Movie
+        "electronics" -> Icons.Default.Devices
+        "health" -> Icons.Default.Favorite
+        "home" -> Icons.Default.Home
+        "education" -> Icons.Default.School
+        else -> Icons.Default.Category
+    }
+}
+
 @Composable
 fun CategoryItem(
     name: String,
@@ -99,20 +136,38 @@ fun CategoryItem(
                 navController.navigate(Route.ExploreCoupons.createRoute(category = name))
             }
     ) {
-        Image(
-            painter = painterResource(id = imageRes),
-            contentDescription = name,
+        val categoryIcon = getCategoryIcon(name)
+        Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(CircleShape)
-        )
+                .drawBehind {
+                    val stroke = Stroke(
+                        width = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                    )
+                    drawCircle(
+                        color = Color(0xFF5B3FD9),
+                        style = stroke
+                    )
+                }
+                .padding(4.dp)
+                .background(Color(0xFF5B3FD9).copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = categoryIcon,
+                contentDescription = name,
+                tint = Color(0xFF5B3FD9),
+                modifier = Modifier.size(26.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = name,
             fontSize = 12.sp,
             color = Color.Black,
             textAlign = TextAlign.Center,
-            fontWeight = FontWeight.W500,
+            fontWeight = FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -130,17 +185,24 @@ fun CategoryItemAction(text: String, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(CircleShape)
-                .background(DealoraPrimary),
+                .background(Color(0xFF5B3FD9).copy(alpha = 0.15f), CircleShape)
+                .padding(4.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = text,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DealoraWhite,
-                textAlign = TextAlign.Center
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF5B3FD9), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = text,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

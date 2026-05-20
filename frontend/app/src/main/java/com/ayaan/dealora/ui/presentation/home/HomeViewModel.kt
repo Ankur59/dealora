@@ -494,9 +494,37 @@ class HomeViewModel @Inject constructor(
 
     // ── Search & Partner Coupon Operations ───────────────────────────────────
 
+    /**
+     * Called whenever user types in the search bar.
+     * 
+     * Validation:
+     * - Requires minimum 3 characters to trigger search
+     * - Debounces API calls by 500ms to avoid excessive requests
+     * - Clears results if user clears the search
+     */
     fun onSearchQueryChanged(query: String) {
         searchQuery.value = query
+        
+        // If search is blank, clear results and cancel any pending searches
         if (query.isBlank()) {
+            searchJob?.cancel()
+            _uiState.update {
+                it.copy(
+                    searchCoupons = emptyList(),
+                    searchCouponsTotal = 0,
+                    searchCouponsPage = 1,
+                    searchCouponsPages = 1,
+                    isLoadingSearchCoupons = false,
+                    searchError = null
+                )
+            }
+            Log.d(TAG, "Search cleared - showing empty state")
+            return
+        }
+        
+        // Minimum 3 characters required for search
+        if (query.trim().length < 3) {
+            Log.d(TAG, "Search query too short (${query.length} chars) - need at least 3")
             _uiState.update {
                 it.copy(
                     searchCoupons = emptyList(),
@@ -509,12 +537,16 @@ class HomeViewModel @Inject constructor(
             }
             return
         }
-        // Debounce search API calls
+        
+        // Debounce search API calls (500ms)
+        // Cancel previous search job if user is still typing
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            delay(300) // 300ms debounce
+            delay(500) // 500ms debounce for better performance
             loadSearchCoupons(resetPage = true)
         }
+        
+        Log.d(TAG, "Search query updated: '$query' (${query.length} chars) - will execute after debounce")
     }
 
     fun loadSearchCoupons(resetPage: Boolean = true) {
@@ -532,14 +564,10 @@ class HomeViewModel @Inject constructor(
 
                 Log.d(TAG, "loadSearchCoupons page=$currentPage query=$query")
 
-                when (val result = couponRepository.getPartnerCoupons(
-                    search       = query,
-                    sortBy       = null, // triggers trend.healthScore DESC default sorting!
-                    page         = currentPage,
-                    limit        = 20,
-                    tab          = "active",
-                    offerType    = "Coupon", // standard coupon filter like CouponsList.kt
-                    verified     = "true" // strictly search verified true coupons!
+                when (val result = couponRepository.searchPartnerCoupons(
+                    q     = query,
+                    page  = currentPage,
+                    limit = 20,
                 )) {
                     is PartnerCouponResult.Success -> {
                         val newCoupons = if (resetPage) result.coupons
