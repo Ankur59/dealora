@@ -1,16 +1,31 @@
 // background.js - Dealora AI Verification Agent
 import { CONFIG } from './config.js';
 
-const { GEMINI_API_KEYS, MODEL_NAME, BACKEND_URL } = CONFIG;
+const {
+    GEMINI_API_KEYS,
+    MODEL_NAME,
+    BACKEND_URL,
+    EXTENSION_API_KEY,
+    DEFAULT_CREDENTIALS,
+    COUPONS_PER_MINUTE,
+    MIN_DELAY_BETWEEN_ACTIONS_MS,
+    MAX_DELAY_BETWEEN_ACTIONS_MS,
+    MIN_DELAY_BETWEEN_COUPONS_MS,
+    MAX_DELAY_BETWEEN_COUPONS_MS,
+    MAX_STEPS_PER_VERIFICATION,
+    MAX_STEPS_PER_AUTH,
+    MAX_BLOCK_RETRIES,
+    BLOCK_COOLDOWN_MS
+} = CONFIG;
 
 // ─── State ───────────────────────────────────────────────────
 let isRunning = false;
 let currentTasks = [];
 let merchantStatuses = {};
-let knownMerchantDomains = {}; // { 'amazon.in': 'Amazon India', ... }
-let cookieSyncTimers = {};     // debounce timers per domain
-let lastSyncTimes = {};        // Throttling for cookie syncs
-let geminiKeyIndex = 0;        // current key index for rotation
+let knownMerchantDomains = {}; 
+let cookieSyncTimers = {};     
+let lastSyncTimes = {};        
+let geminiKeyIndex = 0;        
 
 // ─── Lifecycle ───────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(() => {
@@ -31,7 +46,8 @@ function log(level, ...args) {
 // ─── Bootstrap ───────────────────────────────────────────────
 async function bootstrapMerchantSessions() {
     try {
-        const merchantRes = await fetch(`${BACKEND_URL}/merchants`);
+        const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+        const merchantRes = await fetch(`${BACKEND_URL}/merchants`, { headers });
         if (merchantRes.ok) {
             const data = await merchantRes.json();
             const merchants = (data.data || []).filter(m => m.domain);
@@ -39,7 +55,7 @@ async function bootstrapMerchantSessions() {
             merchants.forEach(m => { knownMerchantDomains[m.domain] = m.merchantName; });
             log('INFO', `Tracking ${Object.keys(knownMerchantDomains).length} merchant domains`);
         }
-        const cookieRes = await fetch(`${BACKEND_URL}/merchant-cookies`);
+        const cookieRes = await fetch(`${BACKEND_URL}/merchant-cookies`, { headers });
         if (cookieRes.ok) {
             const data = await cookieRes.json();
             (data.data || []).forEach(r => {
@@ -93,10 +109,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         captureAndSyncCookies(domain, merchantName || domain)
             .then(result => {
                 if (result.status === 'updated') {
-                    // Only mark as logged in if we actually got cookies
                     merchantStatuses[domain] = { isLoggedIn: true, lastChecked: Date.now() };
                 } else {
-                    // Clear any stale logged-in status if no cookies found
                     merchantStatuses[domain] = { isLoggedIn: false, lastChecked: Date.now() };
                 }
                 chrome.storage.local.set({ merchantStatuses });
@@ -151,7 +165,8 @@ async function triggerAuthFlow(domain, url, brand) {
 
 async function checkMapStatus(domain) {
     try {
-        const res = await fetch(`${BACKEND_URL}/agent/automation-map/${domain}/login`);
+        const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+        const res = await fetch(`${BACKEND_URL}/agent/automation-map/${domain}/login`, { headers });
         if (res.ok) {
             const data = await res.json();
             return data.map ? 'mapped' : 'unmapped';
@@ -169,7 +184,8 @@ async function startAgentLoop() {
 
 async function fetchAndQueueTasks() {
     try {
-        const res = await fetch(`${BACKEND_URL}/agent/pending-tasks`);
+        const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+        const res = await fetch(`${BACKEND_URL}/agent/pending-tasks`, { headers });
         if (!res.ok) return;
         const data = await res.json();
         const newTasks = data.coupons || [];
@@ -177,7 +193,6 @@ async function fetchAndQueueTasks() {
             if (currentTasks.length >= 5) break;
             const domain = new URL(task.url).hostname.replace(/^www\./, '');
             
-            // If not logged in, queue an AUTH task instead
             if (!merchantStatuses[domain]?.isLoggedIn) {
                 if (!currentTasks.some(t => t.type === 'auth' && t.domain === domain)) {
                     const authTask = { id: `auth_${domain}_${Date.now()}`, type: 'auth', domain, url: task.url, code: 'LOGIN_FLOW', brand: knownMerchantDomains[domain] || domain, status: 'running', message: 'Authenticating...' };
@@ -199,12 +214,17 @@ async function fetchAndQueueTasks() {
                 currentTasks = currentTasks.filter(t => t.id !== task.id);
                 chrome.storage.local.set({ currentTasks });
             });
+
+            // Delay between coupons to avoid getting flagged
+            const waitMs = Math.random() * (MAX_DELAY_BETWEEN_COUPONS_MS - MIN_DELAY_BETWEEN_COUPONS_MS) + MIN_DELAY_BETWEEN_COUPONS_MS;
+            await new Promise(r => setTimeout(r, waitMs));
         }
     } catch (err) {}
 }
 
 async function triggerSingleVerification(couponId) {
-    const res = await fetch(`${BACKEND_URL}/coupons/${couponId}`);
+    const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+    const res = await fetch(`${BACKEND_URL}/coupons/${couponId}`, { headers });
     const { data: coupon } = await res.json();
     const url = coupon.couponVisitingLink || coupon.trackingLink;
     if (!url) throw new Error('No URL');
@@ -230,27 +250,26 @@ async function runAgentSequence(task) {
     const tabId = windowInfo.tabs[0].id;
     log('INFO', `Window ${windowInfo.id}, tab ${tabId} created.`);
 
-    // Wait for the page to load
     log('INFO', 'Waiting for page load...');
     await waitForTabLoad(tabId, 30000);
     log('INFO', 'Page loaded. Settling for 3s...');
     await new Promise(r => setTimeout(r, 3000));
 
-    // Ensure content script is injected
     log('INFO', 'Ensuring content script...');
     await ensureContentScript(tabId);
     log('INFO', 'Content script ready.');
 
-    let isComplete = false, attempts = 0, actionHistory = [], consecutiveErrors = 0;
+    let isComplete = false, attempts = 0, actionHistory = [], consecutiveErrors = 0, blockRetries = 0;
     
-    // Check if we have deterministic maps
     let mappedSequence = null;
     let credentials = null;
     let fallbackToAI = false;
     
+    const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+
     if (task.type === 'auth') {
         try {
-            const mapRes = await fetch(`${BACKEND_URL}/agent/automation-map/${task.domain}/login`);
+            const mapRes = await fetch(`${BACKEND_URL}/agent/automation-map/${task.domain}/login`, { headers });
             if (mapRes.ok) {
                 const mapData = await mapRes.json();
                 if (mapData.map && mapData.map.steps && mapData.map.steps.length > 0) {
@@ -258,7 +277,7 @@ async function runAgentSequence(task) {
                     log('INFO', 'Found deterministic sequence for login. Proceeding with fast-path.');
                 }
             }
-            const credRes = await fetch(`${BACKEND_URL}/agent/credentials/${task.domain}`);
+            const credRes = await fetch(`${BACKEND_URL}/agent/credentials/${task.domain}`, { headers });
             if (credRes.ok) {
                 const credData = await credRes.json();
                 if (credData.credentials) {
@@ -268,17 +287,17 @@ async function runAgentSequence(task) {
         } catch(e) { log('WARN', 'Failed fetching auth map', e.message); }
     }
 
-    while (!isComplete && attempts < 20) {
-        attempts++;
-        log('INFO', `────── Step ${attempts}/20 ──────`);
+    const maxAttempts = task.type === 'auth' ? MAX_STEPS_PER_AUTH : MAX_STEPS_PER_VERIFICATION;
 
-        // OTP pause
+    while (!isComplete && attempts < maxAttempts) {
+        attempts++;
+        log('INFO', `────── Step ${attempts}/${maxAttempts} ──────`);
+
         while (task.status === 'waiting_for_otp') {
             log('INFO', '⏸ Waiting for OTP...');
             await new Promise(r => { task._resumeResolver = r; });
         }
 
-        // Get DOM
         log('INFO', 'Fetching DOM...');
         const domResponse = await safeSendMessage(tabId, { type: 'GET_DOM' });
 
@@ -298,38 +317,55 @@ async function runAgentSequence(task) {
 
         consecutiveErrors = 0;
         const domState = domResponse.domState;
+
+        // Check block / CAPTCHA signals
+        if (domState.blockStatus && domState.blockStatus.blocked) {
+            log('WARN', `Block detected: ${domState.blockStatus.type}`);
+            if (blockRetries < MAX_BLOCK_RETRIES) {
+                blockRetries++;
+                log('INFO', `Block retry ${blockRetries}/${MAX_BLOCK_RETRIES}. Waiting ${BLOCK_COOLDOWN_MS}ms for user to solve or cooldown.`);
+                await new Promise(r => setTimeout(r, BLOCK_COOLDOWN_MS));
+                // Reload and try again
+                await chrome.tabs.reload(tabId);
+                await waitForTabLoad(tabId, 30000);
+                await ensureContentScript(tabId);
+                continue;
+            } else {
+                log('ERROR', 'Max block retries reached. Aborting.');
+                await reportResultToBackend(task.id, 'invalid', `Blocked by target site: ${domState.blockStatus.type}`);
+                isComplete = true;
+                break;
+            }
+        }
+
         log('INFO', `Page: "${domState.title}"`);
         log('INFO', `URL:  ${domState.url}`);
         log('INFO', `Elements: ${domState.actionableElements.length}`);
 
-        // Detect stuck loop
         let stuckWarning = '';
         if (actionHistory.length >= 2) {
             const last2 = actionHistory.slice(-2);
             if (last2.every(h => h.selector === last2[0].selector && h.url === domState.url)) {
-                stuckWarning = `⚠️ WARNING: You already tried "${last2[0].selector}" ${last2.length} times and the page didn't change. DO NOT repeat it. Try something else, or if you cannot find the coupon field, evaluate as "invalid" with reason "Could not find coupon entry field".`;
+                stuckWarning = `⚠️ WARNING: You already tried "${last2[0].selector}" ${last2.length} times and page didn't change. DO NOT repeat it. Try something else, or if you cannot find coupon field, evaluate as "invalid" with reason "Could not find coupon entry field".`;
                 log('WARN', 'Loop detected. Injecting stuck warning.');
             }
         }
 
-        // Call Gemini (or use deterministic map skip)
         let cmd = null;
         
         if (mappedSequence && mappedSequence.length > 0 && !fallbackToAI) {
-            cmd = mappedSequence.shift(); // take next step
-            cmd._isDeterministic = true; // flag for self-healing logic
+            cmd = mappedSequence.shift(); 
+            cmd._isDeterministic = true; 
             log('INFO', `⚡ Fast-Path Step: ${cmd.action} on ${cmd.selector || cmd.url}`);
             
-            // Variable substitution
             if (cmd.value === '<USERNAME>') {
-                cmd.value = credentials?.username || '';
+                cmd.value = credentials?.username || DEFAULT_CREDENTIALS.EMAIL;
                 cmd.valuePlaceholder = '<USERNAME>';
             }
             if (cmd.value === '<PASSWORD>') {
-                cmd.value = credentials?.password || '';
+                cmd.value = credentials?.password || DEFAULT_CREDENTIALS.PASSWORD;
                 cmd.valuePlaceholder = '<PASSWORD>';
             }
-            
         } else {
             log('INFO', 'Calling Gemini...');
             const prompt = buildPrompt(task, domState, actionHistory, stuckWarning);
@@ -339,7 +375,6 @@ async function runAgentSequence(task) {
                 break;
             }
 
-            // Parse response
             try {
                 cmd = parseGeminiJSON(aiResponse);
             } catch (e) {
@@ -351,7 +386,6 @@ async function runAgentSequence(task) {
         }
 
         log('INFO', `🤖 Agent choice: ${JSON.stringify(cmd)}`);
-        // If cmd was typed by AI for credentials
         if (cmd.value === credentials?.username && credentials?.username) { cmd.valuePlaceholder = '<USERNAME>'; }
         if (cmd.value === credentials?.password && credentials?.password) { cmd.valuePlaceholder = '<PASSWORD>'; }
 
@@ -360,11 +394,15 @@ async function runAgentSequence(task) {
             action: cmd.action, 
             selector: cmd.selector || cmd.url || 'N/A', 
             url: domState.url,
-            valuePlaceholder: cmd.valuePlaceholder // track placeholder to save in map
+            valuePlaceholder: cmd.valuePlaceholder 
         });
         if (actionHistory.length > 10) actionHistory.shift();
 
-        // Execute
+        // Random delay between actions to mimic human behaviour
+        const actionDelay = Math.random() * (MAX_DELAY_BETWEEN_ACTIONS_MS - MIN_DELAY_BETWEEN_ACTIONS_MS) + MIN_DELAY_BETWEEN_ACTIONS_MS;
+        await new Promise(r => setTimeout(r, actionDelay));
+
+        // Execute Action
         if (cmd.action === 'evaluate') {
             log('INFO', `🏁 RESULT: ${cmd.status} — ${cmd.reason}`);
             await reportResultToBackend(task.id, cmd.status, cmd.reason);
@@ -380,9 +418,8 @@ async function runAgentSequence(task) {
             if (result?.status === 'error' && cmd._isDeterministic) {
                 log('WARN', 'Deterministic step failed. Falling back to AI for healing.');
                 fallbackToAI = true;
-                // Add the error to the prompt for context
                 task._healingContext = `The deterministic step "${cmd.action} on ${cmd.selector}" failed with error: ${result?.message}. Please solve this step manually and proceed.`;
-                continue; // retry this step with AI
+                continue; 
             }
             await new Promise(r => setTimeout(r, 4000));
         } else if (cmd.action === 'type') {
@@ -393,7 +430,7 @@ async function runAgentSequence(task) {
                 log('WARN', 'Deterministic step failed. Falling back to AI for healing.');
                 fallbackToAI = true;
                 task._healingContext = `The deterministic step "${cmd.action} on ${cmd.selector}" failed with error: ${result?.message}. Please solve this step manually and proceed.`;
-                continue; // retry this step with AI
+                continue; 
             }
             await new Promise(r => setTimeout(r, 2000));
         } else if (cmd.action === 'navigate') {
@@ -414,7 +451,6 @@ async function runAgentSequence(task) {
         log('WARN', `Verification did not complete. Marking as invalid.`);
         await reportResultToBackend(task.id, 'invalid', 'Verification timed out or could not complete.');
     } else if (isComplete && task.type === 'auth') {
-        // If auth completed successfully and we were in AI mode, save the map
         log('INFO', `Auth completed. Saving map to DB for ${task.domain}`);
         try {
             const stepsToSave = actionHistory.map((h, i) => ({
@@ -423,15 +459,17 @@ async function runAgentSequence(task) {
                 selector: ['navigate'].includes(h.action) ? null : h.selector,
                 url: h.action === 'navigate' ? h.selector : h.url,
                 value: h.valuePlaceholder || null
-            })).filter(h => h.action !== 'evaluate'); // filter out the evaluate finale
+            })).filter(h => h.action !== 'evaluate'); 
 
             await fetch(`${BACKEND_URL}/agent/automation-map`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Extension-Key': EXTENSION_API_KEY
+                },
                 body: JSON.stringify({ domain: task.domain, flowType: 'login', steps: stepsToSave })
             });
 
-            // Mark session active
             captureAndSyncCookies(task.domain, task.brand);
         } catch(e) {}
     }
@@ -449,7 +487,9 @@ function buildPrompt(task, dom, history, warn) {
 DECIDE:
 1. Click/Type/Navigate to reach the coupon entry step.
 2. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
-3. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".`;
+3. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".
+4. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below. These are unique IDs prefixed with "[data-dl-id=...]".
+5. APPLY BUTTON: If multiple "Apply" buttons exist, always select the one that is physically closest to the input field where you typed the coupon code.`;
 
     if (task.type === 'auth') {
         objectiveStr = `You are an AI browser agent tasked with logging into the website for ${task.brand}.
@@ -458,7 +498,8 @@ DECIDE:
 1. Click login buttons or Navigate to the login page.
 2. Type the username and password (you can guess them if standard flow, they will be replaced dynamically but for now output dummy values).
 3. Check for OTP requirements. If OTP is requested by the site, use {"action":"request_otp","message":"Enter the OTP sent to email/phone"}.
-4. If you have successfully logged in (dashboard visible, logout button visible, or "My Account"), use {"action":"evaluate","status":"valid","reason":"Logged in successfully"}.`;
+4. If you have successfully logged in (dashboard visible, logout button visible, or "My Account"), use {"action":"evaluate","status":"valid","reason":"Logged in successfully"}.
+5. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below (e.g. "[data-dl-id='...']").`;
     }
 
     return `${objectiveStr}
@@ -467,23 +508,21 @@ HISTORY:
 ${histLines || 'None'}
 ${warn ? `\nSTUCK WARNING: ${warn}\n` : ''}
 
-Actionable Elements (showing top 80 of ${dom.actionableElements.length}):
-${JSON.stringify(dom.actionableElements.slice(0, 80), null, 2)}
+Detected Status Messages (Success/Error signals):
+${dom.statusMessages && dom.statusMessages.length > 0 ? dom.statusMessages.map(m => `- ${m}`).join('\n') : 'No recent status messages detected.'}
+
+Actionable Elements (showing top 100 of ${dom.actionableElements.length}):
+${JSON.stringify(dom.actionableElements.slice(0, 100), null, 2)}
 
 Respond only with raw JSON: {"action":"click"|"type"|"evaluate"|"wait"|"navigate"|"request_otp","selector":"...","value":"...","status":"...","reason":"..."}`;
 }
 
-/**
- * Wait for a tab to finish loading. Handles the race condition where
- * the tab might already be loaded before we attach the listener.
- */
 function waitForTabLoad(tabId, timeoutMs = 30000) {
     return new Promise((resolve) => {
-        // First check if the tab is already complete
         chrome.tabs.get(tabId, (tab) => {
             if (chrome.runtime.lastError) {
                 log('WARN', 'waitForTabLoad: tab.get error:', chrome.runtime.lastError.message);
-                resolve(); // resolve anyway, don't crash
+                resolve(); 
                 return;
             }
             if (tab && tab.status === 'complete') {
@@ -491,11 +530,10 @@ function waitForTabLoad(tabId, timeoutMs = 30000) {
                 resolve();
                 return;
             }
-            // Not loaded yet — wait for the event
             const timer = setTimeout(() => {
                 chrome.tabs.onUpdated.removeListener(listener);
                 log('WARN', `Tab load timed out after ${timeoutMs}ms. Continuing anyway.`);
-                resolve(); // don't reject, just continue
+                resolve(); 
             }, timeoutMs);
 
             function listener(updatedTabId, changeInfo) {
@@ -510,17 +548,11 @@ function waitForTabLoad(tabId, timeoutMs = 30000) {
     });
 }
 
-/**
- * Ensure the content script is available in a tab.
- * First pings, then falls back to manual injection.
- */
 async function ensureContentScript(tabId) {
-    // Try pinging the content script
     const alive = await safeSendMessage(tabId, { type: 'PING' });
     if (alive && alive.status === 'alive') {
         return true;
     }
-    // Not alive — inject manually
     try {
         log('INFO', `Injecting content script into tab ${tabId}...`);
         await chrome.scripting.executeScript({
@@ -536,15 +568,10 @@ async function ensureContentScript(tabId) {
     }
 }
 
-/**
- * Safe wrapper around chrome.tabs.sendMessage that always resolves
- * (never throws) and properly handles chrome.runtime.lastError.
- */
 function safeSendMessage(tabId, message) {
     return new Promise((resolve) => {
         try {
             chrome.tabs.sendMessage(tabId, message, (response) => {
-                // MUST read lastError or Chrome throws an uncaught error
                 if (chrome.runtime.lastError) {
                     resolve({ status: 'error', message: chrome.runtime.lastError.message });
                 } else {
@@ -557,9 +584,6 @@ function safeSendMessage(tabId, message) {
     });
 }
 
-/**
- * Execute an action in a tab via the content script.
- */
 function executeActionOnTab(tabId, cmd) {
     return safeSendMessage(tabId, { type: 'EXECUTE_ACTION', action: cmd });
 }
@@ -605,7 +629,6 @@ async function callGemini(prompt) {
 
             const data = await res.json();
 
-            // Check if the response has valid candidates
             if (!data.candidates || data.candidates.length === 0) {
                 log('WARN', `Key #${idx + 1}: No candidates returned. Possible safety block.`, JSON.stringify(data).substring(0, 300));
                 continue;
@@ -632,18 +655,23 @@ async function callGemini(prompt) {
 }
 
 async function reportResultToBackend(taskId, status, reason) {
-    await fetch(`${BACKEND_URL}/agent/tasks/${taskId}/result`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, reason })
-    });
+    try {
+        await fetch(`${BACKEND_URL}/agent/tasks/${taskId}/result`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Extension-Key': EXTENSION_API_KEY
+            },
+            body: JSON.stringify({ status, reason })
+        });
+    } catch(err) {
+        log('ERROR', `reportResultToBackend failed: ${err.message}`);
+    }
 }
 
 async function captureAndSyncCookies(rawDomain, merchantName) {
-    // Sanitize: strip protocol, www., trailing slashes and paths
     let domain = rawDomain.trim();
     try {
-        // If it looks like a URL, parse it
         if (domain.includes('://')) domain = new URL(domain).hostname;
     } catch(e) {}
     domain = domain.replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
@@ -660,7 +688,10 @@ async function captureAndSyncCookies(rawDomain, merchantName) {
 
         await fetch(`${BACKEND_URL}/merchant-cookies`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Extension-Key': EXTENSION_API_KEY
+            },
             body: JSON.stringify({
                 providerName: merchantName,
                 merchantUrl: `https://${domain}/`,

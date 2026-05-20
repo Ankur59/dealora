@@ -1,20 +1,41 @@
 // config.js
-// This file acts as the environment variables for the Chrome Extension.
-// Since extensions cannot directly read .env files, you should set your keys here.
+// Environment variables for the Chrome Extension.
+// Extensions cannot read .env files — set keys here.
 
 export const CONFIG = {
-    // Array of Google Gemini API Keys — the system will rotate through them
-    // if one hits a rate limit or fails.
+    // Gemini API Keys — rotates through them on rate-limit/failure
     GEMINI_API_KEYS: [
-        "" // <--- ADD YOUR GEMINI API KEY HERE
+        "AIzaSyCl_E5A38tXZcmlKdupmxkuXnjPXgyC6Sg"
     ],
 
-    // The Gemini Model to use
+    // Gemini model
     MODEL_NAME: "gemini-3-flash-preview",
 
-    // Your ai-coupon-engine backend URL (without trailing slash)
+    // ai-coupon-engine backend URL (without trailing slash)
     BACKEND_URL: "http://localhost:8000/api/v1",
 
-    // Optional: Secret key to authenticate requests from extension to backend
-    EXTENSION_API_KEY: "YOUR_EXTENSION_SECRET_KEY"
+    // Extension ↔ Backend shared secret
+    EXTENSION_API_KEY: "dlr_ext_9f8e7d6c5b4a3210",
+
+    // Default credentials — used when no merchant-specific creds exist
+    DEFAULT_CREDENTIALS: {
+        EMAIL: "Nobentadeal@gmail.com",
+        PASSWORD: "Mumbai@123",
+        PHONE: "7425817074"
+    },
+
+    // Anti-ban: rate limiting
+    COUPONS_PER_MINUTE: 3,
+    MIN_DELAY_BETWEEN_ACTIONS_MS: 800,
+    MAX_DELAY_BETWEEN_ACTIONS_MS: 2500,
+    MIN_DELAY_BETWEEN_COUPONS_MS: 15000,
+    MAX_DELAY_BETWEEN_COUPONS_MS: 25000,
+
+    // Max AI steps per coupon verification
+    MAX_STEPS_PER_VERIFICATION: 20,
+    MAX_STEPS_PER_AUTH: 25,
+
+    // Block retry config
+    MAX_BLOCK_RETRIES: 3,
+    BLOCK_COOLDOWN_MS: 30000,
 };

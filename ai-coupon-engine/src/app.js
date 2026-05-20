@@ -10,6 +10,7 @@ import agentRouter from "./routes/agent.route.js"
 import campaignRouter from "./routes/campaign.route.js"
 import couponRouter from "./routes/coupon.route.js"
 import merchantRouter from "./routes/merchant.route.js"
+import { requireExtensionAuth } from "./middleware/extensionAuth.js"
 
 dotenv.config()
 
@@ -38,12 +39,12 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(cookieParser());
 app.use(morgan("dev"))
 
-// Routes
-app.use("/api/v1/partners", partnerRouter)
-app.use("/api/v1/merchant-cookies", merchantCookieRouter)
-app.use("/api/v1/agent", agentRouter)
-app.use("/api/v1/campaigns", campaignRouter)
-app.use("/api/v1/coupons", couponRouter)
-app.use("/api/v1/merchants", merchantRouter)
+// Secure Routes with requireExtensionAuth
+app.use("/api/v1/partners", requireExtensionAuth, partnerRouter)
+app.use("/api/v1/merchant-cookies", requireExtensionAuth, merchantCookieRouter)
+app.use("/api/v1/agent", requireExtensionAuth, agentRouter)
+app.use("/api/v1/campaigns", requireExtensionAuth, campaignRouter)
+app.use("/api/v1/coupons", requireExtensionAuth, couponRouter)
+app.use("/api/v1/merchants", requireExtensionAuth, merchantRouter)
 
 export default app

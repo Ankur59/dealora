@@ -1,6 +1,22 @@
 // popup.js - Dealora AI Verification Agent Admin UI
 import { CONFIG } from './config.js';
 
+// Auto-inject X-Extension-Key header in all fetches to backend
+const originalFetch = window.fetch;
+window.fetch = function (resource, options = {}) {
+    if (typeof resource === 'string' && resource.startsWith(CONFIG.BACKEND_URL)) {
+        options.headers = options.headers || {};
+        if (options.headers instanceof Headers) {
+            options.headers.set('X-Extension-Key', CONFIG.EXTENSION_API_KEY);
+        } else if (Array.isArray(options.headers)) {
+            options.headers.push(['X-Extension-Key', CONFIG.EXTENSION_API_KEY]);
+        } else {
+            options.headers['X-Extension-Key'] = CONFIG.EXTENSION_API_KEY;
+        }
+    }
+    return originalFetch(resource, options);
+};
+
 let isLoggedIn = false;
 let isAgentRunning = false;
 let dbMerchants = [];     // Admin tab — campaigns from /campaigns

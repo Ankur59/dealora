@@ -1,18 +1,32 @@
 import Merchant from "../models/merchant.model.js";
+import PartnerMerchant from "../models/partnerMerchant.model.js";
 
 /**
  * GET /api/v1/merchants
- * Returns all merchants, newest first.
+ * Returns all merchants from partnerMerchant, newest first.
  */
 export const getMerchants = async (req, res) => {
     try {
         const { search } = req.query;
-        const filter = {};
+        const filter = { isActive: true };
         if (search) {
             filter.merchantName = { $regex: search, $options: "i" };
         }
 
-        const merchants = await Merchant.find(filter).sort({ createdAt: -1 });
+        const partnerMerchants = await PartnerMerchant.find(filter).sort({ createdAt: -1 });
+
+        // Map to expected structure for compatibility
+        const merchants = partnerMerchants.map(pm => ({
+            _id: pm._id,
+            merchantName: pm.merchantName,
+            merchantUrl: pm.website || "",
+            domain: pm.domain || "",
+            partnerName: pm.partner || "",
+            logoUrl: pm.logo || "",
+            trackingLink: pm.affiliateLink || "",
+            createdAt: pm.createdAt,
+            updatedAt: pm.updatedAt
+        }));
 
         return res.status(200).json({
             success: true,

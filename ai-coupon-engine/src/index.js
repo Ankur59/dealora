@@ -11,7 +11,8 @@ connectDB()
     .then(() => {
         app.listen(PORT, () => {
             console.log(`Server is running at port : ${PORT}`);
-            fetchAndNormalizePartnerData("vcommission", "campaigns")
+            // Disable auto sync on boot to avoid third-party API key failures
+            // fetchAndNormalizePartnerData("vcommission", "campaigns")
         });
     })
     .catch((err) => {
