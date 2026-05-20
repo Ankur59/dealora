@@ -209,23 +209,34 @@ class VerificationSchedulerService {
 
       io.emit('verification:job_started', { jobId: job._id, totalMerchants: job.totalMerchants });
 
-      // Process merchants one by one (sequentially for 3/min rate limit)
-      for (const merchant of enabledMerchants) {
-        try {
-          await this._processMerchantFullCycle(merchant, job);
-        } catch (merchantErr) {
-          // Individual merchant failure shouldn't kill entire cycle
-          console.error(`[Cycle] Merchant ${merchant.merchantName} failed fatally:`, merchantErr.message);
-          await browserService.emitLog(merchant._id, `🔥 Skipped due to fatal error: ${merchantErr.message}`, 'error');
+      const concurrencyLimit = this.concurrency || 5;
+      const queue = [...enabledMerchants];
+      
+      const worker = async () => {
+        while (queue.length > 0) {
+          const merchant = queue.shift();
+          if (!merchant) break;
+          
+          try {
+            await this._processMerchantFullCycle(merchant, job);
+          } catch (merchantErr) {
+            // Individual merchant failure shouldn't kill entire cycle
+            console.error(`[Cycle] Merchant ${merchant.merchantName} failed fatally:`, merchantErr.message);
+            await browserService.emitLog(merchant._id, `🔥 Skipped due to fatal error: ${merchantErr.message}`, 'error');
+          }
+          
+          job.processedMerchants += 1;
+          await job.save();
+          io.emit('verification:progress', {
+            jobId: job._id,
+            processed: job.processedMerchants,
+            total: job.totalMerchants
+          });
         }
-        job.processedMerchants += 1;
-        await job.save();
-        io.emit('verification:progress', {
-          jobId: job._id,
-          processed: job.processedMerchants,
-          total: job.totalMerchants
-        });
-      }
+      };
+
+      const workers = Array.from({ length: concurrencyLimit }, () => worker());
+      await Promise.all(workers);
 
       job.status = 'completed';
       job.cycleEndTime = new Date();
@@ -408,16 +419,32 @@ class VerificationSchedulerService {
 
     // Run asynchronously so we don't block the HTTP response
     (async () => {
-      for (const merchant of merchants) {
-        await this._processMerchantFullCycle(merchant, job);
-        job.processedMerchants += 1;
-        await job.save();
-        io.emit('verification:progress', {
-          jobId: job._id,
-          processed: job.processedMerchants,
-          total: job.totalMerchants
-        });
-      }
+      const concurrencyLimit = this.concurrency || 5;
+      const queue = [...merchants];
+      
+      const worker = async () => {
+        while (queue.length > 0) {
+          const merchant = queue.shift();
+          if (!merchant) break;
+          
+          try {
+            await this._processMerchantFullCycle(merchant, job);
+          } catch (merchantErr) {
+            console.error(`[Manual] Merchant ${merchant.merchantName} failed fatally:`, merchantErr.message);
+          }
+          
+          job.processedMerchants += 1;
+          await job.save();
+          io.emit('verification:progress', {
+            jobId: job._id,
+            processed: job.processedMerchants,
+            total: job.totalMerchants
+          });
+        }
+      };
+
+      const workers = Array.from({ length: concurrencyLimit }, () => worker());
+      await Promise.all(workers);
 
       job.status = 'completed';
       job.cycleEndTime = new Date();
