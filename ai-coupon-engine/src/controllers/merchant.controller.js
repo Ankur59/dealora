@@ -1,6 +1,9 @@
 import Merchant from "../models/merchant.model.js";
+import PartnerMerchant from "../models/partnerMerchant.model.js";
 import mongoose from "mongoose";
 import MerchantCredential from "../models/merchantCredential.model.js";
+import merchantSyncService from "../services/merchantSync.service.js";
+import { matchMerchant } from "../services/merchantSync.service.js";
 
 const resolveStatus = (doc) => {
   if (doc?.status === "active" || doc?.status === "inactive") return doc.status;
@@ -47,12 +50,31 @@ export const createMerchant = async (req, res) => {
 
 export const getMerchants = async (_req, res) => {
   try {
+    // ── Step 0: Sync PartnerMerchant → Merchant (auto-create missing) ──
+    try {
+      await merchantSyncService.syncMerchants();
+    } catch (syncErr) {
+      console.error('[getMerchants] Sync failed (non-fatal):', syncErr.message);
+    }
+
+    // ── Step 1: Fetch all internal merchants (now includes auto-created ones) ──
     const merchants = await Merchant.find({}).sort({ updatedAt: -1, _id: -1 }).lean();
     const merchantNames = merchants
       .map((m) => (typeof m.merchantName === "string" ? m.merchantName.trim() : ""))
       .filter(Boolean);
     const merchantIds = merchants.map((m) => m._id).filter(Boolean);
 
+    // ── Step 2: Build PartnerMerchant lookup for enrichment ──
+    const allPartnerMerchants = await PartnerMerchant.find({ isActive: true }).lean();
+    const partnerDataByMerchant = new Map();
+    for (const m of merchants) {
+      const matched = allPartnerMerchants.find(pm => matchMerchant(m, pm));
+      if (matched) {
+        partnerDataByMerchant.set(String(m._id), matched);
+      }
+    }
+
+    // ── Step 3: Cookie sync timestamps ──
     const cookieSyncByMerchantName = new Map();
     if (merchantNames.length > 0 && mongoose.connection?.db) {
       const rows = await mongoose.connection.db
@@ -78,6 +100,7 @@ export const getMerchants = async (_req, res) => {
       }
     }
 
+    // ── Step 4: Credentials ──
     const credentialsByMerchantId = new Map();
     if (merchantIds.length > 0) {
       const creds = await MerchantCredential.find({ merchantId: { $in: merchantIds } })
@@ -91,16 +114,48 @@ export const getMerchants = async (_req, res) => {
       }
     }
 
-    const enriched = merchants.map((m) => ({
-      ...m,
-      status: resolveStatus(m),
-      isActive: resolveStatus(m) === "active",
-      lastSyncedCookieAt:
-        cookieSyncByMerchantName.get(String(m.merchantName ?? "")) ?? null,
-      credentials: credentialsByMerchantId.get(String(m._id)) ?? [],
-    }));
+    // ── Step 5: Enrich with partner data ──
+    const enriched = merchants.map((m) => {
+      const pm = partnerDataByMerchant.get(String(m._id));
+      return {
+        ...m,
+        status: resolveStatus(m),
+        isActive: resolveStatus(m) === "active",
+        lastSyncedCookieAt:
+          cookieSyncByMerchantName.get(String(m.merchantName ?? "")) ?? null,
+        credentials: credentialsByMerchantId.get(String(m._id)) ?? [],
+        // Partner enrichment fields
+        partnerSource: pm?.partner ?? null,
+        logo: pm?.logo ?? null,
+        affiliateLink: pm?.affiliateLink ?? null,
+        partnerMerchantId: pm ? String(pm._id) : null,
+        hasPartnerMatch: !!pm,
+      };
+    });
 
     res.status(200).json({ success: true, data: enriched });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /merchants/cleanup-orphans
+ * Removes stale Merchant records that have no matching PartnerMerchant
+ * and no cookies/credentials/active state.
+ */
+export const cleanupOrphans = async (_req, res) => {
+  try {
+    const result = await merchantSyncService.syncAndCleanup();
+    res.status(200).json({
+      success: true,
+      data: {
+        created: result.created,
+        updated: result.updated,
+        removed: result.removed,
+        orphanIds: result.orphanIds,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

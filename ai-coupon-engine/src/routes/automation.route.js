@@ -60,6 +60,21 @@ router.post('/merchant-toggle/:merchantId', requireDashboardAuth, async (req, re
   }
 });
 
+router.post('/bulk-toggle-auto', requireDashboardAuth, async (req, res) => {
+  try {
+    const { merchantIds, enabled } = req.body;
+    if (!Array.isArray(merchantIds) || merchantIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'merchantIds array is required' });
+    }
+    for (const mId of merchantIds) {
+      await verificationSchedulerService.toggleMerchantAutoVerification(mId, enabled);
+    }
+    res.status(200).json({ success: true, data: { message: `Bulk updated ${merchantIds.length} merchants to ${enabled ? 'enabled' : 'disabled'}` } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed bulk toggle' });
+  }
+});
+
 router.get('/verification-results/:merchantId', requireDashboardAuth, async (req, res) => {
   try {
     const results = await CouponVerification.find({ merchantId: req.params.merchantId }).populate('couponId');

@@ -54,23 +54,27 @@ class VerificationSchedulerService {
    * Both paths enforce the 3 coupons/minute rate limit per merchant.
    */
   init() {
-    // ─── Every-minute tick: process 3 coupons per merchant ───────────
-    cron.schedule('* * * * *', () => {
-      this._runMinuteTick();
-    });
-    console.log('⏱️ Minute-tick scheduler initialized: 3 coupons/merchant/minute.');
+    if (process.env.ENABLE_AUTOMATIC_CRON === 'true') {
+      // ─── Every-minute tick: process 3 coupons per merchant ───────────
+      cron.schedule('* * * * *', () => {
+        this._runMinuteTick();
+      });
+      console.log('⏱️ Minute-tick scheduler initialized: 3 coupons/merchant/minute.');
 
-    // ─── 12-hour cycle (00:00 and 12:00 daily) ──────────────────────
-    cron.schedule('0 0,12 * * *', () => {
-      this.startGlobalVerificationCycle();
-    });
-    console.log('🗓️ Verification Scheduler initialized: runs every 12 hours.');
+      // ─── 12-hour cycle (00:00 and 12:00 daily) ──────────────────────
+      cron.schedule('0 0,12 * * *', () => {
+        this.startGlobalVerificationCycle();
+      });
+      console.log('🗓️ Verification Scheduler initialized: runs every 12 hours.');
 
-    // ─── Health Score computation every 12 hours (offset by 30min from verification) ──
-    cron.schedule('30 0,12 * * *', () => {
-      this._computeHealthScores();
-    });
-    console.log('📊 Health Score scheduler initialized: runs every 12 hours (offset +30min).');
+      // ─── Health Score computation every 12 hours (offset by 30min from verification) ──
+      cron.schedule('30 0,12 * * *', () => {
+        this._computeHealthScores();
+      });
+      console.log('📊 Health Score scheduler initialized: runs every 12 hours (offset +30min).');
+    } else {
+      console.log('ℹ️ Automatic cron verification scheduler is disabled. Only manual runs allowed (via Dashboard).');
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════
