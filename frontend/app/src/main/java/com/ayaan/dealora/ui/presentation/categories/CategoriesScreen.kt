@@ -33,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -57,6 +59,7 @@ fun CategoriesScreen(
     navController: NavController, viewModel: CategoriesViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSortOption by viewModel.currentSortOption.collectAsState()
@@ -133,6 +136,11 @@ fun CategoriesScreen(
                                 )
                             },
                             onDiscoverClick = { coupon ->
+                                coupon.couponCode?.let { code ->
+                                    if (code.isNotEmpty()) {
+                                        clipboardManager.setText(AnnotatedString(code))
+                                    }
+                                }
                                 // Track the discover action for trend/health scoring
                                 viewModel.trackPartnerDiscover(coupon.id)
 

@@ -44,6 +44,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -76,6 +78,7 @@ fun HomeScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
     val searchQuery by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
 
     if (isSearchExpanded) {
         val listState = rememberLazyListState()
@@ -405,6 +408,11 @@ fun HomeScreen(
                                         )
                                     },
                                     onDiscoverClick = {
+                                        coupon.couponCode?.let { code ->
+                                            if (code.isNotEmpty()) {
+                                                clipboardManager.setText(AnnotatedString(code))
+                                            }
+                                        }
                                         viewModel.trackPartnerDiscover(coupon.id)
                                         val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
                                         if (url != null) {

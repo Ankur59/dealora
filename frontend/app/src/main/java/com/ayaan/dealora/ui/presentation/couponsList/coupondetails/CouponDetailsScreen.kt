@@ -218,6 +218,9 @@ fun CouponDetailsContent(
                 showRedeemDialog = true
             }
         }, onDiscoverClick = {
+            coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let { code ->
+                clipboardManager.setText(AnnotatedString(code))
+            }
             val websiteUrl = coupon.websiteLink?.toString()?.trim()
                 ?.takeIf { it.isNotEmpty() }
 
@@ -312,7 +315,11 @@ fun CouponDetailsContent(
             item {
                 CouponCodeCard(
                     couponCode = coupon.couponCode,
-                    couponLink = coupon.couponVisitingLink,
+                    couponLink = if (coupon.userId == "partner_coupon") {
+                        // Do not show the tracking link card directly on partnercoupon details page in the middle of the screen.
+                        // Discover button still works perfectly because it reads websiteLink from the coupon data.
+                        null
+                    } else null,
                     onCopyCode = {
                         coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let {
                             clipboardManager.setText(AnnotatedString(it))

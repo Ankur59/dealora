@@ -17,6 +17,7 @@ import com.ayaan.dealora.data.repository.RawCouponResult
 import com.ayaan.dealora.data.repository.PartnerCouponInteractionRepository
 import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import com.ayaan.dealora.data.util.CategoryMapper
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
 import com.squareup.moshi.Moshi
@@ -311,6 +312,7 @@ class CouponsListViewModel @Inject constructor(
                 }
 
                 val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
+                val mappedCategoryApi = CategoryMapper.getSubcategories(categoryApi)
                 val filters     = _currentFilters.value
                 val searchApi   = _searchQuery.value.takeIf { it.isNotBlank() }
                 val discountTypeApi = filters.getDiscountTypeApiValue()
@@ -340,7 +342,7 @@ class CouponsListViewModel @Inject constructor(
                     else -> {
                         val tabApi = if (_exclusiveTab.value == ExclusiveTab.EXPIRED) "expired" else "active"
                         when (val result = couponRepository.getPartnerCoupons(
-                            category     = categoryApi,
+                            category     = mappedCategoryApi,
                             brand        = filters.brand,
                             search       = searchApi,
                             sortBy       = sortByApi,

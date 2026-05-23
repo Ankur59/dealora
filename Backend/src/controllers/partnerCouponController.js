@@ -89,7 +89,11 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
 
     // ── 3. CATEGORY FILTER ──
     if (category) {
-        andConditions.push({ categories: category });
+        if (Array.isArray(category)) {
+            andConditions.push({ categories: { $in: category } });
+        } else {
+            andConditions.push({ categories: category });
+        }
     }
 
     // ── 4. BRAND FILTER ──
@@ -219,10 +223,10 @@ exports.searchPartnerCoupons = async (req, res) => {
             });
         }
 
-        const page  = Math.max(Number(pageStr)  || 1, 1);
+        const page = Math.max(Number(pageStr) || 1, 1);
         const limit = Math.min(Math.max(Number(limitStr) || 20, 1), 100);
-        const skip  = (page - 1) * limit;
-        const now   = new Date();
+        const skip = (page - 1) * limit;
+        const now = new Date();
 
         // Lowercase the term to match stored data: brandName is stored lowercase
         // (Mongoose schema) and categories are now also stored lowercase by all adapters.
@@ -233,7 +237,7 @@ exports.searchPartnerCoupons = async (req, res) => {
             $and: [
                 { isVerified: true },
                 { end: { $gt: now } },          // not expired
-                { $or: [ { brandName: rx }, { categories: rx } ] },
+                { $or: [{ brandName: rx }, { categories: rx }] },
             ],
         };
 
@@ -245,7 +249,7 @@ exports.searchPartnerCoupons = async (req, res) => {
         ]);
 
         const coupons = docs.map(d => shapeDoc(d, false));
-        const pages   = Math.ceil(total / limit) || 1;
+        const pages = Math.ceil(total / limit) || 1;
 
         return successResponse(res, STATUS_CODES.OK, 'Search results', {
             total, page, pages, count: coupons.length, limit, coupons,
@@ -283,6 +287,20 @@ exports.getPartnerCoupons = async (req, res) => {
             verified,
         } = req.query;
 
+        // Parse category filter: could be single string, array, or comma-separated string
+        let categoryFilterVal = category;
+        if (category) {
+            if (typeof category === 'string') {
+                if (category.includes(',')) {
+                    categoryFilterVal = category.split(',').map(s => s.trim().toLowerCase());
+                } else {
+                    categoryFilterVal = [category.trim().toLowerCase()];
+                }
+            } else if (Array.isArray(category)) {
+                categoryFilterVal = category.map(s => s.toString().trim().toLowerCase());
+            }
+        }
+
         const userId = req.user._id;
         const page = Math.max(Number(pageStr) || 1, 1);
         const limit = Math.min(Math.max(Number(limitStr) || 20, 1), 100);
@@ -292,7 +310,7 @@ exports.getPartnerCoupons = async (req, res) => {
         const redemptions = await Redemption.find({ userId }).select('couponId').lean();
         const redeemedIds = redemptions.map(r => r.couponId);   // already ObjectIds
 
-        const filter = buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified });
+        const filter = buildFilter({ tab, redeemedIds, category: categoryFilterVal, brand, search, discountType, validity, offerType, verified });
         const sort = buildSort(sortBy);
 
         // DEBUG LOGGING

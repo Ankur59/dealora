@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,6 +61,7 @@ fun CouponsList(
     navController: NavController, viewModel: CouponsListViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val uiState by viewModel.uiState.collectAsState()
     val rawCoupons by viewModel.rawCoupons.collectAsState()
     val isLoadingRawCoupons by viewModel.isLoadingRawCoupons.collectAsState()
@@ -278,6 +281,11 @@ fun CouponsList(
                                         // Also records a "discover" interaction so the
                                         // feedback popup can ask if the coupon worked.
                                         onDiscoverClick = {
+                                            coupon.couponCode?.let { code ->
+                                                if (code.isNotEmpty()) {
+                                                    clipboardManager.setText(AnnotatedString(code))
+                                                }
+                                            }
                                             viewModel.recordPartnerDiscover(coupon)
                                             openUrl(context, coupon.couponLink)
                                         }
