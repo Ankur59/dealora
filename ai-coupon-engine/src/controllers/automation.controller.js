@@ -251,6 +251,53 @@ export async function executeMacro(merchantId, merchant, mode, page, context, re
 }
 
 /**
+ * Captures a structural snapshot of the page to detect changes.
+ */
+async function getPageSnapshot(page) {
+  try {
+    return await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input, textarea, select, button'))
+        .map(el => ({
+          tag: el.tagName,
+          id: el.id,
+          name: el.name,
+          placeholder: el.getAttribute('placeholder') || '',
+          disabled: el.disabled,
+          type: el.type || ''
+        }));
+      // Strip numbers to avoid matching countdown clocks/timers
+      const text = (document.body?.innerText || '').replace(/\d+/g, '').replace(/\s+/g, ' ').trim().substring(0, 1000);
+      return {
+        url: window.location.href,
+        inputs,
+        text
+      };
+    });
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Compares two snapshots to check if the page structure / content has changed.
+ */
+function isSnapshotEqual(snap1, snap2) {
+  if (!snap1 || !snap2) return false;
+  if (snap1.url !== snap2.url) return false;
+  if (snap1.text !== snap2.text) return false;
+  if (snap1.inputs.length !== snap2.inputs.length) return false;
+
+  for (let i = 0; i < snap1.inputs.length; i++) {
+    const a = snap1.inputs[i];
+    const b = snap2.inputs[i];
+    if (a.tag !== b.tag || a.id !== b.id || a.name !== b.name || a.placeholder !== b.placeholder || a.disabled !== b.disabled || a.type !== b.type) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Core automation loop – shared by both loginToMerchant and createAccountOnMerchant.
  * @param {string} merchantId
  * @param {string} goal       – Natural-language goal sent to Gemini
@@ -307,8 +354,24 @@ export async function runAutomationLoop(merchantId, goal, res, mode) {
     let currentMacro = []; // We will record this run to save it later
     let blockRetries = 0;
     const maxBlockRetries = 3;
+    let lastSnapshot = null;
+    let waitCountSinceChange = 0;
 
     while (attempts < maxAttempts) {
+      const currentSnapshot = await getPageSnapshot(page);
+
+      if (lastSnapshot && isSnapshotEqual(lastSnapshot, currentSnapshot)) {
+        if (waitCountSinceChange < 5) {
+          waitCountSinceChange++;
+          await browserService.emitLog(merchantId, `⏳ Page state unchanged. Waiting for update (Attempt ${attempts}/${maxAttempts})…`);
+          await BrowserService.randomDelay(2000, 3000);
+          continue;
+        }
+      }
+
+      waitCountSinceChange = 0;
+      lastSnapshot = currentSnapshot;
+
       attempts++;
       const url = page.url();
       const screenshot = await page.screenshot({ type: 'png', fullPage: false });
@@ -495,7 +558,26 @@ export async function runAutomationLoop(merchantId, goal, res, mode) {
             else if (val === 'OTP_VALUE') val = context._lastOtp || '';
 
             if (selector) {
-              await page.fill(selector, val);
+              try {
+                await page.fill(selector, val);
+              } catch (fillErr) {
+                // If fill fails (e.g. element is not an input/textarea/select), look for a fillable descendant
+                const childSelector = await page.evaluate((sel) => {
+                  const el = document.querySelector(sel);
+                  if (!el) return null;
+                  const child = el.querySelector('input, textarea, select, [contenteditable]');
+                  if (!child) return null;
+                  if (child.id) return `#${child.id}`;
+                  if (child.name) return `input[name="${child.name}"]`;
+                  return `${sel} input, ${sel} textarea, ${sel} select, ${sel} [contenteditable]`;
+                }, selector);
+
+                if (childSelector) {
+                  await page.fill(childSelector, val);
+                } else {
+                  throw fillErr;
+                }
+              }
             } else if (suggestion.x && suggestion.y) {
               const vp = page.viewportSize();
               await page.mouse.click((suggestion.x / 1000) * vp.width, (suggestion.y / 1000) * vp.height);
@@ -595,6 +677,7 @@ export class AutomationController {
       return res.status(400).json({ success: false, message: 'merchantId and otp are required' });
     }
     io.emit('otp_provided', { merchantId, otp });
+    browserService.submitOTP(merchantId, otp);
     res.status(200).json({ success: true, data: { message: 'OTP forwarded to automation agent' } });
   }
 

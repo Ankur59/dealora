@@ -16,6 +16,12 @@ interface Merchant {
     message?: string;
     lastAttempted?: string;
   };
+  // Partner enrichment
+  partnerSource?: string | null;
+  logo?: string | null;
+  affiliateLink?: string | null;
+  partnerMerchantId?: string | null;
+  hasPartnerMatch?: boolean;
 }
 
 interface VerificationJob {
@@ -142,6 +148,8 @@ export function AIAutomationPage() {
   const [clearingSession, setClearingSession] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [isBulkToggling, setIsBulkToggling] = useState(false);
   const [importCookiesJson, setImportCookiesJson] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', password: '', phone: '' });
@@ -256,6 +264,39 @@ export function AIAutomationPage() {
       addLocalLog(`Manual verify failed: ${err.message}`, 'error');
     } finally {
       setIsManualVerifying(false);
+    }
+  };
+
+  const cleanupOrphans = async () => {
+    if (!window.confirm('Remove all orphaned merchant records that have no matching partner details and no active cookies/credentials?')) return;
+    setIsCleaning(true);
+    try {
+      const res = await apiPostJson<{ success: boolean; data: { removed: number } }>('/api/v1/merchants/cleanup-orphans', {});
+      addLocalLog(`🧹 Cleanup complete. Removed ${res.data.removed} stale merchant records.`, 'success');
+      await loadMerchants();
+    } catch (err: any) {
+      addLocalLog(`Cleanup failed: ${err.message}`, 'error');
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
+  const bulkToggleAutoVerification = async (enabled: boolean) => {
+    const ids = Array.from(selectedMerchantIds);
+    if (ids.length === 0) {
+      addLocalLog('Select at least one merchant to bulk toggle.', 'warning');
+      return;
+    }
+    if (!window.confirm(`${enabled ? 'Enable' : 'Disable'} 12h auto verification for ${ids.length} selected merchant(s)?`)) return;
+    setIsBulkToggling(true);
+    try {
+      await apiPostJson('/api/v1/automation/bulk-toggle-auto', { merchantIds: ids, enabled });
+      addLocalLog(`✅ Bulk ${enabled ? 'enabled' : 'disabled'} 12h auto verification for ${ids.length} merchants.`, 'success');
+      await loadMerchants();
+    } catch (err: any) {
+      addLocalLog(`Bulk toggle failed: ${err.message}`, 'error');
+    } finally {
+      setIsBulkToggling(false);
     }
   };
 
@@ -696,11 +737,35 @@ export function AIAutomationPage() {
               Toggle All
             </button>
             <button
+              className="ai-btn ai-btn--secondary ai-btn--sm"
+              onClick={() => bulkToggleAutoVerification(true)}
+              disabled={isBulkToggling || selectedMerchantIds.size === 0}
+              title="Enable 12h auto verification for selected merchants"
+            >
+              ✅ Enable Auto
+            </button>
+            <button
+              className="ai-btn ai-btn--secondary ai-btn--sm"
+              onClick={() => bulkToggleAutoVerification(false)}
+              disabled={isBulkToggling || selectedMerchantIds.size === 0}
+              title="Disable 12h auto verification for selected merchants"
+            >
+              ❌ Disable Auto
+            </button>
+            <button
               className="ai-btn ai-btn--primary ai-btn--sm"
               onClick={startManualVerification}
               disabled={isManualVerifying || selectedMerchantIds.size === 0}
             >
               {isManualVerifying ? '…' : `Run (${selectedMerchantIds.size})`}
+            </button>
+            <button
+              className="ai-btn ai-btn--danger-ghost ai-btn--sm"
+              onClick={cleanupOrphans}
+              disabled={isCleaning}
+              title="Remove merchants not present in partner lists and having no cookies/creds"
+            >
+              {isCleaning ? 'Cleaning…' : '🧹 Cleanup Stale'}
             </button>
           </div>
         </div>
@@ -711,7 +776,7 @@ export function AIAutomationPage() {
           {filteredMerchants.map((m) => (
             <div
               key={m._id}
-              className={`ai-merchant-row ${selectedMerchantIds.has(m._id) ? 'ai-merchant-row--selected' : ''}`}
+              className={`ai-merchant-row ${selectedMerchantIds.has(m._id) ? 'ai-merchant-row--selected' : ''} ${!m.hasPartnerMatch ? 'ai-merchant-row--orphan' : ''}`}
             >
               <div className="ai-merchant-row-left">
                 <input
@@ -720,8 +785,15 @@ export function AIAutomationPage() {
                   checked={selectedMerchantIds.has(m._id)}
                   onChange={() => toggleMerchantSelection(m._id)}
                 />
+                {m.logo && <img src={m.logo} alt="" className="ai-merchant-logo" />}
                 <span className="ai-merchant-name">{m.merchantName}</span>
                 <span className={`ai-merchant-status ai-merchant-status--${m.status}`}>{m.status}</span>
+                {m.partnerSource && (
+                  <span className="ai-badge badge--partner">{m.partnerSource}</span>
+                )}
+                {!m.hasPartnerMatch && (
+                  <span className="ai-badge badge--orphan" title="No matching partner merchant — may be stale">⚠ orphan</span>
+                )}
               </div>
               <div className="ai-merchant-row-right">
                 <span className="ai-merchant-toggle-label">12h auto</span>

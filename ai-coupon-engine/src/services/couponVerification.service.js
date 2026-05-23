@@ -329,7 +329,7 @@ export class CouponVerificationService {
       verification = new CouponVerification({ couponId, merchantId: resolvedId });
     }
 
-    // 1. Check login status BEFORE navigating away
+    // 1. Check login status FIRST before navigating or doing anything to preserve current cart/checkout progress
     const isLoggedIn = await this.checkLoginStatus(page);
 
     if (!isLoggedIn) {
@@ -369,11 +369,26 @@ export class CouponVerificationService {
       }
     }
 
+    // Validate time constraints
+    if (verification.termsSummary && verification.termsSummary.timeConstraints) {
+      const isTimeValid = this.validateTimeConstraints(verification.termsSummary.timeConstraints);
+      if (!isTimeValid) {
+        await browserService.emitLog(resolvedId, `⏳ Skipping coupon ${coupon.code}: Time constraint not met.`);
+        const result = { success: false, errorMessage: 'Time constraint not met' };
+        verification.result = result;
+        verification.status = 'failed';
+        verification.lastAttemptedAt = new Date();
+        await verification.save();
+        return result;
+      }
+    }
+
     // Match Cart Requirements
     await this.prepareCart(page, verification.termsSummary, resolvedId);
 
     // Apply & Verify
-    const result = await this.applyAndCheck(page, coupon.code, resolvedId);
+    const activeCreds = await getActiveCredentials(resolvedId);
+    const result = await this.applyAndCheck(page, coupon.code, resolvedId, activeCreds);
 
     verification.result = result;
     verification.status = result.success ? 'verified' : 'failed';
@@ -526,10 +541,8 @@ export class CouponVerificationService {
 
   async analyzeTerms(page, coupon, verification, merchantId) {
     const description = coupon.description || '';
-    // If description is clear enough, we might not even need a screenshot, but Gemini likes it.
     try {
-      const screenshot = await this._safeScreenshot(page, { type: 'png' }, merchantId);
-      const analysis = await geminiService.analyzeTermsAndConditions(screenshot.toString('base64'), description);
+      const analysis = await geminiService.analyzeTermsAndConditions(description);
 
       verification.termsSummary = {
         minOrderValue: analysis.minOrderValue || 0,
@@ -550,53 +563,60 @@ export class CouponVerificationService {
 
   async prepareCart(page, terms, merchantId) {
     const minOrder = terms?.minOrderValue || 0;
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    // Check current cart value if possible
-    const cartValue = await page.evaluate(() => {
-      // Common cart value selectors
-      const selectors = ['.cart-total', '.subtotal', '.cart-value', '.amount', '#cart-total'];
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        if (el) {
-          const val = parseFloat(el.innerText.replace(/[^0-9.]/g, ''));
-          if (!isNaN(val)) return val;
+    while (attempts < maxAttempts) {
+      attempts++;
+      // Check current cart value if possible
+      const cartValue = await page.evaluate(() => {
+        // Common cart value selectors
+        const selectors = ['.cart-total', '.subtotal', '.cart-value', '.amount', '#cart-total'];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            const val = parseFloat(el.innerText.replace(/[^0-9.]/g, ''));
+            if (!isNaN(val)) return val;
+          }
         }
+        return 0;
+      });
+
+      if (cartValue >= minOrder && cartValue > 0) {
+        await browserService.emitLog(merchantId, `🛒 Cart value ${cartValue} meets requirement ${minOrder}.`);
+        return;
       }
-      return 0;
-    });
 
-    if (cartValue >= minOrder && cartValue > 0) {
-      await browserService.emitLog(merchantId, `🛒 Cart value ${cartValue} already meets requirement ${minOrder}.`);
-      return;
-    }
+      await browserService.emitLog(merchantId, `🛒 Preparing cart (Attempt ${attempts}/${maxAttempts}, Current: ${cartValue}, Target: ${minOrder})…`);
 
-    // Optimization: If cart already has items and we're just short of minOrder,
-    // Gemini might suggest adding more of the same or navigating.
-    // To speed up, we only run prepareCart if absolutely necessary.
-    if (cartValue > 0 && minOrder > 0 && cartValue >= minOrder) return;
+      try {
+        const screenshot = await this._safeScreenshot(page, { type: 'png' }, merchantId);
+        const suggestion = await geminiService.suggestCartActions(screenshot.toString('base64'), terms);
 
-    await browserService.emitLog(merchantId, `🛒 Preparing cart (Current: ${cartValue}, Target: ${minOrder})…`);
-
-    try {
-      const screenshot = await this._safeScreenshot(page, { type: 'png' }, merchantId);
-      const suggestion = await geminiService.suggestCartActions(screenshot.toString('base64'), terms);
-
-      if (suggestion.action === 'add_item' || suggestion.action === 'navigate') {
-        await browserService.emitLog(merchantId, `🛒 AI suggests: ${suggestion.reason}`);
-        if (suggestion.x && suggestion.y) {
-          const vp = page.viewportSize();
-          await page.mouse.click((suggestion.x / 1000) * vp.width, (suggestion.y / 1000) * vp.height);
-          await page.waitForTimeout(3000); // Wait for navigation/add
+        if (suggestion.action === 'done') {
+          return;
         }
+
+        if (suggestion.action === 'add_item' || suggestion.action === 'navigate') {
+          await browserService.emitLog(merchantId, `🛒 AI suggests: ${suggestion.reason}`);
+          if (suggestion.x && suggestion.y) {
+            const vp = page.viewportSize();
+            await page.mouse.click((suggestion.x / 1000) * vp.width, (suggestion.y / 1000) * vp.height);
+            await page.waitForTimeout(3000); // Wait for navigation/add
+          }
+        } else {
+          break; // Unknown action or cart prep failed
+        }
+      } catch (err) {
+        const msg = err.message || '';
+        if (msg.includes('PAGE_FATAL')) throw err;
+        await browserService.emitLog(merchantId, `⚠️ Cart preparation failed: ${err.message}`, 'warning');
+        break;
       }
-    } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('PAGE_FATAL')) throw err;
-      await browserService.emitLog(merchantId, `⚠️ Cart preparation failed: ${err.message}`, 'warning');
     }
   }
 
-  async applyAndCheck(page, code, merchantId) {
+  async applyAndCheck(page, code, merchantId, activeCreds = {}) {
     await browserService.emitLog(merchantId, `🎟️ Applying code ${code}…`);
 
     // Optimization: Check if coupon input is already visible from a previous attempt
@@ -618,7 +638,7 @@ export class CouponVerificationService {
 
       const goal = `Find the coupon/promo code input field, type "${code}", and click Apply. If you see an "Apply Coupon" section that needs to be clicked to reveal the input, click that first. Then tell me if it worked.`;
 
-      const suggestion = await geminiService.suggestNextAction(screenshot.toString('base64'), page.url(), goal);
+      const suggestion = await geminiService.suggestNextAction(screenshot.toString('base64'), page.url(), goal, activeCreds);
       await browserService.emitLog(merchantId, `🤖 AI Suggestion (${attempts}/${maxAttempts}): ${suggestion.action} - ${suggestion.reason}`);
 
       if (suggestion.action === 'done') {
@@ -637,10 +657,12 @@ export class CouponVerificationService {
 
           if (suggestion.action === 'fill') {
             await page.mouse.click(targetX, targetY);
-            // Clear existing value if any
+            // Clear existing value if any cross-platform
+            await page.keyboard.down('Control');
             await page.keyboard.down('Meta');
             await page.keyboard.press('a');
             await page.keyboard.up('Meta');
+            await page.keyboard.up('Control');
             await page.keyboard.press('Backspace');
 
             await page.keyboard.type(code);
@@ -675,9 +697,9 @@ export class CouponVerificationService {
     }
 
     const checkGoal = `Check if the coupon code "${code}" was successfully applied. Look for "Applied", discount amounts, or success messages.`;
-    const check = await geminiService.suggestNextAction(finalScreenshot.toString('base64'), page.url(), checkGoal);
+    const check = await geminiService.suggestNextAction(finalScreenshot.toString('base64'), page.url(), checkGoal, activeCreds);
 
-    const success = check.reason?.toLowerCase().includes('success') || check.action === 'done';
+    const success = check.action === 'done';
     return {
       success,
       couponApplied: success,
@@ -689,15 +711,67 @@ export class CouponVerificationService {
     try {
       if (page.isClosed()) return false;
       return await page.evaluate(() => {
-        const text = document.body.innerText.toLowerCase();
-        const indicators = [
-          'logout', 'sign out', 'my account', 'my profile', 'order history',
-          'hi,', 'welcome back', 'account settings'
+        // Look for selectors containing account info
+        const selectors = [
+          'a[href*="logout"]', 'a[href*="signout"]', 'a[href*="my-account"]',
+          'a[href*="profile"]', 'a[href*="orders"]',
+          '[class*="user"]', '[class*="profile"]', '[class*="account"]'
         ];
-        return indicators.some(ind => text.includes(ind));
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            const text = el.innerText.toLowerCase();
+            if (text.includes('logout') || text.includes('sign out') || text.includes('my account') || text.includes('my profile') || text.includes('order history')) {
+              return true;
+            }
+          }
+        }
+        // Fallback: check document body but verify it's not guest login/signup link
+        const text = document.body.innerText.toLowerCase();
+        const loggedInIndicators = ['logout', 'sign out', 'order history', 'welcome back'];
+        return loggedInIndicators.some(ind => text.includes(ind));
       });
     } catch {
       return false;
+    }
+  }
+
+  validateTimeConstraints(timeConstraints) {
+    if (!timeConstraints || !timeConstraints.restrictedHours) {
+      return true; // No constraints
+    }
+
+    const { startHour, endHour } = timeConstraints.restrictedHours;
+    if (startHour === null || startHour === undefined) {
+      return true;
+    }
+
+    // Determine current hour based on timezone if provided
+    let currentHour;
+    if (timeConstraints.timezone) {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: timeConstraints.timezone,
+          hour: 'numeric',
+          hour12: false
+        });
+        currentHour = parseInt(formatter.format(new Date()), 10);
+      } catch (err) {
+        // Fallback to local time if timezone is invalid
+        currentHour = new Date().getHours();
+      }
+    } else {
+      currentHour = new Date().getHours();
+    }
+
+    const start = startHour;
+    const end = (endHour !== null && endHour !== undefined) ? endHour : 24;
+
+    if (start <= end) {
+      return currentHour >= start && currentHour < end;
+    } else {
+      // Over-midnight constraint (e.g. 22 to 4)
+      return currentHour >= start || currentHour < end;
     }
   }
 

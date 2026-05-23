@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { EventEmitter } from 'events';
 import Merchant from '../models/merchant.model.js';
 import { io } from '../index.js';
 import { getStealthScript } from '../utils/stealth.js';
@@ -24,6 +25,7 @@ export class BrowserService {
     /** Tracks which merchantIds are currently using proxy contexts */
     this._proxyContexts = new Set();
     this._uaIdx = Math.floor(Math.random() * USER_AGENTS.length);
+    this.otpEmitter = new EventEmitter();
   }
 
   /** Pick a random modern user-agent */
@@ -358,6 +360,13 @@ export class BrowserService {
   }
 
   /**
+   * Submit an OTP locally to resolve waitForOTP.
+   */
+  submitOTP(merchantId, otp) {
+    this.otpEmitter.emit('otp_provided', { merchantId, otp });
+  }
+
+  /**
    * Waits for a dashboard user to submit an OTP via the socket event.
    * Resolves with the OTP string, or null on timeout (5 min).
    */
@@ -373,7 +382,7 @@ export class BrowserService {
 
       const cleanup = () => {
         if (timer) clearTimeout(timer);
-        io.off('otp_provided', onOTP);
+        this.otpEmitter.off('otp_provided', onOTP);
       };
 
       const onOTP = (data) => {
@@ -386,7 +395,7 @@ export class BrowserService {
         }
       };
 
-      io.on('otp_provided', onOTP);
+      this.otpEmitter.on('otp_provided', onOTP);
 
       // Timeout after 5 minutes
       timer = setTimeout(() => {
