@@ -237,6 +237,7 @@ exports.searchPartnerCoupons = async (req, res) => {
             $and: [
                 { isVerified: true },
                 { end: { $gt: now } },          // not expired
+                { offerType: 'Coupon' },
                 { $or: [{ brandName: rx }, { categories: rx }] },
             ],
         };
@@ -522,14 +523,54 @@ exports.votePartnerCoupon = async (req, res) => {
             return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Invalid coupon ID');
         }
 
+        // 1. Fetch current coupon document
+        const coupon = await col().findOne({ _id: couponObjId });
+        if (!coupon) {
+            return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Coupon not found in partner collection');
+        }
+
+        // 2. Extract current values with defaults
+        const oldSuccessCount = coupon.successCount || 0;
+        const oldFailedCount = coupon.failedCount || 0;
+        
+        // Import calculation function from cron
+        const { calculateReliabilityScore } = require('../cron/healthScoreCron');
+        
+        const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
+        const oldHealthScore = coupon.trend?.healthScore || 0;
+
+        // 3. Compute new success/failed counts
+        const newSuccessCount = oldSuccessCount + (outcome === 'success' ? 1 : 0);
+        const newFailedCount = oldFailedCount + (outcome === 'failure' ? 1 : 0);
+
+        // 4. Calculate new reliability score
+        const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
+
+        // 5. Atomic removal of old reliability score component and adding the new one with weight 0.4
+        // Formula: newHealthScore = oldHealthScore - (oldReliabilityScore * 0.4) + (newReliabilityScore * 0.4)
+        const baseHealthScore = oldHealthScore - (oldReliabilityScore * 0.4);
+        const newHealthScore = baseHealthScore + (newReliabilityScore * 0.4);
+
+        // 6. Update database atomically
         const result = await col().updateOne(
             { _id: couponObjId },
-            { $inc: { [updateField]: 1 } }
+            {
+                $set: {
+                    successCount: newSuccessCount,
+                    failedCount: newFailedCount,
+                    'trend.reliabilityScore': newReliabilityScore,
+                    'trend.healthScore': newHealthScore
+                }
+            }
         );
 
         if (result.matchedCount === 0) {
             return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Coupon not found in partner collection');
         }
+
+        logger.info(`[PartnerCoupon] Vote recorded: ${outcome} for coupon ${couponId}. ` +
+            `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
+            `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
 
         return successResponse(res, STATUS_CODES.OK, `Vote recorded: ${outcome}`);
     } catch (err) {

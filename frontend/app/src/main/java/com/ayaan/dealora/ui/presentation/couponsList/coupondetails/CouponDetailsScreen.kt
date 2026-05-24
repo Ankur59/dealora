@@ -36,8 +36,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -268,7 +271,8 @@ fun CouponDetailsContent(
                     initial = coupon.display?.initial ?: coupon.brandName?.toString()?.firstOrNull()
                         ?.toString() ?: "?",
                     isStackable = coupon.display?.isStackable ?: false,
-                    userType = coupon.userType?.toString()
+                    userType = coupon.userType?.toString(),
+                    logoUrl = coupon.base64ImageUrl?.toString()
                 )
             }
 
@@ -468,33 +472,37 @@ fun CouponDetailsContent(
                 )
             },
             text = {
-                Text(
-                    text = "Your feedback helps us keep the best deals for everyone!",
-                    fontSize = 14.sp,
-                    color = Color(0xFF666666)
-                )
-            },
-            confirmButton = {
-                // "Yes, it worked" button
-                Button(
-                    onClick = {
-                        showPartnerVoteDialog = false
-                        viewModel.votePartnerCoupon("success")
-                        viewModel.redeemCoupon(onSuccess = {
-                            showRedeemSuccess = true
-                        }, onError = { error ->
-                            redeemError = error
-                        })
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Yes, it worked!", color = Color.White)
-                }
-            },
-            dismissButton = {
-                Column {
+                    Text(
+                        text = "Your feedback helps us keep the best deals for everyone!",
+                        fontSize = 14.sp,
+                        color = Color(0xFF666666),
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // "Yes, it worked" button
+                    Button(
+                        onClick = {
+                            showPartnerVoteDialog = false
+                            viewModel.votePartnerCoupon("success")
+                            viewModel.redeemCoupon(onSuccess = {
+                                showRedeemSuccess = true
+                            }, onError = { error ->
+                                redeemError = error
+                            })
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text("Yes, it worked!", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
                     // "No, it failed" button
                     OutlinedButton(
                         onClick = {
@@ -507,10 +515,11 @@ fun CouponDetailsContent(
                             })
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE53935)),
+                        border = BorderStroke(1.dp, Color(0xFFE53935)),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Text("No, it didn't work")
+                        Text("No, it didn't work", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
 
                     // "Cancel" button
@@ -518,10 +527,12 @@ fun CouponDetailsContent(
                         onClick = { showPartnerVoteDialog = false },
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     ) {
-                        Text("Cancel", color = Color.Gray)
+                        Text("Cancel", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
                 }
-            }
+            },
+            confirmButton = {},
+            dismissButton = {}
         )
     }
 
@@ -600,7 +611,8 @@ fun BrandHeader(
     daysUntilExpiry: Int?,
     initial: String,
     isStackable: Boolean = false,
-    userType: String? = null
+    userType: String? = null,
+    logoUrl: String? = null
 ) {
     val painter: Int = remember(brandName) {
         getBrandLogoResource(brandName.replace("\n", "").trim().lowercase())
@@ -617,16 +629,26 @@ fun BrandHeader(
                 .background(Color(0xFF00BFA5)),
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(painter),
-                contentDescription = "BrnadLogo",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-            )
-//            Text(
-//                text = initial, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White
-//            )
+            if (!logoUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = "BrandLogo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .padding(4.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Image(
+                    painter = painterResource(painter),
+                    contentDescription = "BrnadLogo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
+            }
         }
 
         Column {

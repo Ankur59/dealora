@@ -3,6 +3,7 @@ package com.ayaan.dealora.ui.presentation.couponsList
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -255,7 +256,6 @@ fun CouponsList(
                                         source        = coupon.couponLink,
                                         showActionButtons = true,
                                         merchantLogoUrl = coupon.merchantLogo,
-                                        healthScore   = coupon.healthScore,
                                         discoverButtonLabel = "Use Now",
                                         onSave        = { _ -> viewModel.savePartnerCoupon(coupon) },
                                         onRemoveSave  = { id -> viewModel.removeSavedCoupon(id) },
@@ -313,37 +313,41 @@ fun CouponsList(
                                                 )
                                             },
                                             text = {
-                                                Text(
-                                                    text = "Your feedback helps us keep the best deals for everyone!",
-                                                    fontSize = 14.sp,
-                                                    color = Color(0xFF666666)
-                                                )
-                                            },
-                                            confirmButton = {
-                                                Button(
-                                                    onClick = {
-                                                        showFeedbackDialog = false
-                                                        viewModel.votePartnerCoupon(coupon.id, "success")
-                                                        viewModel.redeemPartnerCoupon(
-                                                            couponId = coupon.id,
-                                                            onSuccess = { showSuccessDialog = true },
-                                                            onError = { err ->
-                                                                errorMessage = err
-                                                                showErrorDialog = true
-                                                            }
-                                                        )
-                                                    },
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = Color(0xFF4CAF50)
-                                                    ),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                                Column(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                                 ) {
-                                                    Text("Yes, it worked!", color = Color.White)
-                                                }
-                                            },
-                                            dismissButton = {
-                                                Column {
+                                                    Text(
+                                                        text = "Your feedback helps us keep the best deals for everyone!",
+                                                        fontSize = 14.sp,
+                                                        color = Color(0xFF666666),
+                                                        lineHeight = 20.sp
+                                                    )
+
+                                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                                    Button(
+                                                        onClick = {
+                                                            showFeedbackDialog = false
+                                                            viewModel.votePartnerCoupon(coupon.id, "success")
+                                                            viewModel.redeemPartnerCoupon(
+                                                                couponId = coupon.id,
+                                                                onSuccess = { showSuccessDialog = true },
+                                                                onError = { err ->
+                                                                    errorMessage = err
+                                                                    showErrorDialog = true
+                                                                }
+                                                            )
+                                                        },
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = Color(0xFF4CAF50)
+                                                        ),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                                                    ) {
+                                                        Text("Yes, it worked!", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                                    }
+
                                                     OutlinedButton(
                                                         onClick = {
                                                             showFeedbackDialog = false
@@ -360,19 +364,23 @@ fun CouponsList(
                                                         colors = ButtonDefaults.outlinedButtonColors(
                                                             contentColor = Color(0xFFE53935)
                                                         ),
+                                                        border = BorderStroke(1.dp, Color(0xFFE53935)),
                                                         shape = RoundedCornerShape(8.dp),
-                                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                                        modifier = Modifier.fillMaxWidth().height(48.dp)
                                                     ) {
-                                                        Text("No, it didn't work")
+                                                        Text("No, it didn't work", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                                                     }
+
                                                     TextButton(
                                                         onClick = { showFeedbackDialog = false },
                                                         modifier = Modifier.align(Alignment.CenterHorizontally)
                                                     ) {
-                                                        Text("Cancel", color = Color.Gray)
+                                                        Text("Cancel", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                                     }
                                                 }
-                                            }
+                                            },
+                                            confirmButton = {},
+                                            dismissButton = {}
                                         )
                                     }
 

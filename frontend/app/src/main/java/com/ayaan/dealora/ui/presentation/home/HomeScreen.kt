@@ -25,6 +25,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,7 +83,6 @@ fun HomeScreen(
 
     if (isSearchExpanded) {
         val listState = rememberLazyListState()
-        var activeVerificationCoupon by remember { mutableStateOf<com.ayaan.dealora.data.api.models.PartnerCoupon?>(null) }
         val shouldLoadMore = remember {
             derivedStateOf {
                 val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
@@ -380,19 +380,27 @@ fun HomeScreen(
                             contentPadding = PaddingValues(bottom = 32.dp, top = 8.dp)
                         ) {
                             items(uiState.searchCoupons) { coupon ->
+                                var showSuccessDialog by remember { mutableStateOf(false) }
+                                var showFeedbackDialog by remember { mutableStateOf(false) }
+                                var showErrorDialog by remember { mutableStateOf(false) }
+                                var errorMessage by remember { mutableStateOf("") }
+
+                                val isAlreadyRedeemed = coupon.isRedeemed == true
+
                                 CouponCard(
-                                    brandName = coupon.brandName,
+                                    brandName = coupon.brandName.uppercase().replace(" ", "\n"),
                                     couponId = coupon.id,
-                                    couponTitle = coupon.couponTitle ?: "Offer",
+                                    couponTitle = coupon.couponTitle ?: coupon.discount ?: "Partner Offer",
                                     description = coupon.description ?: "",
                                     couponCode = coupon.couponCode ?: "",
                                     discountValue = coupon.discount,
                                     category = coupon.category,
                                     expiryDays = coupon.daysUntilExpiry,
                                     isSaved = savedCouponIds.contains(coupon.id),
-                                    isRedeemed = coupon.isRedeemed == true,
+                                    isRedeemed = isAlreadyRedeemed,
                                     merchantLogoUrl = coupon.merchantLogo,
-                                    healthScore = coupon.healthScore,
+                                    source = coupon.couponLink,
+                                    showActionButtons = true,
                                     discoverButtonLabel = "Use Now",
                                     onDetailsClick = {
                                         val couponJson = viewModel.moshi
@@ -413,7 +421,7 @@ fun HomeScreen(
                                                 clipboardManager.setText(AnnotatedString(code))
                                             }
                                         }
-                                        viewModel.trackPartnerDiscover(coupon.id)
+                                        viewModel.recordPartnerDiscover(coupon)
                                         val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
                                         if (url != null) {
                                             try {
@@ -434,9 +442,104 @@ fun HomeScreen(
                                     onSave = { id -> viewModel.savePartnerCoupon(coupon) },
                                     onRemoveSave = { id -> viewModel.removeSavedCoupon(coupon.id) },
                                     onRedeem = { id ->
-                                        activeVerificationCoupon = coupon
+                                        if (!isAlreadyRedeemed) {
+                                            showFeedbackDialog = true
+                                        }
                                     }
                                 )
+
+                                RedeemResultDialogs(
+                                    showSuccess = showSuccessDialog,
+                                    showError = showErrorDialog,
+                                    errorMessage = errorMessage,
+                                    onSuccessDismiss = { showSuccessDialog = false },
+                                    onErrorDismiss = { showErrorDialog = false }
+                                )
+
+                                if (showFeedbackDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showFeedbackDialog = false },
+                                        containerColor = Color.White,
+                                        shape = RoundedCornerShape(16.dp),
+                                        title = {
+                                            Text(
+                                                text = "Did this coupon work?",
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                        },
+                                        text = {
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Your feedback helps us keep the best deals for everyone!",
+                                                    fontSize = 14.sp,
+                                                    color = Color(0xFF666666),
+                                                    lineHeight = 20.sp
+                                                )
+
+                                                Spacer(modifier = Modifier.height(8.dp))
+
+                                                Button(
+                                                    onClick = {
+                                                        showFeedbackDialog = false
+                                                        viewModel.votePartnerCoupon(coupon.id, "success")
+                                                        viewModel.redeemPartnerCoupon(
+                                                            couponId = coupon.id,
+                                                            onSuccess = { showSuccessDialog = true },
+                                                            onError = { err ->
+                                                                errorMessage = err
+                                                                showErrorDialog = true
+                                                            }
+                                                        )
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFF4CAF50)
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                                                ) {
+                                                    Text("Yes, it worked!", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                                }
+
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        showFeedbackDialog = false
+                                                        viewModel.votePartnerCoupon(coupon.id, "failure")
+                                                        viewModel.redeemPartnerCoupon(
+                                                            couponId = coupon.id,
+                                                            onSuccess = { showSuccessDialog = true },
+                                                            onError = { err ->
+                                                                errorMessage = err
+                                                                showErrorDialog = true
+                                                            }
+                                                        )
+                                                    },
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = Color(0xFFE53935)
+                                                    ),
+                                                    border = BorderStroke(1.dp, Color(0xFFE53935)),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                                                ) {
+                                                    Text("No, it didn't work", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                                }
+
+                                                TextButton(
+                                                    onClick = { showFeedbackDialog = false },
+                                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                                ) {
+                                                    Text("Cancel", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                                }
+                                            }
+                                        },
+                                        confirmButton = {},
+                                        dismissButton = {}
+                                    )
+                                }
                             }
 
                             if (uiState.isLoadingSearchCoupons) {
@@ -459,47 +562,6 @@ fun HomeScreen(
                     }
                 }
             }
-        }
-
-        activeVerificationCoupon?.let { coupon ->
-            CouponVerificationDialog(
-                showDialog = true,
-                couponBrand = coupon.brandName,
-                couponCode = coupon.couponCode,
-                onSuccess = {
-                    val couponId = coupon.id
-                    activeVerificationCoupon = null
-                    viewModel.votePartnerCoupon(couponId, "success")
-                    viewModel.redeemPartnerCoupon(
-                        couponId = couponId,
-                        onSuccess = {
-                            Toast.makeText(context, "Coupon marked as redeemed!", Toast.LENGTH_SHORT).show()
-                            viewModel.loadSearchCoupons(resetPage = true)
-                        },
-                        onError = { msg ->
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                },
-                onFailure = {
-                    val couponId = coupon.id
-                    activeVerificationCoupon = null
-                    viewModel.votePartnerCoupon(couponId, "failure")
-                    viewModel.redeemPartnerCoupon(
-                        couponId = couponId,
-                        onSuccess = {
-                            Toast.makeText(context, "Feedback recorded successfully!", Toast.LENGTH_SHORT).show()
-                            viewModel.loadSearchCoupons(resetPage = true)
-                        },
-                        onError = { msg ->
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                },
-                onDismiss = {
-                    activeVerificationCoupon = null
-                }
-            )
         }
     } else {
         // Show fleet coupon feedback popup (scraped/exclusive coupons)
@@ -843,5 +905,58 @@ fun PublicSearchBannerCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RedeemResultDialogs(
+    showSuccess: Boolean,
+    showError: Boolean,
+    errorMessage: String,
+    onSuccessDismiss: () -> Unit,
+    onErrorDismiss: () -> Unit
+) {
+    if (showSuccess) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onSuccessDismiss,
+            containerColor = Color.White,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            title = {
+                Text(text = "Success!", fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Color(0xFF00C853))
+            },
+            text = {
+                Text(text = "Coupon has been marked as redeemed successfully.", fontSize = 14.sp, color = Color(0xFF666666))
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = onSuccessDismiss,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853)),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                ) {
+                    Text(text = "OK", fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                }
+            })
+    }
+
+    if (showError) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onErrorDismiss,
+            containerColor = Color.White,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            title = {
+                Text(text = "Error", fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Color.Red)
+            },
+            text = {
+                Text(text = errorMessage, fontSize = 14.sp, color = Color(0xFF666666))
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = onErrorDismiss,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Red),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                ) {
+                    Text(text = "OK", fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                }
+            })
     }
 }

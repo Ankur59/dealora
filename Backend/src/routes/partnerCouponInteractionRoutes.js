@@ -65,15 +65,51 @@ router.post('/', async (req, res) => {
         try {
             if (action === 'redeem') {
                 const partnerCouponsCollection = mongoose.connection.db.collection('partnercoupons');
-                const result = await partnerCouponsCollection.updateOne(
-                    { couponId: couponId },
-                    { $inc: { failedCount: 1 } }
-                );
+                let coupon = await partnerCouponsCollection.findOne({ couponId: couponId });
+                if (!coupon) {
+                    try {
+                        const { ObjectId } = mongoose.Types;
+                        coupon = await partnerCouponsCollection.findOne({ _id: new ObjectId(couponId) });
+                    } catch (err) {}
+                }
 
-                if (result.matchedCount === 0) {
-                    console.warn(`[PartnerCouponInteraction] Coupon not found for initial redeem: ${couponId}`);
+                if (coupon) {
+                    const oldSuccessCount = coupon.successCount || 0;
+                    const oldFailedCount = coupon.failedCount || 0;
+
+                    // Import calculation helper from cron
+                    const { calculateReliabilityScore } = require('../cron/healthScoreCron');
+
+                    const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
+                    const oldHealthScore = coupon.trend?.healthScore || 0;
+
+                    // Compute new success/failed counts
+                    const newSuccessCount = oldSuccessCount;
+                    const newFailedCount = oldFailedCount + 1; // Explicit redeem: Assumed failure initially
+
+                    // Recalculate reliability
+                    const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
+
+                    // Recalculate health score (removes old reliability contribution and adds the new one with 0.4 weight)
+                    const baseHealthScore = oldHealthScore - (oldReliabilityScore * 0.4);
+                    const newHealthScore = baseHealthScore + (newReliabilityScore * 0.4);
+
+                    await partnerCouponsCollection.updateOne(
+                        { _id: coupon._id },
+                        {
+                            $set: {
+                                failedCount: newFailedCount,
+                                'trend.reliabilityScore': newReliabilityScore,
+                                'trend.healthScore': newHealthScore
+                            }
+                        }
+                    );
+
+                    console.log(`[PartnerCouponInteraction] Real-time scores updated for initial redeem on coupon ${couponId}. ` +
+                        `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
+                        `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
                 } else {
-                    console.log(`[PartnerCouponInteraction] Initial failedCount incremented for redeem action on coupon ${couponId}`);
+                    console.warn(`[PartnerCouponInteraction] Coupon not found for initial redeem stats: ${couponId}`);
                 }
             }
         } catch (dbError) {
@@ -186,15 +222,54 @@ router.patch('/:id/resolve', async (req, res) => {
 
             // Update the coupon stats if needed
             if (updateField && updateValue > 0) {
-                const result = await partnerCouponsCollection.updateOne(
-                    { couponId: interaction.couponId },
-                    { $inc: { [updateField]: updateValue } }
-                );
+                // Find current coupon to calculate new reliability and health scores in real-time
+                let coupon = await partnerCouponsCollection.findOne({ couponId: interaction.couponId });
+                if (!coupon) {
+                    try {
+                        const { ObjectId } = mongoose.Types;
+                        coupon = await partnerCouponsCollection.findOne({ _id: new ObjectId(interaction.couponId) });
+                    } catch (err) {}
+                }
 
-                if (result.matchedCount === 0) {
-                    console.warn(`[PartnerCouponInteraction] Coupon not found: ${interaction.couponId}`);
+                if (coupon) {
+                    const oldSuccessCount = coupon.successCount || 0;
+                    const oldFailedCount = coupon.failedCount || 0;
+
+                    // Import calculation helper from cron
+                    const { calculateReliabilityScore } = require('../cron/healthScoreCron');
+
+                    const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
+                    const oldHealthScore = coupon.trend?.healthScore || 0;
+
+                    // Compute new success/failed counts
+                    const newSuccessCount = oldSuccessCount + (updateField === 'successCount' ? updateValue : 0);
+                    const newFailedCount = oldFailedCount + (updateField === 'failedCount' ? updateValue : 0);
+
+                    // Recalculate reliability
+                    const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
+
+                    // Recalculate health score (removes old reliability contribution and adds the new one with 0.4 weight)
+                    const baseHealthScore = oldHealthScore - (oldReliabilityScore * 0.4);
+                    const newHealthScore = baseHealthScore + (newReliabilityScore * 0.4);
+
+                    const result = await partnerCouponsCollection.updateOne(
+                        { _id: coupon._id },
+                        {
+                            $set: {
+                                successCount: newSuccessCount,
+                                failedCount: newFailedCount,
+                                'trend.reliabilityScore': newReliabilityScore,
+                                'trend.healthScore': newHealthScore
+                            }
+                        }
+                    );
+
+                    console.log(`[PartnerCouponInteraction] Real-time scores updated for resolved coupon ${interaction.couponId}. ` +
+                        `Counts: success=${newSuccessCount}, failed=${newFailedCount}. ` +
+                        `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
+                        `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
                 } else {
-                    console.log(`[PartnerCouponInteraction] Updated ${updateField} for coupon ${interaction.couponId}`);
+                    console.warn(`[PartnerCouponInteraction] Coupon not found for resolution: ${interaction.couponId}`);
                 }
             }
         } catch (dbError) {

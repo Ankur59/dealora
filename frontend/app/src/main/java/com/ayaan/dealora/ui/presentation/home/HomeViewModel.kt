@@ -646,6 +646,29 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun recordPartnerDiscover(coupon: PartnerCoupon) {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                partnerInteractionRepository.recordInteraction(
+                    userId     = userId,
+                    couponId   = coupon.couponId ?: coupon.id,
+                    brandName  = coupon.brandName,
+                    couponCode = coupon.couponCode,
+                    couponLink = coupon.couponLink,
+                    action     = "discover"
+                )
+                Log.d(TAG, "Partner discover interaction recorded for ${coupon.brandName}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to record partner discover interaction", e)
+            }
+        }
+        viewModelScope.launch {
+            couponRepository.trackPartnerDiscover(coupon.id)
+            Log.d(TAG, "Trend discover tracked for partner coupon: ${coupon.id}")
+        }
+    }
+
     fun votePartnerCoupon(couponId: String, outcome: String) {
         viewModelScope.launch {
             Log.d(TAG, "Voting for partner coupon $couponId: $outcome")

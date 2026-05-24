@@ -389,10 +389,9 @@ private fun ExclusiveCouponsList(
                         couponLink = coupon.couponLink,
                         discountType = coupon.couponType,
                         isSaved = isSaved,
-                        source = coupon.couponLink, // header colour fallback
+                        source = coupon.couponLink,
                         showActionButtons = true,
                         merchantLogoUrl = coupon.merchantLogo,
-                        healthScore = coupon.healthScore,
                         discoverButtonLabel = "Use Now",
                         onSave = { onSave(coupon) },
                         onRemoveSave = { onRemoveSave(coupon.id) },

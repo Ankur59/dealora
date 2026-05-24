@@ -175,7 +175,11 @@ class CouponDetailsViewModel @Inject constructor(
                         when (val result = couponRepository.redeemPartnerCoupon(couponId)) {
                             is com.ayaan.dealora.data.repository.PartnerCouponRedeemResult.Success -> {
                                 onSuccess()
-                                loadCouponDetails()
+                                // Update local state directly so that we don't trigger "coupon not found" from cache reload
+                                val updatedCoupon = currentState.coupon.copy(
+                                    actions = currentState.coupon.actions?.copy(canRedeem = false)
+                                )
+                                _uiState.value = CouponDetailsUiState.Success(updatedCoupon)
                             }
                             is com.ayaan.dealora.data.repository.PartnerCouponRedeemResult.Error -> onError(result.message)
                         }
@@ -474,7 +478,7 @@ class CouponDetailsViewModel @Inject constructor(
             status = if (partnerCoupon.isExpired == true) "expired" else "active",
             addedMethod = "exclusive",
             userType = if (partnerCoupon.isNewUser == true) "new" else "all",
-            base64ImageUrl = null,
+            base64ImageUrl = partnerCoupon.merchantLogo,
             createdAt = partnerCoupon.createdAt ?: "",
             updatedAt = partnerCoupon.updatedAt ?: "",
             display = CouponDisplay(
