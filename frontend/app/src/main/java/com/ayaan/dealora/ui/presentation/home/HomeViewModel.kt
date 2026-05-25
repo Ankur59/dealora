@@ -515,7 +515,9 @@ class HomeViewModel @Inject constructor(
                     searchCouponsPage = 1,
                     searchCouponsPages = 1,
                     isLoadingSearchCoupons = false,
-                    searchError = null
+                    searchError = null,
+                    searchCategories = emptyList(),
+                    selectedSearchCategory = null
                 )
             }
             Log.d(TAG, "Search cleared - showing empty state")
@@ -532,7 +534,9 @@ class HomeViewModel @Inject constructor(
                     searchCouponsPage = 1,
                     searchCouponsPages = 1,
                     isLoadingSearchCoupons = false,
-                    searchError = null
+                    searchError = null,
+                    searchCategories = emptyList(),
+                    selectedSearchCategory = null
                 )
             }
             return
@@ -541,12 +545,18 @@ class HomeViewModel @Inject constructor(
         // Debounce search API calls (500ms)
         // Cancel previous search job if user is still typing
         searchJob?.cancel()
+        _uiState.update { it.copy(selectedSearchCategory = null) }
         searchJob = viewModelScope.launch {
             delay(500) // 500ms debounce for better performance
             loadSearchCoupons(resetPage = true)
         }
         
         Log.d(TAG, "Search query updated: '$query' (${query.length} chars) - will execute after debounce")
+    }
+
+    fun onSearchCategoryChanged(category: String?) {
+        _uiState.update { it.copy(selectedSearchCategory = category) }
+        loadSearchCoupons(resetPage = true)
     }
 
     fun loadSearchCoupons(resetPage: Boolean = true) {
@@ -556,18 +566,20 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val currentPage = if (resetPage) 1 else (_uiState.value.searchCouponsPage + 1)
+                val selectedCategory = _uiState.value.selectedSearchCategory
                 if (resetPage) {
                     _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null, searchCoupons = emptyList()) }
                 } else {
                     _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null) }
                 }
 
-                Log.d(TAG, "loadSearchCoupons page=$currentPage query=$query")
+                Log.d(TAG, "loadSearchCoupons page=$currentPage query=$query category=$selectedCategory")
 
                 when (val result = couponRepository.searchPartnerCoupons(
-                    q     = query,
-                    page  = currentPage,
-                    limit = 20,
+                    q        = query,
+                    category = selectedCategory,
+                    page     = currentPage,
+                    limit    = 20,
                 )) {
                     is PartnerCouponResult.Success -> {
                         val newCoupons = if (resetPage) result.coupons
@@ -579,6 +591,7 @@ class HomeViewModel @Inject constructor(
                                 searchCouponsPage = result.page,
                                 searchCouponsPages = result.pages,
                                 isLoadingSearchCoupons = false,
+                                searchCategories = if (selectedCategory == null && resetPage) result.categories else it.searchCategories,
                                 searchError = if (newCoupons.isEmpty()) "No verified coupons found" else null
                             )
                         }

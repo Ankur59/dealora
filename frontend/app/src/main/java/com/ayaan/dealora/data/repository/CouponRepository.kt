@@ -593,20 +593,22 @@ class CouponRepository @Inject constructor(
      * Only returns verified, non-expired coupons sorted by healthScore DESC.
      */
     suspend fun searchPartnerCoupons(
-        q:     String,
-        page:  Int? = null,
-        limit: Int? = null
+        q:        String,
+        category: String? = null,
+        page:     Int? = null,
+        limit:    Int? = null
     ): PartnerCouponResult {
         return try {
-            val response = couponApiService.searchPartnerCoupons(q = q, page = page, limit = limit)
+            val response = couponApiService.searchPartnerCoupons(q = q, category = category, page = page, limit = limit)
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.success == true && body.data != null) {
                     PartnerCouponResult.Success(
-                        coupons = body.data.coupons,
-                        total   = body.data.total,
-                        page    = body.data.page,
-                        pages   = body.data.pages
+                        coupons    = body.data.coupons,
+                        total      = body.data.total,
+                        page       = body.data.page,
+                        pages      = body.data.pages,
+                        categories = body.data.categories
                     )
                 } else PartnerCouponResult.Error(body?.message ?: "Failed")
             } else PartnerCouponResult.Error("HTTP ${response.code()}")
@@ -778,10 +780,11 @@ sealed class RawCouponResult {
 /** Sealed class for partner coupon list results */
 sealed class PartnerCouponResult {
     data class Success(
-        val coupons: List<PartnerCoupon>,
-        val total:   Int,
-        val page:    Int,
-        val pages:   Int
+        val coupons:    List<PartnerCoupon>,
+        val total:      Int,
+        val page:       Int,
+        val pages:      Int,
+        val categories: List<String> = emptyList()
     ) : PartnerCouponResult()
     data class Error(val message: String) : PartnerCouponResult()
 }

@@ -123,6 +123,20 @@ router.post('/', async (req, res) => {
             data: { interactionId: interaction._id },
         });
     } catch (err) {
+        if (err.code === 11000 || err.message.includes('E11000') || err.message.includes('duplicate key')) {
+            try {
+                const existing = await PartnerCouponInteraction.findOne({ userId, couponId });
+                if (existing) {
+                    return res.status(201).json({
+                        success: true,
+                        message: 'Partner coupon interaction recorded',
+                        data: { interactionId: existing._id },
+                    });
+                }
+            } catch (findErr) {
+                // fall through if database lookup fails
+            }
+        }
         console.error('[PartnerCouponInteraction] record interaction error:', err.message);
         res.status(500).json({ success: false, error: err.message });
     }

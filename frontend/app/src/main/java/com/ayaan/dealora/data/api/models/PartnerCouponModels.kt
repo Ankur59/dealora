@@ -11,7 +11,8 @@ data class PartnerCouponListResponseData(
     @Json(name = "pages")   val pages: Int,
     @Json(name = "count")   val count: Int,
     @Json(name = "limit")   val limit: Int,
-    @Json(name = "coupons") val coupons: List<PartnerCoupon>
+    @Json(name = "coupons") val coupons: List<PartnerCoupon>,
+    @Json(name = "categories") val categories: List<String> = emptyList()
 )
 
 /** A single partner coupon shaped by partnerCouponController on the Backend. */

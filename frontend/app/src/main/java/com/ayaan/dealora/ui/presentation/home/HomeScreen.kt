@@ -129,13 +129,55 @@ fun HomeScreen(
                             )
                         },
                         trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        tint = Color.Gray
-                                    )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (uiState.searchCategories.isNotEmpty()) {
+                                    var expanded by remember { mutableStateOf(false) }
+                                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+                                        TextButton(
+                                            onClick = { expanded = true },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(36.dp)
+                                        ) {
+                                            Text(
+                                                text = uiState.selectedSearchCategory ?: "All",
+                                                color = DealoraPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        
+                                        DropdownMenu(
+                                            expanded = expanded,
+                                            onDismissRequest = { expanded = false },
+                                            modifier = Modifier.background(Color.White)
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("All Categories") },
+                                                onClick = {
+                                                    expanded = false
+                                                    viewModel.onSearchCategoryChanged(null)
+                                                }
+                                            )
+                                            uiState.searchCategories.forEach { category ->
+                                                DropdownMenuItem(
+                                                    text = { Text(category) },
+                                                    onClick = {
+                                                        expanded = false
+                                                        viewModel.onSearchCategoryChanged(category)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Clear",
+                                            tint = Color.Gray
+                                        )
+                                    }
                                 }
                             }
                         },

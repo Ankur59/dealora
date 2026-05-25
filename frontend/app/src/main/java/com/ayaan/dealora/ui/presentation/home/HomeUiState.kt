@@ -31,5 +31,7 @@ data class HomeUiState(
     val searchCouponsPage: Int = 1,
     val searchCouponsPages: Int = 1,
     val isLoadingSearchCoupons: Boolean = false,
-    val searchError: String? = null
+    val searchError: String? = null,
+    val searchCategories: List<String> = emptyList(),
+    val selectedSearchCategory: String? = null
 )

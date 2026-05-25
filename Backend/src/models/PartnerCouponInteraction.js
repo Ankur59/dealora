@@ -62,4 +62,7 @@ partnerCouponInteractionSchema.index({ userId: 1, outcome: 1, createdAt: -1 });
 // Index for getting interactions by couponId
 partnerCouponInteractionSchema.index({ couponId: 1, createdAt: -1 });
 
+// Compound unique index to prevent duplicate interactions for same user and coupon combination
+partnerCouponInteractionSchema.index({ userId: 1, couponId: 1 }, { unique: true });
+
 module.exports = mongoose.model('PartnerCouponInteraction', partnerCouponInteractionSchema);

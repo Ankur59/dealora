@@ -214,12 +214,12 @@ function buildSort(sortBy) {
  */
 exports.searchPartnerCoupons = async (req, res) => {
     try {
-        const { q = '', page: pageStr = '1', limit: limitStr = '20' } = req.query;
+        const { q = '', page: pageStr = '1', limit: limitStr = '20', category } = req.query;
 
         const term = q.trim();
         if (!term) {
             return successResponse(res, STATUS_CODES.OK, 'Search results', {
-                total: 0, page: 1, pages: 1, count: 0, limit: 20, coupons: [],
+                total: 0, page: 1, pages: 1, count: 0, limit: 20, coupons: [], categories: [],
             });
         }
 
@@ -242,6 +242,11 @@ exports.searchPartnerCoupons = async (req, res) => {
             ],
         };
 
+        // If a category filter is provided, append strict category matching
+        if (category) {
+            filter.$and.push({ categories: { $regex: new RegExp(`^${category.trim()}$`, 'i') } });
+        }
+
         const sort = { 'trend.healthScore': -1 };
 
         const [docs, total] = await Promise.all([
@@ -252,8 +257,33 @@ exports.searchPartnerCoupons = async (req, res) => {
         const coupons = docs.map(d => shapeDoc(d, false));
         const pages = Math.ceil(total / limit) || 1;
 
+        // Fetch distinct categories selectively
+        let categories = [];
+        if (!category) {
+            // Only search distinct categories if the query explicitly matches a brandName in DB
+            const isBrandSearch = await col().findOne({
+                isVerified: true,
+                end: { $gt: now },
+                offerType: 'Coupon',
+                brandName: { $regex: new RegExp(`^${termLower}$`, 'i') }
+            });
+
+            if (isBrandSearch) {
+                const categoryFilter = {
+                    $and: [
+                        { isVerified: true },
+                        { end: { $gt: now } },
+                        { offerType: 'Coupon' },
+                        { brandName: { $regex: new RegExp(`^${termLower}$`, 'i') } },
+                    ]
+                };
+                const distinctCategories = await col().distinct('categories', categoryFilter);
+                categories = distinctCategories.filter(c => c && c.trim().length > 0);
+            }
+        }
+
         return successResponse(res, STATUS_CODES.OK, 'Search results', {
-            total, page, pages, count: coupons.length, limit, coupons,
+            total, page, pages, count: coupons.length, limit, coupons, categories,
         });
     } catch (err) {
         logger.error(`[PartnerCoupon] searchPartnerCoupons: ${err.message}`);
