@@ -86,12 +86,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnSaveCoupon').addEventListener('click', handleSaveCoupon);
 
     // Inner Tabs — Admin
+    const setAdminSubTab = (activeBtn, activeSec) => {
+        ['btnAdminCampaigns', 'btnAdminPartners', 'btnAdminMetrics'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.classList.remove('active');
+                btn.style.borderColor = '';
+                btn.style.color = '';
+            }
+        });
+        ['adminCampaignSection', 'adminPartnerSection', 'adminMetricsSection'].forEach(id => {
+            const sec = document.getElementById(id);
+            if (sec) sec.style.display = 'none';
+        });
+        activeBtn.classList.add('active');
+        activeBtn.style.borderColor = '#3b82f6';
+        activeBtn.style.color = '#3b82f6';
+        const activeSecEl = document.getElementById(activeSec);
+        if (activeSecEl) activeSecEl.style.display = 'block';
+
+        if (activeSec === 'adminMetricsSection') {
+            loadAiMetrics();
+        }
+    };
+
     document.getElementById('btnAdminCampaigns').addEventListener('click', (e) => {
-        setSubTab(e.target, 'btnAdminPartners', 'adminCampaignSection', 'adminPartnerSection');
+        setAdminSubTab(e.target, 'adminCampaignSection');
     });
     document.getElementById('btnAdminPartners').addEventListener('click', (e) => {
-        setSubTab(e.target, 'btnAdminCampaigns', 'adminPartnerSection', 'adminCampaignSection');
+        setAdminSubTab(e.target, 'adminPartnerSection');
     });
+    document.getElementById('btnAdminMetrics').addEventListener('click', (e) => {
+        setAdminSubTab(e.target, 'adminMetricsSection');
+    });
+
+    // Run controls
+    document.getElementById('btnRunAgent').addEventListener('click', runAgent);
+    document.getElementById('btnPauseAgent').addEventListener('click', handlePauseResume);
+    document.getElementById('btnCancelAgent').addEventListener('click', cancelAgent);
 
     // Inner Tabs — Coupons
     document.getElementById('btnCouponsList').addEventListener('click', (e) => {
@@ -389,7 +421,7 @@ function renderCoupons() {
             ${disc ? `<div style="font-size: 12px; color: #059669; font-weight: 600; margin-bottom: 4px;">💰 ${disc}</div>` : ''}
             <div class="coupon-meta">
                 <span class="coupon-badge ${statusClass}">${c.status || 'pending'}</span>
-                <span class="coupon-badge ${verifiedClass}">${isV ? '✓ Verified' : 'Unverified'}</span>
+                <span class="coupon-badge ${verifiedClass}">${isV ? (c.status === 'expired' || c.status === 'invalid' ? 'Verified by AI' : '✓ Verified') : 'Unverified'}</span>
                 ${c.partner ? `<span style="font-size: 10px; color: #9ca3af;">${c.partner}</span>` : ''}
             </div>
             ${c.verificationReason ? `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; font-style: italic;">AI: ${c.verificationReason}</div>` : ''}
@@ -686,17 +718,67 @@ async function updateDashboardState() {
     const tasks    = response.currentTasks || [];
     const statuses = response.merchantStatuses || {};
 
-    // Update Agent button
+    // Update Agent button and controls
     const btnToggle = document.getElementById('btnToggleAgent');
     const statusDot = document.getElementById('statusDot');
-    if (isAgentRunning) {
-        btnToggle.textContent = 'Stop AI Agent';
-        btnToggle.className   = 'btn btn-danger';
-        statusDot.style.background = '#10b981';
-    } else {
+    
+    currentAgentRunState = response.agentRunState || 'idle';
+    const checked = response.agentCheckedCount || 0;
+    const total = response.agentTotalCount || 0;
+
+    const btnRun = document.getElementById('btnRunAgent');
+    const btnPause = document.getElementById('btnPauseAgent');
+    const btnCancel = document.getElementById('btnCancelAgent');
+    const progressContainer = document.getElementById('progressBarContainer');
+    const progressLabel = document.getElementById('progressBarLabel');
+    const progressRatio = document.getElementById('progressBarRatio');
+    const progressFill = document.getElementById('progressBarFill');
+
+    if (currentAgentRunState === 'idle') {
+        btnRun.style.display = '';
+        btnPause.style.display = 'none';
+        btnCancel.style.display = 'none';
+        progressContainer.style.display = 'none';
+        statusDot.style.background = '#ef4444';
+        
         btnToggle.textContent = 'Start AI Agent';
         btnToggle.className   = 'btn btn-success';
-        statusDot.style.background = '#ef4444';
+    } else if (currentAgentRunState === 'running') {
+        btnRun.style.display = 'none';
+        btnPause.style.display = '';
+        btnPause.textContent = 'Pause';
+        btnPause.className = 'btn btn-warning';
+        btnCancel.style.display = '';
+        progressContainer.style.display = '';
+        progressLabel.textContent = 'Progress: Running...';
+        progressRatio.textContent = `${checked} / ${total} Checked`;
+        const percentage = total > 0 ? Math.round((checked / total) * 100) : 0;
+        progressFill.style.width = `${percentage}%`;
+        statusDot.style.background = '#10b981';
+
+        btnToggle.textContent = 'Stop AI Agent';
+        btnToggle.className   = 'btn btn-danger';
+    } else if (currentAgentRunState === 'paused') {
+        btnRun.style.display = 'none';
+        btnPause.style.display = '';
+        btnPause.textContent = 'Resume';
+        btnPause.className = 'btn btn-success';
+        btnCancel.style.display = '';
+        progressContainer.style.display = '';
+        progressLabel.textContent = 'Progress: Paused';
+        progressRatio.textContent = `${checked} / ${total} Checked`;
+        const percentage = total > 0 ? Math.round((checked / total) * 100) : 0;
+        progressFill.style.width = `${percentage}%`;
+        statusDot.style.background = '#f59e0b';
+
+        btnToggle.textContent = 'Stop AI Agent';
+        btnToggle.className   = 'btn btn-danger';
+    }
+
+    // If metrics section is visible, update it in real-time
+    const metricsSec = document.getElementById('adminMetricsSection');
+    if (metricsSec && metricsSec.style.display === 'block') {
+        loadAiMetrics();
     }
 
     // Update queue stats
@@ -731,16 +813,46 @@ async function updateDashboardState() {
     }
 }
 
-// ─── Agent Toggle ─────────────────────────────────────────────
+// ─── Agent Toggle & Controls ──────────────────────────────────
+let currentAgentRunState = 'idle';
+
+function runAgent() {
+    chrome.runtime.sendMessage({ type: 'START_AGENT' }, () => {
+        updateDashboardState();
+    });
+}
+
+function pauseAgent() {
+    chrome.runtime.sendMessage({ type: 'PAUSE_AGENT' }, () => {
+        updateDashboardState();
+    });
+}
+
+function resumeAgent() {
+    chrome.runtime.sendMessage({ type: 'RESUME_AGENT' }, () => {
+        updateDashboardState();
+    });
+}
+
+function cancelAgent() {
+    chrome.runtime.sendMessage({ type: 'CANCEL_AGENT' }, () => {
+        updateDashboardState();
+    });
+}
+
+function handlePauseResume() {
+    if (currentAgentRunState === 'paused') {
+        resumeAgent();
+    } else {
+        pauseAgent();
+    }
+}
+
 function toggleAgent() {
     if (isAgentRunning) {
-        chrome.runtime.sendMessage({ type: 'STOP_AGENT' }, () => {
-            updateDashboardState();
-        });
+        cancelAgent();
     } else {
-        chrome.runtime.sendMessage({ type: 'START_AGENT' }, () => {
-            updateDashboardState();
-        });
+        runAgent();
     }
 }
 
@@ -759,4 +871,38 @@ function submitOtp() {
         document.getElementById('otpContainer').style.display = 'none';
         updateDashboardState();
     });
+}
+
+async function loadAiMetrics() {
+    try {
+        const res = await fetch(`${CONFIG.BACKEND_URL}/automation/model-metrics`);
+        if (res.ok) {
+            const result = await res.json();
+            if (result.success && result.data) {
+                const metrics = result.data;
+                document.getElementById('metricAccuracy').textContent = `${metrics.accuracy || 0}%`;
+                document.getElementById('metricF1').textContent = `${metrics.f1Score || 0}%`;
+                document.getElementById('metricPrecision').textContent = `${metrics.precision || 0}%`;
+                document.getElementById('metricRecall').textContent = `${metrics.recall || 0}%`;
+                document.getElementById('metricTotal').textContent = metrics.total || 0;
+                document.getElementById('metricAvgAttempts').textContent = metrics.averageAttempts || 0;
+                document.getElementById('metricOverrides').textContent = metrics.manualOverrideCount || 0;
+
+                // Render error distribution
+                const errorList = document.getElementById('errorDistributionList');
+                if (metrics.errorTypeBreakdown && Object.keys(metrics.errorTypeBreakdown).length > 0) {
+                    let html = '<ul style="margin: 0; padding-left: 20px;">';
+                    for (const [errType, count] of Object.entries(metrics.errorTypeBreakdown)) {
+                        html += `<li><strong>${errType}:</strong> ${count}</li>`;
+                    }
+                    html += '</ul>';
+                    errorList.innerHTML = html;
+                } else {
+                    errorList.innerHTML = '<p class="small-text" style="margin:0;">No errors logged yet.</p>';
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Error loading AI metrics:", err);
+    }
 }

@@ -92,6 +92,12 @@ const partnerMerchantSchema = new Schema(
             default: true,
             index: true,
         },
+
+        /** Saved browser session cookies */
+        cookies: {
+            type: Schema.Types.Mixed,
+            default: null,
+        },
     },
     { timestamps: true }
 );

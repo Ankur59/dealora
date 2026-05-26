@@ -27,10 +27,31 @@ let cookieSyncTimers = {};
 let lastSyncTimes = {};        
 let geminiKeyIndex = 0;        
 
+let agentRunState = 'idle'; // 'idle', 'running', 'paused'
+let agentCheckedCount = 0;
+let agentTotalCount = 0;
+
+// Load initial state
+chrome.storage.local.get(['isRunning', 'currentTasks', 'merchantStatuses', 'agentRunState', 'agentCheckedCount', 'agentTotalCount'], (res) => {
+    isRunning = res.isRunning || false;
+    currentTasks = res.currentTasks || [];
+    merchantStatuses = res.merchantStatuses || {};
+    agentRunState = res.agentRunState || 'idle';
+    agentCheckedCount = res.agentCheckedCount || 0;
+    agentTotalCount = res.agentTotalCount || 0;
+});
+
 // ─── Lifecycle ───────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(() => {
     log('INFO', 'Extension installed.');
-    chrome.storage.local.set({ isRunning: false, currentTasks: [], merchantStatuses: {} });
+    chrome.storage.local.set({ 
+        isRunning: false, 
+        currentTasks: [], 
+        merchantStatuses: {},
+        agentRunState: 'idle',
+        agentCheckedCount: 0,
+        agentTotalCount: 0
+    });
     bootstrapMerchantSessions();
 });
 
@@ -95,15 +116,40 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'START_AGENT') {
         isRunning = true;
-        chrome.storage.local.set({ isRunning });
+        agentRunState = 'running';
+        agentCheckedCount = 0;
+        agentTotalCount = 0;
+        chrome.storage.local.set({ isRunning, agentRunState, agentCheckedCount, agentTotalCount });
         startAgentLoop();
+        fetchAndQueueTasks().then(count => {
+            if (count > 0) {
+                agentTotalCount = count;
+                chrome.storage.local.set({ agentTotalCount });
+            }
+        });
         sendResponse({ status: 'started' });
-    } else if (request.type === 'STOP_AGENT') {
+    } else if (request.type === 'STOP_AGENT' || request.type === 'CANCEL_AGENT') {
         isRunning = false;
-        chrome.storage.local.set({ isRunning });
-        sendResponse({ status: 'stopped' });
+        agentRunState = 'idle';
+        agentCheckedCount = 0;
+        agentTotalCount = 0;
+        chrome.storage.local.set({ isRunning, agentRunState, agentCheckedCount, agentTotalCount });
+        for (let t of currentTasks) {
+            t.status = 'cancelled';
+        }
+        currentTasks = [];
+        chrome.storage.local.set({ currentTasks });
+        sendResponse({ status: 'cancelled' });
+    } else if (request.type === 'PAUSE_AGENT') {
+        agentRunState = 'paused';
+        chrome.storage.local.set({ agentRunState });
+        sendResponse({ status: 'paused' });
+    } else if (request.type === 'RESUME_AGENT') {
+        agentRunState = 'running';
+        chrome.storage.local.set({ agentRunState });
+        sendResponse({ status: 'resumed' });
     } else if (request.type === 'GET_STATE') {
-        sendResponse({ isRunning, currentTasks, merchantStatuses });
+        sendResponse({ isRunning, currentTasks, merchantStatuses, agentRunState, agentCheckedCount, agentTotalCount });
     } else if (request.type === 'UPDATE_MERCHANT_LOGIN') {
         const { domain, merchantName } = request;
         captureAndSyncCookies(domain, merchantName || domain)
@@ -182,11 +228,25 @@ async function startAgentLoop() {
     });
 }
 
+function onTaskFinished() {
+    if (agentRunState && agentRunState !== 'idle') {
+        agentCheckedCount += 1;
+        let stateUpdate = { agentCheckedCount };
+        if (agentCheckedCount >= agentTotalCount) {
+            agentRunState = 'idle';
+            isRunning = false;
+            stateUpdate.agentRunState = 'idle';
+            stateUpdate.isRunning = false;
+        }
+        chrome.storage.local.set(stateUpdate);
+    }
+}
+
 async function fetchAndQueueTasks() {
     try {
         const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
         const res = await fetch(`${BACKEND_URL}/agent/pending-tasks`, { headers });
-        if (!res.ok) return;
+        if (!res.ok) return 0;
         const data = await res.json();
         const newTasks = data.coupons || [];
         for (let task of newTasks) {
@@ -203,6 +263,7 @@ async function fetchAndQueueTasks() {
                         chrome.storage.local.set({ currentTasks });
                     });
                 }
+                onTaskFinished();
                 continue;
             }
 
@@ -213,13 +274,17 @@ async function fetchAndQueueTasks() {
             runAgentSequence(task).finally(() => {
                 currentTasks = currentTasks.filter(t => t.id !== task.id);
                 chrome.storage.local.set({ currentTasks });
+                onTaskFinished();
             });
 
             // Delay between coupons to avoid getting flagged
             const waitMs = Math.random() * (MAX_DELAY_BETWEEN_COUPONS_MS - MIN_DELAY_BETWEEN_COUPONS_MS) + MIN_DELAY_BETWEEN_COUPONS_MS;
             await new Promise(r => setTimeout(r, waitMs));
         }
-    } catch (err) {}
+        return newTasks.length;
+    } catch (err) {
+        return 0;
+    }
 }
 
 async function triggerSingleVerification(couponId) {
@@ -230,12 +295,27 @@ async function triggerSingleVerification(couponId) {
     const code = coupon.couponCode || coupon.code;
     if (!url) throw new Error('No URL');
     if (!code) throw new Error('No coupon code');
-    const task = { id: coupon.id || coupon._id, url, code, brand: coupon.brandName, status: 'running', type: 'verify', message: 'Starting...' };
+    const task = { id: coupon.id || coupon._id, url, code, brand: coupon.brandName, description: coupon.description || '', status: 'running', type: 'verify', message: 'Starting...' };
+
+    chrome.storage.local.get(['agentRunState'], (resState) => {
+        if (!resState.agentRunState || resState.agentRunState === 'idle') {
+            agentRunState = 'running';
+            agentCheckedCount = 0;
+            agentTotalCount = 1;
+            chrome.storage.local.set({
+                agentRunState: 'running',
+                agentCheckedCount: 0,
+                agentTotalCount: 1
+            });
+        }
+    });
+
     currentTasks.push(task);
     chrome.storage.local.set({ currentTasks });
     runAgentSequence(task).finally(() => {
         currentTasks = currentTasks.filter(t => t.id !== task.id);
         chrome.storage.local.set({ currentTasks });
+        onTaskFinished();
     });
 }
 
@@ -294,6 +374,28 @@ async function runAgentSequence(task) {
     while (!isComplete && attempts < maxAttempts) {
         attempts++;
         log('INFO', `────── Step ${attempts}/${maxAttempts} ──────`);
+
+        // Check if agent state is idle/cancelled
+        if (agentRunState === 'idle' || task.status === 'cancelled') {
+            log('INFO', '⏹ Task cancelled by user.');
+            isComplete = true;
+            break;
+        }
+
+        // Wait while paused
+        while (agentRunState === 'paused') {
+            log('INFO', '⏸ Agent paused. Waiting...');
+            await new Promise(r => setTimeout(r, 1000));
+            if (agentRunState === 'idle' || task.status === 'cancelled') {
+                break;
+            }
+        }
+
+        if (agentRunState === 'idle' || task.status === 'cancelled') {
+            log('INFO', '⏹ Task cancelled by user.');
+            isComplete = true;
+            break;
+        }
 
         while (task.status === 'waiting_for_otp') {
             log('INFO', '⏸ Waiting for OTP...');
@@ -486,12 +588,16 @@ function buildPrompt(task, dom, history, warn) {
     const histLines = history.map(h => `- Step ${h.step}: ${h.action} on ${h.selector}`).join('\n');
     
     let objectiveStr = `You are an AI browser agent verifying coupon "${task.code}" for ${task.brand}.
+${task.description ? `COUPON TERMS & CONDITIONS: "${task.description}"` : ''}
+
 DECIDE:
-1. Click/Type/Navigate to reach the coupon entry step.
-2. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
-3. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".
-4. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below. These are unique IDs prefixed with "[data-dl-id=...]".
-5. APPLY BUTTON: If multiple "Apply" buttons exist, always select the one that is physically closest to the input field where you typed the coupon code.`;
+1. SMART MATCH: Before applying the coupon, inspect any cart items, product categories, or order details visible on the current page. Match them against the COUPON TERMS & CONDITIONS above.
+   - If the cart contents or spend amounts violate the coupon terms (e.g. coupon is only for shoes, but cart has electronics; or coupon has a $50 minimum but cart total is $30), immediately evaluate the coupon as "invalid" with reason "Coupon terms/exclusions do not match cart items".
+2. Click/Type/Navigate to reach the coupon entry step.
+3. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
+4. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".
+5. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below. These are unique IDs prefixed with "[data-dl-id=...]".
+6. APPLY BUTTON: If multiple "Apply" buttons exist, always select the one that is physically closest to the input field where you typed the coupon code.`;
 
     if (task.type === 'auth') {
         objectiveStr = `You are an AI browser agent tasked with logging into the website for ${task.brand}.

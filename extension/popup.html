@@ -113,7 +113,23 @@
                     <button id="btnSubmitOtp" class="btn btn-danger" style="padding: 6px;">Submit OTP</button>
                 </div>
                 
-                <button id="btnToggleAgent" class="btn btn-success">Start AI Agent</button>
+                <div id="agentControls" style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button id="btnRunAgent" class="btn btn-success" style="margin-top: 0; flex: 2;">Run</button>
+                        <button id="btnPauseAgent" class="btn btn-warning" style="margin-top: 0; flex: 1; display: none;">Pause</button>
+                        <button id="btnCancelAgent" class="btn btn-danger" style="margin-top: 0; flex: 1; display: none;">Cancel</button>
+                    </div>
+                    <div id="progressBarContainer" style="display: none; margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #4b5563; margin-bottom: 4px;">
+                            <span id="progressBarLabel">Progress: Running...</span>
+                            <span id="progressBarRatio">0 / 0 Checked</span>
+                        </div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; position: relative; width: 100%;">
+                            <div id="progressBarFill" style="background: #3b82f6; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+                <button id="btnToggleAgent" style="display: none;"></button>
 
                 <h4 style="margin-top: 20px; font-size: 14px; color: #374151;">Merchant Sessions</h4>
                 <div id="merchantList">
@@ -209,6 +225,7 @@
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <button class="btn btn-outline active" id="btnAdminCampaigns" style="flex: 1; border-color: #3b82f6; color: #3b82f6;">Campaigns</button>
                     <button class="btn btn-outline" id="btnAdminPartners" style="flex: 1;">Partners</button>
+                    <button class="btn btn-outline" id="btnAdminMetrics" style="flex: 1;">AI Metrics</button>
                 </div>
 
                 <div id="adminCampaignSection" class="admin-section">
@@ -261,6 +278,49 @@
                     <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Configured Partners</h4>
                     <div id="dbPartnerList">
                         <p class="small-text">Loading...</p>
+                    </div>
+                </div>
+
+                <div id="adminMetricsSection" class="admin-section" style="display: none;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">AI Verification Accuracy</h4>
+                    <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricAccuracy" style="font-size: 20px; font-weight: 700; color: #10b981;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Accuracy</div>
+                            </div>
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricF1" style="font-size: 20px; font-weight: 700; color: #3b82f6;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">F1 Score</div>
+                            </div>
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricPrecision" style="font-size: 20px; font-weight: 700; color: #8b5cf6;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Precision</div>
+                            </div>
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricRecall" style="font-size: 20px; font-weight: 700; color: #f59e0b;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Recall</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; border-top: 1px solid #f3f4f6; padding-top: 10px; font-size: 12px; color: #4b5563;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Total Verifications:</span>
+                                <strong id="metricTotal">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Avg Attempts:</span>
+                                <strong id="metricAvgAttempts">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Manual Overrides:</span>
+                                <strong id="metricOverrides">0</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Error Distribution</h4>
+                    <div id="errorDistributionList" style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 12px; color: #4b5563;">
+                        <p class="small-text">No errors logged yet.</p>
                     </div>
                 </div>
             </div>

@@ -44,6 +44,7 @@ router.get("/pending-tasks", requireDashboardAuth, async (req, res) => {
       url: c.couponVisitingLink || c.trackingLink || "",
       code: c.code || c.couponCode || "",
       brand: c.brandName || "",
+      description: c.description || "",
       status: "pending",
       type: "verify",
     }));
@@ -139,9 +140,9 @@ router.post("/tasks/:taskId/result", requireDashboardAuth, async (req, res) => {
     }
 
     // Update Coupon
-    coupon.isVerified = status === "valid";
-    coupon.verifiedAt = status === "valid" ? new Date() : null;
-    coupon.verifiedOn = status === "valid" ? new Date() : null;
+    coupon.isVerified = true;
+    coupon.verifiedAt = new Date();
+    coupon.verifiedOn = new Date();
     coupon.status = status === "valid" ? "active" : "expired";
     await coupon.save();
 
