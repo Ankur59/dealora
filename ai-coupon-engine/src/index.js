@@ -20,7 +20,7 @@ connectDB(process.env.MONGODB_URI)
     server.listen(process.env.PORT || 8000, () => {
       console.log("Server started at port: ", process.env.PORT || 8000);
     })
-    fetchAndNormalizePartnerData("coupomated", "Coupons")
+  
       .catch((err) => {
         console.warn("[Startup] Initial Coupomated sync failed:", err.message);
       });
