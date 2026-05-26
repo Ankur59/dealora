@@ -26,9 +26,10 @@ const col = () => mongoose.connection.db.collection('partnercoupons');
  * @returns {number} reliabilityScore 0-100
  */
 function calculateReliabilityScore(successCount = 0, failedCount = 0) {
-    const numerator = successCount + 5;
+    const numerator = successCount + 7;
     const denominator = successCount + failedCount + 10;
-    return (numerator / denominator) * 100;
+    const score = (numerator / denominator) * 100;
+    return Math.round(score * 100) / 100;
 }
 
 /**
@@ -72,8 +73,8 @@ function calculateTrendScore(discoverCount = 0, lastDiscoverAt = null, now = new
     const hoursSinceDiscover = (now - new Date(lastDiscoverAt)) / (1000 * 60 * 60);
     let trendScore = discoverCount / (1 + hoursSinceDiscover);
 
-    // Clamp to max 100
-    return Math.min(trendScore, 100);
+    // Clamp to max 100 and round to 2 decimal places
+    return Math.round(Math.min(trendScore, 100) * 100) / 100;
 }
 
 /**
@@ -93,12 +94,12 @@ function calculateTrendScore(discoverCount = 0, lastDiscoverAt = null, now = new
  * @returns {number} healthScore
  */
 function calculateHealthScore(discountWeight = 0, reliabilityScore, freshnessScore, trendScore = 0) {
-    return (
-        (discountWeight * 0.4) +
-        (reliabilityScore * 0.4) +
-        (freshnessScore * 0.15) +
-        (trendScore * 0.05)
-    );
+    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
+    const reliabilityMult = reliabilityScore / 100;
+    const freshnessMult = freshnessScore / 100;
+    
+    const score = attractiveness * reliabilityMult * freshnessMult;
+    return Math.round(score * 100) / 100;
 }
 
 /**

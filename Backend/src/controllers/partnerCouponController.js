@@ -54,7 +54,9 @@ function shapeDoc(doc, isRedeemed = false) {
         isInStore: doc.isInStore ?? false,
         isNewUser: doc.isNewUser ?? false,
         isVerified: doc.isVerified ?? false,
-        healthScore: doc.trend?.healthScore ?? null,
+        healthScore: typeof doc.trend?.healthScore === 'number'
+            ? Math.round(doc.trend.healthScore * 100) / 100
+            : null,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
     };
@@ -315,7 +317,7 @@ exports.getPartnerCoupons = async (req, res) => {
             discountType,
             validity,
             offerType,
-            verified,
+            verified = 'true',
         } = req.query;
 
         // Parse category filter: could be single string, array, or comma-separated string
@@ -563,11 +565,10 @@ exports.votePartnerCoupon = async (req, res) => {
         const oldSuccessCount = coupon.successCount || 0;
         const oldFailedCount = coupon.failedCount || 0;
         
-        // Import calculation function from cron
-        const { calculateReliabilityScore } = require('../cron/healthScoreCron');
+        // Import calculation functions from cron
+        const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
         
         const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
-        const oldHealthScore = coupon.trend?.healthScore || 0;
 
         // 3. Compute new success/failed counts
         const newSuccessCount = oldSuccessCount + (outcome === 'success' ? 1 : 0);
@@ -576,10 +577,13 @@ exports.votePartnerCoupon = async (req, res) => {
         // 4. Calculate new reliability score
         const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-        // 5. Atomic removal of old reliability score component and adding the new one with weight 0.4
-        // Formula: newHealthScore = oldHealthScore - (oldReliabilityScore * 0.4) + (newReliabilityScore * 0.4)
-        const baseHealthScore = oldHealthScore - (oldReliabilityScore * 0.4);
-        const newHealthScore = baseHealthScore + (newReliabilityScore * 0.4);
+        // 5. Recalculate health score using the multiplicative pattern
+        const discountWeight = coupon.discountWeight || 0;
+        const createdAt = coupon.createdAt || new Date();
+        const trendScore = coupon.trend?.trendScore || 0;
+        const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
+        const freshnessScore = calculateFreshnessScore(createdAt);
+        const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
 
         // 6. Update database atomically
         const result = await col().updateOne(

@@ -77,11 +77,10 @@ router.post('/', async (req, res) => {
                     const oldSuccessCount = coupon.successCount || 0;
                     const oldFailedCount = coupon.failedCount || 0;
 
-                    // Import calculation helper from cron
-                    const { calculateReliabilityScore } = require('../cron/healthScoreCron');
+                    // Import calculation helpers from cron
+                    const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
 
                     const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
-                    const oldHealthScore = coupon.trend?.healthScore || 0;
 
                     // Compute new success/failed counts
                     const newSuccessCount = oldSuccessCount;
@@ -90,9 +89,13 @@ router.post('/', async (req, res) => {
                     // Recalculate reliability
                     const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-                    // Recalculate health score (removes old reliability contribution and adds the new one with 0.4 weight)
-                    const baseHealthScore = oldHealthScore - (oldReliabilityScore * 0.4);
-                    const newHealthScore = baseHealthScore + (newReliabilityScore * 0.4);
+                    // Recalculate health score using the multiplicative pattern
+                    const discountWeight = coupon.discountWeight || 0;
+                    const createdAt = coupon.createdAt || new Date();
+                    const trendScore = coupon.trend?.trendScore || 0;
+                    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
+                    const freshnessScore = calculateFreshnessScore(createdAt);
+                    const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
 
                     await partnerCouponsCollection.updateOne(
                         { _id: coupon._id },
@@ -249,11 +252,10 @@ router.patch('/:id/resolve', async (req, res) => {
                     const oldSuccessCount = coupon.successCount || 0;
                     const oldFailedCount = coupon.failedCount || 0;
 
-                    // Import calculation helper from cron
-                    const { calculateReliabilityScore } = require('../cron/healthScoreCron');
+                    // Import calculation helpers from cron
+                    const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
 
                     const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
-                    const oldHealthScore = coupon.trend?.healthScore || 0;
 
                     // Compute new success/failed counts
                     const newSuccessCount = oldSuccessCount + (updateField === 'successCount' ? updateValue : 0);
@@ -262,9 +264,13 @@ router.patch('/:id/resolve', async (req, res) => {
                     // Recalculate reliability
                     const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-                    // Recalculate health score (removes old reliability contribution and adds the new one with 0.4 weight)
-                    const baseHealthScore = oldHealthScore - (oldReliabilityScore * 0.4);
-                    const newHealthScore = baseHealthScore + (newReliabilityScore * 0.4);
+                    // Recalculate health score using the multiplicative pattern
+                    const discountWeight = coupon.discountWeight || 0;
+                    const createdAt = coupon.createdAt || new Date();
+                    const trendScore = coupon.trend?.trendScore || 0;
+                    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
+                    const freshnessScore = calculateFreshnessScore(createdAt);
+                    const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
 
                     const result = await partnerCouponsCollection.updateOne(
                         { _id: coupon._id },

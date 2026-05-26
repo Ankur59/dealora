@@ -5,10 +5,11 @@ import { computeDiscountWeight } from '../../../shared/discountWeight.js';
 
 /**
  * Laplace-smoothed reliability score from community votes.
- * Formula: ((s + 5) / (s + f + 10)) * 100
+ * Formula: ((s + 7) / (s + f + 10)) * 100
  */
 function calcReliability(successCount = 0, failedCount = 0) {
-    return ((successCount + 5) / (successCount + failedCount + 10)) * 100;
+    const score = ((successCount + 7) / (successCount + failedCount + 10)) * 100;
+    return Math.round(score * 100) / 100;
 }
 
 /**
@@ -27,20 +28,20 @@ function calcFreshness(createdAt, now = new Date()) {
 function calcTrend(discoverCount = 0, lastDiscoverAt = null, now = new Date()) {
     if (!lastDiscoverAt || discoverCount === 0) return 0;
     const hrs = (now - new Date(lastDiscoverAt)) / (1000 * 60 * 60);
-    return Math.min(discoverCount / (1 + hrs), 100);
+    return Math.round(Math.min(discoverCount / (1 + hrs), 100) * 100) / 100;
 }
 
 /**
- * Final weighted health score.
- * Formula: (discountWeight×0.4) + (reliability×0.4) + (freshness×0.15) + (trend×0.05)
+ * Final product-based health score.
+ * Formula: BaseAttractiveness * (reliability / 100) * (freshness / 100)
  */
 function calcHealthScore(discountWeight = 0, reliability, freshness, trend = 0) {
-    return (
-        (discountWeight * 0.4) +
-        (reliability   * 0.4) +
-        (freshness     * 0.15) +
-        (trend         * 0.05)
-    );
+    const attractiveness = (discountWeight * 0.9) + (trend * 0.1);
+    const reliabilityMult = reliability / 100;
+    const freshnessMult = freshness / 100;
+    
+    const score = attractiveness * reliabilityMult * freshnessMult;
+    return Math.round(score * 100) / 100;
 }
 
 /**
@@ -147,7 +148,7 @@ const normalizeCoupomatedCoupon = (coupon) => {
         couponId: String(coupon.coupon_id),
         code: coupon.coupon_code ?? null,
         description,
-        type: "generic",
+        // type: "generic",
         status: endDate && endDate < now ? "expired" : "active",
         discount: coupon.discount ?? null,
         start: parseDate(coupon.start_date),
@@ -173,9 +174,9 @@ const normalizeCoupomatedCoupon = (coupon) => {
         trend: {
             discoverCount:    0,
             lastDiscoverAt:   null,
-            reliabilityScore,   // 50  (Laplace-smoothed, zero votes)
+            reliabilityScore,   // 70  (Laplace-smoothed, zero votes default boost)
             trendScore,         // 0   (no discover activity)
-            healthScore,        // (discountWeight×0.4) + 20 + 15 + 0
+            healthScore,        // attractiveness * 0.7 * 1.0
         },
         meta: {
             title: coupon.title ?? null,
