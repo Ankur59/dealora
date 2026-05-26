@@ -3,7 +3,7 @@ import geminiService from '../services/gemini.service.js';
 import Merchant from '../models/merchant.model.js';
 import MerchantCredential from '../models/merchantCredential.model.js';
 import proxyManager from '../services/proxyManager.service.js';
-import { io } from '../index.js';
+import { io } from '../socket.js';
 
 /**
  * Fetches dynamic credentials taking manual merchant overrides into account

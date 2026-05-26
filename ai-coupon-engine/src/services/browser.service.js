@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import { EventEmitter } from 'events';
 import Merchant from '../models/merchant.model.js';
-import { io } from '../index.js';
+import { io } from '../socket.js';
 import { getStealthScript } from '../utils/stealth.js';
 import proxyManager from './proxyManager.service.js';
 

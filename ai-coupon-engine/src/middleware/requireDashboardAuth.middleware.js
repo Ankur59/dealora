@@ -12,6 +12,12 @@ const getJwtSecret = () => {
 
 export const requireDashboardAuth = (req, res, next) => {
   try {
+    const extensionKey = req.headers["x-extension-key"];
+    if (extensionKey && extensionKey === (process.env.EXTENSION_API_KEY || "dlr_ext_9f8e7d6c5b4a3210")) {
+      req.isExtension = true;
+      return next();
+    }
+
     let token = req.cookies?.[DASHBOARD_ACCESS_COOKIE];
     const authHeader = req.headers.authorization;
     if (!token && authHeader?.startsWith("Bearer ")) {

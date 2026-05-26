@@ -12,6 +12,9 @@ import couponRouter from "./routes/coupon.route.js"
 import merchantRouter from "./routes/merchant.route.js"
 import authRouter from "./routes/auth.route.js"
 import automationRouter from "./routes/automation.route.js"
+import campaignRouter from "./routes/campaign.route.js"
+import cookiesRouter from "./routes/cookies.route.js"
+import agentRouter from "./routes/agent.route.js"
 import { requireDashboardAuth } from "./middleware/requireDashboardAuth.middleware.js"
 
 const app = express()
@@ -41,7 +44,7 @@ app.use(
         },
         credentials: true,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
+        allowedHeaders: ["Content-Type", "Authorization", "X-Extension-Key"],
     }),
 )
 
@@ -56,5 +59,8 @@ app.use("/api/v1/partners", requireDashboardAuth, partnerRouter)
 app.use("/api/v1/coupons", requireDashboardAuth, couponRouter)
 app.use("/api/v1/merchants", requireDashboardAuth, merchantRouter)
 app.use("/api/v1/automation", requireDashboardAuth, automationRouter)
+app.use("/api/v1/campaigns", requireDashboardAuth, campaignRouter)
+app.use("/api/v1/merchant-cookies", requireDashboardAuth, cookiesRouter)
+app.use("/api/v1/agent", requireDashboardAuth, agentRouter)
 
 export default app
