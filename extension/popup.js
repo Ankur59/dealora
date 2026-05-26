@@ -23,6 +23,9 @@ let dbMerchants = [];     // Admin tab — campaigns from /campaigns
 let dbSyncMerchants = []; // AI Agent tab — merchants from /merchants
 let dbPartners = [];
 let dbCoupons = [];
+let currentCouponPage = 0;
+let hasMoreCoupons = false;
+let totalCouponsCount = 0;
 
 // ─── Form State Persistence ─────────────────────────────────
 // IDs of all inputs/selects/textareas whose values should survive popup close
@@ -134,7 +137,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Coupon search
-    document.getElementById('couponSearchInput').addEventListener('input', renderCoupons);
+    document.getElementById('couponSearchInput').addEventListener('input', () => {
+        currentCouponPage = 0;
+        fetchCoupons();
+    });
+
+    // Coupon pagination
+    document.getElementById('btnPrevPage').addEventListener('click', () => {
+        if (currentCouponPage > 0) {
+            currentCouponPage--;
+            fetchCoupons();
+        }
+    });
+    document.getElementById('btnNextPage').addEventListener('click', () => {
+        if (hasMoreCoupons) {
+            currentCouponPage++;
+            fetchCoupons();
+        }
+    });
 
     // Main Tabs logic
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -252,24 +272,16 @@ async function fetchSyncMerchants() {
 }
 
 async function fetchCoupons() {
+    const searchTerm = (document.getElementById('couponSearchInput')?.value || '').trim();
     try {
-        const res = await fetch(`${CONFIG.BACKEND_URL}/agent/pending-tasks`);
-        if (!res.ok) return;
-        const data = await res.json();
-        // pending-tasks only returns unverified — also get all coupons if we have a generic endpoint
-        // For now we'll use a dedicated coupon list fetch
-    } catch (err) {
-        console.error("Error fetching coupons:", err);
-    }
-
-    // Fetch ALL coupons via a generic search
-    try {
-        const res = await fetch(`${CONFIG.BACKEND_URL}/coupons`);
+        const url = `${CONFIG.BACKEND_URL}/coupons?page=${currentCouponPage}&limit=20&search=${encodeURIComponent(searchTerm)}`;
+        const res = await fetch(url);
         if (res.ok) {
             const data = await res.json();
-            dbCoupons = (data.data && Array.isArray(data.data.items))
-                ? data.data.items
-                : (Array.isArray(data.data) ? data.data : (data.coupons || []));
+            const resultData = data.data || {};
+            dbCoupons = resultData.items || [];
+            totalCouponsCount = resultData.total || 0;
+            hasMoreCoupons = resultData.hasMore || false;
             renderCoupons();
         }
     } catch (err) {
@@ -373,31 +385,26 @@ function renderDbPartners() {
 
 // ─── Render Coupons ──────────────────────────────────────────
 function renderCoupons() {
-    const searchTerm = (document.getElementById('couponSearchInput')?.value || '').toLowerCase();
     const container = document.getElementById('couponList');
     container.innerHTML = '';
 
-    let filtered = dbCoupons;
-    if (searchTerm) {
-        filtered = dbCoupons.filter(c =>
-            (c.couponCode || c.code || '').toLowerCase().includes(searchTerm) ||
-            (c.brandName || '').toLowerCase().includes(searchTerm) ||
-            (c.description || c.couponDetails || c.terms || '').toLowerCase().includes(searchTerm)
-        );
-    }
-
     const isVerified = c => c.verified === true || c.isVerified === true;
 
-    document.getElementById('totalCoupons').textContent = dbCoupons.length;
-    document.getElementById('verifiedCoupons').textContent = dbCoupons.filter(c => isVerified(c)).length;
-    document.getElementById('pendingCoupons').textContent = dbCoupons.filter(c => !isVerified(c)).length;
+    document.getElementById('totalCoupons').textContent = totalCouponsCount;
+    document.getElementById('verifiedCoupons').textContent = 0;
+    document.getElementById('pendingCoupons').textContent = totalCouponsCount;
 
-    if (filtered.length === 0) {
+    // Update pagination controls
+    document.getElementById('couponPageInfo').textContent = `Page ${currentCouponPage + 1}`;
+    document.getElementById('btnPrevPage').disabled = (currentCouponPage === 0);
+    document.getElementById('btnNextPage').disabled = !hasMoreCoupons;
+
+    if (dbCoupons.length === 0) {
         container.innerHTML = '<p class="small-text">No coupons found.</p>';
         return;
     }
 
-    filtered.forEach(c => {
+    dbCoupons.forEach(c => {
         const card = document.createElement('div');
         card.className = 'coupon-card';
 
