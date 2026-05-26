@@ -30,14 +30,31 @@ export class CouponVerificationService {
     if (!coupon.code || coupon.code.trim() === '') {
       return { skip: true, reason: 'No coupon code' };
     }
+    if (coupon.offerType !== 'Coupon') {
+      return { skip: true, reason: 'Offer type is not Coupon' };
+    }
+    if (coupon.isInStore === true || coupon.isInStore === 'true') {
+      return { skip: true, reason: 'In-store only coupon' };
+    }
+    if (coupon.isNewUser === true || coupon.isNewUser === 'true') {
+      return { skip: true, reason: 'New user only coupon' };
+    }
     if (coupon.couponType === 'No cost EMI') {
       return { skip: true, reason: 'Coupon type: No cost EMI' };
     }
-    if (coupon.isInStore === true) {
-      return { skip: true, reason: 'In-store only coupon' };
-    }
-    if (coupon.isNewUser === true) {
-      return { skip: true, reason: 'New user only coupon' };
+    if (coupon.end) {
+      const today = new Date();
+      const endDay = new Date(coupon.end);
+      
+      const isSameDay = endDay.getFullYear() === today.getFullYear() &&
+                        endDay.getMonth() === today.getMonth() &&
+                        endDay.getDate() === today.getDate();
+      if (isSameDay) {
+        return { skip: true, reason: 'Coupon expires today (same day passed away)' };
+      }
+      if (endDay < today) {
+        return { skip: true, reason: 'Coupon expired' };
+      }
     }
     return { skip: false, reason: null };
   }
@@ -57,13 +74,28 @@ export class CouponVerificationService {
     }
     const resolved = await Merchant.findOne({ merchantName: merchant.merchantName });
     const browserMerchantId = resolved ? resolved._id.toString() : merchantId.toString();
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
     const allCoupons = await Coupon.find({
       brandName: merchant.merchantName,
+      offerType: 'Coupon',
+      code: { $ne: null, $gt: '' },
+      isNewUser: { $ne: true },
+      isInStore: { $ne: true },
       $or: [
         { status: 'active' },
         { status: { $exists: false } },
         { status: null },
       ],
+      $and: [
+        {
+          $or: [
+            { end: { $gt: todayEnd } },
+            { end: null },
+            { end: { $exists: false } }
+          ]
+        }
+      ]
     });
 
     const skippedCoupons = [];
@@ -153,13 +185,28 @@ export class CouponVerificationService {
     const resolved = await Merchant.findOne({ merchantName: merchant.merchantName });
     const browserMerchantId = resolved ? resolved._id.toString() : merchantId.toString();
 
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
     const rawCoupons = await Coupon.find({
       brandName: merchant.merchantName,
+      offerType: 'Coupon',
+      code: { $ne: null, $gt: '' },
+      isNewUser: { $ne: true },
+      isInStore: { $ne: true },
       $or: [
         { status: 'active' },
         { status: { $exists: false } },
         { status: null },
       ],
+      $and: [
+        {
+          $or: [
+            { end: { $gt: todayEnd } },
+            { end: null },
+            { end: { $exists: false } }
+          ]
+        }
+      ]
     }).sort({ _id: 1 });
 
     const skippedCoupons = [];

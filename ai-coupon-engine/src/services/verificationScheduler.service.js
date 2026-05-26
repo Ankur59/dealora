@@ -6,7 +6,7 @@ import browserService, { BrowserService } from './browser.service.js';
 import couponVerificationService from './couponVerification.service.js';
 import proxyManager from './proxyManager.service.js';
 import healthScoreService from './healthScore.service.js';
-import { io } from '../index.js';
+import { io } from '../socket.js';
 
 /** Number of coupons to verify per merchant per minute tick */
 const COUPONS_PER_MINUTE = 3;

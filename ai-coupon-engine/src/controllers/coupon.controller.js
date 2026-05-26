@@ -209,3 +209,49 @@ export const updateCouponProvider = async (req, res) => {
     res.status(500).json({ success: false, message });
   }
 };
+
+export const getCouponById = async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id);
+    if (!coupon) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+    res.status(200).json({ success: true, data: coupon });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createCoupon = async (req, res) => {
+  try {
+    const newCoupon = new Coupon(req.body);
+    await newCoupon.save();
+    res.status(201).json({ success: true, data: newCoupon });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const updateCoupon = async (req, res) => {
+  try {
+    const updated = await Coupon.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+    res.status(200).json({ success: true, data: updated });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteCoupon = async (req, res) => {
+  try {
+    const deleted = await Coupon.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+    res.status(200).json({ success: true, message: "Coupon deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
