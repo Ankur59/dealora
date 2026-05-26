@@ -26,6 +26,8 @@ let dbCoupons = [];
 let currentCouponPage = 0;
 let hasMoreCoupons = false;
 let totalCouponsCount = 0;
+let verifiedCouponsCount = 0;
+let pendingCouponsCount = 0;
 
 // ─── Form State Persistence ─────────────────────────────────
 // IDs of all inputs/selects/textareas whose values should survive popup close
@@ -275,15 +277,33 @@ async function fetchCoupons() {
     const searchTerm = (document.getElementById('couponSearchInput')?.value || '').trim();
     try {
         const url = `${CONFIG.BACKEND_URL}/coupons?page=${currentCouponPage}&limit=20&search=${encodeURIComponent(searchTerm)}`;
-        const res = await fetch(url);
-        if (res.ok) {
-            const data = await res.json();
+        const [couponsRes, overviewRes] = await Promise.allSettled([
+            fetch(url),
+            fetch(`${CONFIG.BACKEND_URL}/coupons/overview-counts`)
+        ]);
+
+        if (couponsRes.status === 'fulfilled' && couponsRes.value.ok) {
+            const data = await couponsRes.value.json();
             const resultData = data.data || {};
             dbCoupons = resultData.items || [];
             totalCouponsCount = resultData.total || 0;
             hasMoreCoupons = resultData.hasMore || false;
-            renderCoupons();
         }
+
+        if (overviewRes.status === 'fulfilled' && overviewRes.value.ok) {
+            try {
+                const overviewData = await overviewRes.value.json();
+                if (overviewData.success && overviewData.data) {
+                    totalCouponsCount = overviewData.data.total || 0;
+                    verifiedCouponsCount = overviewData.data.verified || 0;
+                    pendingCouponsCount = overviewData.data.pending || 0;
+                }
+            } catch (err) {
+                console.error("Error parsing overview counts:", err);
+            }
+        }
+
+        renderCoupons();
     } catch (err) {
         console.error("Error fetching all coupons:", err);
     }
@@ -391,8 +411,8 @@ function renderCoupons() {
     const isVerified = c => c.verified === true || c.isVerified === true;
 
     document.getElementById('totalCoupons').textContent = totalCouponsCount;
-    document.getElementById('verifiedCoupons').textContent = 0;
-    document.getElementById('pendingCoupons').textContent = totalCouponsCount;
+    document.getElementById('verifiedCoupons').textContent = verifiedCouponsCount;
+    document.getElementById('pendingCoupons').textContent = pendingCouponsCount;
 
     // Update pagination controls
     document.getElementById('couponPageInfo').textContent = `Page ${currentCouponPage + 1}`;

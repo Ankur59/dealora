@@ -31,14 +31,24 @@ export const listCoupons = async (req, res) => {
   try {
     const limit = parseLimit(req.query.limit);
     const page = parsePage(req.query.page);
+    const searchQ = typeof req.query.search === "string" ? req.query.search.trim() : "";
 
     const filter = {
       code: { $ne: null },
-      isVerified: false,
       isNewUser: false,
       isInStore: false,
       end: { $gt: new Date() }
     };
+
+    if (req.query.isVerified === "true") {
+      filter.isVerified = true;
+    } else if (req.query.isVerified === "false") {
+      filter.isVerified = false;
+    } else {
+      if (req.isExtension && !searchQ) {
+        filter.isVerified = false;
+      }
+    }
 
     const partnerQ =
       typeof req.query.partner === "string" ? req.query.partner.trim() : "";
@@ -46,7 +56,6 @@ export const listCoupons = async (req, res) => {
       filter.partner = new RegExp(escapeRegex(partnerQ), "i");
     }
 
-    const searchQ = typeof req.query.search === "string" ? req.query.search.trim() : "";
     if (searchQ) {
       const searchRegex = new RegExp(escapeRegex(searchQ), "i");
       filter.$or = [
