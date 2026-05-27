@@ -10,6 +10,8 @@ import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.ExclusiveCouponDetailResponseData
 import com.ayaan.dealora.data.api.models.RawCouponListResponseData
 import com.ayaan.dealora.data.api.models.ExclusiveCouponListResponseData
+import com.ayaan.dealora.data.api.models.PartnerCouponListResponseData
+import com.ayaan.dealora.data.api.models.PartnerCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponRedeemResponseData
 import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
@@ -97,4 +99,57 @@ interface CouponApiService {
         @Query("page") page: Int? = null,
         @Query("limit") limit: Int? = null
     ): Response<ApiResponse<RawCouponListResponseData>>
+
+    // ── Partner coupons (exclusive toggle — sourced from ai-coupon-engine) ──────────
+
+    /** Active or expired partner coupons, sorted by discountWeight DESC by default. */
+    @GET("api/partner-coupons")
+    suspend fun getPartnerCoupons(
+        @Query("category")      category:     String? = null,
+        @Query("brand")         brand:        String? = null,
+        @Query("search")        search:       String? = null,
+        @Query("sortBy")        sortBy:       String? = null,
+        @Query("discountType")  discountType: String? = null,
+        @Query("validity")      validity:     String? = null,
+        @Query("page")          page:         Int?    = null,
+        @Query("limit")         limit:        Int?    = null,
+        @Query("tab")           tab:          String? = null,  // "active" | "expired"
+        @Query("offerType")     offerType:    String? = null,  // "Coupon" | "Offer"
+        @Query("verified")      verified:     String? = null
+    ): Response<ApiResponse<PartnerCouponListResponseData>>
+
+    /** Simple search: matches brandName or categories, verified + not expired, sorted by healthScore. */
+    @GET("api/partner-coupons/search")
+    suspend fun searchPartnerCoupons(
+        @Query("q")        q:        String,
+        @Query("category") category: String? = null,
+        @Query("page")     page:     Int? = null,
+        @Query("limit")    limit:    Int? = null
+    ): Response<ApiResponse<PartnerCouponListResponseData>>
+
+    /** Partner coupons this user has already redeemed. */
+    @GET("api/partner-coupons/redeemed")
+    suspend fun getRedeemedPartnerCoupons(
+        @Query("page")  page:  Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResponse<PartnerCouponListResponseData>>
+
+    /** Mark a partner coupon as redeemed — writes to Redemption collection. */
+    @POST("api/partner-coupons/{id}/redeem")
+    suspend fun redeemPartnerCoupon(
+        @Path("id") couponId: String
+    ): Response<ApiResponse<PartnerCouponRedeemResponseData>>
+
+    /** Directly update success/failed counts for a partner coupon (immediate feedback). */
+    @POST("api/partner-coupons/{id}/vote")
+    suspend fun votePartnerCoupon(
+        @Path("id") couponId: String,
+        @Body body: Map<String, String> // { "outcome": "success" | "failure" }
+    ): Response<ApiResponse<Any>>
+
+    /** Track a Discover button click for trend analytics. */
+    @POST("api/partner-coupons/{id}/discover")
+    suspend fun trackPartnerDiscover(
+        @Path("id") couponId: String
+    ): Response<ApiResponse<Any>>
 }

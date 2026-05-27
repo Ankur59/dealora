@@ -7,6 +7,7 @@ import com.ayaan.dealora.data.api.CouponApiService
 import com.ayaan.dealora.data.api.FeatureApiService
 import com.ayaan.dealora.data.api.ProfileApiService
 import com.ayaan.dealora.data.api.FleetApiService
+import com.ayaan.dealora.data.api.PartnerCouponInteractionApiService
 import com.ayaan.dealora.data.api.TermsApiService
 import com.ayaan.dealora.data.repository.ConnectEmailRepository
 import com.ayaan.dealora.data.repository.GmailSyncRepository
@@ -122,6 +123,12 @@ object NetworkModule {
     @Singleton
     fun provideFleetApiService(retrofit: Retrofit): FleetApiService {
         return retrofit.create(FleetApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun providePartnerCouponInteractionApiService(retrofit: Retrofit): PartnerCouponInteractionApiService {
+        return retrofit.create(PartnerCouponInteractionApiService::class.java)
     }
 
     @Provides

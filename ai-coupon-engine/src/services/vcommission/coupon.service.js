@@ -6,7 +6,7 @@ export const syncCouponsVCom = async (coupons, countries = [], categories = []) 
     const ops = coupons.map(c => {
         let normalized = normalizeCoupon(c);
         normalized.countries = countries
-        normalized.categories = categories
+        normalized.categories = (categories ?? []).map(c => String(c).toLowerCase())
         return {
             updateOne: {
                 filter: {

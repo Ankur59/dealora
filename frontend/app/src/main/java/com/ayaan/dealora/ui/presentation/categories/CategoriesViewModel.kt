@@ -5,12 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayaan.dealora.data.api.models.CouponListItem
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.api.models.PartnerCoupon
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.data.repository.CouponRepository
 import com.ayaan.dealora.data.repository.PrivateCouponResult
 import com.ayaan.dealora.data.repository.RawCouponResult
+import com.ayaan.dealora.data.repository.PartnerCouponResult
+import com.ayaan.dealora.data.repository.PartnerCouponRedeemResult
 import com.ayaan.dealora.data.repository.SavedCouponRepository
 import com.ayaan.dealora.data.repository.SyncedAppRepository
+import com.ayaan.dealora.data.util.CategoryMapper
 import com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions
 import com.ayaan.dealora.ui.presentation.couponsList.components.SortOption
 import com.google.firebase.auth.FirebaseAuth
@@ -40,9 +44,9 @@ data class CategoriesUiState(
     val isPublicMode: Boolean = false,
     val savedCouponIds: Set<String> = emptySet(),
 
-    // ── Exclusive (raw scraped) mode state ─────────────────────────────
+    // ── Exclusive (partner coupon) mode state ───────────────────────────
     val isExclusiveMode: Boolean = false,
-    val rawCoupons: List<RawScrapedCoupon> = emptyList(),
+    val rawCoupons: List<PartnerCoupon> = emptyList(),
     val rawCouponsTotal: Int = 0,
     val rawCouponsPage: Int = 1,
     val rawCouponsPages: Int = 1,
@@ -186,29 +190,32 @@ class CategoriesViewModel @Inject constructor(
                     SortOption.EXPIRING_SOON    -> "expiring_soon"
                     SortOption.A_TO_Z           -> "a_z"
                     SortOption.Z_TO_A           -> "z_a"
-                    SortOption.HIGHEST_DISCOUNT -> "discountScore"
-                    else                        -> "discountScore" // default
+                    SortOption.HIGHEST_DISCOUNT -> "discountWeight"
+                    else                        -> null // triggers trend.healthScore DESC default sorting!
                 }
 
                 val filters    = _currentFilters.value
                 val discountType = convertDiscountTypeToApi(filters.discountType)
                 val validity   = filters.getValidityApiValue()
                 val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
+                val mappedCategoryApi = CategoryMapper.getSubcategories(categoryApi)
                 val searchApi  = _searchQuery.value.takeIf { it.isNotBlank() }
 
-                Log.d(TAG, "loadRawCoupons page=$currentPage sortBy=$sortByApi category=$categoryApi search=$searchApi")
+                Log.d(TAG, "loadRawCoupons page=$currentPage sortBy=$sortByApi category=$mappedCategoryApi search=$searchApi")
 
-                when (val result = couponRepository.getRawCoupons(
-                    category = categoryApi,
-                    brand = filters.brand,
-                    search = searchApi,
+                when (val result = couponRepository.getPartnerCoupons(
+                    category     = mappedCategoryApi,
+                    brand        = filters.brand,
+                    search       = searchApi,
                     discountType = discountType,
-                    validity = validity,
-                    sortBy = sortByApi,
-                    page = currentPage,
-                    limit = RAW_PAGE_SIZE
+                    validity     = validity,
+                    sortBy       = sortByApi,
+                    page         = currentPage,
+                    limit        = RAW_PAGE_SIZE,
+                    tab          = "active",
+                    offerType    = "Coupon" // standard coupon filter like CouponsList.kt
                 )) {
-                    is RawCouponResult.Success -> {
+                    is PartnerCouponResult.Success -> {
                         val newCoupons = if (resetPage) result.coupons
                                          else _uiState.value.rawCoupons + result.coupons
                         _uiState.update {
@@ -222,8 +229,8 @@ class CategoriesViewModel @Inject constructor(
                             )
                         }
                     }
-                    is RawCouponResult.Error -> {
-                        Log.e(TAG, "Raw coupons error: ${result.message}")
+                    is PartnerCouponResult.Error -> {
+                        Log.e(TAG, "Partner coupons error: ${result.message}")
                         _uiState.update {
                             it.copy(isLoadingRawCoupons = false, errorMessage = result.message)
                         }
@@ -343,10 +350,10 @@ class CategoriesViewModel @Inject constructor(
         }
     }
 
-    fun saveRawCoupon(coupon: RawScrapedCoupon) {
+    fun saveRawCoupon(coupon: PartnerCoupon) {
         viewModelScope.launch {
             try {
-                val adapter = moshi.adapter(RawScrapedCoupon::class.java)
+                val adapter = moshi.adapter(PartnerCoupon::class.java)
                 savedCouponRepository.saveCoupon(
                     couponId = coupon.id,
                     couponJson = adapter.toJson(coupon),
@@ -392,20 +399,44 @@ class CategoriesViewModel @Inject constructor(
     }
 
     /**
-     * Mark a raw coupon as redeemed locally (raw coupons have no backend redeem endpoint).
-     * We remove it from the list to mirror the dashboard UX.
+     * Mark a partner coupon as redeemed via the backend API and update local list.
      */
     fun redeemRawCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                // Remove from the in-memory list so the UI reflects redemption instantly
-                _uiState.update { state ->
-                    state.copy(rawCoupons = state.rawCoupons.filter { it.id != couponId })
+                when (val result = couponRepository.redeemPartnerCoupon(couponId)) {
+                    is PartnerCouponRedeemResult.Success -> {
+                        _uiState.update { state ->
+                            state.copy(rawCoupons = state.rawCoupons.filter { it.id != couponId })
+                        }
+                        onSuccess()
+                    }
+                    is PartnerCouponRedeemResult.Error -> onError(result.message)
                 }
-                onSuccess()
             } catch (e: Exception) {
-                onError("Unable to mark coupon as redeemed.")
+                onError("Unable to redeem coupon. Please try again.")
             }
+        }
+    }
+
+    /**
+     * Directly vote on a partner coupon's reliability.
+     * outcome: "success" | "failure"
+     */
+    fun votePartnerCoupon(couponId: String, outcome: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "Voting for partner coupon $couponId: $outcome")
+            couponRepository.votePartnerCoupon(couponId, outcome)
+        }
+    }
+
+    /**
+     * Track discover analytics for trend calculations
+     */
+    fun trackPartnerDiscover(couponId: String) {
+        viewModelScope.launch {
+            couponRepository.trackPartnerDiscover(couponId)
+            Log.d(TAG, "Trend discover tracked for partner coupon: $couponId")
         }
     }
 

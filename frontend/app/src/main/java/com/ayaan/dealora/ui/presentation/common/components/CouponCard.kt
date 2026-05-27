@@ -3,7 +3,6 @@ package com.ayaan.dealora.ui.presentation.common.components
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +14,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,12 +41,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 
@@ -86,11 +89,14 @@ fun CouponCard(
     source: String? = null,
     showGreenRedeemedButton: Boolean = false,
     showActionButtons: Boolean = true,
+    merchantLogoUrl: String? = null,
     onDetailsClick: () -> Unit = {},
+    discoverButtonLabel: String = "Discover",
     onDiscoverClick: () -> Unit = {},
     onRedeem: ((String) -> Unit)? = null,
     onSave: ((String) -> Unit)? = null,
-    onRemoveSave: ((String) -> Unit)? = null
+    onRemoveSave: ((String) -> Unit)? = null,
+    healthScore: Double? = null
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
     var isSavedLocal by remember(isSaved) { mutableStateOf(isSaved) }
@@ -136,21 +142,28 @@ fun CouponCard(
                             .background(Color(0xFF1E88A8), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(painter),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-//                        Text(
-//                            text = brandName,
-//                            color = Color.White,
-//                            fontSize = 7.sp,
-//                            fontWeight = FontWeight.Bold,
-//                            lineHeight = 8.sp,
-//                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-//                        )
+                        if (!merchantLogoUrl.isNullOrEmpty()) {
+                            // Load merchant logo from URL with fit scale and padding
+                            AsyncImage(
+                                model = merchantLogoUrl,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .padding(4.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            // Fall back to local resource
+                            Image(
+                                painter = painterResource(painter),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                            )
+                        }
                     }
 
                     // Center Content
@@ -176,49 +189,74 @@ fun CouponCard(
                                 Chip(text = category)
                             }
                             if (expiryDays != null) {
-                                if (expiryDays>0) {
+                                if (expiryDays > 0) {
                                     Chip(text = "Expiry in $expiryDays days")
-                                }else if(expiryDays<0){
+                                } else if (expiryDays < 0) {
                                     Chip(text = "Expired")
-                                }else{
+                                } else {
                                     Chip(text = "Expiring Today")
                                 }
                             }
                         }
                     }
 
-                    // Bookmark Icon with Save Status
+                    // Bookmark Icon and optional Health Score Badge
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clickable {
-                                if (couponId != null) {
-                                    if (isSavedLocal) {
-                                        isSavedLocal = false
-                                        onRemoveSave?.invoke(couponId)
-                                    } else {
-                                        isSavedLocal = true
-                                        onSave?.invoke(couponId)
+                        modifier = Modifier.width(60.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .clickable {
+                                    if (couponId != null) {
+                                        if (isSavedLocal) {
+                                            isSavedLocal = false
+                                            onRemoveSave?.invoke(couponId)
+                                        } else {
+                                            isSavedLocal = true
+                                            onSave?.invoke(couponId)
+                                        }
                                     }
                                 }
-                            }
-                    ) {
-                        Icon(
-                            imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = "Save coupon",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        if (isSavedLocal) {
-                            Text(
-                                text = "Saved",
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                                lineHeight = 10.sp
+                        ) {
+                            Icon(
+                                imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = "Save coupon",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
                             )
+                            if (isSavedLocal) {
+                                Text(
+                                    text = "Saved",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                        }
+
+                        if (healthScore != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val badgeColor = if (healthScore >= 70.0) Color(0xFF4CAF50) else Color(0xFFFFB300)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(badgeColor)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${healthScore.toInt()}",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 12.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -361,7 +399,7 @@ fun CouponCard(
                             enabled = !isRedeemed && !isExpired
                         ) {
                             Text(
-                                text = "Discover",
+                                text = discoverButtonLabel,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

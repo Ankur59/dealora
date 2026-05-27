@@ -21,12 +21,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.api.models.PartnerCoupon
+import com.squareup.moshi.Moshi
 import com.ayaan.dealora.data.repository.PrivateCouponStatisticsResult
 import com.ayaan.dealora.data.repository.SyncedAppRepository
 import com.ayaan.dealora.data.repository.FleetRepository
 import com.ayaan.dealora.data.repository.FleetResult
+import com.ayaan.dealora.data.repository.PartnerCouponResult
+import com.ayaan.dealora.data.repository.PartnerCouponRedeemResult
+import com.ayaan.dealora.data.repository.PartnerCouponInteractionRepository
+import com.ayaan.dealora.data.repository.PartnerInteractionResult
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 
 @HiltViewModel
@@ -37,6 +44,7 @@ class HomeViewModel @Inject constructor(
     private val syncedAppRepository: SyncedAppRepository,
     private val savedCouponRepository: SavedCouponRepository,
     private val fleetRepository: FleetRepository,
+    private val partnerInteractionRepository: PartnerCouponInteractionRepository,
     private val backendAuthRepository: BackendAuthRepository,
     private val firebaseAuth: FirebaseAuth,
     val moshi: Moshi
@@ -53,9 +61,13 @@ class HomeViewModel @Inject constructor(
     private val _savedCouponIds = MutableStateFlow<Set<String>>(emptySet())
     val savedCouponIds: StateFlow<Set<String>> = _savedCouponIds.asStateFlow()
 
+    private var searchJob: Job? = null
+    val searchQuery = MutableStateFlow("")
+
     init {
         observeSavedCoupons()
         fetchPendingInteractions()
+        fetchPendingPartnerInteractions()
     }
 
     private fun observeSavedCoupons() {
@@ -412,6 +424,268 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             allIds.forEach { id -> fleetRepository.resolveInteraction(id, "skipped") }
             _uiState.update { it.copy(pendingInteractions = emptyList(), allPendingInteractionIds = emptyList()) }
+        }
+    }
+
+    // ── Partner Coupon Interactions ────────────────────────────────────────────
+
+    /**
+     * Fetch pending PARTNER coupon interactions for the current user.
+     * These are recorded when the user taps "Discover" on an exclusive/partner
+     * coupon in CouponsList. On next app open the popup asks "did it work?".
+     */
+    fun fetchPendingPartnerInteractions() {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+
+        viewModelScope.launch {
+            when (val result = partnerInteractionRepository.getPendingInteractions(userId)) {
+                is PartnerInteractionResult.Success -> {
+                    val deduplicated = result.data
+                        .groupBy { it.couponId }
+                        .values
+                        .mapNotNull { it.firstOrNull() }
+                    _uiState.update { it.copy(
+                        pendingPartnerInteractions = deduplicated,
+                        allPendingPartnerInteractionIds = result.data.map { it.id }
+                    ) }
+                    Log.d(TAG, "Loaded ${result.data.size} raw partner pending → ${deduplicated.size} deduplicated")
+                }
+                is PartnerInteractionResult.Error -> {
+                    Log.e(TAG, "Error loading pending partner interactions: ${result.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve a PARTNER coupon interaction by couponId.
+     * Resolves all sibling interactions for the same couponId.
+     */
+    fun resolvePartnerInteraction(couponId: String, outcome: String) {
+        val siblings = _uiState.value.pendingPartnerInteractions
+            .filter { it.couponId == couponId }
+            .map { it.id }
+
+        viewModelScope.launch {
+            siblings.forEach { id ->
+                partnerInteractionRepository.resolveInteraction(id, outcome)
+            }
+            _uiState.update { s ->
+                s.copy(
+                    pendingPartnerInteractions = s.pendingPartnerInteractions.filter { it.couponId != couponId }
+                )
+            }
+            Log.d(TAG, "Resolved ${siblings.size} partner interaction(s) for coupon $couponId as $outcome")
+        }
+    }
+
+    /**
+     * Skip all pending partner interactions.
+     */
+    fun skipAllPartnerInteractions() {
+        val allIds = _uiState.value.allPendingPartnerInteractionIds
+        viewModelScope.launch {
+            allIds.forEach { id -> partnerInteractionRepository.resolveInteraction(id, "skipped") }
+            _uiState.update {
+                it.copy(pendingPartnerInteractions = emptyList(), allPendingPartnerInteractionIds = emptyList())
+            }
+        }
+    }
+
+    // ── Search & Partner Coupon Operations ───────────────────────────────────
+
+    /**
+     * Called whenever user types in the search bar.
+     * 
+     * Validation:
+     * - Requires minimum 3 characters to trigger search
+     * - Debounces API calls by 500ms to avoid excessive requests
+     * - Clears results if user clears the search
+     */
+    fun onSearchQueryChanged(query: String) {
+        searchQuery.value = query
+        
+        // If search is blank, clear results and cancel any pending searches
+        if (query.isBlank()) {
+            searchJob?.cancel()
+            _uiState.update {
+                it.copy(
+                    searchCoupons = emptyList(),
+                    searchCouponsTotal = 0,
+                    searchCouponsPage = 1,
+                    searchCouponsPages = 1,
+                    isLoadingSearchCoupons = false,
+                    searchError = null,
+                    searchCategories = emptyList(),
+                    selectedSearchCategory = null
+                )
+            }
+            Log.d(TAG, "Search cleared - showing empty state")
+            return
+        }
+        
+        // Minimum 3 characters required for search
+        if (query.trim().length < 3) {
+            Log.d(TAG, "Search query too short (${query.length} chars) - need at least 3")
+            _uiState.update {
+                it.copy(
+                    searchCoupons = emptyList(),
+                    searchCouponsTotal = 0,
+                    searchCouponsPage = 1,
+                    searchCouponsPages = 1,
+                    isLoadingSearchCoupons = false,
+                    searchError = null,
+                    searchCategories = emptyList(),
+                    selectedSearchCategory = null
+                )
+            }
+            return
+        }
+        
+        // Debounce search API calls (500ms)
+        // Cancel previous search job if user is still typing
+        searchJob?.cancel()
+        _uiState.update { it.copy(selectedSearchCategory = null) }
+        searchJob = viewModelScope.launch {
+            delay(500) // 500ms debounce for better performance
+            loadSearchCoupons(resetPage = true)
+        }
+        
+        Log.d(TAG, "Search query updated: '$query' (${query.length} chars) - will execute after debounce")
+    }
+
+    fun onSearchCategoryChanged(category: String?) {
+        _uiState.update { it.copy(selectedSearchCategory = category) }
+        loadSearchCoupons(resetPage = true)
+    }
+
+    fun loadSearchCoupons(resetPage: Boolean = true) {
+        val query = searchQuery.value
+        if (query.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val currentPage = if (resetPage) 1 else (_uiState.value.searchCouponsPage + 1)
+                val selectedCategory = _uiState.value.selectedSearchCategory
+                if (resetPage) {
+                    _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null, searchCoupons = emptyList()) }
+                } else {
+                    _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null) }
+                }
+
+                Log.d(TAG, "loadSearchCoupons page=$currentPage query=$query category=$selectedCategory")
+
+                when (val result = couponRepository.searchPartnerCoupons(
+                    q        = query,
+                    category = selectedCategory,
+                    page     = currentPage,
+                    limit    = 20,
+                )) {
+                    is PartnerCouponResult.Success -> {
+                        val newCoupons = if (resetPage) result.coupons
+                                         else _uiState.value.searchCoupons + result.coupons
+                        _uiState.update {
+                            it.copy(
+                                searchCoupons = newCoupons,
+                                searchCouponsTotal = result.total,
+                                searchCouponsPage = result.page,
+                                searchCouponsPages = result.pages,
+                                isLoadingSearchCoupons = false,
+                                searchCategories = if (selectedCategory == null && resetPage) result.categories else it.searchCategories,
+                                searchError = if (newCoupons.isEmpty()) "No verified coupons found" else null
+                            )
+                        }
+                    }
+                    is PartnerCouponResult.Error -> {
+                        Log.e(TAG, "Search coupons error: ${result.message}")
+                        _uiState.update {
+                            it.copy(isLoadingSearchCoupons = false, searchError = result.message)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "loadSearchCoupons exception", e)
+                _uiState.update { it.copy(isLoadingSearchCoupons = false, searchError = e.message) }
+            }
+        }
+    }
+
+    fun loadNextSearchPage() {
+        val state = _uiState.value
+        if (state.isLoadingSearchCoupons) return
+        if (state.searchCouponsPage >= state.searchCouponsPages) return
+        loadSearchCoupons(resetPage = false)
+    }
+
+    fun savePartnerCoupon(coupon: PartnerCoupon) {
+        viewModelScope.launch {
+            try {
+                val adapter = moshi.adapter(PartnerCoupon::class.java)
+                savedCouponRepository.saveCoupon(
+                    couponId = coupon.id,
+                    couponJson = adapter.toJson(coupon),
+                    couponType = "raw"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "savePartnerCoupon error", e)
+            }
+        }
+    }
+
+    fun redeemPartnerCoupon(couponId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                when (val result = couponRepository.redeemPartnerCoupon(couponId)) {
+                    is PartnerCouponRedeemResult.Success -> {
+                        // Mark as redeemed locally/optimistically
+                        _uiState.update { state ->
+                            state.copy(searchCoupons = state.searchCoupons.map {
+                                if (it.id == couponId) it.copy(isRedeemed = true) else it
+                            })
+                        }
+                        onSuccess()
+                    }
+                    is PartnerCouponRedeemResult.Error -> onError(result.message)
+                }
+            } catch (e: Exception) {
+                onError("Unable to redeem coupon. Please try again.")
+            }
+        }
+    }
+
+    fun trackPartnerDiscover(couponId: String) {
+        viewModelScope.launch {
+            couponRepository.trackPartnerDiscover(couponId)
+        }
+    }
+
+    fun recordPartnerDiscover(coupon: PartnerCoupon) {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                partnerInteractionRepository.recordInteraction(
+                    userId     = userId,
+                    couponId   = coupon.couponId ?: coupon.id,
+                    brandName  = coupon.brandName,
+                    couponCode = coupon.couponCode,
+                    couponLink = coupon.couponLink,
+                    action     = "discover"
+                )
+                Log.d(TAG, "Partner discover interaction recorded for ${coupon.brandName}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to record partner discover interaction", e)
+            }
+        }
+        viewModelScope.launch {
+            couponRepository.trackPartnerDiscover(coupon.id)
+            Log.d(TAG, "Trend discover tracked for partner coupon: ${coupon.id}")
+        }
+    }
+
+    fun votePartnerCoupon(couponId: String, outcome: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "Voting for partner coupon $couponId: $outcome")
+            couponRepository.votePartnerCoupon(couponId, outcome)
         }
     }
 }

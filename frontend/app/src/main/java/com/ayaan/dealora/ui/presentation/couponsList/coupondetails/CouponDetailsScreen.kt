@@ -19,9 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,8 +36,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -193,6 +198,7 @@ fun CouponDetailsContent(
 
     // State for redeem dialog
     var showRedeemDialog by remember { mutableStateOf(false) }
+    var showPartnerVoteDialog by remember { mutableStateOf(false) }
     var showRedeemSuccess by remember { mutableStateOf(false) }
     var redeemError by remember { mutableStateOf<String?>(null) }
 
@@ -207,16 +213,26 @@ fun CouponDetailsContent(
         //   (local-only removal, no backend call needed for scraped coupons).
         // The websiteLink / couponVisitingLink fields are populated for both types.
         BottomActionButtons(couponLink = coupon.websiteLink?.toString(), onRedeemed = {
-            // Show confirmation dialog — VM decides how to handle based on coupon type
-            showRedeemDialog = true
+            // For partner coupons, we show the "Did it work?" dialog immediately.
+            // For others, we show the generic "Mark as Redeemed?" dialog.
+            if (coupon.userId == "partner_coupon") {
+                showPartnerVoteDialog = true
+            } else {
+                showRedeemDialog = true
+            }
         }, onDiscoverClick = {
+            coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let { code ->
+                clipboardManager.setText(AnnotatedString(code))
+            }
             val websiteUrl = coupon.websiteLink?.toString()?.trim()
                 ?.takeIf { it.isNotEmpty() }
 
             if (websiteUrl != null) {
-                // Record discovery interaction for fleet engine
+                // Record for fleet engine (scraped/exclusive coupons — no-ops for partner)
                 viewModel.recordInteraction("discover")
-                
+                // Record for partner coupon interaction engine (no-ops for non-partner)
+                viewModel.recordPartnerInteraction("discover")
+
                 try {
                     val uri = Uri.parse(
                         if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
@@ -255,7 +271,8 @@ fun CouponDetailsContent(
                     initial = coupon.display?.initial ?: coupon.brandName?.toString()?.firstOrNull()
                         ?.toString() ?: "?",
                     isStackable = coupon.display?.isStackable ?: false,
-                    userType = coupon.userType?.toString()
+                    userType = coupon.userType?.toString(),
+                    logoUrl = coupon.base64ImageUrl?.toString()
                 )
             }
 
@@ -277,19 +294,21 @@ fun CouponDetailsContent(
 
             // Minimum Order Chip
             item {
-                val minOrderText = coupon.minimumOrder?.toString()?.trim()?.let { raw ->
-                    val num = raw.toDoubleOrNull()
-                    when {
-                        num == null || num <= 0.0 -> "No minimum spend"
-                        else -> "Min. spend \u20B9${num.toInt()}"
-                    }
-                } ?: "No minimum spend"
+                if (coupon.userId != "partner_coupon") {
+                    val minOrderText = coupon.minimumOrder?.toString()?.trim()?.let { raw ->
+                        val num = raw.toDoubleOrNull()
+                        when {
+                            num == null || num <= 0.0 -> "No minimum spend"
+                            else -> "Min. spend \u20B9${num.toInt()}"
+                        }
+                    } ?: "No minimum spend"
 
-                val isNoMin = minOrderText == "No minimum spend"
-                Chip(
-                    text = minOrderText,
-                    backgroundColor = if (isNoMin) Color(0xFFD1F5D3) else Color(0xFFFFE8C8)
-                )
+                    val isNoMin = minOrderText == "No minimum spend"
+                    Chip(
+                        text = minOrderText,
+                        backgroundColor = if (isNoMin) Color(0xFFD1F5D3) else Color(0xFFFFE8C8)
+                    )
+                }
             }
 
             item {
@@ -300,7 +319,11 @@ fun CouponDetailsContent(
             item {
                 CouponCodeCard(
                     couponCode = coupon.couponCode,
-                    couponLink = coupon.couponVisitingLink,
+                    couponLink = if (coupon.userId == "partner_coupon") {
+                        // Do not show the tracking link card directly on partnercoupon details page in the middle of the screen.
+                        // Discover button still works perfectly because it reads websiteLink from the coupon data.
+                        null
+                    } else null,
                     onCopyCode = {
                         coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let {
                             clipboardManager.setText(AnnotatedString(it))
@@ -312,6 +335,7 @@ fun CouponDetailsContent(
                         // For links that also copy code
                         viewModel.recordInteraction("copy")
                         viewModel.recordInteraction("discover")
+                        viewModel.recordPartnerInteraction("discover")
                         
                         coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let { link ->
                             try {
@@ -428,11 +452,90 @@ fun CouponDetailsContent(
                         text = "Cancel",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF666666)
                     )
                 }
             })
     }
+
+    // --- Partner Feedback Dialog (Immediate) ---
+    if (showPartnerVoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showPartnerVoteDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    text = "Did this coupon work?",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Your feedback helps us keep the best deals for everyone!",
+                        fontSize = 14.sp,
+                        color = Color(0xFF666666),
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // "Yes, it worked" button
+                    Button(
+                        onClick = {
+                            showPartnerVoteDialog = false
+                            viewModel.votePartnerCoupon("success")
+                            viewModel.redeemCoupon(onSuccess = {
+                                showRedeemSuccess = true
+                            }, onError = { error ->
+                                redeemError = error
+                            })
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text("Yes, it worked!", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    // "No, it failed" button
+                    OutlinedButton(
+                        onClick = {
+                            showPartnerVoteDialog = false
+                            viewModel.votePartnerCoupon("failure")
+                            viewModel.redeemCoupon(onSuccess = {
+                                showRedeemSuccess = true
+                            }, onError = { error ->
+                                redeemError = error
+                            })
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE53935)),
+                        border = BorderStroke(1.dp, Color(0xFFE53935)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text("No, it didn't work", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    // "Cancel" button
+                    TextButton(
+                        onClick = { showPartnerVoteDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("Cancel", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {}
+        )
+    }
+
 
     // Success Dialog
     if (showRedeemSuccess) {
@@ -508,7 +611,8 @@ fun BrandHeader(
     daysUntilExpiry: Int?,
     initial: String,
     isStackable: Boolean = false,
-    userType: String? = null
+    userType: String? = null,
+    logoUrl: String? = null
 ) {
     val painter: Int = remember(brandName) {
         getBrandLogoResource(brandName.replace("\n", "").trim().lowercase())
@@ -525,16 +629,26 @@ fun BrandHeader(
                 .background(Color(0xFF00BFA5)),
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(painter),
-                contentDescription = "BrnadLogo",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-            )
-//            Text(
-//                text = initial, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White
-//            )
+            if (!logoUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = "BrandLogo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .padding(4.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Image(
+                    painter = painterResource(painter),
+                    contentDescription = "BrnadLogo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
+            }
         }
 
         Column {

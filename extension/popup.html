@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dealora AI Agent Admin</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+        body { width: 380px; font-family: 'Inter', sans-serif; margin: 0; background: #f9fafb; }
+        .header { background: #111827; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .main { padding: 15px; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 10px; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; margin-bottom: 5px; font-size: 12px; color: #4b5563; }
+        .input-group input, .input-group select, .input-group textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px; font-family: inherit; font-size: 13px; }
+        .input-group textarea { resize: vertical; min-height: 50px; }
+        
+        .merchant-item { background: white; border: 1px solid #e5e7eb; padding: 10px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .merchant-name { font-weight: 600; font-size: 14px; }
+        .merchant-status { font-size: 12px; color: #ef4444; }
+        .merchant-status.logged-in { color: #10b981; }
+        .btn-open { background: #f3f4f6; color: #111827; padding: 5px 10px; font-size: 12px; border-radius: 4px; text-decoration: none; border: 1px solid #d1d5db; cursor: pointer; }
+        
+        .queue-stats { background: white; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 15px; text-align: center; }
+        .queue-stats h3 { margin: 0 0 5px 0; font-size: 24px; color: #3b82f6; }
+        .queue-stats p { margin: 0; font-size: 12px; color: #6b7280; }
+
+        .tabs { display: flex; border-bottom: 1px solid #e5e7eb; margin-bottom: 15px; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: none; cursor: pointer; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; font-size: 12px; }
+        .tab-btn.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .small-text { font-size: 11px; color: #6b7280; }
+
+        /* Coupon card */
+        .coupon-card { background: white; border: 1px solid #e5e7eb; padding: 12px; border-radius: 8px; margin-bottom: 10px; position: relative; }
+        .coupon-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .coupon-code { font-family: 'Courier New', monospace; font-weight: 700; font-size: 15px; color: #111827; background: #f3f4f6; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+        .coupon-brand { font-size: 12px; font-weight: 600; color: #6b7280; }
+        .coupon-desc { font-size: 12px; color: #4b5563; margin-bottom: 6px; line-height: 1.4; }
+        .coupon-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .coupon-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .badge-active { background: #d1fae5; color: #065f46; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-expired { background: #fee2e2; color: #991b1b; }
+        .badge-invalid { background: #fecaca; color: #7f1d1d; }
+        .badge-valid { background: #d1fae5; color: #065f46; }
+        .badge-verified { background: #dbeafe; color: #1e40af; }
+        .badge-unverified { background: #f3f4f6; color: #6b7280; }
+        .map-badge { font-size: 10px; padding: 1px 4px; border-radius: 4px; background: #f3f4f6; color: #6b7280; font-weight: 600; }
+        .map-badge.mapped { background: #dcfce7; color: #166534; }
+        .coupon-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .coupon-actions button { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; }
+        .btn-verify { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+        .btn-verify:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sm-danger { background: #fee2e2; color: #991b1b; }
+
+        /* Scrollable content areas */
+        .scroll-area { max-height: 300px; overflow-y: auto; }
+        .scroll-area::-webkit-scrollbar { width: 4px; }
+        .scroll-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <span class="logo-text">Dealora AI Agent</span>
+        <div id="statusDot" style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></div>
+    </header>
+
+    <main class="main">
+        <!-- Step 1: Login -->
+        <section id="stepLogin" class="step active">
+            <div class="input-group">
+                <label>Admin Username</label>
+                <input type="text" id="username" placeholder="admin" />
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="••••••••" />
+            </div>
+            <button id="btnLogin" class="btn btn-primary">Login to Dealora</button>
+        </section>
+
+        <!-- Step 2: Dashboard -->
+        <section id="stepDashboard" class="step">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="agentTab">AI Agent</button>
+                <button class="tab-btn" data-tab="couponsTab">Coupons</button>
+                <button class="tab-btn" data-tab="adminTab">Admin</button>
+            </div>
+
+            <!-- Agent Tab Content -->
+            <div id="agentTab" class="tab-content active">
+                <div class="queue-stats">
+                    <h3 id="activeTasks">0</h3>
+                    <p>Parallel Verifications Running</p>
+                </div>
+                
+                <div id="otpContainer" style="display: none; background: #fee2e2; padding: 15px; border-radius: 6px; border: 1px solid #ef4444; margin-bottom: 15px;">
+                    <h4 style="margin: 0 0 5px 0; color: #b91c1c; font-size: 14px;">Action Required</h4>
+                    <p id="otpMessage" style="font-size: 12px; margin: 0 0 10px 0; color: #7f1d1d;">Enter the verification code to continue.</p>
+                    <div class="input-group">
+                        <input type="text" id="otpInput" placeholder="Enter OTP" style="margin-bottom: 5px;" />
+                    </div>
+                    <button id="btnSubmitOtp" class="btn btn-danger" style="padding: 6px;">Submit OTP</button>
+                </div>
+                
+                <div id="agentControls" style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button id="btnRunAgent" class="btn btn-success" style="margin-top: 0; flex: 2;">Run</button>
+                        <button id="btnPauseAgent" class="btn btn-warning" style="margin-top: 0; flex: 1; display: none;">Pause</button>
+                        <button id="btnCancelAgent" class="btn btn-danger" style="margin-top: 0; flex: 1; display: none;">Cancel</button>
+                    </div>
+                    <div id="progressBarContainer" style="display: none; margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #4b5563; margin-bottom: 4px;">
+                            <span id="progressBarLabel">Progress: Running...</span>
+                            <span id="progressBarRatio">0 / 0 Checked</span>
+                        </div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; position: relative; width: 100%;">
+                            <div id="progressBarFill" style="background: #3b82f6; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+                <button id="btnToggleAgent" style="display: none;"></button>
+
+                <h4 style="margin-top: 20px; font-size: 14px; color: #374151;">Merchant Sessions</h4>
+                <div id="merchantList">
+                    <p class="small-text">Loading merchants from DB...</p>
+                </div>
+            </div>
+
+            <!-- Coupons Tab Content -->
+            <div id="couponsTab" class="tab-content">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button class="btn btn-outline active" id="btnCouponsList" style="flex: 1; border-color: #3b82f6; color: #3b82f6;">View Coupons</button>
+                    <button class="btn btn-outline" id="btnCouponsAdd" style="flex: 1;">Add Coupon</button>
+                </div>
+
+                <!-- Coupon List View -->
+                <div id="couponListSection">
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" id="couponSearchInput" placeholder="Search by code, brand…" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px;" />
+                    </div>
+                    <div id="couponStats" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                        <div style="flex: 1; text-align: center; background: white; padding: 8px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div id="totalCoupons" style="font-size: 18px; font-weight: 700; color: #3b82f6;">0</div>
+                            <div style="font-size: 10px; color: #6b7280;">Total</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; background: white; padding: 8px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div id="verifiedCoupons" style="font-size: 18px; font-weight: 700; color: #10b981;">0</div>
+                            <div style="font-size: 10px; color: #6b7280;">Verified</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; background: white; padding: 8px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div id="pendingCoupons" style="font-size: 18px; font-weight: 700; color: #f59e0b;">0</div>
+                            <div style="font-size: 10px; color: #6b7280;">Pending</div>
+                        </div>
+                    </div>
+                    <div id="couponList" class="scroll-area">
+                        <p class="small-text">Loading coupons...</p>
+                    </div>
+                    <div id="couponPagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                        <button id="btnPrevPage" class="btn btn-outline" style="margin-top: 0; padding: 5px 10px; font-size: 11px; width: auto; flex: 0 1 auto;">Previous</button>
+                        <span id="couponPageInfo" style="font-size: 12px; color: #4b5563;">Page 1</span>
+                        <button id="btnNextPage" class="btn btn-outline" style="margin-top: 0; padding: 5px 10px; font-size: 11px; width: auto; flex: 0 1 auto;">Next</button>
+                    </div>
+                </div>
+
+                <!-- Add Coupon Form -->
+                <div id="couponAddSection" style="display: none;">
+                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div class="input-group">
+                            <label>Partner Network</label>
+                            <select id="couponPartner">
+                                <option value="">Select Partner...</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Brand Name *</label>
+                            <input type="text" id="couponBrandName" placeholder="e.g. Amazon, Flipkart" />
+                        </div>
+                        <div class="input-group">
+                            <label>Coupon Code *</label>
+                            <input type="text" id="couponCode" placeholder="e.g. SAVE20" />
+                        </div>
+                        <div class="input-group">
+                            <label>Description</label>
+                            <textarea id="couponDescription" placeholder="e.g. 20% off on electronics"></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label>Discount</label>
+                            <input type="text" id="couponDiscount" placeholder="e.g. 20% or ₹500" />
+                        </div>
+                        <div class="input-group">
+                            <label>Type</label>
+                            <select id="couponType">
+                                <option value="generic">Generic</option>
+                                <option value="exclusive">Exclusive</option>
+                                <option value="one_time">One-Time</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Visiting / Tracking Link</label>
+                            <input type="text" id="couponLink" placeholder="https://www.amazon.in/checkout" />
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <div class="input-group" style="flex: 1;">
+                                <label>Start Date</label>
+                                <input type="date" id="couponStart" />
+                            </div>
+                            <div class="input-group" style="flex: 1;">
+                                <label>End Date</label>
+                                <input type="date" id="couponEnd" />
+                            </div>
+                        </div>
+                        <button id="btnSaveCoupon" class="btn btn-primary" style="padding: 8px; margin-top: 5px;">Save Coupon</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Tab Content -->
+            <div id="adminTab" class="tab-content">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button class="btn btn-outline active" id="btnAdminCampaigns" style="flex: 1; border-color: #3b82f6; color: #3b82f6;">Campaigns</button>
+                    <button class="btn btn-outline" id="btnAdminPartners" style="flex: 1;">Partners</button>
+                    <button class="btn btn-outline" id="btnAdminMetrics" style="flex: 1;">AI Metrics</button>
+                </div>
+
+                <div id="adminCampaignSection" class="admin-section">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Add Campaign (Merchant)</h4>
+                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+                        <div class="input-group">
+                            <label>Partner Network</label>
+                            <select id="newMerchantPartner">
+                                <option value="">Select Partner...</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Merchant / Campaign Name</label>
+                            <input type="text" id="newMerchantName" placeholder="e.g. Amazon India" />
+                        </div>
+                        <div class="input-group">
+                            <label>Domain</label>
+                            <input type="text" id="newMerchantDomain" placeholder="e.g. amazon.in" />
+                        </div>
+                        <div class="input-group">
+                            <label>Login URL</label>
+                            <input type="text" id="newMerchantUrl" placeholder="e.g. https://www.amazon.in/login" />
+                        </div>
+                        <button id="btnAddMerchant" class="btn btn-primary" style="padding: 8px; margin-top: 5px;">Save Campaign</button>
+                    </div>
+                    
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Database Campaigns</h4>
+                    <div id="dbMerchantList">
+                        <p class="small-text">Loading...</p>
+                    </div>
+                </div>
+
+                <div id="adminPartnerSection" class="admin-section" style="display: none;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Add New Partner</h4>
+                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+                        <div class="input-group">
+                            <label>Partner Name</label>
+                            <input type="text" id="newPartnerName" placeholder="e.g. Impact, CJ" />
+                        </div>
+                        <div class="input-group">
+                            <label>Status</label>
+                            <select id="newPartnerStatus">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <button id="btnAddPartner" class="btn btn-primary" style="padding: 8px; margin-top: 5px;">Save Partner</button>
+                    </div>
+                    
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Configured Partners</h4>
+                    <div id="dbPartnerList">
+                        <p class="small-text">Loading...</p>
+                    </div>
+                </div>
+
+                <div id="adminMetricsSection" class="admin-section" style="display: none;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">AI Verification Accuracy</h4>
+                    <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricAccuracy" style="font-size: 20px; font-weight: 700; color: #10b981;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Accuracy</div>
+                            </div>
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricF1" style="font-size: 20px; font-weight: 700; color: #3b82f6;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">F1 Score</div>
+                            </div>
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricPrecision" style="font-size: 20px; font-weight: 700; color: #8b5cf6;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Precision</div>
+                            </div>
+                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                                <div id="metricRecall" style="font-size: 20px; font-weight: 700; color: #f59e0b;">0%</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Recall</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; border-top: 1px solid #f3f4f6; padding-top: 10px; font-size: 12px; color: #4b5563;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Total Verifications:</span>
+                                <strong id="metricTotal">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Avg Attempts:</span>
+                                <strong id="metricAvgAttempts">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Manual Overrides:</span>
+                                <strong id="metricOverrides">0</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Error Distribution</h4>
+                    <div id="errorDistributionList" style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 12px; color: #4b5563;">
+                        <p class="small-text">No errors logged yet.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="btnLogout" class="btn btn-outline" style="margin-top: 20px;">Logout</button>
+        </section>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>

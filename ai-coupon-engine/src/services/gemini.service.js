@@ -12,6 +12,7 @@ export class GeminiService {
     this.apiKeys = this.loadApiKeys();
     this.currentKeyIndex = 0;
     this.validatedKeys = new Set();
+    this.keyValidationCache = new Map(); // key -> { valid: boolean, timestamp: number }
     // gemini-3-flash-preview is a valid experimental model
     this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
   }
@@ -43,19 +44,25 @@ export class GeminiService {
   }
 
   async validateKey(key) {
+    const cacheEntry = this.keyValidationCache.get(key);
+    const now = Date.now();
+    if (cacheEntry && (now - cacheEntry.timestamp < 15 * 60 * 1000)) { // 15 min TTL
+      return cacheEntry.valid;
+    }
     if (this.validatedKeys.has(key)) return true;
     try {
       await axios.post(`${this.apiUrl}?key=${key}`, {
         contents: [{ parts: [{ text: 'Hi' }] }],
       }, { timeout: 10000 });
       this.validatedKeys.add(key);
+      this.keyValidationCache.set(key, { valid: true, timestamp: now });
       return true;
     } catch (err) {
-      if (err.response?.status === 400 || err.response?.status === 401 || err.response?.status === 403) {
-        return false;
-      }
-      // Unknown error, still count as invalid for safety
-      return false;
+      const isAuthErr = err.response?.status === 400 || err.response?.status === 401 || err.response?.status === 403;
+      const isValid = !isAuthErr; // Network issues shouldn't blacklist the key forever
+      this.keyValidationCache.set(key, { valid: isValid, timestamp: now });
+      if (!isValid) this.validatedKeys.delete(key);
+      return isValid;
     }
   }
 
@@ -65,18 +72,20 @@ export class GeminiService {
       throw new Error('No GEMINI_API_KEYS configured in .env. Please add GEMINI_API_KEY or GEMINI_API_KEYS to your environment.');
     }
 
+    const parts = [{ text: prompt }];
+    if (screenshotBase64) {
+      parts.push({
+        inlineData: {
+          mimeType: 'image/png',
+          data: screenshotBase64,
+        },
+      });
+    }
+
     const payload = {
       contents: [
         {
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: 'image/png',
-                data: screenshotBase64,
-              },
-            },
-          ],
+          parts,
         },
       ],
       generationConfig: {
@@ -114,6 +123,7 @@ export class GeminiService {
         // If it's an auth error, invalidate this key
         if (status === 400 || status === 401 || status === 403) {
           this.validatedKeys.delete(key);
+          this.keyValidationCache.set(key, { valid: false, timestamp: Date.now() });
         }
 
         this.rotateKey();
@@ -182,22 +192,31 @@ Return ONLY a valid JSON object (no markdown):
   /**
    * Specifically for analyzing coupon terms and conditions from a screenshot or text.
    */
-  async analyzeTermsAndConditions(screenshotBase64, description) {
+  async analyzeTermsAndConditions(description) {
     const prompt = `
 Analyze this e-commerce coupon and its description: "${description}"
 Identify requirements to make it work:
 1. Minimum order value (numeric)
 2. Categories applicable
 3. Excluded items
+4. Time constraints (e.g., "after 10 AM", "only on weekends", "happy hour 2-5 PM"). Describe constraint format as JSON object:
+   {
+     "restrictedHours": { "startHour": number, "endHour": number } | null, // 24h format (e.g. 10 and 18 for 10AM-6PM, 10 and 24 for after 10AM), null if none
+     "timezone": string | null // E.g. "EST", "GMT", "Asia/Kolkata", null if none
+   }
 Return JSON:
 {
   "minOrderValue": number,
   "applicableCategories": string[],
   "excludedProducts": string[],
-  "userTypes": string[]
+  "userTypes": string[],
+  "timeConstraints": {
+    "restrictedHours": { "startHour": number, "endHour": number } | null,
+    "timezone": string | null
+  }
 }
     `.trim();
-    return await this.analyzePage(screenshotBase64, prompt);
+    return await this.analyzePage(null, prompt);
   }
 
   /**

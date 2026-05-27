@@ -1,6 +1,7 @@
 import express from "express";
 import {
   activateMerchant,
+  cleanupOrphans,
   createMerchant,
   deactivateMerchant,
   getMerchantById,
@@ -13,6 +14,7 @@ import {
 const router = express.Router();
 
 router.post("/", createMerchant);
+router.post("/cleanup-orphans", cleanupOrphans);
 router.get("/", getMerchants);
 router.get("/:id", getMerchantById);
 router.get("/:id/credentials", listMerchantCredentials);
@@ -23,3 +25,4 @@ router.put("/:id/deactivate", deactivateMerchant);
 router.delete("/:id", deactivateMerchant);
 
 export default router;
+

@@ -10,6 +10,7 @@ const notificationService = require('../services/notificationService');
 const { syncSheet } = require('../controllers/exclusiveCouponController');
 const logger = require('../utils/logger');
 const ImportedCoupons = require('../models/ImportedCoupons');
+const { runHealthScoreCalculation } = require('./healthScoreCron');
 
 // ─── Helpers for the scrape→score→delete pipeline ────────────────────────────
 
@@ -184,7 +185,7 @@ const initCronJobs = () => {
             logger.error('CRON: Imported coupon notification job failed:', error);
         }
     });
-    
+
     // 4. Google Sheet sync at 3 AM
     cron.schedule('16 3 * * *', async () => {
         logger.info('CRON: Starting Google Sheet sync...');
@@ -313,7 +314,7 @@ const initCronJobs = () => {
     // To add more later, push their names into PIPELINE_ADAPTERS.
     // ─────────────────────────────────────────────────────────────────────────
     const PIPELINE_ADAPTERS = ['GrabOn', 'CouponDuniya'];
-    const SCORE_SCRIPT  = path.resolve(__dirname, '../../scripts/scoreCoupons.js');
+    const SCORE_SCRIPT = path.resolve(__dirname, '../../scripts/scoreCoupons.js');
     const DELETE_SCRIPT = path.resolve(__dirname, '../../scripts/filterBelowAverageCoupons.js');
 
     cron.schedule('0 */12 * * *', async () => {
@@ -350,6 +351,20 @@ const initCronJobs = () => {
             logger.info('PIPELINE: ✅ Cycle finished successfully.');
         } catch (error) {
             logger.error(`PIPELINE: ❌ Cycle failed — ${error.message}`);
+        }
+    });
+
+    // 9. Partner Coupon Health Score Calculation every 5 hours
+    cron.schedule('0 */5 * * *', async () => {
+        logger.info('CRON: Starting partner coupon health score calculation...');
+        try {
+            const result = await runHealthScoreCalculation();
+            logger.info(
+                `CRON: Health score calculation completed. ` +
+                `Processed: ${result.processed}, Updated: ${result.updated}, Duration: ${result.duration}ms`
+            );
+        } catch (error) {
+            logger.error('CRON: Health score calculation job failed:', error);
         }
     });
 

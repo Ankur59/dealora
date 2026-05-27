@@ -4,6 +4,7 @@ export type CouponFilters = {
   verifiedFrom: string
   verifiedTo: string
   sortByScore: boolean
+  search?: string
 }
 
 export function buildCouponsListUrl(
@@ -21,5 +22,6 @@ export function buildCouponsListUrl(
     p.set('verifiedFrom', filters.verifiedFrom.trim())
   if (filters.verifiedTo.trim()) p.set('verifiedTo', filters.verifiedTo.trim())
   if (filters.sortByScore) p.set('sortByScore', 'true')
+  if (filters.search?.trim()) p.set('search', filters.search.trim())
   return `/api/v1/coupons?${p.toString()}`
 }

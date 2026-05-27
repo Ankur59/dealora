@@ -13,6 +13,7 @@ import com.ayaan.dealora.data.api.models.CouponStatistics
 import com.ayaan.dealora.data.api.models.CreateCouponRequest
 import com.ayaan.dealora.data.api.models.ExclusiveCoupon
 import com.ayaan.dealora.data.api.models.PrivateCoupon
+import com.ayaan.dealora.data.api.models.PartnerCoupon
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
 import com.ayaan.dealora.data.paging.CouponPagingSource
@@ -546,6 +547,145 @@ class CouponRepository @Inject constructor(
         exclusiveCouponCache.remove(couponId)
         Log.d(TAG, "Cleared cached exclusive coupon: $couponId")
     }
+
+    // ── Partner coupons (exclusive toggle) ────────────────────────────────────────
+
+    /** Paginated partner coupons. tab = "active" | "expired" */
+    suspend fun getPartnerCoupons(
+        category:     String? = null,
+        brand:        String? = null,
+        search:       String? = null,
+        sortBy:       String? = null,
+        discountType: String? = null,
+        validity:     String? = null,
+        page:         Int?    = null,
+        limit:        Int?    = null,
+        tab:          String? = "active",
+        offerType:    String? = null,  // "Coupon" | "Offer"
+        verified:     String? = null
+    ): PartnerCouponResult {
+        return try {
+            val response = couponApiService.getPartnerCoupons(
+                category = category, brand = brand, search = search,
+                sortBy = sortBy, discountType = discountType, validity = validity,
+                page = page, limit = limit, tab = tab, offerType = offerType,
+                verified = verified
+            )
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    PartnerCouponResult.Success(
+                        coupons = body.data.coupons,
+                        total   = body.data.total,
+                        page    = body.data.page,
+                        pages   = body.data.pages
+                    )
+                } else PartnerCouponResult.Error(body?.message ?: "Failed")
+            } else PartnerCouponResult.Error("HTTP ${response.code()}")
+        } catch (e: Exception) {
+            Log.e(TAG, "getPartnerCoupons exception", e)
+            PartnerCouponResult.Error(NetworkErrorMapper.from(e))
+        }
+    }
+
+    /**
+     * Search partner coupons by brandName or category.
+     * Only returns verified, non-expired coupons sorted by healthScore DESC.
+     */
+    suspend fun searchPartnerCoupons(
+        q:        String,
+        category: String? = null,
+        page:     Int? = null,
+        limit:    Int? = null
+    ): PartnerCouponResult {
+        return try {
+            val response = couponApiService.searchPartnerCoupons(q = q, category = category, page = page, limit = limit)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    PartnerCouponResult.Success(
+                        coupons    = body.data.coupons,
+                        total      = body.data.total,
+                        page       = body.data.page,
+                        pages      = body.data.pages,
+                        categories = body.data.categories
+                    )
+                } else PartnerCouponResult.Error(body?.message ?: "Failed")
+            } else PartnerCouponResult.Error("HTTP ${response.code()}")
+        } catch (e: Exception) {
+            Log.e(TAG, "searchPartnerCoupons exception", e)
+            PartnerCouponResult.Error(NetworkErrorMapper.from(e))
+        }
+    }
+
+    /** Partner coupons this user has already redeemed. */
+    suspend fun getRedeemedPartnerCoupons(
+        page: Int? = null, limit: Int? = null
+    ): PartnerCouponResult {
+        return try {
+            val response = couponApiService.getRedeemedPartnerCoupons(page = page, limit = limit)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    PartnerCouponResult.Success(
+                        coupons = body.data.coupons,
+                        total   = body.data.total,
+                        page    = body.data.page,
+                        pages   = body.data.pages
+                    )
+                } else PartnerCouponResult.Error(body?.message ?: "Failed")
+            } else PartnerCouponResult.Error("HTTP ${response.code()}")
+        } catch (e: Exception) {
+            Log.e(TAG, "getRedeemedPartnerCoupons exception", e)
+            PartnerCouponResult.Error(NetworkErrorMapper.from(e))
+        }
+    }
+
+    /** Create a Redemption entry for a partner coupon. */
+    suspend fun redeemPartnerCoupon(couponId: String): PartnerCouponRedeemResult {
+        return try {
+            val response = couponApiService.redeemPartnerCoupon(couponId)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null)
+                    PartnerCouponRedeemResult.Success(body.data.coupon)
+                else
+                    PartnerCouponRedeemResult.Error(body?.message ?: "Failed")
+            } else {
+                PartnerCouponRedeemResult.Error(
+                    if (response.code() == 404) "Coupon not found" else "HTTP ${response.code()}"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "redeemPartnerCoupon exception", e)
+            PartnerCouponRedeemResult.Error(NetworkErrorMapper.from(e))
+        }
+    }
+
+    /** Directly update success/failed counts for a partner coupon (immediate feedback). */
+    suspend fun votePartnerCoupon(couponId: String, outcome: String): Boolean {
+        return try {
+            Log.d(TAG, "Voting for partner coupon: $couponId, outcome: $outcome")
+            val body = mapOf("outcome" to outcome)
+            val response = couponApiService.votePartnerCoupon(couponId, body)
+            response.isSuccessful && response.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "votePartnerCoupon exception", e)
+            false
+        }
+    }
+
+    /** Track a Discover button click for partner coupon trend analytics. */
+    suspend fun trackPartnerDiscover(couponId: String): Boolean {
+        return try {
+            Log.d(TAG, "Tracking discover for partner coupon: $couponId")
+            val response = couponApiService.trackPartnerDiscover(couponId)
+            response.isSuccessful && response.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "trackPartnerDiscover exception", e)
+            false
+        }
+    }
 }
 
 /**
@@ -635,4 +775,22 @@ sealed class RawCouponResult {
     data class Error(
         val message: String
     ) : RawCouponResult()
+}
+
+/** Sealed class for partner coupon list results */
+sealed class PartnerCouponResult {
+    data class Success(
+        val coupons:    List<PartnerCoupon>,
+        val total:      Int,
+        val page:       Int,
+        val pages:      Int,
+        val categories: List<String> = emptyList()
+    ) : PartnerCouponResult()
+    data class Error(val message: String) : PartnerCouponResult()
+}
+
+/** Sealed class for partner coupon redeem result */
+sealed class PartnerCouponRedeemResult {
+    data class Success(val coupon: PartnerCoupon) : PartnerCouponRedeemResult()
+    data class Error(val message: String)         : PartnerCouponRedeemResult()
 }

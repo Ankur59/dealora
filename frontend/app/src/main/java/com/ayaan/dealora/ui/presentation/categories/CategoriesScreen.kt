@@ -33,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,7 +42,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ayaan.dealora.data.api.models.RawScrapedCoupon
+import com.ayaan.dealora.data.api.models.PartnerCoupon
 import com.ayaan.dealora.ui.presentation.common.components.CouponCard
+import com.ayaan.dealora.ui.presentation.common.components.CouponVerificationDialog
 import com.ayaan.dealora.ui.presentation.couponsList.components.CategoryBottomSheet
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsFilterSection
 import com.ayaan.dealora.ui.presentation.couponsList.components.CouponsListTopBar
@@ -55,6 +59,7 @@ fun CategoriesScreen(
     navController: NavController, viewModel: CategoriesViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSortOption by viewModel.currentSortOption.collectAsState()
@@ -119,7 +124,7 @@ fun CategoriesScreen(
                             onDetailsClick = { coupon ->
                                 // Encode coupon as JSON and navigate to details page
                                 val couponJson = viewModel.moshi
-                                    .adapter(RawScrapedCoupon::class.java)
+                                    .adapter(PartnerCoupon::class.java)
                                     .toJson(coupon)
                                 navController.navigate(
                                     Route.CouponDetails.createRoute(
@@ -131,6 +136,14 @@ fun CategoriesScreen(
                                 )
                             },
                             onDiscoverClick = { coupon ->
+                                coupon.couponCode?.let { code ->
+                                    if (code.isNotEmpty()) {
+                                        clipboardManager.setText(AnnotatedString(code))
+                                    }
+                                }
+                                // Track the discover action for trend/health scoring
+                                viewModel.trackPartnerDiscover(coupon.id)
+
                                 val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
                                 if (url != null) {
                                     try {
@@ -147,7 +160,7 @@ fun CategoriesScreen(
                                         Log.e("CategoriesScreen", "Could not open url: ${e.message}", e)
                                     }
                                 } else {
-                                    Log.w("CategoriesScreen", "No link for raw coupon ${coupon.id}")
+                                    Log.w("CategoriesScreen", "No link for partner coupon ${coupon.id}")
                                 }
                             }
                         )
@@ -302,18 +315,18 @@ fun CategoriesScreen(
 
 @Composable
 private fun ExclusiveCouponsList(
-    coupons: List<RawScrapedCoupon>,
+    coupons: List<PartnerCoupon>,
     isLoading: Boolean,
     errorMessage: String?,
     currentPage: Int,
     totalPages: Int,
     savedCouponIds: Set<String>,
     onLoadMore: () -> Unit,
-    onSave: (RawScrapedCoupon) -> Unit,
+    onSave: (PartnerCoupon) -> Unit,
     onRemoveSave: (String) -> Unit,
-    onRedeem: (RawScrapedCoupon, () -> Unit, (String) -> Unit) -> Unit,
-    onDetailsClick: (RawScrapedCoupon) -> Unit,
-    onDiscoverClick: (RawScrapedCoupon) -> Unit
+    onRedeem: (PartnerCoupon, () -> Unit, (String) -> Unit) -> Unit,
+    onDetailsClick: (PartnerCoupon) -> Unit,
+    onDiscoverClick: (PartnerCoupon) -> Unit
 ) {
     when {
         isLoading && coupons.isEmpty() -> {
@@ -359,12 +372,14 @@ private fun ExclusiveCouponsList(
                     var showSuccessDialog by remember { mutableStateOf(false) }
                     var showErrorDialog by remember { mutableStateOf(false) }
                     var errorMsg by remember { mutableStateOf("") }
-                    // Track local redeemed state (raw coupons have no backend redeem status)
+                    // Track local redeemed state
                     var isRedeemedLocal by remember { mutableStateOf(false) }
+                    // Track verification dialog state
+                    var showVerificationDialog by remember { mutableStateOf(false) }
 
                     CouponCard(
                         brandName = coupon.brandName.uppercase().replace(" ", "\n"),
-                        couponTitle = coupon.couponTitle ?: "Exclusive Offer",
+                        couponTitle = coupon.couponTitle ?: coupon.discount ?: "Exclusive Offer",
                         description = coupon.description ?: "",
                         category = coupon.category,
                         expiryDays = coupon.daysUntilExpiry,
@@ -372,13 +387,30 @@ private fun ExclusiveCouponsList(
                         couponId = coupon.id,
                         isRedeemed = isRedeemedLocal,
                         couponLink = coupon.couponLink,
-                        discountType = coupon.discountType,
+                        discountType = coupon.couponType,
                         isSaved = isSaved,
-                        source = coupon.couponLink, // header colour fallback
+                        source = coupon.couponLink,
                         showActionButtons = true,
+                        merchantLogoUrl = coupon.merchantLogo,
+                        discoverButtonLabel = "Use Now",
                         onSave = { onSave(coupon) },
                         onRemoveSave = { onRemoveSave(coupon.id) },
                         onRedeem = { _ ->
+                            // Show verification dialog first
+                            showVerificationDialog = true
+                        },
+                        onDetailsClick = { onDetailsClick(coupon) },
+                        onDiscoverClick = { onDiscoverClick(coupon) }
+                    )
+
+                    // Coupon verification dialog
+                    CouponVerificationDialog(
+                        showDialog = showVerificationDialog,
+                        couponBrand = coupon.brandName,
+                        couponCode = coupon.couponCode,
+                        onSuccess = {
+                            showVerificationDialog = false
+                            // Record success and mark as redeemed
                             onRedeem(
                                 coupon,
                                 {
@@ -391,8 +423,24 @@ private fun ExclusiveCouponsList(
                                 }
                             )
                         },
-                        onDetailsClick = { onDetailsClick(coupon) },
-                        onDiscoverClick = { onDiscoverClick(coupon) }
+                        onFailure = {
+                            showVerificationDialog = false
+                            // Record failure and mark as redeemed
+                            onRedeem(
+                                coupon,
+                                {
+                                    isRedeemedLocal = true
+                                    showSuccessDialog = true
+                                },
+                                { err ->
+                                    errorMsg = err
+                                    showErrorDialog = true
+                                }
+                            )
+                        },
+                        onDismiss = {
+                            showVerificationDialog = false
+                        }
                     )
 
                     RedeemResultDialogs(

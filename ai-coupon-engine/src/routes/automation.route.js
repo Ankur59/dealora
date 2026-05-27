@@ -4,6 +4,7 @@ import verificationSchedulerService from '../services/verificationScheduler.serv
 import CouponVerification from '../models/couponVerification.model.js';
 import MerchantCredential from '../models/merchantCredential.model.js';
 import Merchant from '../models/merchant.model.js';
+import Coupon from '../models/coupon.model.js';
 import browserService from '../services/browser.service.js';
 import healthScoreService from '../services/healthScore.service.js';
 import { requireDashboardAuth } from '../middleware/requireDashboardAuth.middleware.js';
@@ -57,6 +58,21 @@ router.post('/merchant-toggle/:merchantId', requireDashboardAuth, async (req, re
     res.status(200).json({ success: true, data: { merchant } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to toggle merchant' });
+  }
+});
+
+router.post('/bulk-toggle-auto', requireDashboardAuth, async (req, res) => {
+  try {
+    const { merchantIds, enabled } = req.body;
+    if (!Array.isArray(merchantIds) || merchantIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'merchantIds array is required' });
+    }
+    for (const mId of merchantIds) {
+      await verificationSchedulerService.toggleMerchantAutoVerification(mId, enabled);
+    }
+    res.status(200).json({ success: true, data: { message: `Bulk updated ${merchantIds.length} merchants to ${enabled ? 'enabled' : 'disabled'}` } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed bulk toggle' });
   }
 });
 
@@ -188,6 +204,17 @@ router.get('/model-metrics', requireDashboardAuth, async (req, res) => {
   }
 });
 
+async function syncCouponVerificationStatus(couponId, newStatus) {
+  const coupon = await Coupon.findById(couponId);
+  if (coupon) {
+    coupon.isVerified = true;
+    coupon.verifiedAt = new Date();
+    coupon.verifiedOn = new Date();
+    coupon.status = newStatus === 'verified' ? 'active' : 'expired';
+    await coupon.save();
+  }
+}
+
 // ─── Manual Override Route (by verification ID) ───
 router.post('/verification-override/:verificationId', requireDashboardAuth, async (req, res) => {
   try {
@@ -205,6 +232,10 @@ router.post('/verification-override/:verificationId', requireDashboardAuth, asyn
       { new: true }
     );
     if (!verification) return res.status(404).json({ success: false, message: 'Verification not found' });
+
+    // Also update Coupon document
+    await syncCouponVerificationStatus(verification.couponId, newStatus);
+
     res.status(200).json({ success: true, data: verification });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -233,6 +264,9 @@ router.post('/verification-override/coupon/:couponDbId', requireDashboardAuth, a
       overriddenAt: new Date()
     };
     await verification.save();
+
+    // Also update Coupon document
+    await syncCouponVerificationStatus(req.params.couponDbId, newStatus);
 
     // Re-trigger health/metric compute since ground truth changed
     healthScoreService.computeAllHealthScores().catch(console.error);

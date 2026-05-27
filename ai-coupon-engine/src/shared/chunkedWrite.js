@@ -9,6 +9,7 @@
  * @param {Object}   Model           — Mongoose model to write to
  * @param {Function} getFilter       — (normalizedDoc) => MongoDB filter object
  * @param {boolean}  useSetOnInsert  — true = $setOnInsert (never overwrite), false = $set (always update)
+ * @param {boolean}  upsert          — false = update existing docs only, never insert (default: true)
  *
  * Usage:
  *   await bulkWriteChunked({
@@ -24,6 +25,7 @@ export const bulkWriteChunked = async ({
     Model,
     getFilter,
     useSetOnInsert = false,
+    upsert = true,
 }) => {
     if (!items?.length) return;
 
@@ -43,7 +45,7 @@ export const bulkWriteChunked = async ({
                 update: useSetOnInsert
                     ? { $setOnInsert: normalized }
                     : { $set:         normalized },
-                upsert: true,
+                upsert,
             },
         }));
 

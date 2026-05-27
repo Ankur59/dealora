@@ -14,6 +14,13 @@ const campaignSchema = new Schema({
         type: String,
         require: true,
     },
+    domain: {
+        type: String,
+        index: true
+    },
+    loginUrl: {
+        type: String
+    },
     categories: {
         type: [String],
         default: [],
