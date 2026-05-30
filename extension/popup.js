@@ -28,6 +28,27 @@ let hasMoreCoupons = false;
 let totalCouponsCount = 0;
 let verifiedCouponsCount = 0;
 let pendingCouponsCount = 0;
+let couponFilter = 'all'; // 'all', 'verified', 'pending'
+
+function setCouponFilter(filter) {
+    couponFilter = filter;
+    
+    // Update active class on stats cards
+    document.getElementById('statTotalCard')?.classList.remove('active');
+    document.getElementById('statVerifiedCard')?.classList.remove('active');
+    document.getElementById('statPendingCard')?.classList.remove('active');
+    
+    if (filter === 'all') {
+        document.getElementById('statTotalCard')?.classList.add('active');
+    } else if (filter === 'verified') {
+        document.getElementById('statVerifiedCard')?.classList.add('active');
+    } else if (filter === 'pending') {
+        document.getElementById('statPendingCard')?.classList.add('active');
+    }
+    
+    currentCouponPage = 0;
+    fetchCoupons();
+}
 
 // ─── Form State Persistence ─────────────────────────────────
 // IDs of all inputs/selects/textareas whose values should survive popup close
@@ -89,6 +110,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnAddMerchant').addEventListener('click', handleAddMerchant);
     document.getElementById('btnAddPartner').addEventListener('click', handleAddPartner);
     document.getElementById('btnSaveCoupon').addEventListener('click', handleSaveCoupon);
+
+    // Coupon status stats cards filters
+    document.getElementById('statTotalCard').addEventListener('click', () => {
+        setCouponFilter('all');
+    });
+    document.getElementById('statVerifiedCard').addEventListener('click', () => {
+        setCouponFilter('verified');
+    });
+    document.getElementById('statPendingCard').addEventListener('click', () => {
+        setCouponFilter('pending');
+    });
 
     // Inner Tabs — Admin
     const setAdminSubTab = (activeBtn, activeSec) => {
@@ -276,30 +308,28 @@ async function fetchSyncMerchants() {
 async function fetchCoupons() {
     const searchTerm = (document.getElementById('couponSearchInput')?.value || '').trim();
     try {
-        const url = `${CONFIG.BACKEND_URL}/coupons?page=${currentCouponPage}&limit=20&search=${encodeURIComponent(searchTerm)}`;
-        const [couponsRes, overviewRes] = await Promise.allSettled([
-            fetch(url),
-            fetch(`${CONFIG.BACKEND_URL}/coupons/overview-counts`)
-        ]);
-
-        if (couponsRes.status === 'fulfilled' && couponsRes.value.ok) {
-            const data = await couponsRes.value.json();
-            const resultData = data.data || {};
-            dbCoupons = resultData.items || [];
-            totalCouponsCount = resultData.total || 0;
-            hasMoreCoupons = resultData.hasMore || false;
+        let isVerifiedParam = 'all';
+        if (couponFilter === 'verified') {
+            isVerifiedParam = 'true';
+        } else if (couponFilter === 'pending') {
+            isVerifiedParam = 'false';
         }
 
-        if (overviewRes.status === 'fulfilled' && overviewRes.value.ok) {
-            try {
-                const overviewData = await overviewRes.value.json();
-                if (overviewData.success && overviewData.data) {
-                    totalCouponsCount = overviewData.data.total || 0;
-                    verifiedCouponsCount = overviewData.data.verified || 0;
-                    pendingCouponsCount = overviewData.data.pending || 0;
-                }
-            } catch (err) {
-                console.error("Error parsing overview counts:", err);
+        const url = `${CONFIG.BACKEND_URL}/coupons?page=${currentCouponPage}&limit=20&search=${encodeURIComponent(searchTerm)}&isVerified=${isVerifiedParam}`;
+        const couponsRes = await fetch(url);
+
+        if (couponsRes.ok) {
+            const data = await couponsRes.json();
+            const resultData = data.data || {};
+            dbCoupons = resultData.items || [];
+            hasMoreCoupons = resultData.hasMore || false;
+
+            if (resultData.counts) {
+                totalCouponsCount = resultData.counts.total || 0;
+                verifiedCouponsCount = resultData.counts.verified || 0;
+                pendingCouponsCount = resultData.counts.pending || 0;
+            } else {
+                totalCouponsCount = resultData.total || 0;
             }
         }
 
