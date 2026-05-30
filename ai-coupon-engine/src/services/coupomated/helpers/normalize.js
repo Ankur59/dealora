@@ -9,10 +9,16 @@ import {
 /**
  * Detects whether a link is an affiliate tracking link (Coupon) or a generic offer link (Offer).
  * Tracking links contain parameters like offer_id and aff_id.
+ * If the coupon has no code, it is also classified as an "Offer".
  * @param {string|null|undefined} link - The affiliate_link from the API
+ * @param {string|null|undefined} code - The coupon_code from the API
  * @returns {string} Either "Coupon" or "Offer"
  */
-const detectOfferType = (link) => {
+const detectOfferType = (link, code) => {
+    if (!code || (typeof code === 'string' && code.trim() === '')) {
+        return "Offer";
+    }
+
     if (!link) return "Offer";
 
     try {
@@ -122,7 +128,7 @@ const normalizeCoupomatedCoupon = (coupon) => {
         categories: (coupon.category_names ?? []).map(c => String(c).toLowerCase()),
         categoriesId: (coupon.category_ids ?? []).map(String),
         couponType: resolveCouponType(coupon.discount),
-        offerType: detectOfferType(coupon.affiliate_link),
+        offerType: detectOfferType(coupon.affiliate_link, coupon.coupon_code),
         isInStore: detectIsInStore(description),
         isNewUser: detectIsNewUser(description),
         isVerified: false,
