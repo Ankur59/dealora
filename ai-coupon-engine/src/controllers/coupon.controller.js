@@ -31,14 +31,26 @@ export const listCoupons = async (req, res) => {
   try {
     const limit = parseLimit(req.query.limit);
     const page = parsePage(req.query.page);
+    const searchQ = typeof req.query.search === "string" ? req.query.search.trim() : "";
 
     const filter = {
       code: { $ne: null },
-      isVerified: false,
       isNewUser: false,
       isInStore: false,
       end: { $gt: new Date() }
     };
+
+    if (req.query.isVerified === "true") {
+      filter.isVerified = true;
+    } else if (req.query.isVerified === "false") {
+      filter.isVerified = false;
+    } else if (req.query.isVerified === "all") {
+      // Do not filter by isVerified (show both verified and unverified)
+    } else {
+      if (req.isExtension && !searchQ) {
+        filter.isVerified = false;
+      }
+    }
 
     const partnerQ =
       typeof req.query.partner === "string" ? req.query.partner.trim() : "";
@@ -46,7 +58,6 @@ export const listCoupons = async (req, res) => {
       filter.partner = new RegExp(escapeRegex(partnerQ), "i");
     }
 
-    const searchQ = typeof req.query.search === "string" ? req.query.search.trim() : "";
     if (searchQ) {
       const searchRegex = new RegExp(escapeRegex(searchQ), "i");
       filter.$or = [
@@ -92,13 +103,19 @@ export const listCoupons = async (req, res) => {
 
     const skip = page * limit;
 
-    const [items, total] = await Promise.all([
+    const baseFilter = { ...filter };
+    delete baseFilter.isVerified;
+
+    const [items, total, totalCount, verifiedCount, pendingCount] = await Promise.all([
       Coupon.find(filter)
         .sort({ verifiedOn: -1, updatedAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
       Coupon.countDocuments(filter),
+      Coupon.countDocuments(baseFilter),
+      Coupon.countDocuments({ ...baseFilter, isVerified: true }),
+      Coupon.countDocuments({ ...baseFilter, isVerified: false }),
     ]);
 
     const rows = items.map((doc) => {
@@ -140,6 +157,11 @@ export const listCoupons = async (req, res) => {
         limit,
         total,
         hasMore: skip + rows.length < total,
+        counts: {
+          total: totalCount,
+          verified: verifiedCount,
+          pending: pendingCount,
+        },
       },
     });
   } catch (error) {

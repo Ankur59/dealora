@@ -26,6 +26,29 @@ let dbCoupons = [];
 let currentCouponPage = 0;
 let hasMoreCoupons = false;
 let totalCouponsCount = 0;
+let verifiedCouponsCount = 0;
+let pendingCouponsCount = 0;
+let couponFilter = 'all'; // 'all', 'verified', 'pending'
+
+function setCouponFilter(filter) {
+    couponFilter = filter;
+    
+    // Update active class on stats cards
+    document.getElementById('statTotalCard')?.classList.remove('active');
+    document.getElementById('statVerifiedCard')?.classList.remove('active');
+    document.getElementById('statPendingCard')?.classList.remove('active');
+    
+    if (filter === 'all') {
+        document.getElementById('statTotalCard')?.classList.add('active');
+    } else if (filter === 'verified') {
+        document.getElementById('statVerifiedCard')?.classList.add('active');
+    } else if (filter === 'pending') {
+        document.getElementById('statPendingCard')?.classList.add('active');
+    }
+    
+    currentCouponPage = 0;
+    fetchCoupons();
+}
 
 // ─── Form State Persistence ─────────────────────────────────
 // IDs of all inputs/selects/textareas whose values should survive popup close
@@ -87,6 +110,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnAddMerchant').addEventListener('click', handleAddMerchant);
     document.getElementById('btnAddPartner').addEventListener('click', handleAddPartner);
     document.getElementById('btnSaveCoupon').addEventListener('click', handleSaveCoupon);
+
+    // Coupon status stats cards filters
+    document.getElementById('statTotalCard').addEventListener('click', () => {
+        setCouponFilter('all');
+    });
+    document.getElementById('statVerifiedCard').addEventListener('click', () => {
+        setCouponFilter('verified');
+    });
+    document.getElementById('statPendingCard').addEventListener('click', () => {
+        setCouponFilter('pending');
+    });
 
     // Inner Tabs — Admin
     const setAdminSubTab = (activeBtn, activeSec) => {
@@ -274,16 +308,32 @@ async function fetchSyncMerchants() {
 async function fetchCoupons() {
     const searchTerm = (document.getElementById('couponSearchInput')?.value || '').trim();
     try {
-        const url = `${CONFIG.BACKEND_URL}/coupons?page=${currentCouponPage}&limit=20&search=${encodeURIComponent(searchTerm)}`;
-        const res = await fetch(url);
-        if (res.ok) {
-            const data = await res.json();
+        let isVerifiedParam = 'all';
+        if (couponFilter === 'verified') {
+            isVerifiedParam = 'true';
+        } else if (couponFilter === 'pending') {
+            isVerifiedParam = 'false';
+        }
+
+        const url = `${CONFIG.BACKEND_URL}/coupons?page=${currentCouponPage}&limit=20&search=${encodeURIComponent(searchTerm)}&isVerified=${isVerifiedParam}`;
+        const couponsRes = await fetch(url);
+
+        if (couponsRes.ok) {
+            const data = await couponsRes.json();
             const resultData = data.data || {};
             dbCoupons = resultData.items || [];
-            totalCouponsCount = resultData.total || 0;
             hasMoreCoupons = resultData.hasMore || false;
-            renderCoupons();
+
+            if (resultData.counts) {
+                totalCouponsCount = resultData.counts.total || 0;
+                verifiedCouponsCount = resultData.counts.verified || 0;
+                pendingCouponsCount = resultData.counts.pending || 0;
+            } else {
+                totalCouponsCount = resultData.total || 0;
+            }
         }
+
+        renderCoupons();
     } catch (err) {
         console.error("Error fetching all coupons:", err);
     }
@@ -391,8 +441,8 @@ function renderCoupons() {
     const isVerified = c => c.verified === true || c.isVerified === true;
 
     document.getElementById('totalCoupons').textContent = totalCouponsCount;
-    document.getElementById('verifiedCoupons').textContent = 0;
-    document.getElementById('pendingCoupons').textContent = totalCouponsCount;
+    document.getElementById('verifiedCoupons').textContent = verifiedCouponsCount;
+    document.getElementById('pendingCoupons').textContent = pendingCouponsCount;
 
     // Update pagination controls
     document.getElementById('couponPageInfo').textContent = `Page ${currentCouponPage + 1}`;
@@ -887,10 +937,9 @@ async function loadAiMetrics() {
             const result = await res.json();
             if (result.success && result.data) {
                 const metrics = result.data;
-                document.getElementById('metricAccuracy').textContent = `${metrics.accuracy || 0}%`;
-                document.getElementById('metricF1').textContent = `${metrics.f1Score || 0}%`;
-                document.getElementById('metricPrecision').textContent = `${metrics.precision || 0}%`;
-                document.getElementById('metricRecall').textContent = `${metrics.recall || 0}%`;
+                if (document.getElementById('metricAccuracy')) {
+                    document.getElementById('metricAccuracy').textContent = `${metrics.accuracy || 0}%`;
+                }
                 document.getElementById('metricTotal').textContent = metrics.total || 0;
                 document.getElementById('metricAvgAttempts').textContent = metrics.averageAttempts || 0;
                 document.getElementById('metricOverrides').textContent = metrics.manualOverrideCount || 0;

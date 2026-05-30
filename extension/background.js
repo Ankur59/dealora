@@ -450,42 +450,54 @@ async function runAgentSequence(task) {
         if (actionHistory.length >= 2) {
             const last2 = actionHistory.slice(-2);
             if (last2.every(h => h.selector === last2[0].selector && h.url === domState.url)) {
-                stuckWarning = `⚠️ WARNING: You already tried "${last2[0].selector}" ${last2.length} times and page didn't change. DO NOT repeat it. Try something else, or if you cannot find coupon field, evaluate as "invalid" with reason "Could not find coupon entry field".`;
+                stuckWarning = `⚠️ WARNING: You already tried "${last2[0].selector}" ${last2.length} times and page didn't change. DO NOT repeat it. Try something else — look for "View all coupons", "Apply coupon", "Have a coupon?" or similar links that might reveal the coupon input. If you still cannot find coupon field after trying those, evaluate as "invalid" with reason "Could not find coupon entry field".`;
                 log('WARN', 'Loop detected. Injecting stuck warning.');
             }
         }
 
         let cmd = null;
-        
-        if (mappedSequence && mappedSequence.length > 0 && !fallbackToAI) {
-            cmd = mappedSequence.shift(); 
-            cmd._isDeterministic = true; 
-            log('INFO', `⚡ Fast-Path Step: ${cmd.action} on ${cmd.selector || cmd.url}`);
-            
-            if (cmd.value === '<USERNAME>') {
-                cmd.value = credentials?.username || DEFAULT_CREDENTIALS.EMAIL;
-                cmd.valuePlaceholder = '<USERNAME>';
-            }
-            if (cmd.value === '<PASSWORD>') {
-                cmd.value = credentials?.password || DEFAULT_CREDENTIALS.PASSWORD;
-                cmd.valuePlaceholder = '<PASSWORD>';
-            }
-        } else {
-            log('INFO', 'Calling Gemini...');
-            const prompt = buildPrompt(task, domState, actionHistory, stuckWarning);
-            const aiResponse = await callGemini(prompt);
-            if (!aiResponse) {
-                log('ERROR', 'Gemini returned nothing. Aborting.');
-                break;
-            }
 
-            try {
-                cmd = parseGeminiJSON(aiResponse);
-            } catch (e) {
-                log('ERROR', 'Failed to parse Gemini JSON:', aiResponse.substring(0, 200));
-                consecutiveErrors++;
-                if (consecutiveErrors >= 3) break;
-                continue;
+        // Auto-detect applied coupon success to bypass AI calling
+        if (task.type === 'verify' && detectCouponSuccess(domState, task.code)) {
+            log('INFO', `🎯 Auto-Detected applied coupon: ${task.code}! Marking valid.`);
+            cmd = { 
+                action: 'evaluate', 
+                status: 'valid', 
+                reason: `Auto-detected coupon code "${task.code}" successfully applied on checkout/cart page.` 
+            };
+        }
+
+        if (!cmd) {
+            if (mappedSequence && mappedSequence.length > 0 && !fallbackToAI) {
+                cmd = mappedSequence.shift(); 
+                cmd._isDeterministic = true; 
+                log('INFO', `⚡ Fast-Path Step: ${cmd.action} on ${cmd.selector || cmd.url}`);
+                
+                if (cmd.value === '<USERNAME>') {
+                    cmd.value = credentials?.username || DEFAULT_CREDENTIALS.EMAIL;
+                    cmd.valuePlaceholder = '<USERNAME>';
+                }
+                if (cmd.value === '<PASSWORD>') {
+                    cmd.value = credentials?.password || DEFAULT_CREDENTIALS.PASSWORD;
+                    cmd.valuePlaceholder = '<PASSWORD>';
+                }
+            } else {
+                log('INFO', 'Calling Gemini...');
+                const prompt = buildPrompt(task, domState, actionHistory, stuckWarning);
+                const aiResponse = await callGemini(prompt);
+                if (!aiResponse) {
+                    log('ERROR', 'Gemini returned nothing. Aborting.');
+                    break;
+                }
+
+                try {
+                    cmd = parseGeminiJSON(aiResponse);
+                } catch (e) {
+                    log('ERROR', 'Failed to parse Gemini JSON:', aiResponse.substring(0, 200));
+                    consecutiveErrors++;
+                    if (consecutiveErrors >= 3) break;
+                    continue;
+                }
             }
         }
 
@@ -588,16 +600,23 @@ function buildPrompt(task, dom, history, warn) {
     const histLines = history.map(h => `- Step ${h.step}: ${h.action} on ${h.selector}`).join('\n');
     
     let objectiveStr = `You are an AI browser agent verifying coupon "${task.code}" for ${task.brand}.
-${task.description ? `COUPON TERMS & CONDITIONS: "${task.description}"` : ''}
+${task.description ? `COUPON TERMS & CONDITIONS (for reference only): "${task.description}"` : ''}
 
-DECIDE:
-1. SMART MATCH: Before applying the coupon, inspect any cart items, product categories, or order details visible on the current page. Match them against the COUPON TERMS & CONDITIONS above.
-   - If the cart contents or spend amounts violate the coupon terms (e.g. coupon is only for shoes, but cart has electronics; or coupon has a $50 minimum but cart total is $30), immediately evaluate the coupon as "invalid" with reason "Coupon terms/exclusions do not match cart items".
-2. Click/Type/Navigate to reach the coupon entry step.
-3. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
-4. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".
-5. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below. These are unique IDs prefixed with "[data-dl-id=...]".
-6. APPLY BUTTON: If multiple "Apply" buttons exist, always select the one that is physically closest to the input field where you typed the coupon code.`;
+CRITICAL RULE — EXACT CODE ONLY:
+You MUST verify EXACTLY this coupon code: "${task.code}"
+You MUST type "${task.code}" into a text input field yourself. NEVER click "Apply" on a pre-existing/pre-shown coupon — those are DIFFERENT coupons, not yours to verify.
+ALWAYS attempt to type and apply the code. Let the SITE tell you if it's invalid — do NOT guess.
+
+STEPS (follow in order):
+1. OPEN COUPON SECTION FIRST (PRIORITY): Before doing anything else, scan the page for links/buttons like "View all coupons", "Apply coupon", "Have a coupon?", "Got a discount code?", "Enter promo code", "Add coupon", "Show coupon field" or similar. If ANY such link/button exists, click it FIRST. This is mandatory and highest priority — many sites hide the coupon input behind these links.
+2. REMOVE PRE-APPLIED COUPONS: If another coupon is already applied (e.g. you see "Remove" next to an applied code), click "Remove" first before proceeding.
+3. FIND COUPON INPUT: Now look for a text input field where you can TYPE the code "${task.code}". Do NOT click "Apply" buttons next to pre-listed coupons — those apply a DIFFERENT coupon, not "${task.code}". If still no text input visible after step 1, evaluate as "invalid" with reason "Could not find coupon entry field".
+4. TYPE THE CODE: Type "${task.code}" into the coupon text input field.
+5. VERIFY BEFORE CLICKING APPLY: Before clicking any Apply/Submit button, READ the coupon code and any description shown near that button. Confirm the code displayed matches EXACTLY "${task.code}". If the Apply button is next to a DIFFERENT coupon code (not "${task.code}"), do NOT click it — instead look for "View all coupons" or the correct input field. Only click Apply when you are certain it will apply "${task.code}".
+6. APPLY: Click the Apply/Submit button nearest to the input where you typed "${task.code}".
+7. EVALUATE RESULT: After applying, check for success/error messages. Use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."} with the SITE's actual response as reason.
+8. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below. These are unique IDs prefixed with "[data-dl-id=...]".
+9. APPLY BUTTON SAFETY: If multiple "Apply" buttons exist, always select the one physically closest to the input field where you typed the coupon code. NEVER click Apply buttons that are next to pre-listed store coupons showing a different code.`;
 
     if (task.type === 'auth') {
         objectiveStr = `You are an AI browser agent tasked with logging into the website for ${task.brand}.
@@ -815,4 +834,35 @@ async function captureAndSyncCookies(rawDomain, merchantName) {
         log('ERROR', `captureAndSyncCookies error for ${domain}:`, e);
         return { status: 'error', message: e.message };
     }
+}
+
+function detectCouponSuccess(domState, code) {
+    if (!domState) return false;
+    const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const codeRegex = new RegExp('\\b' + escapedCode + '\\b', 'i');
+    
+    // Check status messages
+    if (domState.statusMessages) {
+        const hasCodeInMessages = domState.statusMessages.some(msg => codeRegex.test(msg));
+        if (hasCodeInMessages) {
+            const successKeywords = ['applied', 'savings', 'saved', 'discount', 'remove', 'success', 'off', 'active'];
+            const hasSuccess = domState.statusMessages.some(msg => {
+                const lower = msg.toLowerCase();
+                return successKeywords.some(kw => lower.includes(kw));
+            });
+            if (hasSuccess) return true;
+        }
+    }
+    
+    // Check actionable elements (e.g. a "Remove" button next to or containing the coupon code)
+    if (domState.actionableElements) {
+        const hasRemoveAction = domState.actionableElements.some(el => {
+            const txt = el.text || '';
+            const lower = txt.toLowerCase();
+            return codeRegex.test(txt) && (lower.includes('remove') || lower.includes('cancel') || lower.includes('delete') || lower.includes('applied'));
+        });
+        if (hasRemoveAction) return true;
+    }
+    
+    return false;
 }

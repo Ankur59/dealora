@@ -182,10 +182,15 @@ class HealthScoreService {
         // No way to know FP/FN without ground truth
       }
 
-      const totalClassified = truePositives + falsePositives + trueNegatives + falseNegatives;
-      const accuracy = totalClassified > 0
-        ? Math.round(((truePositives + trueNegatives) / totalClassified) * 10000) / 100
-        : 0;
+      let wrongCount = 0;
+      for (const v of verifications) {
+        if (v.manualOverride?.newStatus && v.manualOverride.newStatus !== v.status) {
+          wrongCount++;
+        }
+      }
+      const accuracy = total > 0
+        ? Math.round(((total - wrongCount) / total) * 10000) / 100
+        : 100;
       const precision = (truePositives + falsePositives) > 0
         ? Math.round((truePositives / (truePositives + falsePositives)) * 10000) / 100
         : 0;

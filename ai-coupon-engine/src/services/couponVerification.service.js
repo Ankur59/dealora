@@ -449,9 +449,7 @@ export class CouponVerificationService {
 
     await verification.save();
 
-    if (result.success) {
-      await this.markVerified(verification, coupon);
-    }
+    await this.markVerified(verification, coupon, result.success);
   }
 
   /**
@@ -822,10 +820,15 @@ export class CouponVerificationService {
     }
   }
 
-  async markVerified(verification, coupon) {
-    coupon.isVerified = true;
+  async markVerified(verification, coupon, isSuccess = true) {
+    coupon.isVerified = isSuccess;
     coupon.verifiedAt = new Date();
     coupon.verifiedOn = new Date();
+    if (!isSuccess) {
+      coupon.status = 'expired';
+    } else {
+      coupon.status = 'active';
+    }
     await coupon.save();
   }
 

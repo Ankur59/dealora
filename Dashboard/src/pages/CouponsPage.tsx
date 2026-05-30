@@ -9,7 +9,6 @@ import {
 import { apiGet, apiPostJson } from '../lib/api'
 import { buildCouponsListUrl, type CouponFilters } from '../lib/couponsQuery'
 import type { CouponListPayload, PartnerCouponRow } from '../types/coupon'
-import { filterCouponsBySearch } from './couponSearch'
 import './CouponsPage.css'
 
 function formatWhen(iso: string | null) {
@@ -46,10 +45,7 @@ export function CouponsPage() {
     return () => window.clearTimeout(handle)
   }, [searchInput])
 
-  const displayedItems = useMemo(
-    () => filterCouponsBySearch(items, debouncedSearch),
-    [items, debouncedSearch],
-  )
+  const displayedItems = items
 
   const searchPending = searchInput.trim() !== debouncedSearch
 
@@ -68,8 +64,9 @@ export function CouponsPage() {
       verifiedFrom,
       verifiedTo,
       sortByScore,
+      search: debouncedSearch,
     }),
-    [deferredPartner, isVerified, verifiedFrom, verifiedTo, sortByScore],
+    [deferredPartner, isVerified, verifiedFrom, verifiedTo, sortByScore, debouncedSearch],
   )
 
   const fetchPage = useCallback(
@@ -191,9 +188,8 @@ export function CouponsPage() {
     <div className="coupons-page">
       <h1 className="coupons-page-title">Coupons</h1>
       <p className="coupons-page-lead">
-        Partner coupon collection (<code>partnercoupons</code>). Filters apply
-        to the full set; results load 20 at a time as you scroll. Search only
-        narrows coupons already loaded in the browser.
+        Partner coupon collection (<code>partnercoupons</code>). Filters and search apply
+        to the full database; results load 20 at a time as you scroll.
       </p>
 
       <div className="coupons-search-block">
@@ -214,9 +210,7 @@ export function CouponsPage() {
         ) : null}
         {debouncedSearch ? (
           <p className="coupons-search-hint">
-            Matches are filtered from the {items.length} coupon
-            {items.length === 1 ? '' : 's'} currently loaded. Scroll to load more
-            from the server, or clear search to see everything loaded.
+            Showing server-side search results. Scroll to load more pages of matches.
           </p>
         ) : null}
       </div>
@@ -294,12 +288,11 @@ export function CouponsPage() {
             : `${total.toLocaleString()} from filters · ${items.length} loaded`}
       </p>
 
-      {!loading &&
-      debouncedSearch &&
-      items.length > 0 &&
-      displayedItems.length === 0 ? (
+      {!loading && items.length === 0 ? (
         <p className="coupons-empty-search">
-          {`No loaded coupons match "${debouncedSearch}". Try other words or scroll to load more rows, then search again.`}
+          {debouncedSearch
+            ? `No coupons match "${debouncedSearch}". Try other search terms.`
+            : "No coupons found matching active filters."}
         </p>
       ) : null}
 
