@@ -937,10 +937,9 @@ async function loadAiMetrics() {
             const result = await res.json();
             if (result.success && result.data) {
                 const metrics = result.data;
-                document.getElementById('metricAccuracy').textContent = `${metrics.accuracy || 0}%`;
-                document.getElementById('metricF1').textContent = `${metrics.f1Score || 0}%`;
-                document.getElementById('metricPrecision').textContent = `${metrics.precision || 0}%`;
-                document.getElementById('metricRecall').textContent = `${metrics.recall || 0}%`;
+                if (document.getElementById('metricAccuracy')) {
+                    document.getElementById('metricAccuracy').textContent = `${metrics.accuracy || 0}%`;
+                }
                 document.getElementById('metricTotal').textContent = metrics.total || 0;
                 document.getElementById('metricAvgAttempts').textContent = metrics.averageAttempts || 0;
                 document.getElementById('metricOverrides').textContent = metrics.manualOverrideCount || 0;
