@@ -821,7 +821,7 @@ export class CouponVerificationService {
   }
 
   async markVerified(verification, coupon, isSuccess = true) {
-    coupon.isVerified = true;
+    coupon.isVerified = isSuccess;
     coupon.verifiedAt = new Date();
     coupon.verifiedOn = new Date();
     if (!isSuccess) {

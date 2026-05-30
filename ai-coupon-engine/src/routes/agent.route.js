@@ -140,7 +140,7 @@ router.post("/tasks/:taskId/result", requireDashboardAuth, async (req, res) => {
     }
 
     // Update Coupon
-    coupon.isVerified = true;
+    coupon.isVerified = status === "valid";
     coupon.verifiedAt = new Date();
     coupon.verifiedOn = new Date();
     coupon.status = status === "valid" ? "active" : "expired";
