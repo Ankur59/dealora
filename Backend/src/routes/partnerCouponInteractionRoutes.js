@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
                     const oldFailedCount = coupon.failedCount || 0;
 
                     // Import calculation helpers from cron
-                    const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
+                    const { calculateReliabilityScore, calculateFreshnessScore, calculateHealthScore } = require('../cron/healthScoreCron');
 
                     const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
 
@@ -89,13 +89,11 @@ router.post('/', async (req, res) => {
                     // Recalculate reliability
                     const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-                    // Recalculate health score using the multiplicative pattern
-                    const discountWeight = coupon.discountWeight || 0;
+                    // Recalculate health score via the central calculation engine
                     const createdAt = coupon.createdAt || new Date();
                     const trendScore = coupon.trend?.trendScore || 0;
-                    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
                     const freshnessScore = calculateFreshnessScore(createdAt);
-                    const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
+                    const newHealthScore = calculateHealthScore(newReliabilityScore, freshnessScore, trendScore);
 
                     await partnerCouponsCollection.updateOne(
                         { _id: coupon._id },
@@ -110,7 +108,7 @@ router.post('/', async (req, res) => {
 
                     console.log(`[PartnerCouponInteraction] Real-time scores updated for initial redeem on coupon ${couponId}. ` +
                         `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
-                        `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+                        `HealthScore: ${(coupon.trend?.healthScore ?? 0).toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
                 } else {
                     console.warn(`[PartnerCouponInteraction] Coupon not found for initial redeem stats: ${couponId}`);
                 }
@@ -253,7 +251,7 @@ router.patch('/:id/resolve', async (req, res) => {
                     const oldFailedCount = coupon.failedCount || 0;
 
                     // Import calculation helpers from cron
-                    const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
+                    const { calculateReliabilityScore, calculateFreshnessScore, calculateHealthScore } = require('../cron/healthScoreCron');
 
                     const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
 
@@ -264,13 +262,11 @@ router.patch('/:id/resolve', async (req, res) => {
                     // Recalculate reliability
                     const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-                    // Recalculate health score using the multiplicative pattern
-                    const discountWeight = coupon.discountWeight || 0;
+                    // Recalculate health score via the central calculation engine
                     const createdAt = coupon.createdAt || new Date();
                     const trendScore = coupon.trend?.trendScore || 0;
-                    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
                     const freshnessScore = calculateFreshnessScore(createdAt);
-                    const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
+                    const newHealthScore = calculateHealthScore(newReliabilityScore, freshnessScore, trendScore);
 
                     const result = await partnerCouponsCollection.updateOne(
                         { _id: coupon._id },
@@ -287,7 +283,7 @@ router.patch('/:id/resolve', async (req, res) => {
                     console.log(`[PartnerCouponInteraction] Real-time scores updated for resolved coupon ${interaction.couponId}. ` +
                         `Counts: success=${newSuccessCount}, failed=${newFailedCount}. ` +
                         `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
-                        `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+                        `HealthScore: ${(coupon.trend?.healthScore ?? 0).toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
                 } else {
                     console.warn(`[PartnerCouponInteraction] Coupon not found for resolution: ${interaction.couponId}`);
                 }

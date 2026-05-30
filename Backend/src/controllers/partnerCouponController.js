@@ -566,7 +566,7 @@ exports.votePartnerCoupon = async (req, res) => {
         const oldFailedCount = coupon.failedCount || 0;
         
         // Import calculation functions from cron
-        const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
+        const { calculateReliabilityScore, calculateFreshnessScore, calculateHealthScore } = require('../cron/healthScoreCron');
         
         const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
 
@@ -577,13 +577,11 @@ exports.votePartnerCoupon = async (req, res) => {
         // 4. Calculate new reliability score
         const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-        // 5. Recalculate health score using the multiplicative pattern
-        const discountWeight = coupon.discountWeight || 0;
+        // 5. Recalculate health score via the central calculation engine
         const createdAt = coupon.createdAt || new Date();
         const trendScore = coupon.trend?.trendScore || 0;
-        const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
         const freshnessScore = calculateFreshnessScore(createdAt);
-        const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
+        const newHealthScore = calculateHealthScore(newReliabilityScore, freshnessScore, trendScore);
 
         // 6. Update database atomically
         const result = await col().updateOne(
@@ -604,7 +602,8 @@ exports.votePartnerCoupon = async (req, res) => {
 
         logger.info(`[PartnerCoupon] Vote recorded: ${outcome} for coupon ${couponId}. ` +
             `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
-            `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+            `HealthScore: ${(coupon.trend?.healthScore ?? 0).toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+
 
         return successResponse(res, STATUS_CODES.OK, `Vote recorded: ${outcome}`);
     } catch (err) {
