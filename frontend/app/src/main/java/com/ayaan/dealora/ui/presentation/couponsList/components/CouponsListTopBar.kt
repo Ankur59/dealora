@@ -112,7 +112,7 @@ fun CouponsListTopBar(
                     )
 
                     Text(
-                        text = if (!isPublicMode) "Private" else "Exclusive",
+                        text = if (!isPublicMode) "Offers" else "Coupons",
                         color = Color.Black,
                         fontSize = 12.sp,
                         modifier = Modifier.offset(y = (-6).dp)

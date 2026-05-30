@@ -5,41 +5,38 @@ import {
     calculateTrendScore,
     calculateHealthScore,
 } from '../../../shared/healthScore.js';
+import { TRACKING_LINK_REGEX } from '../../../shared/trackingLinkValidator.js';
 
 /**
  * Detects whether a link is an affiliate tracking link (Coupon) or a generic offer link (Offer).
- * Tracking links contain parameters like offer_id and aff_id.
- * If the coupon has no code, it is also classified as an "Offer".
+ * Classification rules (checked in order):
+ *   1. No coupon code (null / empty)  → Offer
+ *   2. No link                        → Offer
+ *   3. Link contains valid tracking
+ *      params (offer_id + aff_id)     → Coupon   (uses shared TRACKING_LINK_REGEX)
+ *   4. Fallback                       → Offer
  * @param {string|null|undefined} link - The affiliate_link from the API
  * @param {string|null|undefined} code - The coupon_code from the API
  * @returns {string} Either "Coupon" or "Offer"
  */
 const detectOfferType = (link, code) => {
+    // Rule 1: no code → always Offer
     if (!code || (typeof code === 'string' && code.trim() === '')) {
         return "Offer";
     }
 
+    // Rule 2: no link → Offer
     if (!link) return "Offer";
 
-    try {
-        const url = new URL(link);
-        const params = url.searchParams;
-
-        // Check for tracking parameters: if both offer_id and aff_id exist, it's a Coupon
-        const hasOfferIdParam = params.has('offer_id') || params.has('offerid');
-        const hasAffIdParam = params.has('aff_id') || params.has('affid');
-
-        // If it has tracking parameters, it's a Coupon, otherwise it's an Offer
-        if (hasOfferIdParam && hasAffIdParam) {
-            return "Coupon";
-        }
-
-        return "Offer";
-    } catch (e) {
-        // If URL parsing fails, default to "Offer"
-        return "Offer";
+    // Rule 3: valid affiliate tracking link → Coupon
+    if (TRACKING_LINK_REGEX.test(link)) {
+        return "Coupon";
     }
+
+    // Rule 4: fallback
+    return "Offer";
 };
+
 
 /** Known couponType values accepted by the schema. */
 const KNOWN_COUPON_TYPES = ["FREE TRIAL", "Buy 1 Get 1 Free", "No cost EMI"];

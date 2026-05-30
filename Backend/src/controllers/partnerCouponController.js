@@ -68,7 +68,10 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
     const andConditions = [];  // Collect all AND conditions
 
     // ── 1. TAB FILTER (active/expired) ──
-    if (tab === 'expired') {
+    if (offerType === 'Offer') {
+        // Offers strictly require a future expiry date (not null/expired)
+        andConditions.push({ end: { $gt: now } });
+    } else if (tab === 'expired') {
         andConditions.push({ end: { $lt: now } });
     } else {
         // active: not expired (or no expiry set), and not already redeemed by user
@@ -85,7 +88,8 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
     }
 
     // ── 2. VERIFIED FILTER ──
-    if (verified === 'true' || verified === true) {
+    // Do not filter by isVerified for offers as they are not validated
+    if (offerType !== 'Offer' && (verified === 'true' || verified === true)) {
         andConditions.push({ isVerified: true });
     }
 
@@ -201,6 +205,81 @@ function buildSort(sortBy) {
             return { 'trend.healthScore': -1, createdAt: -1 };
     }
 }
+
+/**
+ * Build a MongoDB aggregation pipeline for the Offer mode sort.
+ *
+ * Sort priority:
+ *   1. hasValidTrackingLink DESC  — offers that carry a real affiliate link come first
+ *   2. discountWeight DESC        — higher-value offers within each group
+ *   3. createdAt DESC             — tie-breaker
+ *
+ * The `hasValidTrackingLink` flag is computed at query time via $regexMatch so that
+ * future affiliate patterns only need to be updated in the shared
+ * trackingLinkValidator constants (no schema migration required).
+ *
+ * ── To add a new affiliate network's pattern ─────────────────────────────────
+ * Edit TRACKING_LINK_MONGO_REGEX in ai-coupon-engine/src/shared/trackingLinkValidator.js.
+ * This function will automatically pick up the change on the next deploy.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * @param {Object} filter    - MongoDB match filter (built by buildFilter)
+ * @param {number} skip      - documents to skip (pagination)
+ * @param {number} limit     - page size
+ * @returns {Array}          - aggregation pipeline stages
+ */
+function buildOfferAggregation(filter, skip, limit) {
+    // Regex that identifies a valid affiliate tracking link.
+    // Mirrors TRACKING_LINK_MONGO_REGEX in ai-coupon-engine/src/shared/trackingLinkValidator.js.
+    // Keep these two values in sync when adding new affiliate partners.
+    const TRACKING_REGEX = '(offer_id|offerid).{0,200}?(aff_id|affid)|(aff_id|affid).{0,200}?(offer_id|offerid)';
+    const TRACKING_REGEX_OPTIONS = 'i';
+
+    return [
+        // 1. Filter
+        { $match: filter },
+
+        // 2. Compute hasValidTrackingLink flag
+        {
+            $addFields: {
+                hasValidTrackingLink: {
+                    $cond: {
+                        if: { $and: [
+                            { $ne: [{ $type: '$trackingLink' }, 'missing'] },
+                            { $ne: ['$trackingLink', null] },
+                            { $ne: ['$trackingLink', ''] },
+                        ]},
+                        then: {
+                            $cond: [
+                                {
+                                    $regexMatch: {
+                                        input: '$trackingLink',
+                                        regex: TRACKING_REGEX,
+                                        options: TRACKING_REGEX_OPTIONS,
+                                    }
+                                },
+                                1,   // valid tracking link
+                                0    // link exists but not a tracking link
+                            ]
+                        },
+                        else: 0  // no link at all
+                    }
+                }
+            }
+        },
+
+        // 3. Sort: tracking links first, then health score, then newest
+        { $sort: { hasValidTrackingLink: -1, 'trend.healthScore': -1, createdAt: -1 } },
+
+        // 4. Pagination
+        { $skip: skip },
+        { $limit: limit },
+
+        // 5. Drop the synthetic field so downstream shapeDoc is clean
+        { $project: { hasValidTrackingLink: 0 } },
+    ];
+}
+
 
 // ── GET /api/partner-coupons/search ─────────────────────────────────────────
 
@@ -344,23 +423,40 @@ exports.getPartnerCoupons = async (req, res) => {
         const redeemedIds = redemptions.map(r => r.couponId);   // already ObjectIds
 
         const filter = buildFilter({ tab, redeemedIds, category: categoryFilterVal, brand, search, discountType, validity, offerType, verified });
-        const sort = buildSort(sortBy);
 
         // DEBUG LOGGING
         logger.info(`[PartnerCoupon] Search Query:`, {
-            search,
-            verified,
-            tab,
-            category,
-            brand,
+            search, verified, tab, category, brand, offerType,
             filter: JSON.stringify(filter, null, 2),
-            sort: JSON.stringify(sort, null, 2)
         });
 
-        const [docs, total] = await Promise.all([
-            col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
-            col().countDocuments(filter),
-        ]);
+        let docs, total;
+
+        if (offerType === 'Offer') {
+            // ── Offer mode: aggregation pipeline sorts by hasValidTrackingLink → discountWeight ──
+            const pipeline = buildOfferAggregation(filter, skip, limit);
+            const countPipeline = [{ $match: filter }, { $count: 'n' }];
+
+            const [aggDocs, countResult] = await Promise.all([
+                col().aggregate(pipeline).toArray(),
+                col().aggregate(countPipeline).toArray(),
+            ]);
+
+            docs  = aggDocs;
+            total = countResult[0]?.n ?? 0;
+        } else {
+            // ── Coupon mode (default): simple find + sort — unchanged behaviour ──
+            const sort = buildSort(sortBy);
+            logger.info(`[PartnerCoupon] Sort:`, { sort: JSON.stringify(sort, null, 2) });
+
+            const [findDocs, findTotal] = await Promise.all([
+                col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
+                col().countDocuments(filter),
+            ]);
+
+            docs  = findDocs;
+            total = findTotal;
+        }
 
         // DETAILED DEBUG: Log sample coupon data for verification
         if (docs.length > 0) {
@@ -399,14 +495,9 @@ exports.getPartnerCoupons = async (req, res) => {
                 const rx = { $regex: search, $options: 'i' };
                 const searchOnlyCount = await col().countDocuments({
                     $or: [
-                        { brandName: rx },
-                        { categories: rx },
-                        { title: rx },
-                        { couponTitle: rx },
-                        { couponName: rx },
-                        { description: rx },
-                        { code: rx },
-                        { discount: rx }
+                        { brandName: rx }, { categories: rx }, { title: rx },
+                        { couponTitle: rx }, { couponName: rx }, { description: rx },
+                        { code: rx }, { discount: rx }
                     ]
                 });
                 logger.warn(`Coupons matching search "${search}" (any status): ${searchOnlyCount}`);
@@ -414,10 +505,7 @@ exports.getPartnerCoupons = async (req, res) => {
         }
 
         logger.info(`[PartnerCoupon] Search Results:`, {
-            search,
-            total,
-            found: docs.length,
-            page,
+            search, total, found: docs.length, page,
             pages: Math.ceil(total / limit) || 1
         });
 
@@ -432,6 +520,7 @@ exports.getPartnerCoupons = async (req, res) => {
         return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to fetch partner coupons');
     }
 };
+
 
 // ── GET /api/partner-coupons/redeemed ─────────────────────────────────────────
 

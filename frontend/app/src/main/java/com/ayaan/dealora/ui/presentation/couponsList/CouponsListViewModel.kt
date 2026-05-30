@@ -78,8 +78,8 @@ class CouponsListViewModel @Inject constructor(
     private val _partnerCouponsRedeemed = MutableStateFlow<List<PartnerCoupon>>(emptyList())
     val partnerCouponsRedeemed: StateFlow<List<PartnerCoupon>> = _partnerCouponsRedeemed.asStateFlow()
 
-    private val _partnerCouponsExpired  = MutableStateFlow<List<PartnerCoupon>>(emptyList())
-    val partnerCouponsExpired: StateFlow<List<PartnerCoupon>> = _partnerCouponsExpired.asStateFlow()
+    private val _partnerCouponsSaved    = MutableStateFlow<List<PartnerCoupon>>(emptyList())
+    val partnerCouponsSaved: StateFlow<List<PartnerCoupon>> = _partnerCouponsSaved.asStateFlow()
 
     private val _isLoadingPartnerCoupons = MutableStateFlow(false)
     val isLoadingPartnerCoupons: StateFlow<Boolean> = _isLoadingPartnerCoupons.asStateFlow()
@@ -102,7 +102,7 @@ class CouponsListViewModel @Inject constructor(
     private val _currentFilters = MutableStateFlow(com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions())
     val currentFilters: StateFlow<com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions> = _currentFilters.asStateFlow()
 
-    private val _isPublicMode = MutableStateFlow(false)
+    private val _isPublicMode = MutableStateFlow(true)   // true = Coupon mode (toggle ON), false = Offer mode (toggle OFF)
     val isPublicMode: StateFlow<Boolean> = _isPublicMode.asStateFlow()
 
     private val _privateCoupons = MutableStateFlow<List<PrivateCoupon>>(emptyList())
@@ -128,23 +128,37 @@ class CouponsListViewModel @Inject constructor(
                 .collectLatest { query ->
                     Log.d(TAG, "Debounced search triggered with query: $query")
                     if (_isPublicMode.value) {
-                        loadPartnerCoupons(resetPage = true)
+                        loadPartnerCoupons(resetPage = true)  // Coupon mode
                     } else {
-                        loadPrivateCoupons()
+                        loadPartnerCoupons(resetPage = true)  // Offer mode
                     }
                 }
         }
 
-        // Load private coupons by default
-        loadPrivateCoupons()
+        // Default: load partner coupons (toggle starts ON = Coupon mode)
+        loadPartnerCoupons(resetPage = true)
     }
 
     init {
-        // Load saved coupon IDs
+        // Load saved coupon IDs and partner coupons/offers
         viewModelScope.launch {
             savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
                 _savedCouponIds.value = savedCoupons.map { it.couponId }.toSet()
                 Log.d(TAG, "Updated saved coupon IDs: ${_savedCouponIds.value}")
+
+                // Parse and populate saved partner coupons locally
+                val list = mutableListOf<PartnerCoupon>()
+                val adapter = moshi.adapter(PartnerCoupon::class.java)
+                savedCoupons.forEach { entity ->
+                    if (entity.couponType == "raw") {
+                        try {
+                            adapter.fromJson(entity.couponJson)?.let { list.add(it) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing saved partner coupon JSON: ${entity.couponId}", e)
+                        }
+                    }
+                }
+                _partnerCouponsSaved.value = list
             }
         }
     }
@@ -187,25 +201,17 @@ class CouponsListViewModel @Inject constructor(
 
     fun onPublicModeChanged(isPublic: Boolean) {
         _isPublicMode.value = isPublic
-        if (isPublic) {
-            _exclusiveTab.value = ExclusiveTab.ACTIVE
-            loadPartnerCoupons(resetPage = true)
-        } else {
-            // clear partner coupon lists when leaving exclusive mode
-            _partnerCouponsActive.value   = emptyList()
-            _partnerCouponsRedeemed.value = emptyList()
-            _partnerCouponsExpired.value  = emptyList()
-            _uiState.value = CouponsListUiState.Success
-            loadPrivateCoupons()
-        }
+        // Both modes now load partner coupons — just with different offerType filters
+        _exclusiveTab.value = ExclusiveTab.ACTIVE
+        _partnerCouponsActive.value   = emptyList()
+        _partnerCouponsRedeemed.value = emptyList()
+        _uiState.value = CouponsListUiState.Loading
+        loadPartnerCoupons(resetPage = true)
     }
 
     fun loadCoupons() {
-        if (_isPublicMode.value) {
-            loadPartnerCoupons(resetPage = true)
-        } else {
-            loadPrivateCoupons()
-        }
+        // Both modes now route through partner coupons with different offerType filters
+        loadPartnerCoupons(resetPage = true)
     }
 
     /** Switch Active / Redeemed / Expired tab in exclusive mode */
@@ -339,40 +345,38 @@ class CouponsListViewModel @Inject constructor(
                             }
                         }
                     }
+                    ExclusiveTab.SAVED -> {
+                        // Offline/Local tab loading is handled via local Room stream observers
+                        _uiState.value = CouponsListUiState.Success
+                    }
                     else -> {
-                        val tabApi = if (_exclusiveTab.value == ExclusiveTab.EXPIRED) "expired" else "active"
+                        // ACTIVE tab
+                        val offerTypeParam = if (_isPublicMode.value) "Coupon" else "Offer"
+                        val sortByParam    = if (!_isPublicMode.value) "discountWeight" else sortByApi
+
                         when (val result = couponRepository.getPartnerCoupons(
                             category     = mappedCategoryApi,
                             brand        = filters.brand,
                             search       = searchApi,
-                            sortBy       = sortByApi,
+                            sortBy       = sortByParam,
                             discountType = discountTypeApi,
                             validity     = validityApi,
                             page         = currentPage,
                             limit        = PARTNER_PAGE_SIZE,
-                            tab          = tabApi,
-                            offerType    = "Coupon"  // Filter to show only tracked coupons, not generic offers
+                            tab          = "active",
+                            offerType    = offerTypeParam
                         )) {
                             is PartnerCouponResult.Success -> {
-                                if (_exclusiveTab.value == ExclusiveTab.EXPIRED) {
-                                    _partnerCouponsExpired.value =
-                                        if (resetPage) result.coupons
-                                        else _partnerCouponsExpired.value + result.coupons
-                                } else {
-                                    _partnerCouponsActive.value =
-                                        if (resetPage) result.coupons
-                                        else _partnerCouponsActive.value + result.coupons
-                                }
+                                _partnerCouponsActive.value =
+                                    if (resetPage) result.coupons
+                                    else _partnerCouponsActive.value + result.coupons
                                 _partnerPage.value  = result.page
                                 _partnerPages.value = result.pages
                                 _uiState.value = CouponsListUiState.Success
                             }
                             is PartnerCouponResult.Error -> {
                                 if (resetPage) {
-                                    if (_exclusiveTab.value == ExclusiveTab.EXPIRED)
-                                        _partnerCouponsExpired.value = emptyList()
-                                    else
-                                        _partnerCouponsActive.value = emptyList()
+                                    _partnerCouponsActive.value = emptyList()
                                     _uiState.value = CouponsListUiState.Error(result.message)
                                 }
                             }
@@ -665,5 +669,5 @@ sealed class CouponsListUiState {
     data class Error(val message: String) : CouponsListUiState()
 }
 
-/** Tabs visible when the exclusive toggle is ON */
-enum class ExclusiveTab { ACTIVE, REDEEMED, EXPIRED }
+/** Tabs visible when the exclusive toggle is ON or OFF */
+enum class ExclusiveTab { ACTIVE, REDEEMED, SAVED }
