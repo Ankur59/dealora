@@ -74,6 +74,17 @@ const detectIsNewUser = (description) => {
 };
 
 /**
+ * Returns true when the description indicates a limited-time/period/flash offer.
+ * @param {string|null|undefined} description
+ * @returns {boolean}
+ */
+const detectIsLimitedTime = (description) => {
+    if (!description) return false;
+    const regex = /\b(limited\s+time|limited\s+period|limited\s+offer|hurry|flash\s+sale|ends\s+soon|expires\s+soon|today\s+only|only\s+today|deal\s+of\s+the\s+day|daily\s+deal|while\s+stocks?\s+lasts?)\b/i;
+    return regex.test(description);
+};
+
+/**
  * Normalizes a single Coupomated coupon object into the internal coupon schema format.
  * @param {Object} coupon - Raw coupon object from Coupomated API
  * @returns {Object} Normalized coupon object matching the coupon schema
@@ -128,6 +139,7 @@ const normalizeCoupomatedCoupon = (coupon) => {
         offerType: detectOfferType(coupon.affiliate_link, coupon.coupon_code),
         isInStore: detectIsInStore(description),
         isNewUser: detectIsNewUser(description),
+        isLimitedTime: detectIsLimitedTime(description),
         isVerified: false,
         title: coupon.title ?? null,
         networkId: coupon.network_id ?? null,

@@ -102,6 +102,10 @@ const couponSchema = new Schema({
         type: Boolean,
         default: false,
     },
+    isLimitedTime: {
+        type: Boolean,
+        default: false,
+    },
     title: {
         type: String,
     },
