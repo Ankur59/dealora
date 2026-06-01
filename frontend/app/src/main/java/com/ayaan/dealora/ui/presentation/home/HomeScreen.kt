@@ -1,5 +1,9 @@
 package com.ayaan.dealora.ui.presentation.home
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
@@ -76,12 +80,16 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val savedCouponIds by viewModel.savedCouponIds.collectAsState()
-    var isSearchExpanded by remember { mutableStateOf(false) }
+    val isSearchExpanded = uiState.isSearchExpanded
     val searchQuery by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
 
     if (isSearchExpanded) {
+        BackHandler {
+            viewModel.setSearchExpanded(false)
+            viewModel.onSearchQueryChanged("")
+        }
         val listState = rememberLazyListState()
         val shouldLoadMore = remember {
             derivedStateOf {
@@ -98,100 +106,161 @@ fun HomeScreen(
 
         Scaffold(
             topBar = {
-                // Custom Search Top Bar
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White)
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = {
-                        isSearchExpanded = false
-                        viewModel.onSearchQueryChanged("")
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.Black
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        placeholder = { Text("Search Amazon, Nike, Myntra...", fontSize = 14.sp) },
-                        leadingIcon = {
+                    // Custom Search Top Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = {
+                            viewModel.setSearchExpanded(false)
+                            viewModel.onSearchQueryChanged("")
+                        }) {
                             Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Search",
-                                tint = Color.Gray
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.Black
                             )
-                        },
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (uiState.searchCategories.isNotEmpty()) {
-                                    var expanded by remember { mutableStateOf(false) }
-                                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                                        TextButton(
-                                            onClick = { expanded = true },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(36.dp)
-                                        ) {
-                                            Text(
-                                                text = uiState.selectedSearchCategory ?: "All",
-                                                color = DealoraPrimary,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        
-                                        DropdownMenu(
-                                            expanded = expanded,
-                                            onDismissRequest = { expanded = false },
-                                            modifier = Modifier.background(Color.White)
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text("All Categories") },
-                                                onClick = {
-                                                    expanded = false
-                                                    viewModel.onSearchCategoryChanged(null)
-                                                }
-                                            )
-                                            uiState.searchCategories.forEach { category ->
+                        }
+
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            placeholder = { Text("Search Amazon, Nike, Myntra...", fontSize = 14.sp) },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                viewModel.forceSearch()
+                            }),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search",
+                                    tint = Color.Gray
+                                )
+                            },
+                            trailingIcon = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (uiState.searchCategories.isNotEmpty()) {
+                                        var expanded by remember { mutableStateOf(false) }
+                                        Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+                                            TextButton(
+                                                onClick = { expanded = true },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                                modifier = Modifier.height(36.dp)
+                                            ) {
+                                                Text(
+                                                    text = uiState.selectedSearchCategory ?: "All",
+                                                    color = DealoraPrimary,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            
+                                            DropdownMenu(
+                                                expanded = expanded,
+                                                onDismissRequest = { expanded = false },
+                                                modifier = Modifier.background(Color.White)
+                                            ) {
                                                 DropdownMenuItem(
-                                                    text = { Text(category) },
+                                                    text = { Text("All Categories") },
                                                     onClick = {
                                                         expanded = false
-                                                        viewModel.onSearchCategoryChanged(category)
+                                                        viewModel.onSearchCategoryChanged(null)
                                                     }
                                                 )
+                                                uiState.searchCategories.forEach { category ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(category) },
+                                                        onClick = {
+                                                            expanded = false
+                                                            viewModel.onSearchCategoryChanged(category)
+                                                        }
+                                                    )
+                                                }
                                             }
                                         }
                                     }
-                                }
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Clear",
-                                            tint = Color.Gray
-                                        )
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear",
+                                                tint = Color.Gray
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DealoraPrimary,
-                            unfocusedBorderColor = Color.LightGray,
-                            focusedContainerColor = Color(0xFFF5F5F5),
-                            unfocusedContainerColor = Color(0xFFF5F5F5)
-                        ),
-                        shape = RoundedCornerShape(8.dp),
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = DealoraPrimary,
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedContainerColor = Color(0xFFF5F5F5),
+                                unfocusedContainerColor = Color(0xFFF5F5F5)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        )
+                    }
+
+                    // Segmented chips: Coupon and Offer
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val currentMode = uiState.searchMode
+                        listOf("Coupon", "Offer").forEach { mode ->
+                            val isSelected = currentMode == mode
+                            val backgroundColor by androidx.compose.animation.animateColorAsState(
+                                targetValue = if (isSelected) DealoraPrimary else Color(0xFFF5F5F5),
+                                label = "bg_color"
+                            )
+                            val textColor by androidx.compose.animation.animateColorAsState(
+                                targetValue = if (isSelected) Color.White else Color.Gray,
+                                label = "text_color"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(100.dp))
+                                    .background(backgroundColor)
+                                    .clickable {
+                                        viewModel.onSearchModeChanged(mode)
+                                    }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = mode,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = textColor
+                                )
+                            }
+                        }
+                    }
+
+                    // Premium Hint/Caption Text below the chips
+                    Text(
+                        text = "Type 3 characters to auto-search, or press Enter key to force search",
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
             },
@@ -228,7 +297,7 @@ fun HomeScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Search public partner coupons with high health scores.",
+                                text = "Search public partner coupons.",
                                 fontSize = 14.sp,
                                 color = Color.Gray,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -268,7 +337,7 @@ fun HomeScreen(
                     }
 
                     // Check if search query exists but is too short (< 3 characters)
-                    searchQuery.isNotEmpty() && searchQuery.length < 3 -> {
+                    searchQuery.isNotEmpty() && searchQuery.length < 3 && !uiState.isSearchForced -> {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -458,36 +527,50 @@ fun HomeScreen(
                                         )
                                     },
                                     onDiscoverClick = {
-                                        coupon.couponCode?.let { code ->
-                                            if (code.isNotEmpty()) {
-                                                clipboardManager.setText(AnnotatedString(code))
-                                            }
-                                        }
-                                        viewModel.recordPartnerDiscover(coupon)
-                                        val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
-                                        if (url != null) {
-                                            try {
-                                                val uri = Uri.parse(
-                                                    if (url.startsWith("http://") || url.startsWith("https://"))
-                                                        url else "https://$url"
-                                                )
-                                                context.startActivity(
-                                                    Intent(Intent.ACTION_VIEW, uri).apply {
-                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    }
-                                                )
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "Invalid link", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    },
-                                    onSave = { id -> viewModel.savePartnerCoupon(coupon) },
-                                    onRemoveSave = { id -> viewModel.removeSavedCoupon(coupon.id) },
-                                    onRedeem = { id ->
-                                        if (!isAlreadyRedeemed) {
-                                            showFeedbackDialog = true
-                                        }
-                                    }
+                                         val isOffer = coupon.offerType == "Offer"
+                                         if (!isOffer) {
+                                             coupon.couponCode?.let { code ->
+                                                 if (code.isNotEmpty()) {
+                                                     clipboardManager.setText(AnnotatedString(code))
+                                                 }
+                                             }
+                                             viewModel.recordPartnerDiscover(coupon)
+                                         }
+                                         val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
+                                         if (url != null) {
+                                             try {
+                                                 val uri = Uri.parse(
+                                                     if (url.startsWith("http://") || url.startsWith("https://"))
+                                                         url else "https://$url"
+                                                 )
+                                                 context.startActivity(
+                                                     Intent(Intent.ACTION_VIEW, uri).apply {
+                                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                     }
+                                                 )
+                                             } catch (e: Exception) {
+                                                 Toast.makeText(context, "Invalid link", Toast.LENGTH_SHORT).show()
+                                             }
+                                         }
+                                     },
+                                     onSave = { id -> viewModel.savePartnerCoupon(coupon) },
+                                     onRemoveSave = { id -> viewModel.removeSavedCoupon(coupon.id) },
+                                     onRedeem = { id ->
+                                         if (!isAlreadyRedeemed) {
+                                             if (coupon.offerType == "Offer") {
+                                                 viewModel.redeemPartnerCoupon(
+                                                     couponId = coupon.id,
+                                                     onSuccess = { showSuccessDialog = true },
+                                                     onError = { err ->
+                                                         errorMessage = err
+                                                         showErrorDialog = true
+                                                     }
+                                                 )
+                                             } else {
+                                                 showFeedbackDialog = true
+                                             }
+                                         }
+                                     }
                                 )
 
                                 RedeemResultDialogs(
@@ -748,7 +831,7 @@ fun HomeScreen(
                 // Public Search Banner Card replacing StatisticsCard and ExclusiveBannerCard
                 PublicSearchBannerCard(
                     onSearchClick = {
-                        isSearchExpanded = true
+                        viewModel.setSearchExpanded(true)
                     }
                 )
 

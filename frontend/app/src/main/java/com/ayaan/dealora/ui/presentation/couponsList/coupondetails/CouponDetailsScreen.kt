@@ -202,6 +202,9 @@ fun CouponDetailsContent(
     var showRedeemSuccess by remember { mutableStateOf(false) }
     var redeemError by remember { mutableStateOf<String?>(null) }
 
+    val isOffer = coupon.userId == "partner_coupon" && coupon.couponCode?.toString().isNullOrBlank()
+    val isAlreadyRedeemed = (coupon.userId == "partner_coupon" && coupon.actions?.canRedeem == false)
+
     Scaffold(topBar = {
         TopBar(
             navController = navController, title = "Details"
@@ -212,45 +215,60 @@ fun CouponDetailsContent(
         // - Exclusive coupons (isPrivateMode = false) → calls redeemRawCoupon() on the VM
         //   (local-only removal, no backend call needed for scraped coupons).
         // The websiteLink / couponVisitingLink fields are populated for both types.
-        BottomActionButtons(couponLink = coupon.websiteLink?.toString(), onRedeemed = {
-            // For partner coupons, we show the "Did it work?" dialog immediately.
-            // For others, we show the generic "Mark as Redeemed?" dialog.
-            if (coupon.userId == "partner_coupon") {
-                showPartnerVoteDialog = true
-            } else {
-                showRedeemDialog = true
-            }
-        }, onDiscoverClick = {
-            coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let { code ->
-                clipboardManager.setText(AnnotatedString(code))
-            }
-            val websiteUrl = coupon.websiteLink?.toString()?.trim()
-                ?.takeIf { it.isNotEmpty() }
-
-            if (websiteUrl != null) {
-                // Record for fleet engine (scraped/exclusive coupons — no-ops for partner)
-                viewModel.recordInteraction("discover")
-                // Record for partner coupon interaction engine (no-ops for non-partner)
-                viewModel.recordPartnerInteraction("discover")
-
-                try {
-                    val uri = Uri.parse(
-                        if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
-                            websiteUrl
-                        else
-                            "https://$websiteUrl"
-                    )
-                    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        BottomActionButtons(
+            couponLink = coupon.websiteLink?.toString(),
+            isRedeemed = isAlreadyRedeemed,
+            onRedeemed = {
+                // For partner coupons, we show the "Did it work?" dialog immediately.
+                // For others, we show the generic "Mark as Redeemed?" dialog.
+                if (coupon.userId == "partner_coupon") {
+                    if (isOffer) {
+                        viewModel.redeemCoupon(onSuccess = {
+                            showRedeemSuccess = true
+                        }, onError = { error ->
+                            redeemError = error
+                        })
+                    } else {
+                        showPartnerVoteDialog = true
                     }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    Log.e("CouponDetailsScreen", "Could not open brand link: ${e.message}", e)
+                } else {
+                    showRedeemDialog = true
                 }
-            } else {
-                Log.w("CouponDetailsScreen", "No website link available for this coupon")
+            },
+            onDiscoverClick = {
+                coupon.couponCode?.toString()?.takeIf { it.isNotBlank() }?.let { code ->
+                    clipboardManager.setText(AnnotatedString(code))
+                }
+                val websiteUrl = coupon.websiteLink?.toString()?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+
+                if (websiteUrl != null) {
+                    // Record for fleet engine (scraped/exclusive coupons — no-ops for partner)
+                    viewModel.recordInteraction("discover")
+                    // Record for partner coupon interaction engine (no-ops for non-partner)
+                    if (!isOffer) {
+                        viewModel.recordPartnerInteraction("discover")
+                    }
+
+                    try {
+                        val uri = Uri.parse(
+                            if (websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://"))
+                                websiteUrl
+                            else
+                                "https://$websiteUrl"
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e("CouponDetailsScreen", "Could not open brand link: ${e.message}", e)
+                    }
+                } else {
+                    Log.w("CouponDetailsScreen", "No website link available for this coupon")
+                }
             }
-        })
+        )
     }) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -333,9 +351,13 @@ fun CouponDetailsContent(
                     },
                     onLinkClick = {
                         // For links that also copy code
-                        viewModel.recordInteraction("copy")
-                        viewModel.recordInteraction("discover")
-                        viewModel.recordPartnerInteraction("discover")
+                        if (coupon.userId != "partner_coupon") {
+                            viewModel.recordInteraction("copy")
+                            viewModel.recordInteraction("discover")
+                        }
+                        if (coupon.userId == "partner_coupon" && !isOffer) {
+                            viewModel.recordPartnerInteraction("discover")
+                        }
                         
                         coupon.couponVisitingLink?.toString()?.takeIf { it.isNotBlank() }?.let { link ->
                             try {
@@ -465,7 +487,7 @@ fun CouponDetailsContent(
             shape = RoundedCornerShape(16.dp),
             title = {
                 Text(
-                    text = "Did this coupon work?",
+                    text = if (isOffer) "Did this offer work?" else "Did this coupon work?",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
@@ -489,7 +511,9 @@ fun CouponDetailsContent(
                     Button(
                         onClick = {
                             showPartnerVoteDialog = false
-                            viewModel.votePartnerCoupon("success")
+                            if (!isOffer) {
+                                viewModel.votePartnerCoupon("success")
+                            }
                             viewModel.redeemCoupon(onSuccess = {
                                 showRedeemSuccess = true
                             }, onError = { error ->
@@ -507,7 +531,9 @@ fun CouponDetailsContent(
                     OutlinedButton(
                         onClick = {
                             showPartnerVoteDialog = false
-                            viewModel.votePartnerCoupon("failure")
+                            if (!isOffer) {
+                                viewModel.votePartnerCoupon("failure")
+                            }
                             viewModel.redeemCoupon(onSuccess = {
                                 showRedeemSuccess = true
                             }, onError = { error ->

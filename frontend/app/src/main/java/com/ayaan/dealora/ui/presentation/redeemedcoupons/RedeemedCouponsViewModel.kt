@@ -239,6 +239,12 @@ class RedeemedCouponsViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing coupon: $couponId", e)
             }
+            // Sync with backend remotely (safe try-catch in case of non-partner coupon)
+            try {
+                couponRepository.unsavePartnerCoupon(couponId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing unsaved partner coupon with backend: $couponId", e)
+            }
         }
     }
 

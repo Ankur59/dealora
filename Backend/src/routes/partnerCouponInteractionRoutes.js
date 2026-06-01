@@ -147,26 +147,47 @@ router.post('/', async (req, res) => {
 /**
  * GET /api/partner-coupon-interactions/pending?userId=UID
  *
- * Returns all interactions with outcome = "pending" for the given user,
- * from the last 7 days, sorted newest first.  The frontend shows these as a feedback popup.
+ * Returns up to BATCH_SIZE (10) pending interactions for the user, filtered
+ * to those seen fewer than MAX_ATTEMPTS (3) times.
+ *
+ * On every fetch, viewCount is incremented for all returned interactions so
+ * the attempt is consumed even if the user dismisses the popup without voting.
+ * Once viewCount reaches MAX_ATTEMPTS the entry is permanently excluded.
+ *
+ * Voted entries (outcome = success | failure) are already resolved and therefore
+ * naturally excluded from the `outcome: 'pending'` filter.
  */
 router.get('/pending', async (req, res) => {
     try {
         const userId = req.query.userId || getUserId(req);
         if (!userId) return badRequest(res, 'userId is required');
 
-        // Calculate date 7 days ago
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const MAX_ATTEMPTS = 3;
+        const BATCH_SIZE   = 10;
 
+        // Only return interactions that haven't used up their 3 display slots
         const pending = await PartnerCouponInteraction.find({
             userId,
-            outcome: 'pending',
-            createdAt: { $gte: sevenDaysAgo }
+            outcome:   'pending',
+            viewCount: { $lt: MAX_ATTEMPTS }
         })
             .sort({ createdAt: -1 })
-            .limit(20)   // cap: show at most 20 feedback prompts at once
+            .limit(BATCH_SIZE)
             .lean();
+
+        // Increment viewCount for every interaction that was just served.
+        // This happens regardless of what the user does with the popup so that
+        // simply dismissing ("Maybe later") counts as one attempt.
+        if (pending.length > 0) {
+            const ids = pending.map(p => p._id);
+            await PartnerCouponInteraction.updateMany(
+                { _id: { $in: ids } },
+                { $inc: { viewCount: 1 } }
+            ).catch(err => {
+                // Non-fatal: log but don't fail the response
+                console.error('[PartnerCouponInteraction] viewCount increment error:', err.message);
+            });
+        }
 
         res.json({
             success: true,

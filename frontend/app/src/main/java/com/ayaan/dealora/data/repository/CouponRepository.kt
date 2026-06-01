@@ -593,13 +593,20 @@ class CouponRepository @Inject constructor(
      * Only returns verified, non-expired coupons sorted by healthScore DESC.
      */
     suspend fun searchPartnerCoupons(
-        q:        String,
-        category: String? = null,
-        page:     Int? = null,
-        limit:    Int? = null
+        q:         String,
+        category:  String? = null,
+        offerType: String? = null,
+        page:      Int? = null,
+        limit:     Int? = null
     ): PartnerCouponResult {
         return try {
-            val response = couponApiService.searchPartnerCoupons(q = q, category = category, page = page, limit = limit)
+            val response = couponApiService.searchPartnerCoupons(
+                q = q,
+                category = category,
+                offerType = offerType,
+                page = page,
+                limit = limit
+            )
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.success == true && body.data != null) {
@@ -620,10 +627,20 @@ class CouponRepository @Inject constructor(
 
     /** Partner coupons this user has already redeemed. */
     suspend fun getRedeemedPartnerCoupons(
-        page: Int? = null, limit: Int? = null
+        page: Int? = null,
+        limit: Int? = null,
+        offerType: String? = null,
+        category: String? = null,
+        search: String? = null
     ): PartnerCouponResult {
         return try {
-            val response = couponApiService.getRedeemedPartnerCoupons(page = page, limit = limit)
+            val response = couponApiService.getRedeemedPartnerCoupons(
+                page = page,
+                limit = limit,
+                offerType = offerType,
+                category = category,
+                search = search
+            )
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.success == true && body.data != null) {
@@ -684,6 +701,68 @@ class CouponRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "trackPartnerDiscover exception", e)
             false
+        }
+    }
+
+    /** Save a partner coupon locally and in remote database. */
+    suspend fun savePartnerCoupon(couponId: String): Boolean {
+        return try {
+            Log.d(TAG, "Saving partner coupon remotely: $couponId")
+            val response = couponApiService.savePartnerCoupon(couponId)
+            response.isSuccessful && response.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "savePartnerCoupon exception", e)
+            false
+        }
+    }
+
+    /** Unsave a partner coupon locally and in remote database. */
+    suspend fun unsavePartnerCoupon(couponId: String): Boolean {
+        return try {
+            Log.d(TAG, "Unsaving partner coupon remotely: $couponId")
+            val response = couponApiService.unsavePartnerCoupon(couponId)
+            response.isSuccessful && response.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "unsavePartnerCoupon exception", e)
+            false
+        }
+    }
+
+    /** Get saved partner coupons for the current user in a paginated way. */
+    suspend fun getSavedPartnerCoupons(
+        page: Int? = null,
+        limit: Int? = null,
+        offerType: String? = null,
+        category: String? = null,
+        search: String? = null
+    ): PartnerCouponResult {
+        return try {
+            Log.d(TAG, "Fetching saved partner coupons - page: $page, limit: $limit, offerType: $offerType, category: $category, search: $search")
+            val response = couponApiService.getSavedPartnerCoupons(
+                page = page,
+                limit = limit,
+                offerType = offerType,
+                category = category,
+                search = search
+            )
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    PartnerCouponResult.Success(
+                        coupons = body.data.coupons,
+                        total   = body.data.total,
+                        page    = body.data.page,
+                        pages   = body.data.pages
+                    )
+                } else {
+                    PartnerCouponResult.Error(body?.message ?: "Failed to fetch saved partner coupons")
+                }
+            } else {
+                PartnerCouponResult.Error("HTTP ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSavedPartnerCoupons exception", e)
+            PartnerCouponResult.Error(NetworkErrorMapper.from(e))
         }
     }
 }

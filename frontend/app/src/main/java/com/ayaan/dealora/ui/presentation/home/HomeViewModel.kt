@@ -295,6 +295,12 @@ class HomeViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing coupon: $couponId", e)
             }
+            // Sync with backend remotely
+            try {
+                couponRepository.unsavePartnerCoupon(couponId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing unsaved partner coupon with backend: $couponId", e)
+            }
         }
     }
 
@@ -481,15 +487,17 @@ class HomeViewModel @Inject constructor(
 
     /**
      * Skip all pending partner interactions.
+     * Clears them locally so they are dismissed for this session.
+     * Their viewCount will be incremented on next fetch, auto-dismissing after 3 displays.
      */
     fun skipAllPartnerInteractions() {
-        val allIds = _uiState.value.allPendingPartnerInteractionIds
-        viewModelScope.launch {
-            allIds.forEach { id -> partnerInteractionRepository.resolveInteraction(id, "skipped") }
-            _uiState.update {
-                it.copy(pendingPartnerInteractions = emptyList(), allPendingPartnerInteractionIds = emptyList())
-            }
+        _uiState.update {
+            it.copy(
+                pendingPartnerInteractions = emptyList(),
+                allPendingPartnerInteractionIds = emptyList()
+            )
         }
+        Log.d(TAG, "Dismissed pending interactions locally")
     }
 
     // ── Search & Partner Coupon Operations ───────────────────────────────────
@@ -504,8 +512,6 @@ class HomeViewModel @Inject constructor(
      */
     fun onSearchQueryChanged(query: String) {
         searchQuery.value = query
-        
-        // If search is blank, clear results and cancel any pending searches
         if (query.isBlank()) {
             searchJob?.cancel()
             _uiState.update {
@@ -517,16 +523,18 @@ class HomeViewModel @Inject constructor(
                     isLoadingSearchCoupons = false,
                     searchError = null,
                     searchCategories = emptyList(),
-                    selectedSearchCategory = null
+                    selectedSearchCategory = null,
+                    isSearchForced = false
                 )
             }
             Log.d(TAG, "Search cleared - showing empty state")
             return
         }
         
-        // Minimum 3 characters required for search
-        if (query.trim().length < 3) {
+        // Minimum 3 characters required for auto-search
+        if (query.trim().length < 3 && !_uiState.value.isSearchForced) {
             Log.d(TAG, "Search query too short (${query.length} chars) - need at least 3")
+            searchJob?.cancel()
             _uiState.update {
                 it.copy(
                     searchCoupons = emptyList(),
@@ -536,7 +544,8 @@ class HomeViewModel @Inject constructor(
                     isLoadingSearchCoupons = false,
                     searchError = null,
                     searchCategories = emptyList(),
-                    selectedSearchCategory = null
+                    selectedSearchCategory = null,
+                    isSearchForced = false
                 )
             }
             return
@@ -545,7 +554,7 @@ class HomeViewModel @Inject constructor(
         // Debounce search API calls (500ms)
         // Cancel previous search job if user is still typing
         searchJob?.cancel()
-        _uiState.update { it.copy(selectedSearchCategory = null) }
+        _uiState.update { it.copy(selectedSearchCategory = null, isSearchForced = false) }
         searchJob = viewModelScope.launch {
             delay(500) // 500ms debounce for better performance
             loadSearchCoupons(resetPage = true)
@@ -554,9 +563,26 @@ class HomeViewModel @Inject constructor(
         Log.d(TAG, "Search query updated: '$query' (${query.length} chars) - will execute after debounce")
     }
 
+    fun forceSearch() {
+        val query = searchQuery.value
+        if (query.isBlank()) return
+        searchJob?.cancel()
+        _uiState.update { it.copy(isSearchForced = true, selectedSearchCategory = null) }
+        loadSearchCoupons(resetPage = true)
+    }
+
     fun onSearchCategoryChanged(category: String?) {
         _uiState.update { it.copy(selectedSearchCategory = category) }
         loadSearchCoupons(resetPage = true)
+    }
+
+    fun onSearchModeChanged(mode: String) {
+        _uiState.update { it.copy(searchMode = mode, selectedSearchCategory = null, searchCategories = emptyList()) }
+        loadSearchCoupons(resetPage = true)
+    }
+
+    fun setSearchExpanded(expanded: Boolean) {
+        _uiState.update { it.copy(isSearchExpanded = expanded) }
     }
 
     fun loadSearchCoupons(resetPage: Boolean = true) {
@@ -567,17 +593,19 @@ class HomeViewModel @Inject constructor(
             try {
                 val currentPage = if (resetPage) 1 else (_uiState.value.searchCouponsPage + 1)
                 val selectedCategory = _uiState.value.selectedSearchCategory
+                val offerType = _uiState.value.searchMode
                 if (resetPage) {
                     _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null, searchCoupons = emptyList()) }
                 } else {
                     _uiState.update { it.copy(isLoadingSearchCoupons = true, searchError = null) }
                 }
 
-                Log.d(TAG, "loadSearchCoupons page=$currentPage query=$query category=$selectedCategory")
+                Log.d(TAG, "loadSearchCoupons page=$currentPage query=$query category=$selectedCategory offerType=$offerType")
 
                 when (val result = couponRepository.searchPartnerCoupons(
                     q        = query,
                     category = selectedCategory,
+                    offerType = offerType,
                     page     = currentPage,
                     limit    = 20,
                 )) {
@@ -592,7 +620,7 @@ class HomeViewModel @Inject constructor(
                                 searchCouponsPages = result.pages,
                                 isLoadingSearchCoupons = false,
                                 searchCategories = if (selectedCategory == null && resetPage) result.categories else it.searchCategories,
-                                searchError = if (newCoupons.isEmpty()) "No verified coupons found" else null
+                                searchError = if (newCoupons.isEmpty()) (if (offerType == "Offer") "No offers found" else "No verified coupons found") else null
                             )
                         }
                     }
@@ -628,6 +656,12 @@ class HomeViewModel @Inject constructor(
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "savePartnerCoupon error", e)
+            }
+            // Sync with backend remotely
+            try {
+                couponRepository.savePartnerCoupon(coupon.id)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing saved partner coupon with backend: ${coupon.id}", e)
             }
         }
     }

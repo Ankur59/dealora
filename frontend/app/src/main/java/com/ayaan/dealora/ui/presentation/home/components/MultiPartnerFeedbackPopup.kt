@@ -1,5 +1,6 @@
 package com.ayaan.dealora.ui.presentation.home.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,11 @@ import androidx.compose.ui.window.DialogProperties
 import com.ayaan.dealora.data.api.models.PendingPartnerInteraction
 import com.ayaan.dealora.ui.theme.AppColors
 import com.ayaan.dealora.ui.theme.DealoraPrimary
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.concurrent.TimeUnit
 
 /**
  * Feedback popup for partner (exclusive) coupon interactions.
@@ -41,7 +47,7 @@ fun MultiPartnerFeedbackPopup(
 ) {
     if (interactions.isEmpty()) return
 
-    val displayList = interactions.take(5)   // cap at 5 rows per session
+    val displayList = interactions.take(10)   // cap at 10 rows per session
 
     Dialog(
         onDismissRequest = onDismissAll,
@@ -55,59 +61,60 @@ fun MultiPartnerFeedbackPopup(
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
         ) {
-            Column(
-                modifier              = Modifier
-                    .padding(24.dp)
-                    .fillMaxWidth(),
-                horizontalAlignment   = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text      = "Did these partner deals work? 🏷️",
-                    fontSize  = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color     = AppColors.PrimaryText,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text      = "Let us know if these exclusive coupons worked for you.",
-                    fontSize  = 14.sp,
-                    textAlign = TextAlign.Center,
-                    color     = AppColors.SecondaryText,
-                    modifier  = Modifier.padding(horizontal = 8.dp)
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                LazyColumn(
-                    modifier            = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick = onDismissAll,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
                 ) {
-                    items(displayList) { interaction ->
-                        PartnerFeedbackItem(
-                            interaction = interaction,
-                            onSuccess   = { onResolve(interaction.couponId, "success") },
-                            onFailure   = { onResolve(interaction.couponId, "failure") }
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = AppColors.SecondaryText
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = onDismissAll,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape    = RoundedCornerShape(14.dp),
-                    colors   = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF1F0FF),
-                        contentColor   = DealoraPrimary
-                    )
+                Column(
+                    modifier              = Modifier
+                        .padding(top = 36.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment   = Alignment.CenterHorizontally
                 ) {
-                    Text("Maybe later", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text      = "Did these partner deals work? 🏷️",
+                        fontSize  = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color     = AppColors.PrimaryText,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text      = "Let us know if these exclusive coupons worked for you.",
+                        fontSize  = 14.sp,
+                        textAlign = TextAlign.Center,
+                        color     = AppColors.SecondaryText,
+                        modifier  = Modifier.padding(horizontal = 8.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    LazyColumn(
+                        modifier            = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(displayList) { interaction ->
+                            PartnerFeedbackItem(
+                                interaction = interaction,
+                                onSuccess   = { onResolve(interaction.couponId, "success") },
+                                onFailure   = { onResolve(interaction.couponId, "failure") }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -141,14 +148,40 @@ private fun PartnerFeedbackItem(
                     maxLines   = 1,
                     overflow   = TextOverflow.Ellipsis
                 )
-                if (!interaction.couponCode.isNullOrBlank()) {
+                val relativeTime = formatRelativeTime(interaction.createdAt)
+                if (relativeTime.isNotEmpty()) {
                     Text(
-                        text          = interaction.couponCode,
-                        fontSize      = 13.sp,
-                        fontWeight    = FontWeight.Medium,
-                        color         = DealoraPrimary,
-                        letterSpacing = 1.sp
+                        text     = relativeTime,
+                        fontSize = 11.sp,
+                        color    = AppColors.SecondaryText,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
+                }
+                if (!interaction.couponCode.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        color = Color(0xFFF0EFFF),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, DealoraPrimary.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "✂️",
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(end = 6.dp)
+                            )
+                            Text(
+                                text          = interaction.couponCode,
+                                fontSize      = 12.sp,
+                                fontWeight    = FontWeight.Bold,
+                                color         = DealoraPrimary,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
                 }
             }
 
@@ -179,4 +212,47 @@ private fun PartnerFeedbackItem(
             }
         }
     }
+}
+
+private fun formatRelativeTime(isoString: String?): String {
+    if (isoString.isNullOrBlank()) return ""
+    return try {
+        val date = parseIsoString(isoString) ?: return ""
+        val now = System.currentTimeMillis()
+        val diff = now - date.time
+        
+        if (diff < 0) return "used today"
+        
+        val days = TimeUnit.MILLISECONDS.toDays(diff)
+        when {
+            days == 0L -> "used today"
+            days == 1L -> "used yesterday"
+            days < 7L -> "used $days days ago"
+            days in 7L..13L -> "used last week"
+            days in 14L..20L -> "used 2 weeks ago"
+            days in 21L..27L -> "used 3 weeks ago"
+            else -> "used over a month ago"
+        }
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+private fun parseIsoString(isoString: String): Date? {
+    val formats = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+        "yyyy-MM-dd'T'HH:mm:ssZ"
+    )
+    for (format in formats) {
+        try {
+            val sdf = SimpleDateFormat(format, Locale.US)
+            sdf.timeZone = TimeZone.getTimeZone("UTC")
+            return sdf.parse(isoString)
+        } catch (e: Exception) {
+            // continue
+        }
+    }
+    return null
 }

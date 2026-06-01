@@ -33,5 +33,8 @@ data class HomeUiState(
     val isLoadingSearchCoupons: Boolean = false,
     val searchError: String? = null,
     val searchCategories: List<String> = emptyList(),
-    val selectedSearchCategory: String? = null
+    val selectedSearchCategory: String? = null,
+    val searchMode: String = "Coupon",
+    val isSearchExpanded: Boolean = false,
+    val isSearchForced: Boolean = false
 )

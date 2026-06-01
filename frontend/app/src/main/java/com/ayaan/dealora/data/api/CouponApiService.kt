@@ -17,6 +17,7 @@ import com.ayaan.dealora.data.api.models.PrivateCouponResponseData
 import com.ayaan.dealora.data.api.models.SyncPrivateCouponsRequest
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -121,17 +122,21 @@ interface CouponApiService {
     /** Simple search: matches brandName or categories, verified + not expired, sorted by healthScore. */
     @GET("api/partner-coupons/search")
     suspend fun searchPartnerCoupons(
-        @Query("q")        q:        String,
-        @Query("category") category: String? = null,
-        @Query("page")     page:     Int? = null,
-        @Query("limit")    limit:    Int? = null
+        @Query("q")         q:         String,
+        @Query("category")  category:  String? = null,
+        @Query("offerType") offerType: String? = null,
+        @Query("page")      page:      Int? = null,
+        @Query("limit")     limit:     Int? = null
     ): Response<ApiResponse<PartnerCouponListResponseData>>
 
     /** Partner coupons this user has already redeemed. */
     @GET("api/partner-coupons/redeemed")
     suspend fun getRedeemedPartnerCoupons(
-        @Query("page")  page:  Int? = null,
-        @Query("limit") limit: Int? = null
+        @Query("page")      page:      Int? = null,
+        @Query("limit")     limit:     Int? = null,
+        @Query("offerType") offerType: String? = null,
+        @Query("category")  category:  String? = null,
+        @Query("search")    search:    String? = null
     ): Response<ApiResponse<PartnerCouponListResponseData>>
 
     /** Mark a partner coupon as redeemed — writes to Redemption collection. */
@@ -152,4 +157,26 @@ interface CouponApiService {
     suspend fun trackPartnerDiscover(
         @Path("id") couponId: String
     ): Response<ApiResponse<Any>>
+
+    /** Save a partner coupon — writes to SavePrivateCoupon collection. */
+    @POST("api/partner-coupons/{id}/save")
+    suspend fun savePartnerCoupon(
+        @Path("id") couponId: String
+    ): Response<ApiResponse<Any>>
+
+    /** Unsave a partner coupon — deletes from SavePrivateCoupon collection. */
+    @DELETE("api/partner-coupons/{id}/save")
+    suspend fun unsavePartnerCoupon(
+        @Path("id") couponId: String
+    ): Response<ApiResponse<Any>>
+
+    /** Get paginated saved partner coupons for the current user. */
+    @GET("api/partner-coupons/saved")
+    suspend fun getSavedPartnerCoupons(
+        @Query("page")      page:      Int? = null,
+        @Query("limit")     limit:     Int? = null,
+        @Query("offerType") offerType: String? = null,
+        @Query("category")  category:  String? = null,
+        @Query("search")    search:    String? = null
+    ): Response<ApiResponse<PartnerCouponListResponseData>>
 }

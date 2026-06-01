@@ -45,6 +45,7 @@ data class PartnerCoupon(
     @Json(name = "createdAt")       val createdAt: String?      = null,
     @Json(name = "updatedAt")       val updatedAt: String?      = null,
     @Json(name = "healthScore")     val healthScore: Double?    = null,
+    @Json(name = "offerType")       val offerType: String?      = null,
 )
 
 /** Response for POST /api/partner-coupons/:id/redeem */

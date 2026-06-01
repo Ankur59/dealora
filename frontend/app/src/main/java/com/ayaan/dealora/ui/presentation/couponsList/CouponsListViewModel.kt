@@ -145,20 +145,6 @@ class CouponsListViewModel @Inject constructor(
             savedCouponRepository.getAllSavedCoupons().collectLatest { savedCoupons ->
                 _savedCouponIds.value = savedCoupons.map { it.couponId }.toSet()
                 Log.d(TAG, "Updated saved coupon IDs: ${_savedCouponIds.value}")
-
-                // Parse and populate saved partner coupons locally
-                val list = mutableListOf<PartnerCoupon>()
-                val adapter = moshi.adapter(PartnerCoupon::class.java)
-                savedCoupons.forEach { entity ->
-                    if (entity.couponType == "raw") {
-                        try {
-                            adapter.fromJson(entity.couponJson)?.let { list.add(it) }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error parsing saved partner coupon JSON: ${entity.couponId}", e)
-                        }
-                    }
-                }
-                _partnerCouponsSaved.value = list
             }
         }
     }
@@ -170,33 +156,18 @@ class CouponsListViewModel @Inject constructor(
 
     fun onSortOptionChanged(sortOption: SortOption) {
         _currentSortOption.value = sortOption
-
-        if (_isPublicMode.value) {
-            loadPartnerCoupons(resetPage = true)
-        } else {
-            loadPrivateCoupons()
-        }
+        loadPartnerCoupons(resetPage = true)
     }
 
     fun onCategoryChanged(category: String?) {
         val apiCategory = if (category == "See All") null else category
         _currentCategory.value = apiCategory
-
-        if (_isPublicMode.value) {
-            loadPartnerCoupons(resetPage = true)
-        } else {
-            loadPrivateCoupons()
-        }
+        loadPartnerCoupons(resetPage = true)
     }
 
     fun onFiltersChanged(filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions) {
         _currentFilters.value = filters
-
-        if (_isPublicMode.value) {
-            loadPartnerCoupons(resetPage = true)
-        } else {
-            loadPrivateCoupons()
-        }
+        loadPartnerCoupons(resetPage = true)
     }
 
     fun onPublicModeChanged(isPublic: Boolean) {
@@ -269,7 +240,12 @@ class CouponsListViewModel @Inject constructor(
                 )) {
                     is RawCouponResult.Success -> {
                         Log.d(TAG, "Raw coupons loaded: ${result.coupons.size} coupons (Total: ${result.total})")
-                        val updatedList = if (resetPage) result.coupons else _rawCoupons.value + result.coupons
+                        val updatedList = if (resetPage) {
+                            result.coupons
+                        } else {
+                            val existingIds = _rawCoupons.value.map { it.id }.toSet()
+                            _rawCoupons.value + result.coupons.filter { it.id !in existingIds }
+                        }
                         _rawCoupons.value = updatedList
                         _rawCouponsTotal.value = result.total
                         _rawCouponsPage.value = result.page
@@ -326,13 +302,21 @@ class CouponsListViewModel @Inject constructor(
 
                 when (_exclusiveTab.value) {
                     ExclusiveTab.REDEEMED -> {
+                        val offerTypeParam = if (_isPublicMode.value) "Coupon" else "Offer"
                         when (val result = couponRepository.getRedeemedPartnerCoupons(
-                            page = currentPage, limit = PARTNER_PAGE_SIZE
+                            page = currentPage,
+                            limit = PARTNER_PAGE_SIZE,
+                            offerType = offerTypeParam,
+                            category = mappedCategoryApi,
+                            search = searchApi
                         )) {
                             is PartnerCouponResult.Success -> {
-                                _partnerCouponsRedeemed.value =
-                                    if (resetPage) result.coupons
-                                    else _partnerCouponsRedeemed.value + result.coupons
+                                _partnerCouponsRedeemed.value = if (resetPage) {
+                                    result.coupons
+                                } else {
+                                    val existingIds = _partnerCouponsRedeemed.value.map { it.id }.toSet()
+                                    _partnerCouponsRedeemed.value + result.coupons.filter { it.id !in existingIds }
+                                }
                                 _partnerPage.value  = result.page
                                 _partnerPages.value = result.pages
                                 _uiState.value = CouponsListUiState.Success
@@ -346,13 +330,37 @@ class CouponsListViewModel @Inject constructor(
                         }
                     }
                     ExclusiveTab.SAVED -> {
-                        // Offline/Local tab loading is handled via local Room stream observers
-                        _uiState.value = CouponsListUiState.Success
+                        val offerTypeParam = if (_isPublicMode.value) "Coupon" else "Offer"
+                        when (val result = couponRepository.getSavedPartnerCoupons(
+                            page = currentPage,
+                            limit = PARTNER_PAGE_SIZE,
+                            offerType = offerTypeParam,
+                            category = mappedCategoryApi,
+                            search = searchApi
+                        )) {
+                            is PartnerCouponResult.Success -> {
+                                _partnerCouponsSaved.value = if (resetPage) {
+                                    result.coupons
+                                } else {
+                                    val existingIds = _partnerCouponsSaved.value.map { it.id }.toSet()
+                                    _partnerCouponsSaved.value + result.coupons.filter { it.id !in existingIds }
+                                }
+                                _partnerPage.value  = result.page
+                                _partnerPages.value = result.pages
+                                _uiState.value = CouponsListUiState.Success
+                            }
+                            is PartnerCouponResult.Error -> {
+                                if (resetPage) {
+                                    _partnerCouponsSaved.value = emptyList()
+                                    _uiState.value = CouponsListUiState.Error(result.message)
+                                }
+                            }
+                        }
                     }
                     else -> {
                         // ACTIVE tab
                         val offerTypeParam = if (_isPublicMode.value) "Coupon" else "Offer"
-                        val sortByParam    = if (!_isPublicMode.value) "discountWeight" else sortByApi
+                        val sortByParam    = sortByApi
 
                         when (val result = couponRepository.getPartnerCoupons(
                             category     = mappedCategoryApi,
@@ -367,9 +375,12 @@ class CouponsListViewModel @Inject constructor(
                             offerType    = offerTypeParam
                         )) {
                             is PartnerCouponResult.Success -> {
-                                _partnerCouponsActive.value =
-                                    if (resetPage) result.coupons
-                                    else _partnerCouponsActive.value + result.coupons
+                                _partnerCouponsActive.value = if (resetPage) {
+                                    result.coupons
+                                } else {
+                                    val existingIds = _partnerCouponsActive.value.map { it.id }.toSet()
+                                    _partnerCouponsActive.value + result.coupons.filter { it.id !in existingIds }
+                                }
                                 _partnerPage.value  = result.page
                                 _partnerPages.value = result.pages
                                 _uiState.value = CouponsListUiState.Success
@@ -467,6 +478,12 @@ class CouponsListViewModel @Inject constructor(
                 _savedCouponIds.value = _savedCouponIds.value + coupon.id
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving partner coupon: ${coupon.id}", e)
+            }
+            // Sync with backend remotely
+            try {
+                couponRepository.savePartnerCoupon(coupon.id)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing saved partner coupon with backend: ${coupon.id}", e)
             }
         }
     }
@@ -614,8 +631,16 @@ class CouponsListViewModel @Inject constructor(
             try {
                 savedCouponRepository.removeSavedCoupon(couponId)
                 _savedCouponIds.value = _savedCouponIds.value - couponId
+                // Optimistically remove from saved partner coupons list
+                _partnerCouponsSaved.value = _partnerCouponsSaved.value.filter { it.id != couponId }
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing coupon: $couponId", e)
+            }
+            // Sync with backend remotely
+            try {
+                couponRepository.unsavePartnerCoupon(couponId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing unsaved partner coupon with backend: $couponId", e)
             }
         }
     }

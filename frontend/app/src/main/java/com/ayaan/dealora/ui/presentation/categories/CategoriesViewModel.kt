@@ -185,14 +185,7 @@ class CategoriesViewModel @Inject constructor(
                 val currentPage = if (resetPage) 1 else (_uiState.value.rawCouponsPage + 1)
                 _uiState.update { it.copy(isLoadingRawCoupons = true) }
 
-                val sortByApi = when (_currentSortOption.value) {
-                    SortOption.NEWEST_FIRST     -> "newest_first"
-                    SortOption.EXPIRING_SOON    -> "expiring_soon"
-                    SortOption.A_TO_Z           -> "a_z"
-                    SortOption.Z_TO_A           -> "z_a"
-                    SortOption.HIGHEST_DISCOUNT -> "discountWeight"
-                    else                        -> null // triggers trend.healthScore DESC default sorting!
-                }
+                val sortByApi = _currentSortOption.value.apiValue
 
                 val filters    = _currentFilters.value
                 val discountType = convertDiscountTypeToApi(filters.discountType)
@@ -362,6 +355,12 @@ class CategoriesViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "saveRawCoupon error", e)
             }
+            // Sync with backend remotely
+            try {
+                couponRepository.savePartnerCoupon(coupon.id)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing saved partner coupon with backend: ${coupon.id}", e)
+            }
         }
     }
 
@@ -371,6 +370,12 @@ class CategoriesViewModel @Inject constructor(
                 savedCouponRepository.removeSavedCoupon(couponId)
             } catch (e: Exception) {
                 Log.e(TAG, "removeSavedCoupon error", e)
+            }
+            // Sync with backend remotely (safe try-catch in case of non-partner coupon)
+            try {
+                couponRepository.unsavePartnerCoupon(couponId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing unsaved partner coupon with backend: $couponId", e)
             }
         }
     }

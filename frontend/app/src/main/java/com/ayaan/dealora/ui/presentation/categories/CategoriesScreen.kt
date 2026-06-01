@@ -136,13 +136,16 @@ fun CategoriesScreen(
                                 )
                             },
                             onDiscoverClick = { coupon ->
-                                coupon.couponCode?.let { code ->
-                                    if (code.isNotEmpty()) {
-                                        clipboardManager.setText(AnnotatedString(code))
+                                val isOffer = coupon.couponCode.isNullOrEmpty()
+                                if (!isOffer) {
+                                    coupon.couponCode?.let { code ->
+                                        if (code.isNotEmpty()) {
+                                            clipboardManager.setText(AnnotatedString(code))
+                                        }
                                     }
+                                    // Track the discover action for trend/health scoring
+                                    viewModel.trackPartnerDiscover(coupon.id)
                                 }
-                                // Track the discover action for trend/health scoring
-                                viewModel.trackPartnerDiscover(coupon.id)
 
                                 val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
                                 if (url != null) {
@@ -367,7 +370,7 @@ private fun ExclusiveCouponsList(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                itemsIndexed(coupons, key = { _, c -> c.id }) { index, coupon ->
+                itemsIndexed(coupons, key = { index, c -> "${c.id}_$index" }) { index, coupon ->
                     val isSaved = savedCouponIds.contains(coupon.id)
                     var showSuccessDialog by remember { mutableStateOf(false) }
                     var showErrorDialog by remember { mutableStateOf(false) }

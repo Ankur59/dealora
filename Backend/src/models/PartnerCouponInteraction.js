@@ -35,6 +35,10 @@ const partnerCouponInteractionSchema = new mongoose.Schema(
         couponCode: { type: String, default: null },
         couponLink: { type: String, default: null },
 
+        // How many times this interaction has been served to the frontend popup.
+        // Interactions are shown at most MAX_ATTEMPTS (3) times then permanently hidden.
+        viewCount: { type: Number, default: 0, min: 0 },
+
         // What the user did
         action: {
             type: String,

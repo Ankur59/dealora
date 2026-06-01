@@ -231,11 +231,7 @@ fun FiltersBottomSheet(
                                         "Percentage Off (% Off)",
                                         "Flat Discount",
                                         "Cashback",
-                                        "Buy 1 Get 1",
-                                        "Free Delivery",
-                                        "Wallet/UPI Offers",
-                                        "Prepaid Only Offers",
-//                                        "Saved Coupons"
+                                        "Buy 1 Get 1"
                                     ),
                                     selectedOption = selectedDiscountType,
                                     onOptionSelected = { selectedDiscountType = it }

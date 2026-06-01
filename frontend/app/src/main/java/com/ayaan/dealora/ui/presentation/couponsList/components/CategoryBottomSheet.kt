@@ -1,8 +1,6 @@
 package com.ayaan.dealora.ui.presentation.couponsList.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,15 +31,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.theme.DealoraPrimary
 import com.ayaan.dealora.ui.theme.DealoraWhite
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Wallet
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Luggage
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.School
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,24 +70,24 @@ fun CategoryBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val allCategories = listOf(
-        "Food" to R.drawable.category_food,
-        "Fashion" to R.drawable.category_fashion,
-        "Grocery" to R.drawable.category_grocery,
-        "Wallet Rewards" to R.drawable.category_wallet,
-        "Beauty" to R.drawable.category_beauty,
-        "Travel" to R.drawable.category_travel,
-        "Entertainment" to R.drawable.category_entertainment,
-        "Other" to R.drawable.category_other,
-        "Electronics" to R.drawable.category_electronics,
-        "Health" to R.drawable.category_health,
-        "Home" to R.drawable.category_home,
-        "Education" to R.drawable.category_education
+        "Food",
+        "Fashion",
+        "Grocery",
+        "Wallet Rewards",
+        "Beauty",
+        "Travel",
+        "Entertainment",
+        "Other",
+        "Electronics",
+        "Health",
+        "Home",
+        "Education"
     )
 
     val displayItems = if (isExpanded) {
-        allCategories.map { it to false } + (("See Less" to 0) to true)
+        allCategories.map { it to false } + (("See Less") to true)
     } else {
-        allCategories.take(7).map { it to false } + (("See All" to 0) to true)
+        allCategories.take(7).map { it to false } + (("See All") to true)
     }
 
     ModalBottomSheet(
@@ -137,8 +152,7 @@ fun CategoryBottomSheet(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        rowItems.forEach { (item, isAction) ->
-                            val (name, imageRes) = item
+                        rowItems.forEach { (name, isAction) ->
                             if (isAction) {
                                 CategoryItemAction(
                                     text = name,
@@ -147,7 +161,6 @@ fun CategoryBottomSheet(
                             } else {
                                 CategoryItem(
                                     name = name,
-                                    imageRes = imageRes,
                                     isSelected = selectedCategory == name,
                                     onClick = {
                                         selectedCategory = if (selectedCategory == name) null else name
@@ -192,10 +205,26 @@ fun CategoryBottomSheet(
     }
 }
 
+fun getCategoryIcon(name: String): ImageVector {
+    return when (name.lowercase()) {
+        "food" -> Icons.Default.Restaurant
+        "fashion" -> Icons.Default.ShoppingBag
+        "grocery" -> Icons.Default.ShoppingCart
+        "wallet rewards", "wallet" -> Icons.Default.Wallet
+        "beauty" -> Icons.Default.Spa
+        "travel" -> Icons.Default.Luggage
+        "entertainment" -> Icons.Default.Movie
+        "electronics" -> Icons.Default.Devices
+        "health" -> Icons.Default.Favorite
+        "home" -> Icons.Default.Home
+        "education" -> Icons.Default.School
+        else -> Icons.Default.Category
+    }
+}
+
 @Composable
 private fun CategoryItem(
     name: String,
-    imageRes: Int,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -204,31 +233,35 @@ private fun CategoryItem(
         modifier = Modifier
             .width(80.dp)
             .clip(RoundedCornerShape(12.dp))
-            .then(
-                if (isSelected) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = Color(0xFF6C5CE7),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            )
             .clickable { onClick() }
             .padding(8.dp)
     ) {
+        val categoryIcon = getCategoryIcon(name)
+        val activeColor = if (isSelected) Color(0xFF5B3FD9) else Color(0xFF5B3FD9).copy(alpha = 0.6f)
+        val backgroundColor = if (isSelected) Color(0xFF5B3FD9).copy(alpha = 0.25f) else Color(0xFF5B3FD9).copy(alpha = 0.15f)
+        
         Box(
-            modifier = Modifier.size(64.dp),
+            modifier = Modifier
+                .size(64.dp)
+                .drawBehind {
+                    val stroke = Stroke(
+                        width = if (isSelected) 2.dp.toPx() else 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                    )
+                    drawCircle(
+                        color = activeColor,
+                        style = stroke
+                    )
+                }
+                .padding(4.dp)
+                .background(backgroundColor, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-
-            Image(
-                painter = painterResource(id = imageRes),
+            Icon(
+                imageVector = categoryIcon,
                 contentDescription = name,
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
+                tint = activeColor,
+                modifier = Modifier.size(26.dp)
             )
         }
 
@@ -237,9 +270,9 @@ private fun CategoryItem(
         Text(
             text = name,
             fontSize = 12.sp,
-            color = if (isSelected) Color(0xFF6C5CE7) else Color.Black,
+            color = if (isSelected) Color(0xFF5B3FD9) else Color.Black,
             textAlign = TextAlign.Center,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.W500,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -252,28 +285,33 @@ private fun CategoryItemAction(text: String, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .width(80.dp)
-            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(8.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(CircleShape)
-                .background(DealoraPrimary),
+                .background(Color(0xFF5B3FD9).copy(alpha = 0.15f), CircleShape)
+                .padding(4.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = text,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DealoraWhite,
-                textAlign = TextAlign.Center
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF5B3FD9), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = text,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
-
+        
         Spacer(modifier = Modifier.height(8.dp))
-
+        
         // Empty space for alignment
         Text(
             text = "",

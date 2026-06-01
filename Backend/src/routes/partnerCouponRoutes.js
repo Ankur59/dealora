@@ -12,6 +12,9 @@ router.get('/search', partnerCouponController.searchPartnerCoupons);
 // GET  /api/partner-coupons            → paginated list sorted by discountWeight ↓
 router.get('/', partnerCouponController.getPartnerCoupons);
 
+// GET  /api/partner-coupons/saved      → coupons this user has saved
+router.get('/saved', partnerCouponController.getSavedPartnerCoupons);
+
 // GET  /api/partner-coupons/redeemed   → coupons this user has redeemed
 router.get('/redeemed', partnerCouponController.getRedeemedPartnerCoupons);
 
@@ -23,5 +26,11 @@ router.post('/:id/vote', partnerCouponController.votePartnerCoupon);
 
 // POST /api/partner-coupons/:id/discover → track discover click for trend analytics
 router.post('/:id/discover', partnerCouponController.trackDiscover);
+
+// POST /api/partner-coupons/:id/save   → save a partner coupon
+router.post('/:id/save', partnerCouponController.savePartnerCoupon);
+
+// DELETE /api/partner-coupons/:id/save → unsave a partner coupon
+router.delete('/:id/save', partnerCouponController.unsavePartnerCoupon);
 
 module.exports = router;
