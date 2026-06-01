@@ -36,7 +36,7 @@ router.get("/pending-tasks", requireDashboardAuth, async (req, res) => {
           ],
         },
       ],
-    }).limit(20);
+    }).limit(200);
 
     const tasks = coupons.map((c) => ({
       id: c._id.toString(),

@@ -31,6 +31,12 @@ let agentRunState = 'idle'; // 'idle', 'running', 'paused'
 let agentCheckedCount = 0;
 let agentTotalCount = 0;
 
+// Multi-merchant parallel execution state
+let activeMerchants = new Set();
+let merchantQueues = {};
+let pendingDomains = [];
+let activeWindows = {};
+
 // Load initial state
 chrome.storage.local.get(['isRunning', 'currentTasks', 'merchantStatuses', 'agentRunState', 'agentCheckedCount', 'agentTotalCount'], (res) => {
     isRunning = res.isRunning || false;
@@ -119,6 +125,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         agentRunState = 'running';
         agentCheckedCount = 0;
         agentTotalCount = 0;
+        activeMerchants.clear();
+        merchantQueues = {};
+        pendingDomains = [];
+        activeWindows = {};
         chrome.storage.local.set({ isRunning, agentRunState, agentCheckedCount, agentTotalCount });
         startAgentLoop();
         fetchAndQueueTasks().then(count => {
@@ -136,9 +146,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.storage.local.set({ isRunning, agentRunState, agentCheckedCount, agentTotalCount });
         for (let t of currentTasks) {
             t.status = 'cancelled';
+            if (t._resumeResolver) t._resumeResolver();
         }
         currentTasks = [];
         chrome.storage.local.set({ currentTasks });
+        for (const dom of Object.keys(activeWindows)) {
+            const winId = activeWindows[dom];
+            if (winId) {
+                try { chrome.windows.remove(winId); } catch(e) {}
+            }
+        }
+        activeWindows = {};
+        activeMerchants.clear();
+        merchantQueues = {};
+        pendingDomains = [];
         sendResponse({ status: 'cancelled' });
     } else if (request.type === 'PAUSE_AGENT') {
         agentRunState = 'paused';
@@ -224,7 +245,7 @@ async function checkMapStatus(domain) {
 async function startAgentLoop() {
     chrome.alarms.create('agentLoop', { periodInMinutes: 1 });
     chrome.alarms.onAlarm.addListener(async (alarm) => {
-        if (alarm.name === 'agentLoop' && isRunning && currentTasks.length < 5) await fetchAndQueueTasks();
+        if (alarm.name === 'agentLoop' && isRunning && activeMerchants.size < 3) await fetchAndQueueTasks();
     });
 }
 
@@ -249,42 +270,158 @@ async function fetchAndQueueTasks() {
         if (!res.ok) return 0;
         const data = await res.json();
         const newTasks = data.coupons || [];
+        if (newTasks.length === 0) return 0;
+
         for (let task of newTasks) {
-            if (currentTasks.length >= 5) break;
             const domain = new URL(task.url).hostname.replace(/^www\./, '');
-            
-            if (!merchantStatuses[domain]?.isLoggedIn) {
-                if (!currentTasks.some(t => t.type === 'auth' && t.domain === domain)) {
-                    const authTask = { id: `auth_${domain}_${Date.now()}`, type: 'auth', domain, url: task.url, code: 'LOGIN_FLOW', brand: knownMerchantDomains[domain] || domain, status: 'running', message: 'Authenticating...' };
-                    currentTasks.push(authTask);
-                    chrome.storage.local.set({ currentTasks });
-                    runAgentSequence(authTask).finally(() => {
-                        currentTasks = currentTasks.filter(t => t.id !== authTask.id);
-                        chrome.storage.local.set({ currentTasks });
-                    });
-                }
-                onTaskFinished();
-                continue;
+            if (!merchantQueues[domain]) {
+                merchantQueues[domain] = [];
             }
+            if (!merchantQueues[domain].some(t => t.id === task.id)) {
+                merchantQueues[domain].push(task);
+            }
+        }
 
-            task.type = 'verify';
-            task.status = 'running';
-            currentTasks.push(task);
-            chrome.storage.local.set({ currentTasks });
-            runAgentSequence(task).finally(() => {
-                currentTasks = currentTasks.filter(t => t.id !== task.id);
-                chrome.storage.local.set({ currentTasks });
-                onTaskFinished();
+        for (const domain of Object.keys(merchantQueues)) {
+            if (merchantQueues[domain].length > 0 && !activeMerchants.has(domain) && !pendingDomains.includes(domain)) {
+                pendingDomains.push(domain);
+            }
+        }
+
+        processNextMerchants();
+        return newTasks.length;
+    } catch (err) {
+        log('ERROR', 'fetchAndQueueTasks error:', err);
+        return 0;
+    }
+}
+
+async function processNextMerchants() {
+    if (!isRunning || agentRunState === 'idle') return;
+
+    while (activeMerchants.size < 3 && pendingDomains.length > 0) {
+        const domain = pendingDomains.shift();
+        if (domain) {
+            activeMerchants.add(domain);
+            runMerchantWorker(domain).catch(err => {
+                log('ERROR', `Worker failed for ${domain}:`, err);
+                activeMerchants.delete(domain);
+                delete merchantQueues[domain];
+                processNextMerchants();
             });
+        }
+    }
+}
 
-            // Delay between coupons to avoid getting flagged
+async function runMerchantWorker(domain) {
+    const queue = merchantQueues[domain] || [];
+    if (queue.length === 0) {
+        activeMerchants.delete(domain);
+        processNextMerchants();
+        return;
+    }
+
+    const firstTask = queue[0];
+    let windowInfo;
+    try {
+        windowInfo = await chrome.windows.create({ url: firstTask.url, state: 'normal', width: 1280, height: 900, focused: false });
+        activeWindows[domain] = windowInfo.id;
+    } catch (err) {
+        log('ERROR', `Failed to create window for ${domain}:`, err);
+        activeMerchants.delete(domain);
+        delete merchantQueues[domain];
+        processNextMerchants();
+        return;
+    }
+
+    const tabId = windowInfo.tabs[0].id;
+    log('INFO', `Window ${windowInfo.id}, tab ${tabId} created for domain ${domain}`);
+
+    log('INFO', 'Waiting for page load...');
+    await waitForTabLoad(tabId, 30000);
+    log('INFO', 'Page loaded. Settling for 3s...');
+    await new Promise(r => setTimeout(r, 3000));
+
+    log('INFO', 'Ensuring content script...');
+    await ensureContentScript(tabId);
+    log('INFO', 'Content script ready.');
+
+    if (!merchantStatuses[domain]?.isLoggedIn) {
+        log('INFO', `Merchant ${domain} not logged in. Running auth flow first.`);
+        const authTask = {
+            id: `auth_${domain}_${Date.now()}`,
+            type: 'auth',
+            domain,
+            url: firstTask.url,
+            code: 'LOGIN_FLOW',
+            brand: knownMerchantDomains[domain] || domain,
+            status: 'running',
+            message: 'Authenticating...'
+        };
+
+        currentTasks.push(authTask);
+        chrome.storage.local.set({ currentTasks });
+
+        try {
+            await runTaskSequenceInTab(tabId, authTask);
+        } catch (err) {
+            log('ERROR', `Auth failed for ${domain}:`, err);
+        } finally {
+            currentTasks = currentTasks.filter(t => t.id !== authTask.id);
+            chrome.storage.local.set({ currentTasks });
+        }
+    }
+
+    // Refresh loggedIn status after auth attempt
+    const loggedIn = merchantStatuses[domain]?.isLoggedIn;
+
+    for (let i = 0; i < queue.length; i++) {
+        if (!isRunning || agentRunState === 'idle') break;
+
+        const task = queue[i];
+        task.type = 'verify';
+        task.status = 'running';
+        currentTasks.push(task);
+        chrome.storage.local.set({ currentTasks });
+
+        try {
+            if (!loggedIn) {
+                log('WARN', `Skipping coupon ${task.code} for ${domain} because auth failed.`);
+                await reportResultToBackend(task.id, 'invalid', 'Authentication failed for merchant.');
+            } else {
+                if (i > 0) {
+                    log('INFO', `Navigating tab ${tabId} to next coupon URL: ${task.url}`);
+                    await chrome.tabs.update(tabId, { url: task.url });
+                    await waitForTabLoad(tabId, 30000);
+                    await new Promise(r => setTimeout(r, 3000));
+                    await ensureContentScript(tabId);
+                }
+                await runTaskSequenceInTab(tabId, task);
+            }
+        } catch (err) {
+            log('ERROR', `Error verifying ${task.code} for ${domain}:`, err);
+        } finally {
+            currentTasks = currentTasks.filter(t => t.id !== task.id);
+            chrome.storage.local.set({ currentTasks });
+            onTaskFinished();
+        }
+
+        if (i < queue.length - 1 && isRunning && agentRunState !== 'idle') {
             const waitMs = Math.random() * (MAX_DELAY_BETWEEN_COUPONS_MS - MIN_DELAY_BETWEEN_COUPONS_MS) + MIN_DELAY_BETWEEN_COUPONS_MS;
             await new Promise(r => setTimeout(r, waitMs));
         }
-        return newTasks.length;
-    } catch (err) {
-        return 0;
     }
+
+    if (windowInfo?.id) {
+        try {
+            await chrome.windows.remove(windowInfo.id);
+        } catch (e) {}
+    }
+    delete activeWindows[domain];
+    activeMerchants.delete(domain);
+    delete merchantQueues[domain];
+
+    processNextMerchants();
 }
 
 async function triggerSingleVerification(couponId) {
@@ -321,7 +458,7 @@ async function triggerSingleVerification(couponId) {
 
 // ─── Verification & Auto-Login Logic ─────────────────────────────
 async function runAgentSequence(task) {
-    log('INFO', `🔍 STARTING ${task.type.toUpperCase()}:`, task.code, 'on', task.url);
+    log('INFO', `🔍 STARTING SINGLE SEQUENCE: ${task.type.toUpperCase()}:`, task.code, 'on', task.url);
     let windowInfo;
     try {
         windowInfo = await chrome.windows.create({ url: task.url, state: 'normal', width: 1280, height: 900, focused: false });
@@ -341,6 +478,19 @@ async function runAgentSequence(task) {
     await ensureContentScript(tabId);
     log('INFO', 'Content script ready.');
 
+    try {
+        await runTaskSequenceInTab(tabId, task);
+    } catch (err) {
+        log('ERROR', 'runAgentSequence error:', err);
+    } finally {
+        if (windowInfo?.id) {
+            try { await chrome.windows.remove(windowInfo.id); } catch(e) {}
+        }
+        log('INFO', `🔍 ${task.type.toUpperCase()} task finished for ${task.code}`);
+    }
+}
+
+async function runTaskSequenceInTab(tabId, task) {
     let isComplete = false, attempts = 0, actionHistory = [], consecutiveErrors = 0, blockRetries = 0;
     
     let mappedSequence = null;
@@ -589,11 +739,6 @@ async function runAgentSequence(task) {
             captureAndSyncCookies(task.domain, task.brand);
         } catch(e) {}
     }
-
-    if (windowInfo?.id) {
-        try { await chrome.windows.remove(windowInfo.id); } catch(e) {}
-    }
-    log('INFO', `🔍 ${task.type.toUpperCase()} task finished for ${task.code}`);
 }
 
 function buildPrompt(task, dom, history, warn) {
