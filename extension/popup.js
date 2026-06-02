@@ -484,6 +484,7 @@ function renderCoupons() {
             ${c.verificationReason ? `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; font-style: italic;">AI: ${c.verificationReason}</div>` : ''}
             <div class="coupon-actions">
                 <button class="btn-verify" data-coupon-id="${c.id || c._id}">🤖 Verify Now</button>
+                ${c.status !== 'expired' ? `<button class="btn-sm-warning btn-expire-coupon" data-coupon-id="${c.id || c._id}" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer;">Expire</button>` : ''}
                 <button class="btn-sm-danger btn-delete-coupon" data-coupon-id="${c.id || c._id}">Delete</button>
             </div>
         `;
@@ -498,6 +499,33 @@ function renderCoupons() {
             e.target.disabled = true;
             await triggerManualVerification(couponId);
             e.target.textContent = '✓ Queued';
+        });
+    });
+
+    // Expire buttons
+    document.querySelectorAll('.btn-expire-coupon').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            if (confirm('Mark this coupon as expired? This will update the status and decrease AI validation accuracy metrics.')) {
+                const couponId = e.target.getAttribute('data-coupon-id');
+                btn.textContent = '…';
+                btn.disabled = true;
+                try {
+                    const res = await fetch(`${CONFIG.BACKEND_URL}/coupons/${couponId}/expire`, { method: 'POST' });
+                    if (res.ok) {
+                        await fetchCoupons();
+                        await loadAiMetrics();
+                    } else {
+                        alert('Failed to mark coupon as expired');
+                        btn.textContent = 'Expire';
+                        btn.disabled = false;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Network error');
+                    btn.textContent = 'Expire';
+                    btn.disabled = false;
+                }
+            }
         });
     });
 
@@ -696,6 +724,7 @@ async function renderMerchantList() {
             </div>
             <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; margin-left: 6px;">
                 ${m.merchantUrl ? `<button data-action="open" data-url="${m.merchantUrl}" class="btn-open" data-open-for="${m.domain}">Open</button>` : ''}
+                <button data-action="clear-cookies" data-id="${m._id}" data-domain="${m.domain}" style="background: #fee2e2; color: #b91c1c; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #fca5a5; cursor: pointer; white-space: nowrap; display: none;" data-clear-for="${m.domain}">Clear</button>
                 <button class="btn-force-auth" data-url="${m.merchantUrl || m.loginUrl || m.trackingLink}" data-domain="${m.domain}" data-brand="${m.merchantName || m.title}" style="background: #fef3c7; color: #92400e; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #f59e0b; cursor: pointer; white-space: nowrap;">${mapStatus === 'mapped' ? 'Re-Map' : 'Map'}</button>
                 <button data-action="sync" data-domain="${m.domain}" data-title="${m.merchantName || m.title}" style="background: #dbeafe; color: #1d4ed8; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer; white-space: nowrap;">Sync</button>
             </div>
@@ -733,6 +762,35 @@ async function renderMerchantList() {
         if (btn.getAttribute('data-action') === 'open') {
             const url = btn.getAttribute('data-url');
             if (url) chrome.tabs.create({ url });
+        }
+
+        if (btn.getAttribute('data-action') === 'clear-cookies') {
+            const id = btn.getAttribute('data-id');
+            const domain = btn.getAttribute('data-domain');
+            if (!confirm(`Clear session and delete saved cookies for ${domain}?`)) return;
+
+            btn.textContent = '…';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${CONFIG.BACKEND_URL}/merchant-cookies/${id}`, {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    chrome.runtime.sendMessage({ type: 'CLEAR_LOCAL_COOKIE_STATE', domain }, () => {
+                        updateDashboardState();
+                    });
+                } else {
+                    alert('Failed to delete cookies from database');
+                    btn.textContent = 'Clear';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Network error');
+                btn.textContent = 'Clear';
+                btn.disabled = false;
+            }
         }
 
         if (btn.getAttribute('data-action') === 'sync') {
@@ -867,6 +925,10 @@ async function updateDashboardState() {
         // Show/hide the Open button based on session state
         const openBtn = document.querySelector(`[data-open-for="${m.domain}"]`);
         if (openBtn) openBtn.style.display = isLogged ? 'none' : '';
+
+        // Show/hide the Clear button based on session state
+        const clearBtn = document.querySelector(`[data-clear-for="${m.domain}"]`);
+        if (clearBtn) clearBtn.style.display = isLogged ? '' : 'none';
     }
 }
 

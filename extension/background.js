@@ -26,6 +26,7 @@ let knownMerchantDomains = {};
 let cookieSyncTimers = {};     
 let lastSyncTimes = {};        
 let geminiKeyIndex = 0;        
+let disabledAutosyncDomains = {};        
 
 let agentRunState = 'idle'; // 'idle', 'running', 'paused'
 let agentCheckedCount = 0;
@@ -38,13 +39,14 @@ let pendingDomains = [];
 let activeWindows = {};
 
 // Load initial state
-chrome.storage.local.get(['isRunning', 'currentTasks', 'merchantStatuses', 'agentRunState', 'agentCheckedCount', 'agentTotalCount'], (res) => {
+chrome.storage.local.get(['isRunning', 'currentTasks', 'merchantStatuses', 'agentRunState', 'agentCheckedCount', 'agentTotalCount', 'disabledAutosyncDomains'], (res) => {
     isRunning = res.isRunning || false;
     currentTasks = res.currentTasks || [];
     merchantStatuses = res.merchantStatuses || {};
     agentRunState = res.agentRunState || 'idle';
     agentCheckedCount = res.agentCheckedCount || 0;
     agentTotalCount = res.agentTotalCount || 0;
+    disabledAutosyncDomains = res.disabledAutosyncDomains || {};
 });
 
 // ─── Lifecycle ───────────────────────────────────────────────
@@ -103,6 +105,10 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
         cookieDomain === d || cookieDomain.endsWith('.' + d) || d.endsWith('.' + cookieDomain)
     );
     if (!matchedDomain) return;
+
+    if (disabledAutosyncDomains[matchedDomain]) {
+        return;
+    }
 
     // Cooldown: 10 seconds between syncs for the same domain
     const now = Date.now();
@@ -173,6 +179,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ isRunning, currentTasks, merchantStatuses, agentRunState, agentCheckedCount, agentTotalCount });
     } else if (request.type === 'UPDATE_MERCHANT_LOGIN') {
         const { domain, merchantName } = request;
+        if (disabledAutosyncDomains && disabledAutosyncDomains[domain]) {
+            delete disabledAutosyncDomains[domain];
+            chrome.storage.local.set({ disabledAutosyncDomains });
+            log('INFO', `Autosync re-enabled for domain "${domain}" via manual Sync.`);
+        }
         captureAndSyncCookies(domain, merchantName || domain)
             .then(result => {
                 if (result.status === 'updated') {
@@ -205,6 +216,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         triggerSingleVerification(request.couponId)
             .then(() => sendResponse({ status: 'queued' }))
             .catch(err => sendResponse({ status: 'error', message: err.message }));
+    } else if (request.type === 'CLEAR_LOCAL_COOKIE_STATE') {
+        const { domain } = request;
+        disabledAutosyncDomains[domain] = true;
+        chrome.storage.local.set({ disabledAutosyncDomains });
+
+        merchantStatuses[domain] = { isLoggedIn: false, lastChecked: Date.now() };
+        chrome.storage.local.set({ merchantStatuses });
+
+        clearBrowserCookies(domain)
+            .then(() => sendResponse({ status: 'cleared' }))
+            .catch(err => {
+                log('ERROR', `clearBrowserCookies error: ${err.message}`);
+                sendResponse({ status: 'cleared', error: err.message });
+            });
+        return true;
     }
     return true; 
 });
@@ -736,6 +762,11 @@ async function runTaskSequenceInTab(tabId, task) {
                 body: JSON.stringify({ domain: task.domain, flowType: 'login', steps: stepsToSave })
             });
 
+            if (disabledAutosyncDomains && disabledAutosyncDomains[task.domain]) {
+                delete disabledAutosyncDomains[task.domain];
+                chrome.storage.local.set({ disabledAutosyncDomains });
+                log('INFO', `Autosync re-enabled for domain "${task.domain}" due to successful auth flow.`);
+            }
             captureAndSyncCookies(task.domain, task.brand);
         } catch(e) {}
     }
@@ -1010,4 +1041,25 @@ function detectCouponSuccess(domState, code) {
     }
     
     return false;
+}
+
+async function clearBrowserCookies(rawDomain) {
+    let domain = rawDomain.trim();
+    try {
+        if (domain.includes('://')) domain = new URL(domain).hostname;
+    } catch(e) {}
+    domain = domain.replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
+
+    log('INFO', `Clearing browser cookies for domain: "${domain}"`);
+    try {
+        const cookies = await chrome.cookies.getAll({ domain });
+        for (const cookie of cookies) {
+            const protocol = cookie.secure ? "https" : "http";
+            const url = `${protocol}://${cookie.domain.replace(/^\./, '')}${cookie.path}`;
+            await chrome.cookies.remove({ url, name: cookie.name });
+        }
+        log('INFO', `Cleared ${cookies.length} browser cookies for ${domain}`);
+    } catch (e) {
+        log('ERROR', `clearBrowserCookies error for ${domain}:`, e);
+    }
 }

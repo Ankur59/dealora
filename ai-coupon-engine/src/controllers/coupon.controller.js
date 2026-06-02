@@ -1,5 +1,8 @@
+import mongoose from "mongoose";
 import Coupon from "../models/coupon.model.js";
 import { calculateCouponScore } from "../services/scoring.service.js";
+import CouponVerification from "../models/couponVerification.model.js";
+import Merchant from "../models/merchant.model.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -285,6 +288,70 @@ export const deleteCoupon = async (req, res) => {
       return res.status(404).json({ success: false, message: "Coupon not found" });
     }
     res.status(200).json({ success: true, message: "Coupon deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const markCouponExpired = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid coupon id" });
+    }
+    const coupon = await Coupon.findById(id);
+    if (!coupon) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+
+    coupon.status = "expired";
+    coupon.isVerified = true;
+    coupon.verifiedAt = new Date();
+    await coupon.save();
+
+    let merchant = await Merchant.findOne({
+      merchantName: new RegExp(escapeRegex(coupon.brandName), "i"),
+    });
+
+    if (!merchant) {
+      const firstWord = coupon.brandName.split(/[\s'.:-]+/)[0];
+      if (firstWord) {
+        merchant = await Merchant.findOne({
+          merchantName: new RegExp(escapeRegex(firstWord), "i"),
+        });
+      }
+    }
+
+    if (!merchant) {
+      merchant = await Merchant.findOne({});
+    }
+
+    if (merchant) {
+      let verification = await CouponVerification.findOne({
+        couponId: coupon._id,
+        merchantId: merchant._id,
+      });
+
+      if (!verification) {
+        verification = new CouponVerification({
+          couponId: coupon._id,
+          merchantId: merchant._id,
+          status: "verified",
+          lastAttemptedAt: new Date(),
+          verifiedAt: new Date(),
+        });
+      }
+
+      verification.manualOverride = {
+        overriddenAt: new Date(),
+        newStatus: "failed",
+        reason: "Manually marked as expired from admin panel",
+      };
+
+      await verification.save();
+    }
+
+    res.status(200).json({ success: true, message: "Coupon marked as expired, AI accuracy updated" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -1,7 +1,9 @@
 import express from "express";
+import mongoose from "mongoose";
 import Merchant from "../models/merchant.model.js";
 import PartnerMerchant from "../models/partnerMerchant.model.js";
 import { requireDashboardAuth } from "../middleware/requireDashboardAuth.middleware.js";
+import browserService from "../services/browser.service.js";
 
 const router = express.Router();
 
@@ -82,6 +84,48 @@ router.post("/", requireDashboardAuth, async (req, res) => {
     }
 
     res.status(200).json({ success: true, data: { message: "Cookies synced successfully", cookiesCount: cookies.length } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// DELETE cookies for a specific merchant by ID
+router.delete("/:id", requireDashboardAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid merchant id" });
+    }
+    const merchant = await Merchant.findById(id);
+    if (!merchant) {
+      return res.status(404).json({ success: false, message: "Merchant not found" });
+    }
+
+    // Close any active browser session
+    try {
+      await browserService.closeSession(id);
+    } catch (e) {
+      console.error("[clearCookies] Failed to close session (non-fatal):", e.message);
+    }
+
+    merchant.cookies = [];
+    merchant.lastLoginAttempt = {
+      status: "idle",
+      message: "Cookies cleared by user",
+      lastAttempted: new Date(),
+    };
+    await merchant.save();
+
+    // Also clear PartnerMerchant cookies
+    const pm = await PartnerMerchant.findOne({
+      merchantName: new RegExp(escapeRegex(merchant.merchantName), "i"),
+    });
+    if (pm) {
+      pm.cookies = null;
+      await pm.save();
+    }
+
+    res.status(200).json({ success: true, data: { message: "Cookies cleared successfully" } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
