@@ -33,7 +33,7 @@
         .queue-stats p { margin: 0; font-size: 12px; color: #6b7280; }
 
         .tabs { display: flex; border-bottom: 1px solid #e5e7eb; margin-bottom: 15px; }
-        .tab-btn { flex: 1; padding: 10px; border: none; background: none; cursor: pointer; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; font-size: 12px; }
+        .tab-btn { flex: 1; padding: 10px 4px; border: none; background: none; cursor: pointer; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; font-size: 10px; text-align: center; }
         .tab-btn.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -85,6 +85,10 @@
             border-color: #10b981;
             background: #ecfdf5;
         }
+        #statActiveCard.active {
+            border-color: #059669;
+            background: #f0fdf4;
+        }
         #statPendingCard.active {
             border-color: #f59e0b;
             background: #fffbeb;
@@ -117,6 +121,7 @@
             <div class="tabs">
                 <button class="tab-btn active" data-tab="agentTab">AI Agent</button>
                 <button class="tab-btn" data-tab="couponsTab">Coupons</button>
+                <button class="tab-btn" data-tab="manualTab">Manual Needed</button>
                 <button class="tab-btn" data-tab="adminTab">Admin</button>
             </div>
 
@@ -180,6 +185,10 @@
                         <div id="statVerifiedCard" class="stat-card" style="flex: 1; text-align: center; padding: 8px; border-radius: 6px;">
                             <div id="verifiedCoupons" style="font-size: 18px; font-weight: 700; color: #10b981;">0</div>
                             <div style="font-size: 10px; color: #6b7280;">Verified</div>
+                        </div>
+                        <div id="statActiveCard" class="stat-card" style="flex: 1; text-align: center; padding: 8px; border-radius: 6px;">
+                            <div id="activeCoupons" style="font-size: 18px; font-weight: 700; color: #059669;">0</div>
+                            <div style="font-size: 10px; color: #6b7280;">Active</div>
                         </div>
                         <div id="statPendingCard" class="stat-card" style="flex: 1; text-align: center; padding: 8px; border-radius: 6px;">
                             <div id="pendingCoupons" style="font-size: 18px; font-weight: 700; color: #f59e0b;">0</div>
@@ -245,6 +254,15 @@
                         </div>
                         <button id="btnSaveCoupon" class="btn btn-primary" style="padding: 8px; margin-top: 5px;">Save Coupon</button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Manual Verification Needed Tab Content -->
+            <div id="manualTab" class="tab-content">
+                <h4 style="margin-top: 0; font-size: 13px; color: #374151;">Manual Verification Needed</h4>
+                <p class="small-text" style="margin-bottom: 10px;">Merchants where 3 coupons failed 3 times each. AI verification disabled.</p>
+                <div id="manualMerchantList" class="scroll-area">
+                    <p class="small-text">No merchants need manual verification.</p>
                 </div>
             </div>
 
@@ -334,10 +352,7 @@
                         </div>
                     </div>
 
-                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Error Distribution</h4>
-                    <div id="errorDistributionList" style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 12px; color: #4b5563;">
-                        <p class="small-text">No errors logged yet.</p>
-                    </div>
+
                 </div>
             </div>
             

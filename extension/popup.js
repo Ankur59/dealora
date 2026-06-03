@@ -27,8 +27,9 @@ let currentCouponPage = 0;
 let hasMoreCoupons = false;
 let totalCouponsCount = 0;
 let verifiedCouponsCount = 0;
+let activeCouponsCount = 0;
 let pendingCouponsCount = 0;
-let couponFilter = 'all'; // 'all', 'verified', 'pending'
+let couponFilter = 'all'; // 'all', 'verified', 'active', 'pending'
 
 function setCouponFilter(filter) {
     couponFilter = filter;
@@ -36,12 +37,15 @@ function setCouponFilter(filter) {
     // Update active class on stats cards
     document.getElementById('statTotalCard')?.classList.remove('active');
     document.getElementById('statVerifiedCard')?.classList.remove('active');
+    document.getElementById('statActiveCard')?.classList.remove('active');
     document.getElementById('statPendingCard')?.classList.remove('active');
     
     if (filter === 'all') {
         document.getElementById('statTotalCard')?.classList.add('active');
     } else if (filter === 'verified') {
         document.getElementById('statVerifiedCard')?.classList.add('active');
+    } else if (filter === 'active') {
+        document.getElementById('statActiveCard')?.classList.add('active');
     } else if (filter === 'pending') {
         document.getElementById('statPendingCard')?.classList.add('active');
     }
@@ -117,6 +121,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('statVerifiedCard').addEventListener('click', () => {
         setCouponFilter('verified');
+    });
+    document.getElementById('statActiveCard').addEventListener('click', () => {
+        setCouponFilter('active');
     });
     document.getElementById('statPendingCard').addEventListener('click', () => {
         setCouponFilter('pending');
@@ -196,7 +203,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             e.target.classList.add('active');
-            document.getElementById(e.target.getAttribute('data-tab')).classList.add('active');
+            const targetTab = e.target.getAttribute('data-tab');
+            document.getElementById(targetTab).classList.add('active');
+            if (targetTab === 'manualTab') {
+                fetchAndRenderManualNeeded();
+            }
         });
     });
 
@@ -245,6 +256,7 @@ async function showDashboard() {
     await fetchAdminData();
     await fetchSyncMerchants();
     await renderMerchantList();   // full render once on load
+    await fetchAndRenderManualNeeded();
     await fetchCoupons();
     await updateDashboardState(); // set button/OTP state once on load
 
@@ -261,6 +273,11 @@ async function showDashboard() {
         const newKeys = dbSyncMerchants.map(m => m.domain).join(',');
         if (dbSyncMerchants.length !== prevCount || newKeys !== prevKeys) {
             await renderMerchantList();
+        }
+
+        const manualTab = document.getElementById('manualTab');
+        if (manualTab && manualTab.classList.contains('active')) {
+            await fetchAndRenderManualNeeded();
         }
     }, 15000);
 }
@@ -311,6 +328,8 @@ async function fetchCoupons() {
         let isVerifiedParam = 'all';
         if (couponFilter === 'verified') {
             isVerifiedParam = 'true';
+        } else if (couponFilter === 'active') {
+            isVerifiedParam = 'active';
         } else if (couponFilter === 'pending') {
             isVerifiedParam = 'false';
         }
@@ -327,6 +346,7 @@ async function fetchCoupons() {
             if (resultData.counts) {
                 totalCouponsCount = resultData.counts.total || 0;
                 verifiedCouponsCount = resultData.counts.verified || 0;
+                activeCouponsCount = resultData.counts.active || 0;
                 pendingCouponsCount = resultData.counts.pending || 0;
             } else {
                 totalCouponsCount = resultData.total || 0;
@@ -442,6 +462,7 @@ function renderCoupons() {
 
     document.getElementById('totalCoupons').textContent = totalCouponsCount;
     document.getElementById('verifiedCoupons').textContent = verifiedCouponsCount;
+    document.getElementById('activeCoupons').textContent = activeCouponsCount;
     document.getElementById('pendingCoupons').textContent = pendingCouponsCount;
 
     // Update pagination controls
@@ -691,12 +712,14 @@ async function renderMerchantList() {
     const merchantList = document.getElementById('merchantList');
     merchantList.innerHTML = '';
 
-    if (dbSyncMerchants.length === 0) {
+    const regularMerchants = dbSyncMerchants.filter(m => m.manualVerificationNeeded !== true);
+
+    if (regularMerchants.length === 0) {
         merchantList.innerHTML = '<p class="small-text">No merchants found. Sync coupons or add merchants via Admin tab.</p>';
         return;
     }
 
-    for (let m of dbSyncMerchants) {
+    for (let m of regularMerchants) {
         const hasLoginMap = m.automationMacros && 
             (m.automationMacros.login || m.automationMacros['login']) && 
             ((m.automationMacros.login && m.automationMacros.login.length > 0) || 
@@ -1005,22 +1028,115 @@ async function loadAiMetrics() {
                 document.getElementById('metricTotal').textContent = metrics.total || 0;
                 document.getElementById('metricAvgAttempts').textContent = metrics.averageAttempts || 0;
                 document.getElementById('metricOverrides').textContent = metrics.manualOverrideCount || 0;
-
-                // Render error distribution
-                const errorList = document.getElementById('errorDistributionList');
-                if (metrics.errorTypeBreakdown && Object.keys(metrics.errorTypeBreakdown).length > 0) {
-                    let html = '<ul style="margin: 0; padding-left: 20px;">';
-                    for (const [errType, count] of Object.entries(metrics.errorTypeBreakdown)) {
-                        html += `<li><strong>${errType}:</strong> ${count}</li>`;
-                    }
-                    html += '</ul>';
-                    errorList.innerHTML = html;
-                } else {
-                    errorList.innerHTML = '<p class="small-text" style="margin:0;">No errors logged yet.</p>';
-                }
             }
         }
     } catch (err) {
         console.error("Error loading AI metrics:", err);
+    }
+}
+
+async function fetchAndRenderManualNeeded() {
+    const container = document.getElementById('manualMerchantList');
+    if (!container) return;
+
+    try {
+        const res = await fetch(`${CONFIG.BACKEND_URL}/coupons/manual-needed`);
+        if (!res.ok) {
+            container.innerHTML = '<p class="small-text">Failed to load manual verification data.</p>';
+            return;
+        }
+
+        const json = await res.json();
+        const data = json.data || [];
+
+        if (data.length === 0) {
+            container.innerHTML = '<p class="small-text">No merchants need manual verification.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+        data.forEach(item => {
+            const m = item.merchant;
+            const failedCoupons = item.failedCoupons || [];
+
+            const merchantDiv = document.createElement('div');
+            merchantDiv.className = 'merchant-item';
+            merchantDiv.style.flexDirection = 'column';
+            merchantDiv.style.alignItems = 'stretch';
+            merchantDiv.style.gap = '8px';
+            merchantDiv.style.background = '#fffbeb';
+            merchantDiv.style.borderColor = '#f59e0b';
+            merchantDiv.style.borderWidth = '1px';
+            merchantDiv.style.borderStyle = 'solid';
+            merchantDiv.style.padding = '10px';
+            merchantDiv.style.borderRadius = '6px';
+            merchantDiv.style.marginBottom = '10px';
+
+            let couponsHtml = '';
+            if (failedCoupons.length === 0) {
+                couponsHtml = '<p class="small-text" style="margin: 0; color: #92400e;">No coupons failed yet.</p>';
+            } else {
+                failedCoupons.forEach(c => {
+                    const code = c.couponCode || c.code || 'NO CODE';
+                    const desc = c.description || '';
+                    couponsHtml += `
+                        <div style="background: white; border: 1px solid #fca5a5; padding: 8px; border-radius: 4px; margin-top: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="coupon-code" style="font-size: 12px; padding: 2px 6px;">${code}</span>
+                                <span style="font-size: 10px; font-weight: 600; color: #b91c1c; background: #fee2e2; padding: 2px 6px; border-radius: 10px;">Failed ${c.verification?.attemptCount || 3}x</span>
+                            </div>
+                            ${desc ? `<div style="font-size: 11px; color: #4b5563; margin-top: 4px;">${desc}</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            merchantDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div class="merchant-name" style="color: #92400e;">⚠️ ${m.merchantName || m.title || m.domain}</div>
+                        <div class="small-text" style="color: #b45309;">${m.domain}</div>
+                    </div>
+                    <button class="btn-sm-warning btn-reset-manual-merchant" data-merchant-id="${m._id}" style="background: #fef3c7; color: #b45309; border: 1px solid #f59e0b; padding: 4px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">Enable AI</button>
+                </div>
+                <div style="margin-top: 4px; border-top: 1px dashed #f59e0b; padding-top: 6px;">
+                    <div style="font-size: 11px; font-weight: bold; color: #92400e; margin-bottom: 4px;">Failed Coupons:</div>
+                    ${couponsHtml}
+                </div>
+            `;
+            container.appendChild(merchantDiv);
+        });
+
+        document.querySelectorAll('.btn-reset-manual-merchant').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const merchantId = e.target.getAttribute('data-merchant-id');
+                if (confirm('Re-enable AI verification for this merchant? This will also clear failed attempts to allow AI to verify again.')) {
+                    e.target.textContent = '…';
+                    e.target.disabled = true;
+                    try {
+                        const res = await fetch(`${CONFIG.BACKEND_URL}/merchants/${merchantId}/enable-ai`, {
+                            method: 'PUT'
+                        });
+                        if (res.ok) {
+                            await fetchAndRenderManualNeeded();
+                            await fetchSyncMerchants();
+                            await renderMerchantList();
+                        } else {
+                            alert('Failed to enable AI');
+                            e.target.textContent = 'Enable AI';
+                            e.target.disabled = false;
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('Network error');
+                        e.target.textContent = 'Enable AI';
+                        e.target.disabled = false;
+                    }
+                }
+            });
+        });
+
+    } catch (err) {
+        console.error("Error loading manual verification data:", err);
     }
 }

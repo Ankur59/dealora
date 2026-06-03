@@ -50,6 +50,7 @@ const merchantSchema = new Schema(
     automationMacros: { type: Map, of: [Schema.Types.Mixed] },
     // Global toggle for 12h verification run
     autoVerificationEnabled: { type: Boolean, default: true },
+    manualVerificationNeeded: { type: Boolean, default: false },
     // Cursor for batch verification (tracks which coupon index to resume from)
     _verificationCursor: { type: Number, default: 0 },
     lastLoginAttempt: {
