@@ -2,6 +2,8 @@ import cron from 'node-cron';
 import PartnerMerchant from '../models/partnerMerchant.model.js';
 import Merchant from '../models/merchant.model.js';
 import VerificationJob from '../models/verificationJob.model.js';
+import Coupon from '../models/coupon.model.js';
+import CouponVerification from '../models/couponVerification.model.js';
 import browserService, { BrowserService } from './browser.service.js';
 import couponVerificationService from './couponVerification.service.js';
 import proxyManager from './proxyManager.service.js';
@@ -72,6 +74,12 @@ class VerificationSchedulerService {
         this._computeHealthScores();
       });
       console.log('📊 Health Score scheduler initialized: runs every 12 hours (offset +30min).');
+
+      // ─── Reset verified coupons every 12 hours (00:00 and 12:00) ──
+      cron.schedule('0 0,12 * * *', () => {
+        this.resetVerifiedCoupons();
+      });
+      console.log('🔄 Verified coupons reset scheduler initialized: runs every 12 hours.');
     } else {
       console.log('ℹ️ Automatic cron verification scheduler is disabled. Only manual runs allowed (via Dashboard).');
     }
@@ -498,6 +506,40 @@ class VerificationSchedulerService {
       return healthData;
     } catch (err) {
       console.error('🔥 Health score computation failed:', err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Reset all verified coupons to false and clear their verification records.
+   * Called by 12h cron twice daily.
+   */
+  async resetVerifiedCoupons() {
+    try {
+      console.log('🔄 Resetting all verified coupons to unverified (isVerified: false)...');
+      
+      const manualMerchants = await Merchant.find({ manualVerificationNeeded: true }).lean();
+      const manualMerchantNames = manualMerchants.map(m => m.merchantName).filter(Boolean);
+      const manualMerchantIds = manualMerchants.map(m => m._id.toString());
+
+      const result = await Coupon.updateMany(
+        { 
+          isVerified: true,
+          brandName: { $nin: manualMerchantNames }
+        },
+        { $set: { isVerified: false, verifiedAt: null, verifiedOn: null } }
+      );
+      
+      await CouponVerification.updateMany(
+        {
+          merchantId: { $nin: manualMerchantIds }
+        },
+        { $set: { status: 'pending', attemptCount: 0, result: null } }
+      );
+      console.log(`🔄 Reset completed. Coupons updated: ${result.modifiedCount}`);
+      return result;
+    } catch (err) {
+      console.error('🔥 Failed to reset verified coupons:', err);
       return null;
     }
   }

@@ -1,5 +1,8 @@
+import mongoose from "mongoose";
 import Coupon from "../models/coupon.model.js";
 import { calculateCouponScore } from "../services/scoring.service.js";
+import CouponVerification from "../models/couponVerification.model.js";
+import Merchant from "../models/merchant.model.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -37,13 +40,24 @@ export const listCoupons = async (req, res) => {
       code: { $ne: null },
       isNewUser: false,
       isInStore: false,
+      offerType: "Coupon",
       end: { $gt: new Date() }
     };
+
+    if (req.query.active === "true") {
+      filter.status = "active";
+      filter.isVerified = true;
+    } else if (req.query.status) {
+      filter.status = req.query.status;
+    }
 
     if (req.query.isVerified === "true") {
       filter.isVerified = true;
     } else if (req.query.isVerified === "false") {
       filter.isVerified = false;
+    } else if (req.query.isVerified === "active") {
+      filter.isVerified = true;
+      filter.status = "active";
     } else if (req.query.isVerified === "all") {
       // Do not filter by isVerified (show both verified and unverified)
     } else {
@@ -105,8 +119,9 @@ export const listCoupons = async (req, res) => {
 
     const baseFilter = { ...filter };
     delete baseFilter.isVerified;
+    delete baseFilter.status;
 
-    const [items, total, totalCount, verifiedCount, pendingCount] = await Promise.all([
+    const [items, total, totalCount, verifiedCount, activeCount, pendingCount] = await Promise.all([
       Coupon.find(filter)
         .sort({ verifiedOn: -1, updatedAt: -1, _id: -1 })
         .skip(skip)
@@ -115,6 +130,7 @@ export const listCoupons = async (req, res) => {
       Coupon.countDocuments(filter),
       Coupon.countDocuments(baseFilter),
       Coupon.countDocuments({ ...baseFilter, isVerified: true }),
+      Coupon.countDocuments({ ...baseFilter, isVerified: true, status: "active" }),
       Coupon.countDocuments({ ...baseFilter, isVerified: false }),
     ]);
 
@@ -160,6 +176,7 @@ export const listCoupons = async (req, res) => {
         counts: {
           total: totalCount,
           verified: verifiedCount,
+          active: activeCount,
           pending: pendingCount,
         },
       },
@@ -285,6 +302,101 @@ export const deleteCoupon = async (req, res) => {
       return res.status(404).json({ success: false, message: "Coupon not found" });
     }
     res.status(200).json({ success: true, message: "Coupon deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const markCouponExpired = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid coupon id" });
+    }
+    const coupon = await Coupon.findById(id);
+    if (!coupon) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+
+    coupon.status = "expired";
+    coupon.isVerified = true;
+    coupon.verifiedAt = new Date();
+    await coupon.save();
+
+    let merchant = await Merchant.findOne({
+      merchantName: new RegExp(escapeRegex(coupon.brandName), "i"),
+    });
+
+    if (!merchant) {
+      const firstWord = coupon.brandName.split(/[\s'.:-]+/)[0];
+      if (firstWord) {
+        merchant = await Merchant.findOne({
+          merchantName: new RegExp(escapeRegex(firstWord), "i"),
+        });
+      }
+    }
+
+    if (!merchant) {
+      merchant = await Merchant.findOne({});
+    }
+
+    if (merchant) {
+      let verification = await CouponVerification.findOne({
+        couponId: coupon._id,
+        merchantId: merchant._id,
+      });
+
+      if (!verification) {
+        verification = new CouponVerification({
+          couponId: coupon._id,
+          merchantId: merchant._id,
+          status: "verified",
+          lastAttemptedAt: new Date(),
+          verifiedAt: new Date(),
+        });
+      }
+
+      verification.manualOverride = {
+        overriddenAt: new Date(),
+        newStatus: "failed",
+        reason: "Manually marked as expired from admin panel",
+      };
+
+      await verification.save();
+    }
+
+    res.status(200).json({ success: true, message: "Coupon marked as expired, AI accuracy updated" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const listManualVerificationCoupons = async (req, res) => {
+  try {
+    const merchants = await Merchant.find({ manualVerificationNeeded: true }).lean();
+    const enrichedMerchants = [];
+    for (const m of merchants) {
+      const coupons = await Coupon.find({ brandName: m.merchantName }).lean();
+      const couponIds = coupons.map(c => c._id);
+      const verifications = await CouponVerification.find({
+        couponId: { $in: couponIds },
+        merchantId: m._id
+      }).lean();
+
+      const failedCoupons = coupons.map(c => {
+        const v = verifications.find(ver => String(ver.couponId) === String(c._id));
+        return {
+          ...c,
+          verification: v || null
+        };
+      }).filter(c => c.verification && (c.verification.attemptCount || 0) >= 3 && c.verification.status === 'failed');
+
+      enrichedMerchants.push({
+        merchant: m,
+        failedCoupons
+      });
+    }
+    res.status(200).json({ success: true, data: enrichedMerchants });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
