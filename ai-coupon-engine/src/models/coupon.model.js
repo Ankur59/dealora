@@ -165,6 +165,10 @@ const couponSchema = new Schema({
             type: Number,
             default: 0,
             index: true   // enables fast sorting by health
+        },
+        isInValid: {
+            type: Boolean,
+            default:false,
         }
     }
 }, { timestamps: true });

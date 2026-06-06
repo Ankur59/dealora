@@ -288,9 +288,11 @@ class CouponsListViewModel @Inject constructor(
                 val currentPage = if (resetPage) 1 else (_partnerPage.value + 1)
 
                 // Use the apiValue defined on the enum directly — prevents drift
+                // NONE = no sort filter selected → send null so backend applies its own default
+                // (healthScore + discountWeight). Explicit "discountWeight" would bypass healthScore.
                 val sortByApi = when (_currentSortOption.value) {
-                    SortOption.NONE             -> "discountWeight"  // default: best discount first
-                    else                        -> _currentSortOption.value.apiValue ?: "discountWeight"
+                    SortOption.NONE -> null
+                    else            -> _currentSortOption.value.apiValue
                 }
 
                 val categoryApi = _currentCategory.value?.takeIf { it != "See All" }

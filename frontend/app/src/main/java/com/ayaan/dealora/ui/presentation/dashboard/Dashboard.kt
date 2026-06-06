@@ -83,14 +83,20 @@ fun Dashboard(
 
     // Get tab parameter from navigation
     val tabParam = navController.currentBackStackEntry?.arguments?.getString("tab") ?: "active"
+    val sortByParam = navController.currentBackStackEntry?.arguments?.getString("sortBy")
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showFiltersDialog by remember { mutableStateOf(false) }
     var showCategoryDialog by remember { mutableStateOf(false) }
 
-    // Update ViewModel status filter when tab parameter changes
-    LaunchedEffect(tabParam) {
+    // Update ViewModel status filter and sorting when parameters change
+    LaunchedEffect(tabParam, sortByParam) {
         viewModel.onStatusFilterChanged(tabParam)
+        if (!sortByParam.isNullOrEmpty()) {
+            com.ayaan.dealora.ui.presentation.couponsList.components.SortOption.entries.find { it.apiValue == sortByParam }?.let {
+                viewModel.onSortOptionChanged(it)
+            }
+        }
     }
 
     // Local state for UI (displays the current filter buttons state)

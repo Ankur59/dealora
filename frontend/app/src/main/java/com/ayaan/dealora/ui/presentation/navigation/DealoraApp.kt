@@ -238,6 +238,11 @@ fun DealoraApp(navController: NavHostController = rememberNavController(), modif
                 navArgument("tab") {
                     type = NavType.StringType
                     defaultValue = "active"
+                },
+                navArgument("sortBy") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 }
             )
         ) {

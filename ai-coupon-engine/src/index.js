@@ -3,6 +3,7 @@ import app from "./app.js";
 import { connectDB } from "./db/connectDB.js";
 import { io } from "./socket.js";
 import verificationSchedulerService from './services/verificationScheduler.service.js';
+import partnerSyncSchedulerService from './services/partnerSyncScheduler.service.js';
 import { fetchAndNormalizePartnerData } from "./services/normalization.service.js";
 
 const server = http.createServer(app);
@@ -17,11 +18,13 @@ connectDB(process.env.MONGODB_URI)
     // Initialize verification scheduler
     verificationSchedulerService.init();
 
+    // Initialize partner sync scheduler
+    partnerSyncSchedulerService.init();
+
     server.listen(process.env.PORT || 8000, () => {
       console.log("Server started at port: ", process.env.PORT || 8000);
-
     })
-    })
+  })
   .catch((err) => {
     console.log("MONGO db connection failed !!! ", err);
   });

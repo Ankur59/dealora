@@ -5,7 +5,7 @@ import {
     calculateTrendScore,
     calculateHealthScore,
 } from '../../../shared/healthScore.js';
-import { TRACKING_LINK_REGEX } from '../../../shared/trackingLinkValidator.js';
+// import { TRACKING_LINK_REGEX } from '../../../shared/trackingLinkValidator.js';
 
 /**
  * Detects whether a link is an affiliate tracking link (Coupon) or a generic offer link (Offer).
@@ -29,12 +29,12 @@ const detectOfferType = (link, code) => {
     if (!link) return "Offer";
 
     // Rule 3: valid affiliate tracking link → Coupon
-    if (TRACKING_LINK_REGEX.test(link)) {
-        return "Coupon";
-    }
+    // if (TRACKING_LINK_REGEX.test(link)) {
+    //     return "Coupon";
+    // }
 
     // Rule 4: fallback
-    return "Offer";
+    return "Coupon";
 };
 
 
@@ -113,11 +113,11 @@ const normalizeCoupomatedCoupon = (coupon) => {
     // ── Compute initial health score at insert time ──────────────────────────
     // createdAt will be set to `now` by Mongoose timestamps on first insert.
     // We mirror that here so freshness = 100 for a brand-new coupon.
-    const discountWeight   = computeDiscountWeight(coupon.discount);
+    const discountWeight = computeDiscountWeight(coupon.discount);
     const reliabilityScore = calculateReliabilityScore(0, 0);    // 70  — Laplace-smoothed baseline for new coupon
-    const freshnessScore   = calculateFreshnessScore(now, now);  // 100 — just created
-    const trendScore       = calculateTrendScore(0, null, now);  // 0   — no discovers yet
-    const healthScore      = calculateHealthScore(reliabilityScore, freshnessScore, trendScore);
+    const freshnessScore = calculateFreshnessScore(now, now);  // 100 — just created
+    const trendScore = calculateTrendScore(0, null, now);  // 0   — no discovers yet
+    const healthScore = calculateHealthScore(reliabilityScore, freshnessScore, trendScore);
 
     return {
         partner: "coupomated",
@@ -149,22 +149,23 @@ const normalizeCoupomatedCoupon = (coupon) => {
         // Seed trend sub-document so healthScore is never null on first insert.
         // The 5-hour cron will continue to update these as real data accumulates.
         trend: {
-            discoverCount:    0,
-            lastDiscoverAt:   null,
+            discoverCount: 0,
+            lastDiscoverAt: null,
             reliabilityScore,   // 70  (Laplace-smoothed, zero votes default)
             trendScore,         // 0   (no discover activity)
             healthScore,        // reliability×0.55 + freshness×0.30 + trend×0.15
         },
-        meta: {
-            title: coupon.title ?? null,
-            exclusive: coupon.exclusive ?? null,
-            network_id: coupon.network_id ?? null,
-            merchant_id: coupon.merchant_id ?? null,
-            merchant_logo: coupon.merchant_logo ?? null,
-            category_names_list: coupon.category_names_list ?? null,
-            created_at: coupon.created_at ?? null,
-            updated_at: coupon.updated_at ?? null,
-        }
+        isInvalid: false
+        // meta: {
+        //     title: coupon.title ?? null,
+        //     exclusive: coupon.exclusive ?? null,
+        //     network_id: coupon.network_id ?? null,
+        //     merchant_id: coupon.merchant_id ?? null,
+        //     merchant_logo: coupon.merchant_logo ?? null,
+        //     category_names_list: coupon.category_names_list ?? null,
+        //     created_at: coupon.created_at ?? null,
+        //     updated_at: coupon.updated_at ?? null,
+        // }
     };
 };
 

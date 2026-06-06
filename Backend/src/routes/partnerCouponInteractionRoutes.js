@@ -166,10 +166,12 @@ router.get('/pending', async (req, res) => {
         const BATCH_SIZE   = 10;
 
         // Only return interactions that haven't used up their 3 display slots
+        // and have a couponCode (i.e. not null)
         const pending = await PartnerCouponInteraction.find({
             userId,
             outcome:   'pending',
-            viewCount: { $lt: MAX_ATTEMPTS }
+            viewCount: { $lt: MAX_ATTEMPTS },
+            couponCode: { $ne: null }
         })
             .sort({ createdAt: -1 })
             .limit(BATCH_SIZE)

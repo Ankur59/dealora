@@ -117,18 +117,14 @@ class CategoriesViewModel @Inject constructor(
 
     /**
      * Called when the "Exclusive" toggle on the categories screen is switched.
-     * When ON: load rawScrapedCoupons sorted by discountScore.
-     * When OFF: go back to normal category groups.
+     * When ON  ("Coupons"): load partner coupons with offerType="Coupon".
+     * When OFF ("Offers"):  load partner offers with offerType="Offer",
+     *                        sorted by hasValidTrackingLink → discountWeight (backend).
      */
     fun onExclusiveModeChanged(isExclusive: Boolean) {
-        _uiState.update { it.copy(isExclusiveMode = isExclusive) }
-        if (isExclusive) {
-            loadRawCoupons(resetPage = true)
-        } else {
-            // Clear raw coupons and reload normal categories
-            _uiState.update { it.copy(rawCoupons = emptyList(), rawCouponsPage = 1) }
-            fetchAllCategories()
-        }
+        _uiState.update { it.copy(isExclusiveMode = isExclusive, rawCoupons = emptyList(), rawCouponsPage = 1) }
+        // Both modes now use the partner-coupons endpoint; only offerType differs.
+        loadRawCoupons(resetPage = true)
     }
 
     // ── Exclusive mode: sort / filter / search ────────────────────────────────
@@ -185,16 +181,22 @@ class CategoriesViewModel @Inject constructor(
                 val currentPage = if (resetPage) 1 else (_uiState.value.rawCouponsPage + 1)
                 _uiState.update { it.copy(isLoadingRawCoupons = true) }
 
-                val sortByApi = _currentSortOption.value.apiValue
+                // Toggle ON (isExclusiveMode=true)  → "Coupon"  (with code, sorted by healthScore+discountWeight)
+                // Toggle OFF (isExclusiveMode=false) → "Offer"   (no code, sorted by trackingLink+discountWeight)
+                val offerType = if (_uiState.value.isExclusiveMode) "Coupon" else "Offer"
 
-                val filters    = _currentFilters.value
+                // Sort-by is only exposed in the filter bar which is only shown in exclusive/Coupon mode.
+                // For Offer mode the backend always applies its default aggregate sort.
+                val sortByApi = if (_uiState.value.isExclusiveMode) _currentSortOption.value.apiValue else null
+
+                val filters      = _currentFilters.value
                 val discountType = convertDiscountTypeToApi(filters.discountType)
-                val validity   = filters.getValidityApiValue()
-                val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
+                val validity     = filters.getValidityApiValue()
+                val categoryApi  = _currentCategory.value?.takeIf { it != "See All" }
                 val mappedCategoryApi = CategoryMapper.getSubcategories(categoryApi)
-                val searchApi  = _searchQuery.value.takeIf { it.isNotBlank() }
+                val searchApi    = _searchQuery.value.takeIf { it.isNotBlank() }
 
-                Log.d(TAG, "loadRawCoupons page=$currentPage sortBy=$sortByApi category=$mappedCategoryApi search=$searchApi")
+                Log.d(TAG, "loadRawCoupons page=$currentPage offerType=$offerType sortBy=$sortByApi category=$mappedCategoryApi search=$searchApi")
 
                 when (val result = couponRepository.getPartnerCoupons(
                     category     = mappedCategoryApi,
@@ -206,7 +208,7 @@ class CategoriesViewModel @Inject constructor(
                     page         = currentPage,
                     limit        = RAW_PAGE_SIZE,
                     tab          = "active",
-                    offerType    = "Coupon" // standard coupon filter like CouponsList.kt
+                    offerType    = offerType
                 )) {
                     is PartnerCouponResult.Success -> {
                         val newCoupons = if (resetPage) result.coupons

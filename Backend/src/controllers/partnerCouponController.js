@@ -95,7 +95,23 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
     // ── 2. VERIFIED FILTER ──
     // Do not filter by isVerified for offers as they are not validated
     if (offerType !== 'Offer' && (verified === 'true' || verified === true)) {
-        andConditions.push({ isVerified: true });
+        andConditions.push({
+            $or: [
+                {
+                    isVerified: true,
+                    $or: [
+                        { isInValid: false },
+                        { isInValid: { $exists: false } }
+                    ]
+                },
+                {
+                    isNewUser: true
+                },
+                {
+                    isInStore: true
+                }
+            ]
+        });
     }
 
     // ── 3. CATEGORY FILTER ──
@@ -183,9 +199,10 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
  * ALWAYS includes healthScore as primary or secondary sort for result relevance.
  */
 function buildSort(sortBy) {
-    // Handle null, undefined, or empty string -> default to healthScore
+    console.log("this is sortby",sortBy)
+    // Handle null, undefined, or empty string -> default to healthScore + discountWeight
     if (!sortBy || sortBy === 'null' || sortBy === '') {
-        return { 'trend.healthScore': -1, createdAt: -1 };
+        return { 'trend.healthScore': -1, discountWeight: -1};
     }
 
     switch (sortBy) {
@@ -207,7 +224,7 @@ function buildSort(sortBy) {
         // DEFAULT: Health score descending (most relevant first)
         // This ensures search results are always ranked by system accuracy
         default:
-            return { 'trend.healthScore': -1, createdAt: -1 };
+            return { 'trend.healthScore': -1, discountWeight: -1, createdAt: -1 };
     }
 }
 
@@ -244,7 +261,9 @@ function buildOfferAggregation(filter, sortBy, skip, limit) {
 
     let sortSpec = {};
     if (!sortBy || sortBy === 'null' || sortBy === '') {
-        sortSpec = { hasValidTrackingLink: -1, 'trend.healthScore': -1, createdAt: -1 };
+        // Offer default: valid tracking link first, then highest discount value.
+        // No healthScore or createdAt — only these two parameters matter for Offers.
+        sortSpec = { hasValidTrackingLink: -1, discountWeight: -1 };
     } else {
         const baseSort = buildSort(sortBy);
         sortSpec = { ...baseSort };
@@ -344,7 +363,23 @@ exports.searchPartnerCoupons = async (req, res) => {
 
         // Only enforce isVerified filter for Coupon mode, skip for Offer mode
         if (offerType === 'Coupon') {
-            filter.$and.push({ isVerified: true });
+            filter.$and.push({
+                $or: [
+                    {
+                        isVerified: true,
+                       $or: [
+                { isInValid: false },
+                { isInValid: { $exists: false } }
+            ]
+                    },
+                    {
+                        isNewUser: true
+                    },
+                    {
+                        isInStore: true
+                    }
+                ]
+            });
         }
 
         // If a category filter is provided, append strict category matching
@@ -356,9 +391,63 @@ exports.searchPartnerCoupons = async (req, res) => {
         let total = 0;
 
         if (offerType === 'Offer') {
-            // Use the aggregation pipeline to enforce custom trackingLink-based sorting
-            const pipeline = buildOfferAggregation(filter, '', skip, limit);
-            const countPipeline = [{ $match: filter }, { $count: 'n' }];
+            const pipeline = [
+                { $match: filter },
+
+                {
+                    $addFields: {
+                        isValidTrackingLink: {
+                            $and: [
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_id='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub1='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub2='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub3='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub4='
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+
+                {
+                    $sort: {
+                        isValidTrackingLink: -1,
+                        discountWeight: -1
+                    }
+                },
+
+                { $skip: skip },
+                { $limit: limit }
+            ];
+
+            const countPipeline = [
+                { $match: filter },
+                { $count: 'n' }
+            ];
 
             const [aggDocs, countResult] = await Promise.all([
                 col().aggregate(pipeline).toArray(),
@@ -368,8 +457,8 @@ exports.searchPartnerCoupons = async (req, res) => {
             docs = aggDocs;
             total = countResult[0]?.n ?? 0;
         } else {
-            // Default Coupon mode sorting: trend.healthScore DESC
-            const sort = { 'trend.healthScore': -1 };
+            // Default Coupon mode sorting: trend.healthScore DESC, discountWeight DESC
+            const sort = { 'trend.healthScore': -1, discountWeight: -1 };
             const [findDocs, findTotal] = await Promise.all([
                 col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
                 col().countDocuments(filter),

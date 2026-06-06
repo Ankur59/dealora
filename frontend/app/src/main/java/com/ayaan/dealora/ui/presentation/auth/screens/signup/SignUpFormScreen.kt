@@ -75,8 +75,12 @@ fun SignUpFormScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = { Banner() }
-
+        topBar = {
+            Banner(
+                painter = painterResource(id = R.drawable.signup),
+                showStars = true
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier
