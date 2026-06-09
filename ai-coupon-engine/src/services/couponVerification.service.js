@@ -910,8 +910,11 @@ export class CouponVerificationService {
     coupon.verifiedOn = new Date();
     if (!isSuccess) {
       coupon.status = 'expired';
+      coupon.isInValid = true;
+      coupon.isVerified = false; // ensure it is explicitly false
     } else {
       coupon.status = 'active';
+      coupon.isInValid = false;
     }
     await coupon.save();
   }

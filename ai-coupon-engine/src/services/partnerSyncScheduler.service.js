@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import Partner from '../models/partners.model.js';
+import SyncJob from '../models/syncJob.model.js';
 import { fetchAndNormalizePartnerData } from './normalization.service.js';
 import merchantSyncService from './merchantSync.service.js';
 import { adapters } from '../adapters/index.js';
@@ -21,8 +22,33 @@ class PartnerSyncSchedulerService {
                 }
             });
             console.log('🗓️ Partner Sync Scheduler initialized: runs every 12 hours.');
+
+            // Check if we missed a run while the server was down
+            this._checkMissedSync();
         } else {
             console.log('ℹ️ Automatic cron partner sync scheduler is disabled.');
+        }
+    }
+
+    async _checkMissedSync() {
+        try {
+            const lastJob = await SyncJob.findOne({ status: 'completed' }).sort({ syncStartTime: -1 });
+            if (!lastJob) {
+                console.log('No completed sync job history yet. Skipping startup catch-up.');
+                return;
+            }
+
+            const now = Date.now();
+            const twelveHoursMs = 12 * 60 * 60 * 1000;
+
+            if (now - lastJob.syncStartTime.getTime() >= twelveHoursMs) {
+                console.log('🔄 Missed or outdated Partner Sync detected. Triggering immediate sync...');
+                this.runPartnerSync().catch(err => console.error('Immediate sync failed:', err));
+            } else {
+                console.log('✅ Partner Sync is up to date.');
+            }
+        } catch (err) {
+            console.error('⚠️ Failed to check missed Partner Sync:', err);
         }
     }
 
@@ -34,12 +60,14 @@ class PartnerSyncSchedulerService {
         this._syncRunning = true;
 
         try {
-            // Get all active partners from database
             const activePartners = await Partner.find({ status: 'active' }).lean();
             if (activePartners.length === 0) {
                 console.log('[PartnerSync] No active partners found in DB.');
                 return;
             }
+
+            const job = new SyncJob({ syncStartTime: new Date(), status: 'running' });
+            await job.save();
 
             console.log(`[PartnerSync] Found ${activePartners.length} active partners. Starting sync steps...`);
 
@@ -94,8 +122,15 @@ class PartnerSyncSchedulerService {
             }
 
             console.log('[PartnerSync] Scheduled partner sync completed successfully.');
+            job.status = 'completed';
+            job.syncEndTime = new Date();
+            await job.save();
         } catch (err) {
             console.error('[PartnerSync] Critical error during partner sync:', err);
+            job.status = 'failed';
+            job.syncEndTime = new Date();
+            job.error = { message: err.message, stack: err.stack };
+            await job.save();
         } finally {
             this._syncRunning = false;
         }

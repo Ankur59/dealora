@@ -70,6 +70,21 @@ router.get("/automation-map/:domain/login", requireDashboardAuth, async (req, re
   }
 });
 
+// GET automation verify map for a domain
+router.get("/automation-map/:domain/verify", requireDashboardAuth, async (req, res) => {
+  try {
+    const { domain } = req.params;
+    const merchant = await Merchant.findOne({ domain: new RegExp(escapeRegex(domain), "i") });
+    if (merchant && merchant.automationMacros && merchant.automationMacros.has("verify")) {
+      res.status(200).json({ success: true, map: { steps: merchant.automationMacros.get("verify") } });
+    } else {
+      res.status(200).json({ success: true, map: null });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST automation login map
 router.post("/automation-map", requireDashboardAuth, async (req, res) => {
   try {
@@ -143,7 +158,14 @@ router.post("/tasks/:taskId/result", requireDashboardAuth, async (req, res) => {
     coupon.isVerified = status === "valid";
     coupon.verifiedAt = new Date();
     coupon.verifiedOn = new Date();
-    coupon.status = status === "valid" ? "active" : "expired";
+    if (status === "valid") {
+      coupon.status = "active";
+      coupon.isInValid = false;
+    } else {
+      coupon.status = "expired";
+      coupon.isInValid = true;
+      coupon.isVerified = false;
+    }
     await coupon.save();
 
     // Find Merchant

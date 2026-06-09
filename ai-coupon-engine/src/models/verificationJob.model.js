@@ -41,7 +41,7 @@ const verificationJobSchema = new Schema(
     // Whether this job was triggered manually or by the 12h scheduler
     triggerType: {
       type: String,
-      enum: ["scheduled", "manual"],
+      enum: ["scheduled", "manual", "startup"],
       default: "scheduled"
     }
   },
