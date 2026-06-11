@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 const {
     GEMINI_API_KEYS,
     MODEL_NAME,
+    FALLBACK_MODEL_NAME,
     BACKEND_URL,
     EXTENSION_API_KEY,
     DEFAULT_CREDENTIALS,
@@ -1278,6 +1279,8 @@ async function callGemini(prompt, taskId, maxKeys = GEMINI_MAX_KEYS_PER_CALL) {
     const keysToTry = Math.min(maxKeys, GEMINI_API_KEYS.length);
     const startIndex = geminiKeyIndex;
 
+    const modelsToTry = [MODEL_NAME, FALLBACK_MODEL_NAME].filter(Boolean);
+
     for (let i = 0; i < keysToTry; i++) {
         // Check pause/cancel state before each attempt
         if (agentRunState === 'paused' || agentRunState === 'idle' || (taskId && currentTasks.find(t => t.id === taskId)?.status === 'cancelled')) {
@@ -1288,74 +1291,79 @@ async function callGemini(prompt, taskId, maxKeys = GEMINI_MAX_KEYS_PER_CALL) {
         const idx = (geminiKeyIndex + i) % GEMINI_API_KEYS.length;
         const maskedKey = GEMINI_API_KEYS[idx].substring(0, 10) + '...';
 
-        let timeoutId;
-        try {
-            log('INFO', `Trying key #${idx + 1}/${GEMINI_API_KEYS.length} (${maskedKey})`);
+        for (const model of modelsToTry) {
+            log('INFO', `Trying key #${idx + 1}/${GEMINI_API_KEYS.length} (${maskedKey}) with model ${model}`);
             
-            const controller = new AbortController();
-            timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+            let timeoutId;
+            try {
+                const controller = new AbortController();
+                timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-            // Register this controller so pause/stop can abort it immediately
-            if (taskId) {
-                const oldCtrl = activeGeminiControllers.get(taskId);
-                if (oldCtrl) { try { oldCtrl.abort(); } catch(e) {} }
-                activeGeminiControllers.set(taskId, controller);
-            }
+                // Register this controller so pause/stop can abort it immediately
+                if (taskId) {
+                    const oldCtrl = activeGeminiControllers.get(taskId);
+                    if (oldCtrl) { try { oldCtrl.abort(); } catch(e) {} }
+                    activeGeminiControllers.set(taskId, controller);
+                }
 
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEYS[idx]}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.1 }
-                }),
-                signal: controller.signal
-            });
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEYS[idx]}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.1 }
+                    }),
+                    signal: controller.signal
+                });
 
-            clearTimeout(timeoutId);
-            if (taskId) activeGeminiControllers.delete(taskId);
+                clearTimeout(timeoutId);
+                if (taskId) activeGeminiControllers.delete(taskId);
 
-            if (res.status === 429) {
-                log('WARN', `Key #${idx + 1} rate-limited (429). Trying next...`);
+                if (res.status === 429) {
+                    await res.text().catch(() => '');
+                    log('WARN', `Key #${idx + 1} (${model}) rate-limited (429).`);
+                    continue; // Try fallback model, or next key if already fallback
+                }
+                if (res.status === 403) {
+                    await res.text().catch(() => '');
+                    log('WARN', `Key #${idx + 1} (${model}) forbidden (403).`);
+                    continue;
+                }
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    log('ERROR', `Key #${idx + 1} (${model}) HTTP ${res.status}: ${errText.substring(0, 300)}`);
+                    continue;
+                }
+
+                const data = await res.json();
+
+                if (!data.candidates || data.candidates.length === 0) {
+                    log('WARN', `Key #${idx + 1} (${model}): No candidates returned. Possible safety block.`, JSON.stringify(data).substring(0, 300));
+                    continue;
+                }
+
+                const textResponse = data.candidates[0]?.content?.parts?.[0]?.text;
+                if (!textResponse) {
+                    log('WARN', `Key #${idx + 1} (${model}): Empty text in candidate.`, JSON.stringify(data.candidates[0]).substring(0, 300));
+                    continue;
+                }
+
+                geminiKeyIndex = idx;
+                log('INFO', `Gemini response using ${model} (${textResponse.length} chars): ${textResponse.substring(0, 100)}...`);
+                return textResponse;
+
+            } catch (err) {
+                if (timeoutId) clearTimeout(timeoutId);
+                if (taskId) activeGeminiControllers.delete(taskId);
+                const isAbort = err.name === 'AbortError';
+                log('ERROR', `Key #${idx + 1} (${model}) network/parse error: ${isAbort ? 'Request aborted (timeout or user paused/stopped)' : err.message}`);
+                
+                // If aborted due to pause, don't try next key or model
+                if (isAbort && (agentRunState === 'paused' || agentRunState === 'idle')) {
+                    return null;
+                }
                 continue;
             }
-            if (res.status === 403) {
-                log('WARN', `Key #${idx + 1} forbidden (403). Trying next...`);
-                continue;
-            }
-            if (!res.ok) {
-                const errText = await res.text().catch(() => '');
-                log('ERROR', `Key #${idx + 1} HTTP ${res.status}: ${errText.substring(0, 300)}`);
-                continue;
-            }
-
-            const data = await res.json();
-
-            if (!data.candidates || data.candidates.length === 0) {
-                log('WARN', `Key #${idx + 1}: No candidates returned. Possible safety block.`, JSON.stringify(data).substring(0, 300));
-                continue;
-            }
-
-            const textResponse = data.candidates[0]?.content?.parts?.[0]?.text;
-            if (!textResponse) {
-                log('WARN', `Key #${idx + 1}: Empty text in candidate.`, JSON.stringify(data.candidates[0]).substring(0, 300));
-                continue;
-            }
-
-            geminiKeyIndex = idx;
-            log('INFO', `Gemini response (${textResponse.length} chars): ${textResponse.substring(0, 100)}...`);
-            return textResponse;
-
-        } catch (err) {
-            if (timeoutId) clearTimeout(timeoutId);
-            if (taskId) activeGeminiControllers.delete(taskId);
-            const isAbort = err.name === 'AbortError';
-            log('ERROR', `Key #${idx + 1} network/parse error: ${isAbort ? 'Request aborted (timeout or user paused/stopped)' : err.message}`);
-            // If aborted due to pause, don't try next key
-            if (isAbort && (agentRunState === 'paused' || agentRunState === 'idle')) {
-                return null;
-            }
-            continue;
         }
     }
 
