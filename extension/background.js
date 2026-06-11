@@ -1014,7 +1014,8 @@ async function runTaskSequenceInTab(tabId, task) {
                 await new Promise(r => setTimeout(r, 4000));
                 const freshDom = await safeSendMessage(tabId, { type: 'GET_DOM', termsSummary: task.termsSummary || null });
                 const freshPhase = freshDom?.domState?.pageContext?.phase;
-                if (freshPhase === 'product' || freshPhase === 'listing') {
+                const hasCheckoutBtn = freshDom?.domState?.actionableElements?.some(el => el.intent === 'checkout');
+                if ((freshPhase === 'product' || freshPhase === 'listing') && !hasCheckoutBtn) {
                     const cartBtn = freshDom.domState.actionableElements.find((el) => el.intent === 'cart');
                     if (cartBtn) {
                         log('INFO', 'Navigating to cart via cart button...');

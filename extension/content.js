@@ -104,7 +104,7 @@ function startStatusMonitoring(durationMs = 5000) {
 const COUPON_INPUT_RE = /coupon|promo|discount|voucher|gift.?card/i;
 const ADD_TO_CART_RE = /add\s+to\s+(cart|bag)|buy\s+now|add\s+to\s+basket/i;
 const CART_RE = /\bcart\b|bag|basket|view\s+cart|go\s+to\s+cart/i;
-const CHECKOUT_RE = /checkout|proceed\s+to\s+pay|place\s+order/i;
+const CHECKOUT_RE = /checkout|proceed\s+to\s+(pay|payment)|place\s+order|pay\s+now|secure\s+checkout/i;
 const NAV_RE = /login|sign\s*in|sign\s*up|register|search|menu|account|wishlist|footer|privacy|terms/i;
 
 function parsePriceFromText(text) {
@@ -158,6 +158,12 @@ function detectPageContext(url, actionableElements) {
     else if (/\/cart/i.test(path)) phase = 'cart';
     else if (/\/products\//i.test(path)) phase = 'product';
     else if (/\/collections\/|\/category\/|\/categories\/|\/search/i.test(path)) phase = 'listing';
+
+    // If checkout button is visible (meaning cart drawer/sidebar is open), treat phase as cart
+    const hasCheckoutBtn = actionableElements.some((el) => el.intent === 'checkout');
+    if (hasCheckoutBtn && phase !== 'checkout') {
+        phase = 'cart';
+    }
 
     const hasCouponInput = actionableElements.some(
         (el) => el.intent === 'coupon' || (el.tag === 'input' && COUPON_INPUT_RE.test(`${el.text} ${el.type || ''}`))
