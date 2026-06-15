@@ -439,27 +439,30 @@ async function runMerchantWorker(domain) {
         currentTasks.push(task);
         chrome.storage.local.set({ currentTasks });
 
+        let tabClosed = false;
         try {
-            if (!loggedIn) {
+            if (!merchantStatuses[domain]?.isLoggedIn) {
                 log('WARN', `Skipping coupon ${task.code} for ${domain} because auth failed.`);
                 await reportResultToBackend(task.id, 'invalid', 'Authentication failed for merchant.');
             } else {
-                if (i > 0) {
-                    log('INFO', `Navigating tab ${tabId} to next coupon URL: ${task.url}`);
-                    await chrome.tabs.update(tabId, { url: task.url });
-                    await waitForTabLoad(tabId, 30000);
-                    await new Promise(r => setTimeout(r, 3000));
-                    await ensureContentScript(tabId);
-                }
                 await runTaskSequenceInTab(tabId, task);
             }
         } catch (err) {
             log('ERROR', `Error verifying ${task.code} for ${domain}:`, err);
+            if (err.message && err.message.includes('No tab with id')) {
+                log('WARN', `Tab for ${domain} was closed. Marking as not logged in and stopping.`);
+                merchantStatuses[domain] = { isLoggedIn: false, lastChecked: Date.now() };
+                chrome.storage.local.set({ merchantStatuses });
+                tabClosed = true;
+                eraseMerchantSync(domain);
+            }
         } finally {
             currentTasks = currentTasks.filter(t => t.id !== task.id);
             chrome.storage.local.set({ currentTasks });
             onTaskFinished();
         }
+
+        if (tabClosed) break;
 
         if (i < queue.length - 1 && isRunning && agentRunState !== 'idle') {
             const waitMs = Math.random() * (MAX_DELAY_BETWEEN_COUPONS_MS - MIN_DELAY_BETWEEN_COUPONS_MS) + MIN_DELAY_BETWEEN_COUPONS_MS;
@@ -811,6 +814,21 @@ async function runTaskSequenceInTab(tabId, task) {
         consecutiveErrors = 0;
         const domState = domResponse.domState;
 
+        if (attempts === 1 && task.type === 'verify') {
+            const isLoggedOut = domState.actionableElements.some(el => 
+                /^(login|sign in|log in|login \/ register|sign in \/ register)$/i.test(el.text.trim())
+            );
+            if (isLoggedOut) {
+                log('WARN', 'Login/Sign In link found. Assuming logged out.');
+                merchantStatuses[task.domain] = { isLoggedIn: false, lastChecked: Date.now() };
+                chrome.storage.local.set({ merchantStatuses });
+                await clearBrowserCookies(task.domain);
+                await reportResultToBackend(task.id, 'reset', 'Agent logged out, resetting coupon status.');
+                isComplete = true;
+                break;
+            }
+        }
+
         // Check block / CAPTCHA signals
         if (domState.blockStatus && domState.blockStatus.blocked) {
             log('WARN', `Block detected: ${domState.blockStatus.type}`);
@@ -984,8 +1002,16 @@ async function runTaskSequenceInTab(tabId, task) {
         // Execute Action
         if (cmd.action === 'evaluate') {
             log('INFO', `🏁 RESULT: ${cmd.status} — ${cmd.reason}`);
-            if (cmd.status === 'valid') verificationSucceeded = true;
-            await reportResultToBackend(task.id, cmd.status, cmd.reason);
+            if (cmd.status === 'invalid' && /log\s*in|sign\s*in|auth/i.test(cmd.reason)) {
+                log('WARN', 'AI detected login required. Clearing cache and marking logged out.');
+                merchantStatuses[task.domain] = { isLoggedIn: false, lastChecked: Date.now() };
+                chrome.storage.local.set({ merchantStatuses });
+                await clearBrowserCookies(task.domain);
+                await reportResultToBackend(task.id, 'reset', 'AI marked logged out, resetting coupon status.');
+            } else {
+                if (cmd.status === 'valid') verificationSucceeded = true;
+                await reportResultToBackend(task.id, cmd.status, cmd.reason);
+            }
             isComplete = true;
         } else if (cmd.action === 'request_otp') {
             task.status = 'waiting_for_otp';
@@ -1153,7 +1179,7 @@ STEPS (follow in order):
 4. TYPE THE CODE: Type "${task.code}" into the coupon input.
 5. VERIFY BEFORE APPLY: Confirm Apply button applies "${task.code}", not a different pre-listed coupon.
 6. APPLY: Click Apply/Submit nearest to the input where you typed "${task.code}".
-7. EVALUATE: Use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."} with the site's actual response.
+7. EVALUATE: Use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."} with the site's actual response. If the text mentions both invalid and expired, prioritize 'expired'.
 
 SELECTORS: Use EXACT "selector" from Actionable Elements (intent=coupon for inputs).`;
     }
@@ -1169,6 +1195,7 @@ SELECTORS: Use EXACT "selector" from Actionable Elements (intent=coupon for inpu
 - Scroll at most once if no product links are visible: {"action":"scroll","direction":"down"}
 - Do NOT use scroll on cart/checkout pages.`
             : `- Prefer elements with intent=coupon for typing. Use intent tags from Actionable Elements.
+- CRITICAL: If the HISTORY shows you have already typed "${task.code}" and clicked Apply, you MUST output an "evaluate" action. DO NOT type or click again! Use "Detected Status Messages" to determine "valid" or "invalid".
 - Do NOT scroll to find coupon fields — they should be visible on cart/checkout.
 - For "wait": only use when waiting for page load (value in seconds).`;
 

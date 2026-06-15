@@ -249,14 +249,15 @@ function getSimplifiedDOM(termsSummary = null) {
     document.querySelectorAll('[data-dl-id]').forEach(el => el.removeAttribute('data-dl-id'));
 
     const actionableElements = [];
-    const elements = document.querySelectorAll('a, button, input, select, textarea, [role="button"], [onclick]');
+    const elements = document.querySelectorAll('a, button, input, select, textarea, [role="button"], [onclick], summary, details, [class*="accordion"]');
 
     elements.forEach((el, index) => {
         const rect = el.getBoundingClientRect();
         const style = window.getComputedStyle(el);
 
-        // Skip hidden elements
-        if (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        // Skip hidden elements, unless it's a coupon input
+        const isCouponInput = el.tagName === 'INPUT' && COUPON_INPUT_RE.test(`${el.name || ''} ${el.placeholder || ''}`);
+        if (!isCouponInput && (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) {
             return;
         }
 
@@ -335,7 +336,7 @@ function getSimplifiedDOM(termsSummary = null) {
             atBottom: scrollTop + clientHeight >= scrollHeight - 50,
         },
         pageContext,
-        actionableElements: prioritized.slice(0, 100),
+        actionableElements: prioritized.slice(0, 150),
         totalElements: actionableElements.length,
         statusMessages: statusMessages.slice(0, 15),
         blockStatus: blockCheck

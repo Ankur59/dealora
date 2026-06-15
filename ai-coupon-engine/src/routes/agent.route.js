@@ -161,6 +161,10 @@ router.post("/tasks/:taskId/result", requireDashboardAuth, async (req, res) => {
     if (status === "valid") {
       coupon.status = "active";
       coupon.isInValid = false;
+    } else if (status === "reset") {
+      coupon.status = "pending";
+      coupon.isInValid = false;
+      coupon.isVerified = false;
     } else {
       coupon.status = "expired";
       coupon.isInValid = true;
@@ -178,12 +182,14 @@ router.post("/tasks/:taskId/result", requireDashboardAuth, async (req, res) => {
       valid: "verified",
       invalid: "failed",
       expired: "failed",
+      reset: "pending",
     };
 
     const errorTypeMap = {
       valid: "none",
       invalid: "invalid_code",
       expired: "expired",
+      reset: "none",
     };
 
     await CouponVerification.findOneAndUpdate(
