@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Inner Tabs — Admin
     const setAdminSubTab = (activeBtn, activeSec) => {
-        ['btnAdminCampaigns', 'btnAdminPartners', 'btnAdminMetrics'].forEach(id => {
+        ['btnAdminCampaigns', 'btnAdminPartners', 'btnAdminMetrics', 'btnAdminMacros'].forEach(id => {
             const btn = document.getElementById(id);
             if (btn) {
                 btn.classList.remove('active');
@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.style.color = '';
             }
         });
-        ['adminCampaignSection', 'adminPartnerSection', 'adminMetricsSection'].forEach(id => {
+        ['adminCampaignSection', 'adminPartnerSection', 'adminMetricsSection', 'adminMacrosSection'].forEach(id => {
             const sec = document.getElementById(id);
             if (sec) sec.style.display = 'none';
         });
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const activeSecEl = document.getElementById(activeSec);
         if (activeSecEl) activeSecEl.style.display = 'block';
 
-        if (activeSec === 'adminMetricsSection') {
+        if (activeSec === 'adminMetricsSection' && typeof loadAiMetrics === 'function') {
             loadAiMetrics();
         }
     };
@@ -163,6 +163,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnAdminMetrics').addEventListener('click', (e) => {
         setAdminSubTab(e.target, 'adminMetricsSection');
     });
+    const macroBtn = document.getElementById('btnAdminMacros');
+    if (macroBtn) {
+        macroBtn.addEventListener('click', (e) => {
+            setAdminSubTab(e.target, 'adminMacrosSection');
+        });
+    }
+
+    // Manual Macro Save
+    const saveMacroBtn = document.getElementById('btnSaveMacroManual');
+    if (saveMacroBtn) {
+        saveMacroBtn.addEventListener('click', async () => {
+            const domain = document.getElementById('macroDomain').value.trim();
+            const flowType = document.getElementById('macroFlowType').value;
+            const stepsStr = document.getElementById('macroStepsJson').value.trim();
+            if (!domain || !stepsStr) return alert('Domain and Steps are required');
+            let steps;
+            try { steps = JSON.parse(stepsStr); } catch (e) { return alert('Invalid JSON in steps'); }
+            
+            saveMacroBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch(`${CONFIG.BACKEND_URL}/agent/automation-map`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Extension-Key': CONFIG.EXTENSION_API_KEY },
+                    body: JSON.stringify({ domain, flowType, steps })
+                });
+                if (res.ok) alert('Macro saved successfully');
+                else alert('Failed to save macro');
+            } catch (err) { alert('Network error'); }
+            saveMacroBtn.textContent = 'Save Macro';
+        });
+    }
 
     // Run controls
     document.getElementById('btnRunAgent').addEventListener('click', runAgent);
@@ -746,10 +777,11 @@ async function renderMerchantList() {
                 </div>
             </div>
             <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; margin-left: 6px;">
-                ${m.merchantUrl ? `<button data-action="open" data-url="${m.merchantUrl}" class="btn-open" data-open-for="${m.domain}">Open</button>` : ''}
-                <button data-action="clear-cookies" data-id="${m._id}" data-domain="${m.domain}" style="background: #fee2e2; color: #b91c1c; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #fca5a5; cursor: pointer; white-space: nowrap; display: none;" data-clear-for="${m.domain}">Clear</button>
-                <button class="btn-force-auth" data-url="${m.merchantUrl || m.loginUrl || m.trackingLink}" data-domain="${m.domain}" data-brand="${m.merchantName || m.title}" style="background: #fef3c7; color: #92400e; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #f59e0b; cursor: pointer; white-space: nowrap;">${mapStatus === 'mapped' ? 'Re-Map' : 'Map'}</button>
-                <button data-action="sync" data-domain="${m.domain}" data-title="${m.merchantName || m.title}" style="background: #dbeafe; color: #1d4ed8; padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer; white-space: nowrap;">Sync</button>
+                ${m.merchantUrl ? `<button data-action="open" data-url="${m.merchantUrl}" class="btn-open" data-open-for="${m.domain}" title="Open Website" style="padding: 6px; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;">🌐</button>` : ''}
+                <button data-action="clear-cookies" data-id="${m._id}" data-domain="${m.domain}" style="background: #fee2e2; color: #b91c1c; padding: 6px; font-size: 14px; border-radius: 4px; border: 1px solid #fca5a5; cursor: pointer; display: none; align-items: center; justify-content: center;" data-clear-for="${m.domain}" title="Clear Cookies">🗑️</button>
+                <button data-action="record-map" data-url="${m.merchantUrl || m.loginUrl || m.trackingLink}" data-domain="${m.domain}" style="background: #e0e7ff; color: #1e40af; padding: 6px; font-size: 14px; border-radius: 4px; border: 1px solid #bfdbfe; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Record Map">⏺️</button>
+                <button class="btn-force-auth" data-url="${m.merchantUrl || m.loginUrl || m.trackingLink}" data-domain="${m.domain}" data-brand="${m.merchantName || m.title}" style="background: #fef3c7; color: #92400e; padding: 6px; font-size: 14px; border-radius: 4px; border: 1px solid #f59e0b; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="${mapStatus === 'mapped' ? 'Re-Map' : 'Map'}">${mapStatus === 'mapped' ? '🗺️' : '📍'}</button>
+                <button data-action="sync" data-domain="${m.domain}" data-title="${m.merchantName || m.title}" style="background: #dbeafe; color: #1d4ed8; padding: 6px; font-size: 14px; border-radius: 4px; border: 1px solid #93c5fd; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Sync Cookies">🔄</button>
             </div>
         `;
         merchantList.appendChild(el);
@@ -762,15 +794,15 @@ async function renderMerchantList() {
             const url    = e.target.getAttribute('data-url');
             const brand  = e.target.getAttribute('data-brand');
 
-            e.target.textContent = 'Queuing...';
+            e.target.textContent = '⏳';
             e.target.disabled = true;
 
             chrome.runtime.sendMessage({ type: 'TRIGGER_AUTH', domain, url, brand }, (resp) => {
                 if (resp && resp.status === 'queued') {
-                    e.target.textContent = 'Running...';
+                    e.target.textContent = '⏳';
                 } else {
                     alert('Error: ' + (resp?.message || 'Unknown'));
-                    e.target.textContent = 'Failed';
+                    e.target.textContent = '❌';
                     e.target.disabled = false;
                 }
             });
@@ -787,12 +819,25 @@ async function renderMerchantList() {
             if (url) chrome.tabs.create({ url });
         }
 
+        if (btn.getAttribute('data-action') === 'record-map') {
+            const domain = btn.getAttribute('data-domain');
+            const url = btn.getAttribute('data-url');
+            const flowType = prompt('Flow type to record ("login" or "verify")?', 'verify');
+            if (!flowType || !['login', 'verify'].includes(flowType.toLowerCase())) {
+                return alert('Invalid flow type. Must be "login" or "verify".');
+            }
+            chrome.runtime.sendMessage({ type: 'START_RECORDING', domain, url, flowType: flowType.toLowerCase() }, () => {
+                alert(`Recording started for ${domain} (${flowType}). Check the newly opened tab.`);
+            });
+            return;
+        }
+
         if (btn.getAttribute('data-action') === 'clear-cookies') {
             const id = btn.getAttribute('data-id');
             const domain = btn.getAttribute('data-domain');
             if (!confirm(`Clear session and delete saved cookies for ${domain}?`)) return;
 
-            btn.textContent = '…';
+            btn.textContent = '⏳';
             btn.disabled = true;
 
             try {
@@ -805,13 +850,13 @@ async function renderMerchantList() {
                     });
                 } else {
                     alert('Failed to delete cookies from database');
-                    btn.textContent = 'Clear';
+                    btn.textContent = '🗑️';
                     btn.disabled = false;
                 }
             } catch (err) {
                 console.error(err);
                 alert('Network error');
-                btn.textContent = 'Clear';
+                btn.textContent = '🗑️';
                 btn.disabled = false;
             }
         }
@@ -820,19 +865,19 @@ async function renderMerchantList() {
             const domain       = btn.getAttribute('data-domain');
             const merchantName = btn.getAttribute('data-title');
 
-            btn.textContent = '…';
+            btn.textContent = '⏳';
             btn.disabled = true;
 
             chrome.runtime.sendMessage(
                 { type: 'UPDATE_MERCHANT_LOGIN', domain, merchantName },
                 (resp) => {
                     if (resp && resp.status === 'error') {
-                        btn.textContent = '✕ No cookies';
+                        btn.textContent = '❌';
                         btn.style.background = '#fee2e2';
                         btn.style.color = '#991b1b';
                         btn.style.borderColor = '#fca5a5';
                     } else {
-                        btn.textContent = 'Synced ✓';
+                        btn.textContent = '✅';
                         btn.style.background = '#d1fae5';
                         btn.style.color = '#065f46';
                         btn.style.borderColor = '#6ee7b7';

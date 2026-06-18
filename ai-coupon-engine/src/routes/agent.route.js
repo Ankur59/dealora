@@ -103,6 +103,7 @@ router.post("/automation-map", requireDashboardAuth, async (req, res) => {
     }
 
     merchant.automationMacros.set(flowType || "login", steps || []);
+    merchant.markModified("automationMacros");
     await merchant.save();
 
     res.status(200).json({ success: true });

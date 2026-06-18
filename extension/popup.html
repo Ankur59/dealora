@@ -272,6 +272,7 @@
                     <button class="btn btn-outline active" id="btnAdminCampaigns" style="flex: 1; border-color: #3b82f6; color: #3b82f6;">Campaigns</button>
                     <button class="btn btn-outline" id="btnAdminPartners" style="flex: 1;">Partners</button>
                     <button class="btn btn-outline" id="btnAdminMetrics" style="flex: 1;">AI Metrics</button>
+                    <button class="btn btn-outline" id="btnAdminMacros" style="flex: 1;">Macros</button>
                 </div>
 
                 <div id="adminCampaignSection" class="admin-section">
@@ -351,8 +352,28 @@
                             </div>
                         </div>
                     </div>
+                </div>
 
-
+                <div id="adminMacrosSection" class="admin-section" style="display: none;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Manual Macro Editor</h4>
+                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div class="input-group">
+                            <label>Domain</label>
+                            <input type="text" id="macroDomain" placeholder="e.g. amazon.in" />
+                        </div>
+                        <div class="input-group">
+                            <label>Flow Type</label>
+                            <select id="macroFlowType">
+                                <option value="verify">Verify (Coupon)</option>
+                                <option value="login">Login</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Steps (JSON Array)</label>
+                            <textarea id="macroStepsJson" style="height:150px; font-family:monospace; font-size:11px;" placeholder='[{"action":"click","selector":"#apply-btn"}]'></textarea>
+                        </div>
+                        <button id="btnSaveMacroManual" class="btn btn-primary" style="padding: 8px;">Save Macro</button>
+                    </div>
                 </div>
             </div>
             

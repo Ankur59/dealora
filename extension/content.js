@@ -517,3 +517,103 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 });
+
+// ─── Recording Mode (Caveman) ────────────────────────────────
+function initRecorder() {
+    chrome.storage.local.get(['recordingState'], (res) => {
+        const state = res.recordingState;
+        if (!state || !state.isRecording) return;
+        
+        const host = window.location.hostname.replace(/^www\./, '');
+        if (!host.includes(state.domain)) return;
+
+        // Inject UI
+        const ui = document.createElement('div');
+        ui.innerHTML = `
+            <div style="position:fixed;top:10px;right:10px;background:#ef4444;color:white;padding:10px;z-index:999999;border-radius:5px;font-family:sans-serif;font-size:12px;box-shadow:0 2px 10px rgba(0,0,0,0.2);">
+                <b>🔴 REC (${state.flowType})</b> - ${state.steps.length} steps<br/>
+                <button id="dl-rec-save" style="margin-top:5px;background:#10b981;border:none;color:white;padding:3px 8px;cursor:pointer;">Save</button>
+                <button id="dl-rec-cancel" style="margin-top:5px;background:#6b7280;border:none;color:white;padding:3px 8px;cursor:pointer;">Cancel</button>
+            </div>
+        `;
+        document.body.appendChild(ui);
+
+        document.getElementById('dl-rec-save').onclick = () => {
+            chrome.runtime.sendMessage({ type: 'SAVE_RECORDING' }, () => {
+                ui.remove();
+                alert('Saved map!');
+            });
+        };
+        document.getElementById('dl-rec-cancel').onclick = () => {
+            chrome.runtime.sendMessage({ type: 'STOP_RECORDING' });
+            ui.remove();
+        };
+
+        // Get simple selector
+        const getSelector = (el) => {
+            if (el.hasAttribute('data-dl-id')) return `[data-dl-id="${el.getAttribute('data-dl-id')}"]`;
+            if (el.id) return `#${CSS.escape(el.id)}`;
+            const name = el.getAttribute('name');
+            if (name) return `[name="${CSS.escape(name)}"]`;
+            let path = el.tagName.toLowerCase();
+            if (el.className && typeof el.className === 'string') {
+                const classes = el.className.split(/\s+/).filter(c => c).slice(0,2);
+                if (classes.length) path += `.${classes.map(c=>CSS.escape(c)).join('.')}`;
+            }
+            return path;
+        };
+
+        // Record clicks
+        document.addEventListener('mousedown', (e) => {
+            const el = e.target.closest('button, a, input, select, textarea, [role="button"]');
+            if (!el || el.id?.startsWith('dl-rec-')) return;
+            
+            // Generate data-dl-id if missing
+            getSimplifiedDOM(); 
+            
+            const step = {
+                step: state.steps.length + 1,
+                action: 'click',
+                selector: getSelector(el),
+                url: window.location.href,
+                value: null
+            };
+            
+            state.steps.push(step);
+            chrome.storage.local.set({ recordingState: state });
+            
+            // Update UI count
+            const uiDiv = ui.querySelector('b');
+            if (uiDiv) uiDiv.innerHTML = `🔴 REC (${state.flowType}) - ${state.steps.length} steps`;
+        }, true);
+
+        // Record typing
+        document.addEventListener('change', (e) => {
+            const el = e.target;
+            if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT') return;
+            
+            getSimplifiedDOM();
+            
+            const step = {
+                step: state.steps.length + 1,
+                action: 'fill',
+                selector: getSelector(el),
+                url: window.location.href,
+                value: el.value
+            };
+            
+            state.steps.push(step);
+            chrome.storage.local.set({ recordingState: state });
+            
+            const uiDiv = ui.querySelector('b');
+            if (uiDiv) uiDiv.innerHTML = `🔴 REC (${state.flowType}) - ${state.steps.length} steps`;
+        }, true);
+    });
+}
+
+// Init recorder on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initRecorder);
+} else {
+    initRecorder();
+}

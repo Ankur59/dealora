@@ -247,6 +247,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ status: 'cleared', error: err.message });
             });
         return true;
+    } else if (request.type === 'START_RECORDING') {
+        const state = { isRecording: true, domain: request.domain, flowType: request.flowType, steps: [] };
+        chrome.storage.local.set({ recordingState: state });
+        chrome.tabs.create({ url: request.url });
+        sendResponse({ status: 'started' });
+    } else if (request.type === 'STOP_RECORDING') {
+        chrome.storage.local.remove(['recordingState']);
+        sendResponse({ status: 'stopped' });
+    } else if (request.type === 'SAVE_RECORDING') {
+        chrome.storage.local.get(['recordingState'], async (res) => {
+            const state = res.recordingState;
+            if (!state) return sendResponse({ status: 'error' });
+            
+            try {
+                await fetch(`${BACKEND_URL}/agent/automation-map`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Extension-Key': EXTENSION_API_KEY },
+                    body: JSON.stringify({ domain: state.domain, flowType: state.flowType, steps: state.steps })
+                });
+                chrome.storage.local.remove(['recordingState']);
+                sendResponse({ status: 'saved' });
+            } catch(e) {
+                sendResponse({ status: 'error', message: e.message });
+            }
+        });
+        return true;
     }
     return true; 
 });
