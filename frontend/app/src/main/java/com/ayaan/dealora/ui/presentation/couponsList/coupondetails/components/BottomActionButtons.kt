@@ -47,7 +47,7 @@ fun BottomActionButtons(
                 )
             ) {
                 Text(
-                    text = if (isRedeemed) "Redeemed" else "Redeem",
+                    text = "Redeemed",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )

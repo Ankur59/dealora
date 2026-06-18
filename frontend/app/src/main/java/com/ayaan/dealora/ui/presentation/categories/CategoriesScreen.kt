@@ -91,8 +91,11 @@ fun CategoriesScreen(
                 .background(Color.White)
         ) {
 
-            // ── Filter bar — only show in exclusive mode ──────────────────────
-            if (uiState.isExclusiveMode) {
+            // ── Filter bar — show in both Coupons and Offers mode ─────────────
+            val isPartnerMode = uiState.isExclusiveMode ||
+                    uiState.rawCoupons.isNotEmpty() ||
+                    uiState.isLoadingRawCoupons
+            if (isPartnerMode) {
                 Spacer(modifier = Modifier.height(12.dp))
                 CouponsFilterSection(
                     onSortClick = { showSortDialog = true },
@@ -445,6 +448,7 @@ private fun ExclusiveCouponsList(
                         showActionButtons = true,
                         merchantLogoUrl = coupon.merchantLogo,
                         discoverButtonLabel = "Use Now",
+                        isNewUser = coupon.isNewUser == true,
                         onSave = { onSave(coupon) },
                         onRemoveSave = { onRemoveSave(coupon.id) },
                         onRedeem = { _ ->

@@ -513,6 +513,7 @@ fun HomeScreen(
                                     source = coupon.couponLink,
                                     showActionButtons = true,
                                     discoverButtonLabel = "Use Now",
+                                    isNewUser = coupon.isNewUser == true,
                                     onDetailsClick = {
                                         val couponJson = viewModel.moshi
                                             .adapter(com.ayaan.dealora.data.api.models.PartnerCoupon::class.java)
@@ -921,7 +922,7 @@ fun PublicSearchBannerCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Coupons that\nactually work.",
+                        text = "Verified by AI.\nTrusted by Shoppers",
                         color = Color(0xFF1E144B),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
@@ -1001,7 +1002,7 @@ fun PublicSearchBannerCard(
                         .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "Only Public • Verified Coupon • 98% Accurate",
+                        text = "Save More • Verified Deals • No Wasted Time",
                         color = Color.White.copy(alpha = 0.9f),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
@@ -1020,7 +1021,7 @@ fun PublicSearchBannerCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Myntra  ★  Nike  ★  Flipkart  ★  Amazon  ★  Myntra  ★  Nike  ★  Flipkart  ★  Amazon  ★  Myntra  ★  Nike  ★  Flipkart  ★  Amazon",
+                    text = "Search 6,000+ brands and stores..  ★  Search 6,000+ brands and stores..  ★  Search 6,000+ brands and stores..",
                     color = Color.Black,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,

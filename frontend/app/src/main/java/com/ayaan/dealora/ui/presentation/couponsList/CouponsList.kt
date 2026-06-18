@@ -210,6 +210,7 @@ fun CouponsList(
                                     showActionButtons = true,
                                     merchantLogoUrl = coupon.merchantLogo,
                                     discoverButtonLabel = "Use Now",
+                                    isNewUser     = coupon.isNewUser == true,
                                     onSave        = { _ -> viewModel.savePartnerCoupon(coupon) },
                                     onRemoveSave  = { id -> viewModel.removeSavedCoupon(id) },
                                     onRedeem      = { _ ->

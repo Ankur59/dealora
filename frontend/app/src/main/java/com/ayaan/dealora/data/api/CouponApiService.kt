@@ -116,7 +116,8 @@ interface CouponApiService {
         @Query("limit")         limit:        Int?    = null,
         @Query("tab")           tab:          String? = null,  // "active" | "expired"
         @Query("offerType")     offerType:    String? = null,  // "Coupon" | "Offer"
-        @Query("verified")      verified:     String? = null
+        @Query("verified")      verified:     String? = null,
+        @Query("isNewUser")     isNewUser:    Boolean? = null
     ): Response<ApiResponse<PartnerCouponListResponseData>>
 
     /** Simple search: matches brandName or categories, verified + not expired, sorted by healthScore. */

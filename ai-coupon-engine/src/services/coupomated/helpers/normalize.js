@@ -86,10 +86,14 @@ const detectIsLimitedTime = (description) => {
 
 /**
  * Normalizes a single Coupomated coupon object into the internal coupon schema format.
- * @param {Object} coupon - Raw coupon object from Coupomated API
+ *
+ * @param {Object} coupon       - Raw coupon object from Coupomated API
+ * @param {Object} brandTagMap  - Optional map of { [brandNameLowercase]: string[] } loaded
+ *                                from the `brandtags` collection. When supplied, our custom
+ *                                tags are appended to the API's category_names (deduped).
  * @returns {Object} Normalized coupon object matching the coupon schema
  */
-const normalizeCoupomatedCoupon = (coupon) => {
+const normalizeCoupomatedCoupon = (coupon, brandTagMap = {}) => {
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
         const parts = dateStr.split("-");
@@ -133,7 +137,13 @@ const normalizeCoupomatedCoupon = (coupon) => {
         couponVisitingLink: coupon.plain_link ?? null,
         brandName: (coupon.merchant_name ?? '').toLowerCase(),
         merchantName: coupon.merchant_name ? coupon.merchant_name.toLowerCase() : null,
-        categories: (coupon.category_names ?? []).map(c => String(c).toLowerCase()),
+        categories: (() => {
+            const apiTags    = (coupon.category_names ?? []).map(c => String(c).toLowerCase());
+            const brand      = (coupon.merchant_name ?? '').trim().toLowerCase();
+            const customTags = (brandTagMap[brand] ?? []).map(t => String(t).toLowerCase());
+            // API tags first (preserved as-is), custom tags appended — Set removes duplicates
+            return [...new Set([...apiTags, ...customTags])];
+        })(),
         categoriesId: (coupon.category_ids ?? []).map(String),
         couponType: resolveCouponType(coupon.discount),
         offerType: detectOfferType(coupon.affiliate_link, coupon.coupon_code),

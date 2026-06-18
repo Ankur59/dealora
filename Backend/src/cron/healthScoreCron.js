@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
-
 /**
  * Health Score Calculation Engine
  *
@@ -124,7 +123,10 @@ async function runHealthScoreCalculation() {
         // 1. Fetch all active (non-expired) partner coupons
         const filter = {
             status: { $ne: 'expired' },
-            end: { $gt: now }  // Not expired
+            end: { $gt: now },      // Not expired
+            offerType: 'Coupon',
+            isVerified: true,
+            isInValid: false
         };
 
         const coupons = await col().find(filter).toArray();

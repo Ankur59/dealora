@@ -144,8 +144,13 @@ class CategoriesViewModel @Inject constructor(
 
     fun onFiltersChanged(filters: FilterOptions) {
         _currentFilters.value = filters
-        if (_uiState.value.isExclusiveMode) loadRawCoupons(resetPage = true)
-        else fetchAllCategories()
+        val state = _uiState.value
+        // Use loadRawCoupons for both Coupons and Offers mode (both use partner-coupons endpoint)
+        if (state.isExclusiveMode || state.rawCoupons.isNotEmpty() || state.isLoadingRawCoupons) {
+            loadRawCoupons(resetPage = true)
+        } else {
+            fetchAllCategories()
+        }
     }
 
     fun onSearchQueryChanged(query: String) {
@@ -196,7 +201,7 @@ class CategoriesViewModel @Inject constructor(
                 val mappedCategoryApi = CategoryMapper.getSubcategories(categoryApi)
                 val searchApi    = _searchQuery.value.takeIf { it.isNotBlank() }
 
-                Log.d(TAG, "loadRawCoupons page=$currentPage offerType=$offerType sortBy=$sortByApi category=$mappedCategoryApi search=$searchApi")
+                Log.d(TAG, "loadRawCoupons page=$currentPage offerType=$offerType sortBy=$sortByApi category=$mappedCategoryApi search=$searchApi isNewUser=${filters.isNewUser}")
 
                 when (val result = couponRepository.getPartnerCoupons(
                     category     = mappedCategoryApi,
@@ -208,7 +213,8 @@ class CategoriesViewModel @Inject constructor(
                     page         = currentPage,
                     limit        = RAW_PAGE_SIZE,
                     tab          = "active",
-                    offerType    = offerType
+                    offerType    = offerType,
+                    isNewUser    = if (filters.isNewUser) true else null
                 )) {
                     is PartnerCouponResult.Success -> {
                         val newCoupons = if (resetPage) result.coupons

@@ -96,7 +96,8 @@ fun CouponCard(
     onRedeem: ((String) -> Unit)? = null,
     onSave: ((String) -> Unit)? = null,
     onRemoveSave: ((String) -> Unit)? = null,
-    healthScore: Double? = null
+    healthScore: Double? = null,
+    isNewUser: Boolean = false
 ) {
     var showRedeemDialog by remember { mutableStateOf(false) }
     var isSavedLocal by remember(isSaved) { mutableStateOf(isSaved) }
@@ -105,250 +106,281 @@ fun CouponCard(
         getBrandLogoResource(brandName.replace("\n", "").trim().lowercase())
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 180.dp) // Maintain consistent height
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Box(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 180.dp) // Maintain consistent height
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            // Header Section - Colored based on source
-            val headerColor = when (source?.lowercase()) {
-                "email-parsing" -> Color(0xFFFBC02D) // Yellow
-                "ocr" -> Color(0xFF4CAF50) // Green
-                else -> Color(0xFF5B3FD9) // Default Purple
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 74.dp) // Standardize header height
-                    .background(headerColor)
-                    .padding(12.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Logo Circle
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .background(Color(0xFF1E88A8), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!merchantLogoUrl.isNullOrEmpty()) {
-                            // Load merchant logo from URL with fit scale and padding
-                            AsyncImage(
-                                model = merchantLogoUrl,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .background(Color.White)
-                                    .padding(4.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        } else {
-                            // Fall back to local resource
-                            Image(
-                                painter = painterResource(painter),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        }
-                    }
+                // Header Section - Colored based on source
+                val headerColor = when (source?.lowercase()) {
+                    "email-parsing" -> Color(0xFFFBC02D) // Yellow
+                    "ocr" -> Color(0xFF4CAF50) // Green
+                    else -> Color(0xFF5B3FD9) // Default Purple
+                }
 
-                    // Center Content
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 74.dp) // Standardize header height
+                        .background(headerColor)
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = brandName,
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            lineHeight = 20.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // Logo Circle
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .background(Color(0xFF1E88A8), CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
-                            if (category != null) {
-                                Chip(text = category)
+                            if (!merchantLogoUrl.isNullOrEmpty()) {
+                                // Load merchant logo from URL with fit scale and padding
+                                AsyncImage(
+                                    model = merchantLogoUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(Color.White)
+                                        .padding(4.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                            } else {
+                                // Fall back to local resource
+                                Image(
+                                    painter = painterResource(painter),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(Color.White)
+                                )
                             }
-                            if (expiryDays != null) {
-                                if (expiryDays > 0) {
-                                    Chip(text = "Expiry in $expiryDays days")
-                                } else if (expiryDays < 0) {
-                                    Chip(text = "Expired")
-                                } else {
-                                    Chip(text = "Expiring Today")
+                        }
+
+                        // Center Content
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp)
+                        ) {
+                            Text(
+                                text = brandName,
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                lineHeight = 20.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (category != null) {
+                                    Chip(text = category)
+                                }
+                                if (expiryDays != null) {
+                                    if (expiryDays > 0) {
+                                        Chip(text = "Expiry in $expiryDays days")
+                                    } else if (expiryDays < 0) {
+                                        Chip(text = "Expired")
+                                    } else {
+                                        Chip(text = "Expiring Today")
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Bookmark Icon and optional Health Score Badge
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.width(60.dp)
-                    ) {
+                        // Bookmark Icon and optional Health Score Badge
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
-                            modifier = Modifier
-                                .clickable {
-                                    if (couponId != null) {
-                                        if (isSavedLocal) {
-                                            isSavedLocal = false
-                                            onRemoveSave?.invoke(couponId)
-                                        } else {
-                                            isSavedLocal = true
-                                            onSave?.invoke(couponId)
+                            modifier = Modifier.width(60.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .clickable {
+                                        if (couponId != null) {
+                                            if (isSavedLocal) {
+                                                isSavedLocal = false
+                                                onRemoveSave?.invoke(couponId)
+                                            } else {
+                                                isSavedLocal = true
+                                                onSave?.invoke(couponId)
+                                            }
                                         }
                                     }
-                                }
-                        ) {
-                            Icon(
-                                imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = "Save coupon",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            if (isSavedLocal) {
-                                Text(
-                                    text = "Saved",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White,
-                                    lineHeight = 10.sp
-                                )
-                            }
-                        }
-
-                        if (healthScore != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            val badgeColor = if (healthScore >= 70.0) Color(0xFF4CAF50) else Color(0xFFFFB300)
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(badgeColor)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "${healthScore.toInt()}",
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    lineHeight = 12.sp
+                                Icon(
+                                    imageVector = if (isSavedLocal) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                    contentDescription = "Save coupon",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
                                 )
+                                if (isSavedLocal) {
+                                    Text(
+                                        text = "Saved",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White,
+                                        lineHeight = 10.sp
+                                    )
+                                }
+                            }
+
+                            if (healthScore != null) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val badgeColor = if (healthScore >= 70.0) Color(0xFF4CAF50) else Color(0xFFFFB300)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(badgeColor)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${healthScore.toInt()}",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        lineHeight = 12.sp
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Gray Footer Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 106.dp) // Standardize footer height
-                    .background(Color(0xFFE8E8E8))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.SpaceBetween // Keep buttons at the bottom
-            ) {
-                Text(
-                    text = description,
-                    fontSize = 13.sp,
-                    color = Color(0xFF333333),
-                    lineHeight = 16.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Buttons Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // Gray Footer Section
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 106.dp) // Standardize footer height
+                        .background(Color(0xFFE8E8E8))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.SpaceBetween // Keep buttons at the bottom
                 ) {
-                    // Check if coupon is expired
-                    val isExpired = expiryDays != null && expiryDays < 0
+                    Text(
+                        text = description,
+                        fontSize = 13.sp,
+                        color = Color(0xFF333333),
+                        lineHeight = 16.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
-                    // Details Button
-                    TextButton(
-                        onClick = onDetailsClick,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        enabled = !isRedeemed && !isExpired
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Buttons Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "Details",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (!isRedeemed && !isExpired) DealoraPrimary else Color.Gray
-                        )
-                    }
- 
-                    if (showActionButtons) {
-                        // Redeemed Button
-                        if (isRedeemed) {
-                            if (showGreenRedeemedButton) {
-                                // Green filled button when redeemed (only in redeemed screen)
-                                Button(
-                                    onClick = {},
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(36.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF4CAF50),
-                                        contentColor = Color.White,
-                                        disabledContainerColor = Color(0xFF4CAF50),
-                                        disabledContentColor = Color.White
-                                    ),
-                                    contentPadding = PaddingValues(0.dp),
-                                    enabled = false
-                                ) {
-                                    Text(
-                                        text = "Redeemed",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                        // Check if coupon is expired
+                        val isExpired = expiryDays != null && expiryDays < 0
+
+                        // Details Button
+                        TextButton(
+                            onClick = onDetailsClick,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            enabled = !isRedeemed && !isExpired
+                        ) {
+                            Text(
+                                text = "Details",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (!isRedeemed && !isExpired) DealoraPrimary else Color.Gray
+                            )
+                        }
+
+                        if (showActionButtons) {
+                            // Redeemed Button
+                            if (isRedeemed) {
+                                if (showGreenRedeemedButton) {
+                                    // Green filled button when redeemed (only in redeemed screen)
+                                    Button(
+                                        onClick = {},
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(36.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF4CAF50),
+                                            contentColor = Color.White,
+                                            disabledContainerColor = Color(0xFF4CAF50),
+                                            disabledContentColor = Color.White
+                                        ),
+                                        contentPadding = PaddingValues(0.dp),
+                                        enabled = false
+                                    ) {
+                                        Text(
+                                            text = "Redeemed",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                } else {
+                                    // Gray outlined button when redeemed (in other screens)
+                                    OutlinedButton(
+                                        onClick = {},
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(36.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = Color.White,
+                                            contentColor = Color.Gray
+                                        ),
+                                        border = BorderStroke(
+                                            width = 1.dp,
+                                            brush = androidx.compose.ui.graphics.SolidColor(Color.Gray)
+                                        ),
+                                        contentPadding = PaddingValues(0.dp),
+                                        enabled = false
+                                    ) {
+                                        Text(
+                                            text = "Redeemed",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                 }
                             } else {
-                                // Gray outlined button when redeemed (in other screens)
+                                // Outlined button when not redeemed
                                 OutlinedButton(
-                                    onClick = {},
+                                    onClick = {
+                                        showRedeemDialog = true
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(36.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = Color.White,
-                                        contentColor = Color.Gray
+                                        contentColor = if (!isExpired) Color(0xFF666666) else Color.Gray
                                     ),
                                     border = BorderStroke(
                                         width = 1.dp,
-                                        brush = androidx.compose.ui.graphics.SolidColor(Color.Gray)
+                                        brush = androidx.compose.ui.graphics.SolidColor(if (!isExpired) Color(0xFFCCCCCC) else Color.Gray)
                                     ),
                                     contentPadding = PaddingValues(0.dp),
-                                    enabled = false
+                                    enabled = !isExpired
                                 ) {
                                     Text(
                                         text = "Redeemed",
@@ -357,55 +389,47 @@ fun CouponCard(
                                     )
                                 }
                             }
-                        } else {
-                            // Outlined button when not redeemed
-                            OutlinedButton(
-                                onClick = {
-                                    showRedeemDialog = true
-                                },
+
+                            // Discover Button
+                            Button(
+                                onClick = onDiscoverClick,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(36.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = Color.White,
-                                    contentColor = if (!isExpired) Color(0xFF666666) else Color.Gray
-                                ),
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    brush = androidx.compose.ui.graphics.SolidColor(if (!isExpired) Color(0xFFCCCCCC) else Color.Gray)
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF5B3FD9),
+                                    disabledContainerColor = Color.Gray
                                 ),
                                 contentPadding = PaddingValues(0.dp),
-                                enabled = !isExpired
+                                enabled = !isRedeemed && !isExpired
                             ) {
                                 Text(
-                                    text = "Redeem",
+                                    text = discoverButtonLabel,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
-
-                        // Discover Button
-                        Button(
-                            onClick = onDiscoverClick,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(36.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF5B3FD9),
-                                disabledContainerColor = Color.Gray
-                            ),
-                            contentPadding = PaddingValues(0.dp),
-                            enabled = !isRedeemed && !isExpired
-                        ) {
-                            Text(
-                                text = discoverButtonLabel,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
                     }
                 }
+            }
+        }
+
+        if (isNewUser) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 16.dp)
+                    .clip(RoundedCornerShape(topStart = 0.dp, topEnd = 12.dp, bottomStart = 8.dp, bottomEnd = 0.dp))
+                    .background(Color(0xFFE53935))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "New User",
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
