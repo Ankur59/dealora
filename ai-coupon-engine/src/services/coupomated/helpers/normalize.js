@@ -138,8 +138,8 @@ const normalizeCoupomatedCoupon = (coupon, brandTagMap = {}) => {
         brandName: (coupon.merchant_name ?? '').toLowerCase(),
         merchantName: coupon.merchant_name ? coupon.merchant_name.toLowerCase() : null,
         categories: (() => {
-            const apiTags    = (coupon.category_names ?? []).map(c => String(c).toLowerCase());
-            const brand      = (coupon.merchant_name ?? '').trim().toLowerCase();
+            const apiTags = (coupon.category_names ?? []).map(c => String(c).toLowerCase());
+            const brand = (coupon.merchant_name ?? '').trim().toLowerCase();
             const customTags = (brandTagMap[brand] ?? []).map(t => String(t).toLowerCase());
             // API tags first (preserved as-is), custom tags appended — Set removes duplicates
             return [...new Set([...apiTags, ...customTags])];
@@ -165,7 +165,7 @@ const normalizeCoupomatedCoupon = (coupon, brandTagMap = {}) => {
             trendScore,         // 0   (no discover activity)
             healthScore,        // reliability×0.55 + freshness×0.30 + trend×0.15
         },
-        isInvalid: false
+        isInValid: false
         // meta: {
         //     title: coupon.title ?? null,
         //     exclusive: coupon.exclusive ?? null,
