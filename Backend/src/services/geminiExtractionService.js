@@ -14,7 +14,7 @@ class GeminiExtractionService {
         // List of Gemini models to try (in order of preference)
         // Updated to use models available as of 2025
         this.modelNames = [
-            'gemini-3-flash-preview'
+            'gemini-3.5-flash'
         ];
 
         // Track rate-limited models to avoid retrying them immediately

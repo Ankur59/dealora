@@ -255,6 +255,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.type === 'STOP_RECORDING') {
         chrome.storage.local.remove(['recordingState']);
         sendResponse({ status: 'stopped' });
+    } else if (request.type === 'DEEP_RESEARCH') {
+        // Start deep research in background and report progress via storage
+        deepResearchCoupons().catch(err => log('ERROR', `Deep research failed: ${err.message}`));
+        sendResponse({ status: 'started' });
+    } else if (request.type === 'GET_DEEP_RESEARCH_STATE') {
+        chrome.storage.local.get(['deepResearchState'], (res) => {
+            sendResponse(res.deepResearchState || { status: 'idle' });
+        });
+        return true;
     } else if (request.type === 'SAVE_RECORDING') {
         chrome.storage.local.get(['recordingState'], async (res) => {
             const state = res.recordingState;
@@ -1327,33 +1336,30 @@ function parseGeminiJSON(text) {
     return JSON.parse(t.substring(start, end + 1));
 }
 
-async function callGemini(prompt, taskId, maxKeys = GEMINI_MAX_KEYS_PER_CALL) {
+async function callGemini(prompt, taskId) {
     log('INFO', `Prompt size: ~${Math.round(prompt.length / 1000)}KB`);
 
-    const keysToTry = Math.min(maxKeys, GEMINI_API_KEYS.length);
-    const startIndex = geminiKeyIndex;
-
     const modelsToTry = [MODEL_NAME, FALLBACK_MODEL_NAME].filter(Boolean);
+    const totalKeys = GEMINI_API_KEYS.length;
 
-    for (let i = 0; i < keysToTry; i++) {
+    for (let i = 0; i < totalKeys; i++) {
         // Check pause/cancel state before each attempt
         if (agentRunState === 'paused' || agentRunState === 'idle' || (taskId && currentTasks.find(t => t.id === taskId)?.status === 'cancelled')) {
             log('WARN', 'Agent paused or cancelled during Gemini key loop. Aborting.');
             return null;
         }
 
-        const idx = (geminiKeyIndex + i) % GEMINI_API_KEYS.length;
+        const idx = (geminiKeyIndex + i) % totalKeys;
         const maskedKey = GEMINI_API_KEYS[idx].substring(0, 10) + '...';
 
         for (const model of modelsToTry) {
-            log('INFO', `Trying key #${idx + 1}/${GEMINI_API_KEYS.length} (${maskedKey}) with model ${model}`);
+            log('INFO', `Trying key #${idx + 1}/${totalKeys} (${maskedKey}) with model ${model}`);
             
             let timeoutId;
             try {
                 const controller = new AbortController();
                 timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-                // Register this controller so pause/stop can abort it immediately
                 if (taskId) {
                     const oldCtrl = activeGeminiControllers.get(taskId);
                     if (oldCtrl) { try { oldCtrl.abort(); } catch(e) {} }
@@ -1375,34 +1381,34 @@ async function callGemini(prompt, taskId, maxKeys = GEMINI_MAX_KEYS_PER_CALL) {
 
                 if (res.status === 429) {
                     await res.text().catch(() => '');
-                    log('WARN', `Key #${idx + 1} (${model}) rate-limited (429).`);
-                    continue; // Try fallback model, or next key if already fallback
+                    log('WARN', `Key #${idx + 1} (${model}) rate-limited (429). Skipping.`);
+                    break; // Skip this key entirely, move to next key
                 }
                 if (res.status === 403) {
                     await res.text().catch(() => '');
-                    log('WARN', `Key #${idx + 1} (${model}) forbidden (403).`);
-                    continue;
+                    log('WARN', `Key #${idx + 1} (${model}) forbidden (403). Skipping.`);
+                    break;
                 }
                 if (!res.ok) {
                     const errText = await res.text().catch(() => '');
                     log('ERROR', `Key #${idx + 1} (${model}) HTTP ${res.status}: ${errText.substring(0, 300)}`);
-                    continue;
+                    break;
                 }
 
                 const data = await res.json();
 
                 if (!data.candidates || data.candidates.length === 0) {
                     log('WARN', `Key #${idx + 1} (${model}): No candidates returned. Possible safety block.`, JSON.stringify(data).substring(0, 300));
-                    continue;
+                    break;
                 }
 
                 const textResponse = data.candidates[0]?.content?.parts?.[0]?.text;
                 if (!textResponse) {
                     log('WARN', `Key #${idx + 1} (${model}): Empty text in candidate.`, JSON.stringify(data.candidates[0]).substring(0, 300));
-                    continue;
+                    break;
                 }
 
-                geminiKeyIndex = idx;
+                geminiKeyIndex = (idx + 1) % totalKeys; // Start from next key on success
                 log('INFO', `Gemini response using ${model} (${textResponse.length} chars): ${textResponse.substring(0, 100)}...`);
                 return textResponse;
 
@@ -1411,18 +1417,16 @@ async function callGemini(prompt, taskId, maxKeys = GEMINI_MAX_KEYS_PER_CALL) {
                 if (taskId) activeGeminiControllers.delete(taskId);
                 const isAbort = err.name === 'AbortError';
                 log('ERROR', `Key #${idx + 1} (${model}) network/parse error: ${isAbort ? 'Request aborted (timeout or user paused/stopped)' : err.message}`);
-                
-                // If aborted due to pause, don't try next key or model
                 if (isAbort && (agentRunState === 'paused' || agentRunState === 'idle')) {
                     return null;
                 }
-                continue;
+                break; // Network error on this key, move to next
             }
         }
     }
 
-    geminiKeyIndex = (startIndex + keysToTry) % GEMINI_API_KEYS.length;
-    log('WARN', `Gemini batch failed (${keysToTry} keys tried). Will rotate keys for next attempt.`);
+    geminiKeyIndex = (geminiKeyIndex + totalKeys) % totalKeys;
+    log('WARN', `All ${totalKeys} Gemini keys failed. Rotating for next attempt.`);
     return null;
 }
 
@@ -1530,5 +1534,170 @@ async function clearBrowserCookies(rawDomain) {
         log('INFO', `Cleared ${cookies.length} browser cookies for ${domain}`);
     } catch (e) {
         log('ERROR', `clearBrowserCookies error for ${domain}:`, e);
+    }
+}
+
+// ─── Deep Research Mode ──────────────────────────────────────
+// Sends batches of unverified coupons to Gemini for web-research-based verification.
+// Gemini researches each code online (Google dorking) and returns verified/expired status.
+
+const DEEP_RESEARCH_BATCH_SIZE = 100;
+const DEEP_RESEARCH_PROMPT = `You are a deep-research AI agent. You are given a list of coupon codes for specific brands.
+Your task: For each coupon code, determine whether it is LIKELY WORKING ("verified") or LIKELY EXPIRED/INVALID ("expired").
+
+RESEARCH METHOD:
+- Use your knowledge about these brands and coupon codes.
+- Think about whether these coupon codes appear in recent (2025-2026) coupon/deal websites, blogs, forums.
+- Common patterns: generic-word codes like "VALUE", "BOSS", "LOVE" are often always-active sitewide coupons.
+- Branded/seasonal codes like "SUMFASH75", "WINTER" may be campaign-specific and could be expired.
+- Bank-specific codes (HDFC, SBI, ICICI, etc.) are usually longer-running bank offers.
+- Codes with dates/numbers that look campaign-specific (e.g., "AFF130625") are likely expired.
+- "NEW20", "SAVE10", "FLAT50" style codes are usually evergreen.
+
+OUTPUT: Return ONLY a valid JSON object with this exact structure:
+{
+  "results": [
+    { "code": "COUPON_CODE", "brand": "brand_name", "status": "verified", "confidence": 85, "reason": "brief reason" },
+    { "code": "COUPON_CODE", "brand": "brand_name", "status": "expired", "confidence": 90, "reason": "brief reason" }
+  ]
+}
+
+Status must be exactly "verified" or "expired". Confidence is 0-100.
+Respond with ONLY the JSON. No markdown, no explanation, no code blocks.`;
+
+async function deepResearchCoupons() {
+    log('INFO', '[DeepResearch] Starting deep research on unverified coupons...');
+
+    // Update state
+    const state = { status: 'fetching', batch: 0, totalBatches: 0, processed: 0, total: 0, results: [] };
+    await chrome.storage.local.set({ deepResearchState: state });
+
+    try {
+        // 1. Fetch all unverified coupons from backend
+        const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+        const params = new URLSearchParams({ isVerified: 'false', limit: '10000' });
+        const res = await fetch(`${BACKEND_URL}/coupons?${params}`, { headers });
+
+        if (!res.ok) {
+            throw new Error(`Backend fetch failed: ${res.status}`);
+        }
+
+        const data = await res.json();
+        const coupons = (data.data?.items || data.data || []).filter(c => c.code);
+        log('INFO', `[DeepResearch] Fetched ${coupons.length} unverified coupons with codes`);
+
+        if (coupons.length === 0) {
+            state.status = 'done';
+            state.message = 'No unverified coupons found.';
+            await chrome.storage.local.set({ deepResearchState: state });
+            return;
+        }
+
+        // 2. Batch them
+        const batches = [];
+        for (let i = 0; i < coupons.length; i += DEEP_RESEARCH_BATCH_SIZE) {
+            batches.push(coupons.slice(i, i + DEEP_RESEARCH_BATCH_SIZE));
+        }
+
+        state.status = 'researching';
+        state.total = coupons.length;
+        state.totalBatches = batches.length;
+        await chrome.storage.local.set({ deepResearchState: state });
+
+        const allResults = [];
+
+        for (let b = 0; b < batches.length; b++) {
+            const batch = batches[b];
+            state.batch = b + 1;
+            await chrome.storage.local.set({ deepResearchState: state });
+
+            log('INFO', `[DeepResearch] Processing batch ${b + 1}/${batches.length} (${batch.length} coupons)`);
+
+            // Build coupon list for prompt
+            const couponList = batch.map(c =>
+                `Brand: ${c.brandName} | Code: ${c.code} | Description: ${(c.description || '').substring(0, 150)}`
+            ).join('\n');
+
+            const prompt = `${DEEP_RESEARCH_PROMPT}\n\nCOUPONS TO RESEARCH:\n${couponList}`;
+
+            // Try Gemini with key rotation
+            let aiResponse = null;
+            for (let attempts = 0; attempts < 3 && !aiResponse; attempts++) {
+                aiResponse = await callGemini(prompt, null);
+                if (!aiResponse && attempts < 2) {
+                    log('WARN', `[DeepResearch] Gemini attempt ${attempts + 1} failed, retrying...`);
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
+
+            if (!aiResponse) {
+                log('ERROR', `[DeepResearch] Batch ${b + 1}: Gemini failed after 3 attempts. Skipping.`);
+                continue;
+            }
+
+            // Parse response
+            try {
+                const json = parseGeminiJSON(aiResponse);
+                if (json.results && Array.isArray(json.results)) {
+                    allResults.push(...json.results);
+                    state.processed += batch.length;
+                    state.results = allResults;
+                    log('INFO', `[DeepResearch] Batch ${b + 1}: Got ${json.results.length} results`);
+                } else {
+                    log('WARN', `[DeepResearch] Batch ${b + 1}: Unexpected response format:`, aiResponse.substring(0, 200));
+                }
+            } catch (e) {
+                log('ERROR', `[DeepResearch] Batch ${b + 1}: Failed to parse response: ${e.message}`);
+            }
+
+            await chrome.storage.local.set({ deepResearchState: state });
+
+            // Brief pause between batches to avoid rate limits
+            if (b < batches.length - 1) {
+                await new Promise(r => setTimeout(r, 3000));
+            }
+        }
+
+        // 3. Send results to backend
+        state.status = 'saving';
+        await chrome.storage.local.set({ deepResearchState: state });
+
+        if (allResults.length > 0) {
+            log('INFO', `[DeepResearch] Sending ${allResults.length} results to backend...`);
+            try {
+                const saveRes = await fetch(`${BACKEND_URL}/coupons/deep-research-batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Extension-Key': EXTENSION_API_KEY
+                    },
+                    body: JSON.stringify({ results: allResults })
+                });
+
+                if (saveRes.ok) {
+                    const savedData = await saveRes.json();
+                    log('INFO', `[DeepResearch] Backend saved: ${JSON.stringify(savedData.summary || savedData)}`);
+                    state.message = `Done! Verified: ${savedData.summary?.verified || 0}, Expired: ${savedData.summary?.expired || 0}`;
+                } else {
+                    log('ERROR', `[DeepResearch] Backend save failed: ${saveRes.status}`);
+                    state.message = 'Research done but backend save failed. Check logs.';
+                }
+            } catch (e) {
+                log('ERROR', `[DeepResearch] Backend save error: ${e.message}`);
+                state.message = 'Research done but backend save failed.';
+            }
+        } else {
+            state.message = 'No results to save.';
+        }
+
+        state.status = 'done';
+        await chrome.storage.local.set({ deepResearchState: state });
+        log('INFO', `[DeepResearch] Complete. ${allResults.length} total results.`);
+
+    } catch (err) {
+        log('ERROR', `[DeepResearch] Fatal error: ${err.message}`);
+        await chrome.storage.local.set({
+            deepResearchState: { status: 'error', message: err.message }
+        });
     }
 }
