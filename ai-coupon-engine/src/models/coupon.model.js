@@ -171,6 +171,21 @@ const couponSchema = new Schema({
         type: Boolean,
         default: false,
         index: true
+    },
+    // Deep Research fields
+    deepResearchConfidence: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    deepResearchAt: {
+        type: Date,
+        default: null
+    },
+    verificationReason: {
+        type: String,
+        default: null
     }
 }, { timestamps: true });
 

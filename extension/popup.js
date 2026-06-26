@@ -25,29 +25,24 @@ let dbPartners = [];
 let dbCoupons = [];
 let currentCouponPage = 0;
 let hasMoreCoupons = false;
-let totalCouponsCount = 0;
-let verifiedCouponsCount = 0;
 let activeCouponsCount = 0;
 let pendingCouponsCount = 0;
-let couponFilter = 'all'; // 'all', 'verified', 'active', 'pending'
+let expiredCouponsCount = 0;
+let couponFilter = 'active'; // 'active', 'pending', 'expired'
 
 function setCouponFilter(filter) {
     couponFilter = filter;
     
-    // Update active class on stats cards
-    document.getElementById('statTotalCard')?.classList.remove('active');
-    document.getElementById('statVerifiedCard')?.classList.remove('active');
     document.getElementById('statActiveCard')?.classList.remove('active');
     document.getElementById('statPendingCard')?.classList.remove('active');
+    document.getElementById('statExpiredCard')?.classList.remove('active');
     
-    if (filter === 'all') {
-        document.getElementById('statTotalCard')?.classList.add('active');
-    } else if (filter === 'verified') {
-        document.getElementById('statVerifiedCard')?.classList.add('active');
-    } else if (filter === 'active') {
+    if (filter === 'active') {
         document.getElementById('statActiveCard')?.classList.add('active');
     } else if (filter === 'pending') {
         document.getElementById('statPendingCard')?.classList.add('active');
+    } else if (filter === 'expired') {
+        document.getElementById('statExpiredCard')?.classList.add('active');
     }
     
     currentCouponPage = 0;
@@ -116,18 +111,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnSaveCoupon').addEventListener('click', handleSaveCoupon);
 
     // Coupon status stats cards filters
-    document.getElementById('statTotalCard').addEventListener('click', () => {
-        setCouponFilter('all');
-    });
-    document.getElementById('statVerifiedCard').addEventListener('click', () => {
-        setCouponFilter('verified');
-    });
     document.getElementById('statActiveCard').addEventListener('click', () => {
         setCouponFilter('active');
     });
     document.getElementById('statPendingCard').addEventListener('click', () => {
         setCouponFilter('pending');
     });
+    document.getElementById('statExpiredCard').addEventListener('click', () => {
+        setCouponFilter('expired');
+    });
+
+    // Deep Research button
+    document.getElementById('btnDeepResearch').addEventListener('click', startDeepResearch);
+    document.getElementById('btnExportExcel').addEventListener('click', exportCouponsCSV);
+
+    // Poll deep research state every 2 seconds
+    setInterval(pollDeepResearchState, 2000);
 
     // Inner Tabs — Admin
     const setAdminSubTab = (activeBtn, activeSec) => {
@@ -236,9 +235,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.target.classList.add('active');
             const targetTab = e.target.getAttribute('data-tab');
             document.getElementById(targetTab).classList.add('active');
-            if (targetTab === 'manualTab') {
-                fetchAndRenderManualNeeded();
-            }
         });
     });
 
@@ -287,7 +283,6 @@ async function showDashboard() {
     await fetchAdminData();
     await fetchSyncMerchants();
     await renderMerchantList();   // full render once on load
-    await fetchAndRenderManualNeeded();
     await fetchCoupons();
     await updateDashboardState(); // set button/OTP state once on load
 
@@ -304,11 +299,6 @@ async function showDashboard() {
         const newKeys = dbSyncMerchants.map(m => m.domain).join(',');
         if (dbSyncMerchants.length !== prevCount || newKeys !== prevKeys) {
             await renderMerchantList();
-        }
-
-        const manualTab = document.getElementById('manualTab');
-        if (manualTab && manualTab.classList.contains('active')) {
-            await fetchAndRenderManualNeeded();
         }
     }, 15000);
 }
@@ -356,13 +346,13 @@ async function fetchSyncMerchants() {
 async function fetchCoupons() {
     const searchTerm = (document.getElementById('couponSearchInput')?.value || '').trim();
     try {
-        let isVerifiedParam = 'all';
-        if (couponFilter === 'verified') {
-            isVerifiedParam = 'true';
-        } else if (couponFilter === 'active') {
+        let isVerifiedParam = '';
+        if (couponFilter === 'active') {
             isVerifiedParam = 'active';
         } else if (couponFilter === 'pending') {
             isVerifiedParam = 'false';
+        } else if (couponFilter === 'expired') {
+            isVerifiedParam = 'expired';
         }
 
         const url = `${CONFIG.BACKEND_URL}/coupons?page=${currentCouponPage}&limit=20&search=${encodeURIComponent(searchTerm)}&isVerified=${isVerifiedParam}`;
@@ -375,12 +365,9 @@ async function fetchCoupons() {
             hasMoreCoupons = resultData.hasMore || false;
 
             if (resultData.counts) {
-                totalCouponsCount = resultData.counts.total || 0;
-                verifiedCouponsCount = resultData.counts.verified || 0;
                 activeCouponsCount = resultData.counts.active || 0;
                 pendingCouponsCount = resultData.counts.pending || 0;
-            } else {
-                totalCouponsCount = resultData.total || 0;
+                expiredCouponsCount = resultData.counts.expired || 0;
             }
         }
 
@@ -491,10 +478,9 @@ function renderCoupons() {
 
     const isVerified = c => c.verified === true || c.isVerified === true;
 
-    document.getElementById('totalCoupons').textContent = totalCouponsCount;
-    document.getElementById('verifiedCoupons').textContent = verifiedCouponsCount;
     document.getElementById('activeCoupons').textContent = activeCouponsCount;
     document.getElementById('pendingCoupons').textContent = pendingCouponsCount;
+    document.getElementById('expiredCoupons').textContent = expiredCouponsCount;
 
     // Update pagination controls
     document.getElementById('couponPageInfo').textContent = `Page ${currentCouponPage + 1}`;
@@ -517,6 +503,10 @@ function renderCoupons() {
         const desc = c.description || c.couponDetails || c.terms || '';
         const disc = c.discountValue || c.discount || '';
         const label = c.couponName || c.couponTitle || '';
+        const drConf = c.deepResearchConfidence || 0;
+        const drBadge = drConf > 0
+            ? `<span style="font-size: 10px; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 8px; margin-left: 4px;" title="Deep Research Confidence">🔬 ${drConf}%</span>`
+            : '';
 
         card.innerHTML = `
             <div class="coupon-card-header">
@@ -532,11 +522,14 @@ function renderCoupons() {
                 <span class="coupon-badge ${statusClass}">${c.status || 'pending'}</span>
                 <span class="coupon-badge ${verifiedClass}">${isV ? (c.status === 'expired' || c.status === 'invalid' ? 'Verified by AI' : '✓ Verified') : 'Unverified'}</span>
                 ${c.partner ? `<span style="font-size: 10px; color: #9ca3af;">${c.partner}</span>` : ''}
+                ${drBadge}
             </div>
             ${c.verificationReason ? `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; font-style: italic;">AI: ${c.verificationReason}</div>` : ''}
             <div class="coupon-actions">
                 <button class="btn-verify" data-coupon-id="${c.id || c._id}">🤖 Verify Now</button>
-                ${c.status !== 'expired' ? `<button class="btn-sm-warning btn-expire-coupon" data-coupon-id="${c.id || c._id}" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer;">Expire</button>` : ''}
+                <button class="btn-blacklist btn-remove-blacklist" data-coupon-id="${c.id || c._id}" style="background: ${c.status === 'expired' ? '#fee2e2' : '#fef3c7'}; color: ${c.status === 'expired' ? '#b91c1b' : '#92400e'}; border: 1px solid ${c.status === 'expired' ? '#fca5a5' : '#f59e0b'}; padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer;">
+                    ${c.status === 'expired' ? '🗑 Remove & Blacklist' : '⛔ Expire & Remove'}
+                </button>
                 <button class="btn-sm-danger btn-delete-coupon" data-coupon-id="${c.id || c._id}">Delete</button>
             </div>
         `;
@@ -554,27 +547,31 @@ function renderCoupons() {
         });
     });
 
-    // Expire buttons
-    document.querySelectorAll('.btn-expire-coupon').forEach(btn => {
+    // Remove & Blacklist buttons
+    document.querySelectorAll('.btn-remove-blacklist').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-            if (confirm('Mark this coupon as expired? This will update the status and decrease AI validation accuracy metrics.')) {
-                const couponId = e.target.getAttribute('data-coupon-id');
+            const couponId = e.target.getAttribute('data-coupon-id');
+            const coupon = dbCoupons.find(c => (c.id || c._id) === couponId);
+            const msg = coupon?.status === 'expired'
+                ? 'Remove this coupon and blacklist it forever? It will never be re-ingested.'
+                : 'Mark this coupon as expired, remove from DB, and blacklist it forever?';
+            if (confirm(msg)) {
                 btn.textContent = '…';
                 btn.disabled = true;
                 try {
-                    const res = await fetch(`${CONFIG.BACKEND_URL}/coupons/${couponId}/expire`, { method: 'POST' });
+                    const res = await fetch(`${CONFIG.BACKEND_URL}/coupons/${couponId}/remove-and-blacklist`, { method: 'POST' });
                     if (res.ok) {
                         await fetchCoupons();
-                        await loadAiMetrics();
                     } else {
-                        alert('Failed to mark coupon as expired');
-                        btn.textContent = 'Expire';
+                        const errData = await res.json().catch(() => ({}));
+                        alert('Failed: ' + (errData.message || 'Unknown error'));
+                        btn.textContent = coupon?.status === 'expired' ? '🗑 Remove & Blacklist' : '⛔ Expire & Remove';
                         btn.disabled = false;
                     }
                 } catch (err) {
                     console.error(err);
                     alert('Network error');
-                    btn.textContent = 'Expire';
+                    btn.textContent = 'Error';
                     btn.disabled = false;
                 }
             }
@@ -1080,108 +1077,121 @@ async function loadAiMetrics() {
     }
 }
 
-async function fetchAndRenderManualNeeded() {
-    const container = document.getElementById('manualMerchantList');
-    if (!container) return;
+// ─── Deep Research ───────────────────────────────────────────
+async function startDeepResearch() {
+    const btn = document.getElementById('btnDeepResearch');
+    btn.textContent = '⏳ Starting...';
+    btn.disabled = true;
 
+    chrome.runtime.sendMessage({ type: 'DEEP_RESEARCH' }, (resp) => {
+        if (resp?.status === 'started') {
+            const progressEl = document.getElementById('deepResearchProgress');
+            progressEl.style.display = 'block';
+            document.getElementById('drStatus').textContent = '🔬 Deep Research: Fetching coupons...';
+            document.getElementById('drProgressFill').style.width = '5%';
+            document.getElementById('drMessage').textContent = 'Starting deep research...';
+            btn.textContent = '🔄 Running...';
+        } else {
+            btn.textContent = '❌ Error';
+            btn.disabled = false;
+            setTimeout(() => { btn.textContent = '🔬 Deep Research'; btn.disabled = false; }, 3000);
+        }
+    });
+}
+
+function pollDeepResearchState() {
+    chrome.runtime.sendMessage({ type: 'GET_DEEP_RESEARCH_STATE' }, (state) => {
+        if (!state || state.status === 'idle') return;
+
+        const progressEl = document.getElementById('deepResearchProgress');
+        const fillEl = document.getElementById('drProgressFill');
+        const statusEl = document.getElementById('drStatus');
+        const msgEl = document.getElementById('drMessage');
+        const btn = document.getElementById('btnDeepResearch');
+
+        if (progressEl.style.display === 'none') progressEl.style.display = 'block';
+
+        if (state.status === 'fetching') {
+            statusEl.textContent = '🔬 Deep Research: Fetching coupons...';
+            fillEl.style.width = '10%';
+            msgEl.textContent = 'Loading unverified coupons from database...';
+        } else if (state.status === 'researching') {
+            const pct = state.totalBatches > 0 ? Math.round((state.batch / state.totalBatches) * 100) : 0;
+            statusEl.textContent = `🔬 Deep Research: Batch ${state.batch || 0}/${state.totalBatches || 0}`;
+            fillEl.style.width = `${Math.min(pct, 95)}%`;
+            msgEl.textContent = `Processed ~${state.processed || 0} of ${state.total || 0} coupons...`;
+        } else if (state.status === 'saving') {
+            statusEl.textContent = '💾 Saving results to database...';
+            fillEl.style.width = '98%';
+            msgEl.textContent = state.message || '';
+        } else if (state.status === 'done') {
+            statusEl.textContent = '✅ Deep Research Complete!';
+            fillEl.style.width = '100%';
+            fillEl.style.background = '#10b981';
+            msgEl.textContent = state.message || '';
+            btn.textContent = '🔬 Deep Research';
+            btn.disabled = false;
+            fetchCoupons();
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                progressEl.style.display = 'none';
+                fillEl.style.background = '#f59e0b';
+                fillEl.style.width = '0%';
+            }, 10000);
+        } else if (state.status === 'error') {
+            statusEl.textContent = '❌ Deep Research Failed';
+            fillEl.style.background = '#ef4444';
+            msgEl.textContent = state.message || 'Unknown error';
+            btn.textContent = '🔬 Deep Research';
+            btn.disabled = false;
+            setTimeout(() => {
+                progressEl.style.display = 'none';
+                fillEl.style.background = '#f59e0b';
+                fillEl.style.width = '0%';
+            }, 10000);
+        }
+    });
+}
+
+// ─── Export CSV ──────────────────────────────────────────────
+async function exportCouponsCSV() {
     try {
-        const res = await fetch(`${CONFIG.BACKEND_URL}/coupons/manual-needed`);
-        if (!res.ok) {
-            container.innerHTML = '<p class="small-text">Failed to load manual verification data.</p>';
+        // Fetch all coupons (no pagination limit)
+        const res = await fetch(`${CONFIG.BACKEND_URL}/coupons?limit=10000&isVerified=all`);
+        if (!res.ok) throw new Error('Backend fetch failed');
+
+        const data = await res.json();
+        const coupons = data.data?.items || data.data || [];
+
+        if (coupons.length === 0) {
+            alert('No coupons to export.');
             return;
         }
 
-        const json = await res.json();
-        const data = json.data || [];
+        const headers = ['Brand', 'Code', 'Description', 'Discount', 'Type', 'Status', 'Partner', 'Verified', 'AI Score', 'Deep Research'];
+        const rows = coupons.map(c => [
+            c.brandName || '',
+            c.code || c.couponCode || '',
+            (c.description || '').replace(/,/g, ';'),
+            c.discount || c.discountValue || '',
+            c.type || '',
+            c.status || '',
+            c.partner || '',
+            c.isVerified ? 'Yes' : 'No',
+            c.discountWeight || '',
+            c.deepResearchConfidence ? `${c.deepResearchConfidence}%` : ''
+        ]);
 
-        if (data.length === 0) {
-            container.innerHTML = '<p class="small-text">No merchants need manual verification.</p>';
-            return;
-        }
-
-        container.innerHTML = '';
-        data.forEach(item => {
-            const m = item.merchant;
-            const failedCoupons = item.failedCoupons || [];
-
-            const merchantDiv = document.createElement('div');
-            merchantDiv.className = 'merchant-item';
-            merchantDiv.style.flexDirection = 'column';
-            merchantDiv.style.alignItems = 'stretch';
-            merchantDiv.style.gap = '8px';
-            merchantDiv.style.background = '#fffbeb';
-            merchantDiv.style.borderColor = '#f59e0b';
-            merchantDiv.style.borderWidth = '1px';
-            merchantDiv.style.borderStyle = 'solid';
-            merchantDiv.style.padding = '10px';
-            merchantDiv.style.borderRadius = '6px';
-            merchantDiv.style.marginBottom = '10px';
-
-            let couponsHtml = '';
-            if (failedCoupons.length === 0) {
-                couponsHtml = '<p class="small-text" style="margin: 0; color: #92400e;">No coupons failed yet.</p>';
-            } else {
-                failedCoupons.forEach(c => {
-                    const code = c.couponCode || c.code || 'NO CODE';
-                    const desc = c.description || '';
-                    couponsHtml += `
-                        <div style="background: white; border: 1px solid #fca5a5; padding: 8px; border-radius: 4px; margin-top: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span class="coupon-code" style="font-size: 12px; padding: 2px 6px;">${code}</span>
-                                <span style="font-size: 10px; font-weight: 600; color: #b91c1c; background: #fee2e2; padding: 2px 6px; border-radius: 10px;">Failed ${c.verification?.attemptCount || 3}x</span>
-                            </div>
-                            ${desc ? `<div style="font-size: 11px; color: #4b5563; margin-top: 4px;">${desc}</div>` : ''}
-                        </div>
-                    `;
-                });
-            }
-
-            merchantDiv.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div class="merchant-name" style="color: #92400e;">⚠️ ${m.merchantName || m.title || m.domain}</div>
-                        <div class="small-text" style="color: #b45309;">${m.domain}</div>
-                    </div>
-                    <button class="btn-sm-warning btn-reset-manual-merchant" data-merchant-id="${m._id}" style="background: #fef3c7; color: #b45309; border: 1px solid #f59e0b; padding: 4px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">Enable AI</button>
-                </div>
-                <div style="margin-top: 4px; border-top: 1px dashed #f59e0b; padding-top: 6px;">
-                    <div style="font-size: 11px; font-weight: bold; color: #92400e; margin-bottom: 4px;">Failed Coupons:</div>
-                    ${couponsHtml}
-                </div>
-            `;
-            container.appendChild(merchantDiv);
-        });
-
-        document.querySelectorAll('.btn-reset-manual-merchant').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const merchantId = e.target.getAttribute('data-merchant-id');
-                if (confirm('Re-enable AI verification for this merchant? This will also clear failed attempts to allow AI to verify again.')) {
-                    e.target.textContent = '…';
-                    e.target.disabled = true;
-                    try {
-                        const res = await fetch(`${CONFIG.BACKEND_URL}/merchants/${merchantId}/enable-ai`, {
-                            method: 'PUT'
-                        });
-                        if (res.ok) {
-                            await fetchAndRenderManualNeeded();
-                            await fetchSyncMerchants();
-                            await renderMerchantList();
-                        } else {
-                            alert('Failed to enable AI');
-                            e.target.textContent = 'Enable AI';
-                            e.target.disabled = false;
-                        }
-                    } catch (err) {
-                        console.error(err);
-                        alert('Network error');
-                        e.target.textContent = 'Enable AI';
-                        e.target.disabled = false;
-                    }
-                }
-            });
-        });
-
+        const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dealora_coupons_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
     } catch (err) {
-        console.error("Error loading manual verification data:", err);
+        console.error('CSV export failed:', err);
+        alert('Failed to export CSV. Check console.');
     }
 }

@@ -77,14 +77,6 @@
             border-color: #cbd5e1;
             box-shadow: 0 1.5px 4px rgba(0,0,0,0.06);
         }
-        #statTotalCard.active {
-            border-color: #3b82f6;
-            background: #eff6ff;
-        }
-        #statVerifiedCard.active {
-            border-color: #10b981;
-            background: #ecfdf5;
-        }
         #statActiveCard.active {
             border-color: #059669;
             background: #f0fdf4;
@@ -92,6 +84,10 @@
         #statPendingCard.active {
             border-color: #f59e0b;
             background: #fffbeb;
+        }
+        #statExpiredCard.active {
+            border-color: #ef4444;
+            background: #fef2f2;
         }
     </style>
 </head>
@@ -121,7 +117,6 @@
             <div class="tabs">
                 <button class="tab-btn active" data-tab="agentTab">AI Agent</button>
                 <button class="tab-btn" data-tab="couponsTab">Coupons</button>
-                <button class="tab-btn" data-tab="manualTab">Manual Needed</button>
                 <button class="tab-btn" data-tab="adminTab">Admin</button>
             </div>
 
@@ -177,23 +172,30 @@
                     <div style="margin-bottom: 10px;">
                         <input type="text" id="couponSearchInput" placeholder="Search by code, brand…" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px;" />
                     </div>
-                    <div id="couponStats" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <div id="statTotalCard" class="stat-card active" style="flex: 1; text-align: center; padding: 8px; border-radius: 6px;">
-                            <div id="totalCoupons" style="font-size: 18px; font-weight: 700; color: #3b82f6;">0</div>
-                            <div style="font-size: 10px; color: #6b7280;">Total</div>
+                    <div id="couponStats" style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
+                        <div id="statActiveCard" class="stat-card active" style="flex: 1; min-width: 60px; text-align: center; padding: 6px; border-radius: 6px;">
+                            <div id="activeCoupons" style="font-size: 16px; font-weight: 700; color: #059669;">0</div>
+                            <div style="font-size: 9px; color: #6b7280;">Active</div>
                         </div>
-                        <div id="statVerifiedCard" class="stat-card" style="flex: 1; text-align: center; padding: 8px; border-radius: 6px;">
-                            <div id="verifiedCoupons" style="font-size: 18px; font-weight: 700; color: #10b981;">0</div>
-                            <div style="font-size: 10px; color: #6b7280;">Verified</div>
+                        <div id="statPendingCard" class="stat-card" style="flex: 1; min-width: 60px; text-align: center; padding: 6px; border-radius: 6px;">
+                            <div id="pendingCoupons" style="font-size: 16px; font-weight: 700; color: #f59e0b;">0</div>
+                            <div style="font-size: 9px; color: #6b7280;">Pending</div>
                         </div>
-                        <div id="statActiveCard" class="stat-card" style="flex: 1; text-align: center; padding: 8px; border-radius: 6px;">
-                            <div id="activeCoupons" style="font-size: 18px; font-weight: 700; color: #059669;">0</div>
-                            <div style="font-size: 10px; color: #6b7280;">Active</div>
+                        <div id="statExpiredCard" class="stat-card" style="flex: 1; min-width: 60px; text-align: center; padding: 6px; border-radius: 6px;">
+                            <div id="expiredCoupons" style="font-size: 16px; font-weight: 700; color: #ef4444;">0</div>
+                            <div style="font-size: 9px; color: #6b7280;">Expired</div>
                         </div>
-                        <div id="statPendingCard" class="stat-card" style="flex: 1; text-align: center; padding: 8px; border-radius: 6px;">
-                            <div id="pendingCoupons" style="font-size: 18px; font-weight: 700; color: #f59e0b;">0</div>
-                            <div style="font-size: 10px; color: #6b7280;">Pending</div>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                        <button id="btnDeepResearch" class="btn btn-warning" style="margin: 0; padding: 6px 10px; font-size: 11px; width: auto; flex: 1;">🔬 Deep Research</button>
+                        <button id="btnExportExcel" class="btn btn-outline" style="margin: 0; padding: 6px 10px; font-size: 11px; width: auto; flex: 1;">📊 Export CSV</button>
+                    </div>
+                    <div id="deepResearchProgress" style="display: none; background: #fffbeb; border: 1px solid #f59e0b; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                        <div style="font-size: 11px; font-weight: 600; color: #92400e; margin-bottom: 4px;" id="drStatus">🔬 Deep Research: Initializing...</div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 6px; overflow: hidden;">
+                            <div id="drProgressFill" style="background: #f59e0b; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
                         </div>
+                        <div id="drMessage" style="font-size: 10px; color: #6b7280; margin-top: 4px;"></div>
                     </div>
                     <div id="couponList" class="scroll-area">
                         <p class="small-text">Loading coupons...</p>
@@ -254,15 +256,6 @@
                         </div>
                         <button id="btnSaveCoupon" class="btn btn-primary" style="padding: 8px; margin-top: 5px;">Save Coupon</button>
                     </div>
-                </div>
-            </div>
-
-            <!-- Manual Verification Needed Tab Content -->
-            <div id="manualTab" class="tab-content">
-                <h4 style="margin-top: 0; font-size: 13px; color: #374151;">Manual Verification Needed</h4>
-                <p class="small-text" style="margin-bottom: 10px;">Merchants where 3 coupons failed 3 times each. AI verification disabled.</p>
-                <div id="manualMerchantList" class="scroll-area">
-                    <p class="small-text">No merchants need manual verification.</p>
                 </div>
             </div>
 
