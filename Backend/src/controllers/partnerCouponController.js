@@ -65,11 +65,15 @@ function shapeDoc(doc, isRedeemed = false) {
 }
 
 /** Build the MongoDB filter object for the list endpoint. */
-function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified }) {
+function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified, isNewUser }) {
     const now = new Date();
     const andConditions = [];  // Collect all AND conditions
 
     // ── 1. TAB FILTER (active/expired) ──
+    // When a date-range validity filter is active, coupons without an expiry date (`end: null`)
+    // must be excluded — otherwise they would bypass the date check and appear in every range.
+    const hasDateRangeValidity = validity && ['valid_today', 'valid_this_week', 'valid_this_month'].includes(validity);
+
     if (offerType === 'Offer') {
         // Offers strictly require a future expiry date (not null/expired) and not already redeemed by user
         andConditions.push({ end: { $gt: now } });
@@ -79,14 +83,21 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
     } else if (tab === 'expired') {
         andConditions.push({ end: { $lt: now } });
     } else {
-        // active: not expired (or no expiry set), and not already redeemed by user
-        andConditions.push({
-            $or: [
-                { end: { $gte: now } },
-                { end: null },
-                { end: { $exists: false } },
-            ]
-        });
+        // active tab:
+        // - If a date-range validity filter is set, we ONLY require end >= now (no null/missing fallback)
+        //   so the validity range condition below can act as the sole date gate.
+        // - Otherwise allow coupons with no expiry date too.
+        if (hasDateRangeValidity) {
+            andConditions.push({ end: { $gte: now } });
+        } else {
+            andConditions.push({
+                $or: [
+                    { end: { $gte: now } },
+                    { end: null },
+                    { end: { $exists: false } },
+                ]
+            });
+        }
         if (redeemedIds && redeemedIds.length > 0) {
             andConditions.push({ _id: { $nin: redeemedIds } });
         }
@@ -144,23 +155,27 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
     }
 
     // ── 7. VALIDITY FILTER ──
-    if (validity) {
+    // The tab filter already ensures end >= now (lower bound).
+    // Here we only need to add the upper bound for the chosen range.
+    if (hasDateRangeValidity) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         if (validity === 'valid_today') {
             const tonight = new Date(today);
             tonight.setHours(23, 59, 59, 999);
-            andConditions.push({ end: { $gte: today, $lte: tonight } });
+            // end must be between now and tonight (lower bound already set above)
+            andConditions.push({ end: { $lte: tonight } });
         } else if (validity === 'valid_this_week') {
             const endOfWeek = new Date(today);
             endOfWeek.setDate(today.getDate() + 7);
-            andConditions.push({ end: { $gte: today, $lte: endOfWeek } });
+            andConditions.push({ end: { $lte: endOfWeek } });
         } else if (validity === 'valid_this_month') {
             const endOfMonth = new Date(today);
             endOfMonth.setMonth(today.getMonth() + 1);
-            endOfMonth.setDate(0);
-            andConditions.push({ end: { $gte: today, $lte: endOfMonth } });
+            endOfMonth.setDate(0); // last day of current month
+            endOfMonth.setHours(23, 59, 59, 999);
+            andConditions.push({ end: { $lte: endOfMonth } });
         }
     }
 
@@ -183,6 +198,12 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
                 ]
             });
         }
+    }
+
+    // ── 9. NEW USER FILTER ──
+    // When isNewUser=true, ONLY return coupons where isNewUser is explicitly true.
+    if (isNewUser === true || isNewUser === 'true') {
+        andConditions.push({ isNewUser: true });
     }
 
     // ── BUILD FINAL FILTER ──
@@ -530,6 +551,7 @@ exports.getPartnerCoupons = async (req, res) => {
             validity,
             offerType,
             verified = 'true',
+            isNewUser,
         } = req.query;
 
         // Parse category filter: could be single string, array, or comma-separated string
@@ -555,7 +577,7 @@ exports.getPartnerCoupons = async (req, res) => {
         const redemptions = await Redemption.find({ userId: userId.toString() }).select('couponId').lean();
         const redeemedIds = redemptions.map(r => r.couponId);   // already ObjectIds
 
-        const filter = buildFilter({ tab, redeemedIds, category: categoryFilterVal, brand, search, discountType, validity, offerType, verified });
+        const filter = buildFilter({ tab, redeemedIds, category: categoryFilterVal, brand, search, discountType, validity, offerType, verified, isNewUser });
 
         // DEBUG LOGGING
         logger.info(`[PartnerCoupon] Search Query:`, {
