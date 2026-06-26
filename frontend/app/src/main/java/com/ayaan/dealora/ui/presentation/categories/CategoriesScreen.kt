@@ -115,7 +115,8 @@ fun CategoriesScreen(
                             coupons = uiState.rawCoupons,
                             isLoading = uiState.isLoadingRawCoupons,
                             errorMessage = uiState.errorMessage,
-                            emptyLabel = "No exclusive coupons found",
+                            emptyLabel = if (currentFilters.isNewUser) "No new user coupons in this category" else "No exclusive coupons found",
+                            emptySubtitle = if (currentFilters.isNewUser) "There are no new user coupons here. Try turning off the New User filter to see all coupons." else null,
                             currentPage = uiState.rawCouponsPage,
                             totalPages = uiState.rawCouponsPages,
                             savedCouponIds = uiState.savedCouponIds,
@@ -176,7 +177,8 @@ fun CategoriesScreen(
                             coupons = uiState.rawCoupons,
                             isLoading = uiState.isLoadingRawCoupons,
                             errorMessage = uiState.errorMessage,
-                            emptyLabel = "No offers found",
+                            emptyLabel = if (currentFilters.isNewUser) "No new user offers in this category" else "No offers found",
+                            emptySubtitle = if (currentFilters.isNewUser) "There are no new user offers here. Try turning off the New User filter to see all offers." else null,
                             currentPage = uiState.rawCouponsPage,
                             totalPages = uiState.rawCouponsPages,
                             savedCouponIds = uiState.savedCouponIds,
@@ -350,6 +352,7 @@ fun CategoriesScreen(
             FiltersBottomSheet(
                 currentFilters = currentFilters,
                 syncedBrands = emptyList(),
+                showPriceAndDiscountType = false,
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { viewModel.onFiltersChanged(it) }
             )
@@ -373,6 +376,7 @@ private fun ExclusiveCouponsList(
     isLoading: Boolean,
     errorMessage: String?,
     emptyLabel: String = "No coupons found",
+    emptySubtitle: String? = null,
     currentPage: Int,
     totalPages: Int,
     savedCouponIds: Set<String>,
@@ -407,7 +411,7 @@ private fun ExclusiveCouponsList(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = errorMessage ?: "Try adjusting your filters or check back later.",
+                        text = emptySubtitle ?: (errorMessage ?: "Try adjusting your filters or check back later."),
                         fontSize = 14.sp,
                         color = Color.Gray,
                         textAlign = TextAlign.Center

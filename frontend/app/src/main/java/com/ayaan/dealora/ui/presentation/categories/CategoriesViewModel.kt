@@ -219,6 +219,7 @@ class CategoriesViewModel @Inject constructor(
                     is PartnerCouponResult.Success -> {
                         val newCoupons = if (resetPage) result.coupons
                                          else _uiState.value.rawCoupons + result.coupons
+                        val isNewUserFilter = _currentFilters.value.isNewUser
                         _uiState.update {
                             it.copy(
                                 rawCoupons = newCoupons,
@@ -226,7 +227,10 @@ class CategoriesViewModel @Inject constructor(
                                 rawCouponsPage = result.page,
                                 rawCouponsPages = result.pages,
                                 isLoadingRawCoupons = false,
-                                errorMessage = if (newCoupons.isEmpty()) "No exclusive coupons found" else null
+                                errorMessage = if (newCoupons.isEmpty()) {
+                                    if (isNewUserFilter) "No new user coupons in this category"
+                                    else "No exclusive coupons found"
+                                } else null
                             )
                         }
                     }

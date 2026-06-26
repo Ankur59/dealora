@@ -933,17 +933,6 @@ fun PublicSearchBannerCard(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Text(
-                    text = "Find real, working discount codes from your favorite brands instantly. Every coupon is verified before it appears in search.",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    fontWeight = FontWeight.Normal
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
                 // Search Input box lookalike
                 Row(
                     modifier = Modifier

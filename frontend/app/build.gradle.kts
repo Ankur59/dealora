@@ -18,7 +18,14 @@ val localProperties = Properties().apply {
 android {
     namespace = "com.ayaan.dealora"
     compileSdk = 36
-
+signingConfigs {
+    create("release") {
+        storeFile = file("../release-key.jks")
+        storePassword = "<replace password>"
+        keyAlias = "release"
+        keyPassword = "<replace password>"
+    }
+}
     defaultConfig {
         applicationId = "com.ayaan.dealora"
         minSdk = 28
@@ -38,6 +45,7 @@ android {
 
     buildTypes {
         release {
+             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

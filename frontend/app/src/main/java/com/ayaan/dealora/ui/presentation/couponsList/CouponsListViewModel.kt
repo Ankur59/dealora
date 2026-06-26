@@ -374,7 +374,8 @@ class CouponsListViewModel @Inject constructor(
                             page         = currentPage,
                             limit        = PARTNER_PAGE_SIZE,
                             tab          = "active",
-                            offerType    = offerTypeParam
+                            offerType    = offerTypeParam,
+                            isNewUser    = if (filters.isNewUser) true else null
                         )) {
                             is PartnerCouponResult.Success -> {
                                 _partnerCouponsActive.value = if (resetPage) {

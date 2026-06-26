@@ -176,7 +176,7 @@ fun CouponsList(
                     if (isLoadingPartnerCoupons && displayCoupons.isEmpty()) {
                         LoadingContent()
                     } else if (displayCoupons.isEmpty()) {
-                        EmptyContent(tab = exclusiveTab)
+                        EmptyContent(tab = exclusiveTab, filters = currentFilters)
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
@@ -392,6 +392,7 @@ fun CouponsList(
             FiltersBottomSheet(
                 currentFilters = currentFilters,
                 syncedBrands = syncedBrands,
+                showPriceAndDiscountType = false,
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { viewModel.onFiltersChanged(it) }
             )
@@ -504,21 +505,26 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun EmptyContent(tab: ExclusiveTab = ExclusiveTab.ACTIVE) {
+private fun EmptyContent(
+    tab: ExclusiveTab = ExclusiveTab.ACTIVE,
+    filters: com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions = com.ayaan.dealora.ui.presentation.couponsList.components.FilterOptions()
+) {
     val emoji = when (tab) {
         ExclusiveTab.REDEEMED -> "✅"
         ExclusiveTab.SAVED    -> "💾"
         else                  -> "🎟️"
     }
-    val title = when (tab) {
-        ExclusiveTab.REDEEMED -> "No redeemed coupons or offers yet"
-        ExclusiveTab.SAVED    -> "No saved coupons or offers"
-        else                  -> "No coupons or offers found"
+    val title = when {
+        tab == ExclusiveTab.REDEEMED -> "No redeemed coupons or offers yet"
+        tab == ExclusiveTab.SAVED    -> "No saved coupons or offers"
+        filters.isNewUser            -> "No new user coupons found"
+        else                         -> "No coupons or offers found"
     }
-    val subtitle = when (tab) {
-        ExclusiveTab.REDEEMED -> "Redeem a coupon from the Active tab and it will appear here."
-        ExclusiveTab.SAVED    -> "Save a coupon or offer using the bookmark icon to view it here."
-        else                  -> "Try adjusting your filters or check back later."
+    val subtitle = when {
+        tab == ExclusiveTab.REDEEMED -> "Redeem a coupon from the Active tab and it will appear here."
+        tab == ExclusiveTab.SAVED    -> "Save a coupon or offer using the bookmark icon to view it here."
+        filters.isNewUser            -> "There are no new user coupons in this category. Try turning off the New User filter to see all available coupons."
+        else                         -> "Try adjusting your filters or check back later."
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(

@@ -100,6 +100,7 @@ enum class FilterCategory {
 fun FiltersBottomSheet(
     currentFilters: FilterOptions = FilterOptions(),
     syncedBrands: List<String> = emptyList(),
+    showPriceAndDiscountType: Boolean = true,
     onDismiss: () -> Unit,
     onApplyFilters: (FilterOptions) -> Unit
 ) {
@@ -110,7 +111,13 @@ fun FiltersBottomSheet(
     var selectedCategory by remember { mutableStateOf(currentFilters.category) }
     var selectedIsNewUser by remember { mutableStateOf(currentFilters.isNewUser) }
 
-    var selectedFilterCategory by remember { mutableStateOf(FilterCategory.DISCOUNT_TYPE) }
+    // When Price and Discount Type are hidden (category/partner coupon context),
+    // default to Validity so the user always sees something useful first.
+    var selectedFilterCategory by remember {
+        mutableStateOf(
+            if (showPriceAndDiscountType) FilterCategory.DISCOUNT_TYPE else FilterCategory.VALIDITY
+        )
+    }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollState = rememberScrollState()
@@ -169,23 +176,39 @@ fun FiltersBottomSheet(
                     modifier = Modifier.width(142.dp), // 24dp left padding + 118dp button width
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    FilterCategoryButton(
-                        text = "Discount Type",
-                        isSelected = selectedFilterCategory == FilterCategory.DISCOUNT_TYPE,
-                        onClick = { selectedFilterCategory = FilterCategory.DISCOUNT_TYPE },
-                        modifier = Modifier.padding(start = 24.dp, top = 0.dp)
-                    )
-                    FilterCategoryButton(
-                        text = "Price",
-                        isSelected = selectedFilterCategory == FilterCategory.PRICE,
-                        onClick = { selectedFilterCategory = FilterCategory.PRICE },
-                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
-                    )
+                    // ── Discount Type and Price are hidden in the Categories / partner-coupon context.
+                    //    They only make sense for the user's private coupon Dashboard.
+                    if (showPriceAndDiscountType) {
+                        FilterCategoryButton(
+                            text = "Discount Type",
+                            isSelected = selectedFilterCategory == FilterCategory.DISCOUNT_TYPE,
+                            onClick = { selectedFilterCategory = FilterCategory.DISCOUNT_TYPE },
+                            modifier = Modifier.padding(start = 24.dp, top = 0.dp)
+                        )
+                        FilterCategoryButton(
+                            text = "Price",
+                            isSelected = selectedFilterCategory == FilterCategory.PRICE,
+                            onClick = { selectedFilterCategory = FilterCategory.PRICE },
+                            modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                        )
+                    }
+//                    FilterCategoryButton(
+//                        text = "Discount Type",
+//                        isSelected = selectedFilterCategory == FilterCategory.DISCOUNT_TYPE,
+//                        onClick = { selectedFilterCategory = FilterCategory.DISCOUNT_TYPE },
+//                        modifier = Modifier.padding(start = 24.dp, top = 0.dp)
+//                    )
+//                    FilterCategoryButton(
+//                        text = "Price",
+//                        isSelected = selectedFilterCategory == FilterCategory.PRICE,
+//                        onClick = { selectedFilterCategory = FilterCategory.PRICE },
+//                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+//                    )
                     FilterCategoryButton(
                         text = "Validity",
                         isSelected = selectedFilterCategory == FilterCategory.VALIDITY,
                         onClick = { selectedFilterCategory = FilterCategory.VALIDITY },
-                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                        modifier = Modifier.padding(start = 24.dp, top = if (showPriceAndDiscountType) 8.dp else 0.dp)
                     )
                     FilterCategoryButton(
                         text = "New User",
@@ -235,38 +258,58 @@ fun FiltersBottomSheet(
                     ) {
                         when (selectedFilterCategory) {
                             FilterCategory.DISCOUNT_TYPE -> {
-                                FilterOptionList(
-                                    options = listOf(
-                                        "Percentage Off (% Off)",
-                                        "Flat Discount",
-                                        "Cashback",
-                                        "Buy 1 Get 1"
-                                    ),
-                                    selectedOption = selectedDiscountType,
-                                    onOptionSelected = { selectedDiscountType = it }
-                                )
+                                // ── Commented out for Categories / partner-coupon context ──
+                                // Discount Type filter is only relevant for the Dashboard
+                                // (private user coupons). It is hidden via showPriceAndDiscountType.
+                                if (showPriceAndDiscountType) {
+                                    FilterOptionList(
+                                        options = listOf(
+                                            "Percentage Off (% Off)",
+                                            "Flat Discount",
+                                            "Cashback",
+                                            "Buy 1 Get 1"
+                                        ),
+                                        selectedOption = selectedDiscountType,
+                                        onOptionSelected = { selectedDiscountType = it }
+                                    )
+                                }
                             }
                             FilterCategory.PRICE -> {
-                                FilterOptionList(
-                                    options = listOf(
-                                        "No Minimum Order",
-                                        "Minimum Order Below ₹300",
-                                        "₹300–₹700",
-                                        "₹700–₹1500",
-                                        "Above ₹1500"
-                                    ),
-                                    selectedOption = selectedPrice,
-                                    onOptionSelected = { selectedPrice = it }
-                                )
+                                // ── Commented out for Categories / partner-coupon context ──
+                                // Price filter is only relevant for the Dashboard
+                                // (private user coupons). It is hidden via showPriceAndDiscountType.
+                                if (showPriceAndDiscountType) {
+                                    FilterOptionList(
+                                        options = listOf(
+                                            "No Minimum Order",
+                                            "Minimum Order Below ₹300",
+                                            "₹300–₹700",
+                                            "₹700–₹1500",
+                                            "Above ₹1500"
+                                        ),
+                                        selectedOption = selectedPrice,
+                                        onOptionSelected = { selectedPrice = it }
+                                    )
+                                }
                             }
                             FilterCategory.VALIDITY -> {
+                                // "Expired" is only relevant for the Dashboard (private coupons).
+                                // In the Categories / partner-coupon context it is hidden.
                                 FilterOptionList(
-                                    options = listOf(
-                                        "Valid Today",
-                                        "Valid This Week",
-                                        "Valid This Month",
-                                        "Expired"
-                                    ),
+                                    options = if (showPriceAndDiscountType) {
+                                        listOf(
+                                            "Valid Today",
+                                            "Valid This Week",
+                                            "Valid This Month",
+                                            "Expired"
+                                        )
+                                    } else {
+                                        listOf(
+                                            "Valid Today",
+                                            "Valid This Week",
+                                            "Valid This Month"
+                                        )
+                                    },
                                     selectedOption = selectedValidity,
                                     onOptionSelected = { selectedValidity = it }
                                 )
