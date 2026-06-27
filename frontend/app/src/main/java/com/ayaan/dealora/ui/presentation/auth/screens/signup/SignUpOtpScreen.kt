@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.res.painterResource
+import com.ayaan.dealora.R
 import com.ayaan.dealora.ui.presentation.auth.screens.signup.SignUpViewModel
 import com.ayaan.dealora.ui.presentation.auth.components.Banner
 import com.ayaan.dealora.ui.presentation.common.components.DealoraButton
@@ -75,7 +77,12 @@ fun SignUpOtpScreen(
     }
 
     Scaffold(
-        topBar = { Banner() },
+        topBar = {
+            Banner(
+                painter = painterResource(id = R.drawable.signup),
+                showStars = true
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { padding ->
         Column(

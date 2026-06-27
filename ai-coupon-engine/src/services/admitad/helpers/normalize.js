@@ -49,6 +49,12 @@ const normalizeAdmitadCoupon = (item) => {
         couponType:         item.discount ?? null,
         isInStore:          false,
         isNewUser:          false,
+        isLimitedTime:      (() => {
+            const desc = item.description;
+            if (!desc) return false;
+            const regex = /\b(limited\s+time|limited\s+period|limited\s+offer|hurry|flash\s+sale|ends\s+soon|expires\s+soon|today\s+only|only\s+today|deal\s+of\s+the\s+day|daily\s+deal|while\s+stocks?\s+lasts?)\b/i;
+            return regex.test(desc);
+        })(),
         title:              item.name ?? item.description?.slice(0, 100) ?? null,
         merchantLogo:       item.image ?? null,
         discountWeight:     0,

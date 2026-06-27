@@ -25,6 +25,12 @@ const normalizeCoupon = (c) => {
         ? "expired"
         : (status === "active" ? "active" : "active");
 
+    const detectIsLimitedTime = (desc) => {
+        if (!desc) return false;
+        const regex = /\b(limited\s+time|limited\s+period|limited\s+offer|hurry|flash\s+sale|ends\s+soon|expires\s+soon|today\s+only|only\s+today|deal\s+of\s+the\s+day|daily\s+deal|while\s+stocks?\s+lasts?)\b/i;
+        return regex.test(desc);
+    };
+
     const obj = {
         partner: "vcommission",
         description: description || null,
@@ -41,6 +47,7 @@ const normalizeCoupon = (c) => {
         couponType: coupon_type || null,
         isInStore: false,
         isNewUser: false,
+        isLimitedTime: detectIsLimitedTime(description),
         isVerified: false,
         title: description ? description.slice(0, 100) : null,
         merchantLogo: merchant_logo || null,

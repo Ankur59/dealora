@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
                     const oldFailedCount = coupon.failedCount || 0;
 
                     // Import calculation helpers from cron
-                    const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
+                    const { calculateReliabilityScore, calculateFreshnessScore, calculateHealthScore } = require('../cron/healthScoreCron');
 
                     const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
 
@@ -89,13 +89,11 @@ router.post('/', async (req, res) => {
                     // Recalculate reliability
                     const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-                    // Recalculate health score using the multiplicative pattern
-                    const discountWeight = coupon.discountWeight || 0;
+                    // Recalculate health score via the central calculation engine
                     const createdAt = coupon.createdAt || new Date();
                     const trendScore = coupon.trend?.trendScore || 0;
-                    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
                     const freshnessScore = calculateFreshnessScore(createdAt);
-                    const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
+                    const newHealthScore = calculateHealthScore(newReliabilityScore, freshnessScore, trendScore);
 
                     await partnerCouponsCollection.updateOne(
                         { _id: coupon._id },
@@ -110,7 +108,7 @@ router.post('/', async (req, res) => {
 
                     console.log(`[PartnerCouponInteraction] Real-time scores updated for initial redeem on coupon ${couponId}. ` +
                         `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
-                        `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+                        `HealthScore: ${(coupon.trend?.healthScore ?? 0).toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
                 } else {
                     console.warn(`[PartnerCouponInteraction] Coupon not found for initial redeem stats: ${couponId}`);
                 }
@@ -149,26 +147,49 @@ router.post('/', async (req, res) => {
 /**
  * GET /api/partner-coupon-interactions/pending?userId=UID
  *
- * Returns all interactions with outcome = "pending" for the given user,
- * from the last 7 days, sorted newest first.  The frontend shows these as a feedback popup.
+ * Returns up to BATCH_SIZE (10) pending interactions for the user, filtered
+ * to those seen fewer than MAX_ATTEMPTS (3) times.
+ *
+ * On every fetch, viewCount is incremented for all returned interactions so
+ * the attempt is consumed even if the user dismisses the popup without voting.
+ * Once viewCount reaches MAX_ATTEMPTS the entry is permanently excluded.
+ *
+ * Voted entries (outcome = success | failure) are already resolved and therefore
+ * naturally excluded from the `outcome: 'pending'` filter.
  */
 router.get('/pending', async (req, res) => {
     try {
         const userId = req.query.userId || getUserId(req);
         if (!userId) return badRequest(res, 'userId is required');
 
-        // Calculate date 7 days ago
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const MAX_ATTEMPTS = 3;
+        const BATCH_SIZE   = 10;
 
+        // Only return interactions that haven't used up their 3 display slots
+        // and have a couponCode (i.e. not null)
         const pending = await PartnerCouponInteraction.find({
             userId,
-            outcome: 'pending',
-            createdAt: { $gte: sevenDaysAgo }
+            outcome:   'pending',
+            viewCount: { $lt: MAX_ATTEMPTS },
+            couponCode: { $ne: null }
         })
             .sort({ createdAt: -1 })
-            .limit(20)   // cap: show at most 20 feedback prompts at once
+            .limit(BATCH_SIZE)
             .lean();
+
+        // Increment viewCount for every interaction that was just served.
+        // This happens regardless of what the user does with the popup so that
+        // simply dismissing ("Maybe later") counts as one attempt.
+        if (pending.length > 0) {
+            const ids = pending.map(p => p._id);
+            await PartnerCouponInteraction.updateMany(
+                { _id: { $in: ids } },
+                { $inc: { viewCount: 1 } }
+            ).catch(err => {
+                // Non-fatal: log but don't fail the response
+                console.error('[PartnerCouponInteraction] viewCount increment error:', err.message);
+            });
+        }
 
         res.json({
             success: true,
@@ -253,7 +274,7 @@ router.patch('/:id/resolve', async (req, res) => {
                     const oldFailedCount = coupon.failedCount || 0;
 
                     // Import calculation helpers from cron
-                    const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
+                    const { calculateReliabilityScore, calculateFreshnessScore, calculateHealthScore } = require('../cron/healthScoreCron');
 
                     const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
 
@@ -264,13 +285,11 @@ router.patch('/:id/resolve', async (req, res) => {
                     // Recalculate reliability
                     const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-                    // Recalculate health score using the multiplicative pattern
-                    const discountWeight = coupon.discountWeight || 0;
+                    // Recalculate health score via the central calculation engine
                     const createdAt = coupon.createdAt || new Date();
                     const trendScore = coupon.trend?.trendScore || 0;
-                    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
                     const freshnessScore = calculateFreshnessScore(createdAt);
-                    const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
+                    const newHealthScore = calculateHealthScore(newReliabilityScore, freshnessScore, trendScore);
 
                     const result = await partnerCouponsCollection.updateOne(
                         { _id: coupon._id },
@@ -287,7 +306,7 @@ router.patch('/:id/resolve', async (req, res) => {
                     console.log(`[PartnerCouponInteraction] Real-time scores updated for resolved coupon ${interaction.couponId}. ` +
                         `Counts: success=${newSuccessCount}, failed=${newFailedCount}. ` +
                         `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
-                        `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+                        `HealthScore: ${(coupon.trend?.healthScore ?? 0).toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
                 } else {
                     console.warn(`[PartnerCouponInteraction] Coupon not found for resolution: ${interaction.couponId}`);
                 }

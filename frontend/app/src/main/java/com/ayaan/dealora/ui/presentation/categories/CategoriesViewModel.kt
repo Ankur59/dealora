@@ -117,18 +117,14 @@ class CategoriesViewModel @Inject constructor(
 
     /**
      * Called when the "Exclusive" toggle on the categories screen is switched.
-     * When ON: load rawScrapedCoupons sorted by discountScore.
-     * When OFF: go back to normal category groups.
+     * When ON  ("Coupons"): load partner coupons with offerType="Coupon".
+     * When OFF ("Offers"):  load partner offers with offerType="Offer",
+     *                        sorted by hasValidTrackingLink → discountWeight (backend).
      */
     fun onExclusiveModeChanged(isExclusive: Boolean) {
-        _uiState.update { it.copy(isExclusiveMode = isExclusive) }
-        if (isExclusive) {
-            loadRawCoupons(resetPage = true)
-        } else {
-            // Clear raw coupons and reload normal categories
-            _uiState.update { it.copy(rawCoupons = emptyList(), rawCouponsPage = 1) }
-            fetchAllCategories()
-        }
+        _uiState.update { it.copy(isExclusiveMode = isExclusive, rawCoupons = emptyList(), rawCouponsPage = 1) }
+        // Both modes now use the partner-coupons endpoint; only offerType differs.
+        loadRawCoupons(resetPage = true)
     }
 
     // ── Exclusive mode: sort / filter / search ────────────────────────────────
@@ -148,8 +144,13 @@ class CategoriesViewModel @Inject constructor(
 
     fun onFiltersChanged(filters: FilterOptions) {
         _currentFilters.value = filters
-        if (_uiState.value.isExclusiveMode) loadRawCoupons(resetPage = true)
-        else fetchAllCategories()
+        val state = _uiState.value
+        // Use loadRawCoupons for both Coupons and Offers mode (both use partner-coupons endpoint)
+        if (state.isExclusiveMode || state.rawCoupons.isNotEmpty() || state.isLoadingRawCoupons) {
+            loadRawCoupons(resetPage = true)
+        } else {
+            fetchAllCategories()
+        }
     }
 
     fun onSearchQueryChanged(query: String) {
@@ -185,23 +186,22 @@ class CategoriesViewModel @Inject constructor(
                 val currentPage = if (resetPage) 1 else (_uiState.value.rawCouponsPage + 1)
                 _uiState.update { it.copy(isLoadingRawCoupons = true) }
 
-                val sortByApi = when (_currentSortOption.value) {
-                    SortOption.NEWEST_FIRST     -> "newest_first"
-                    SortOption.EXPIRING_SOON    -> "expiring_soon"
-                    SortOption.A_TO_Z           -> "a_z"
-                    SortOption.Z_TO_A           -> "z_a"
-                    SortOption.HIGHEST_DISCOUNT -> "discountWeight"
-                    else                        -> null // triggers trend.healthScore DESC default sorting!
-                }
+                // Toggle ON (isExclusiveMode=true)  → "Coupon"  (with code, sorted by healthScore+discountWeight)
+                // Toggle OFF (isExclusiveMode=false) → "Offer"   (no code, sorted by trackingLink+discountWeight)
+                val offerType = if (_uiState.value.isExclusiveMode) "Coupon" else "Offer"
 
-                val filters    = _currentFilters.value
+                // Sort-by is only exposed in the filter bar which is only shown in exclusive/Coupon mode.
+                // For Offer mode the backend always applies its default aggregate sort.
+                val sortByApi = if (_uiState.value.isExclusiveMode) _currentSortOption.value.apiValue else null
+
+                val filters      = _currentFilters.value
                 val discountType = convertDiscountTypeToApi(filters.discountType)
-                val validity   = filters.getValidityApiValue()
-                val categoryApi = _currentCategory.value?.takeIf { it != "See All" }
+                val validity     = filters.getValidityApiValue()
+                val categoryApi  = _currentCategory.value?.takeIf { it != "See All" }
                 val mappedCategoryApi = CategoryMapper.getSubcategories(categoryApi)
-                val searchApi  = _searchQuery.value.takeIf { it.isNotBlank() }
+                val searchApi    = _searchQuery.value.takeIf { it.isNotBlank() }
 
-                Log.d(TAG, "loadRawCoupons page=$currentPage sortBy=$sortByApi category=$mappedCategoryApi search=$searchApi")
+                Log.d(TAG, "loadRawCoupons page=$currentPage offerType=$offerType sortBy=$sortByApi category=$mappedCategoryApi search=$searchApi isNewUser=${filters.isNewUser}")
 
                 when (val result = couponRepository.getPartnerCoupons(
                     category     = mappedCategoryApi,
@@ -213,11 +213,13 @@ class CategoriesViewModel @Inject constructor(
                     page         = currentPage,
                     limit        = RAW_PAGE_SIZE,
                     tab          = "active",
-                    offerType    = "Coupon" // standard coupon filter like CouponsList.kt
+                    offerType    = offerType,
+                    isNewUser    = if (filters.isNewUser) true else null
                 )) {
                     is PartnerCouponResult.Success -> {
                         val newCoupons = if (resetPage) result.coupons
                                          else _uiState.value.rawCoupons + result.coupons
+                        val isNewUserFilter = _currentFilters.value.isNewUser
                         _uiState.update {
                             it.copy(
                                 rawCoupons = newCoupons,
@@ -225,7 +227,10 @@ class CategoriesViewModel @Inject constructor(
                                 rawCouponsPage = result.page,
                                 rawCouponsPages = result.pages,
                                 isLoadingRawCoupons = false,
-                                errorMessage = if (newCoupons.isEmpty()) "No exclusive coupons found" else null
+                                errorMessage = if (newCoupons.isEmpty()) {
+                                    if (isNewUserFilter) "No new user coupons in this category"
+                                    else "No exclusive coupons found"
+                                } else null
                             )
                         }
                     }
@@ -362,6 +367,12 @@ class CategoriesViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "saveRawCoupon error", e)
             }
+            // Sync with backend remotely
+            try {
+                couponRepository.savePartnerCoupon(coupon.id)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing saved partner coupon with backend: ${coupon.id}", e)
+            }
         }
     }
 
@@ -371,6 +382,12 @@ class CategoriesViewModel @Inject constructor(
                 savedCouponRepository.removeSavedCoupon(couponId)
             } catch (e: Exception) {
                 Log.e(TAG, "removeSavedCoupon error", e)
+            }
+            // Sync with backend remotely (safe try-catch in case of non-partner coupon)
+            try {
+                couponRepository.unsavePartnerCoupon(couponId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing unsaved partner coupon with backend: $couponId", e)
             }
         }
     }

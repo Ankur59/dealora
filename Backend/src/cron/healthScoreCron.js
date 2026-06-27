@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
-
 /**
  * Health Score Calculation Engine
  *
@@ -19,7 +18,7 @@ const col = () => mongoose.connection.db.collection('partnercoupons');
  * Calculate reliability score from community feedback
  * Uses Laplace smoothing to handle small sample sizes fairly
  *
- * Formula: ((successCount + 5) / (successCount + failedCount + 10)) * 100
+ * Formula: ((successCount + 7) / (successCount + failedCount + 10)) * 100
  *
  * @param {number} successCount - Number of successful votes
  * @param {number} failedCount - Number of failed votes
@@ -79,26 +78,32 @@ function calculateTrendScore(discoverCount = 0, lastDiscoverAt = null, now = new
 
 /**
  * Calculate overall health score
- * Combines all ranking signals into one final score
+ * Combines all ranking signals into one final score.
  *
- * Formula:
- * healthScore = (discountWeight * 0.4) +
- *               (reliabilityScore * 0.4) +
- *               (freshnessScore * 0.15) +
- *               (trendScore * 0.05)
+ * Formula (additive weighted sum, all signals 0–100):
+ *   healthScore = (reliabilityScore × 0.55)
+ *               + (freshnessScore   × 0.30)
+ *               + (trendScore       × 0.15)
  *
- * @param {number} discountWeight - Discount value (0-100+)
- * @param {number} reliabilityScore - Reliability score (0-100)
- * @param {number} freshnessScore - Freshness score (0-100)
- * @param {number} trendScore - Trend score (0-100)
- * @returns {number} healthScore
+ * Weight rationale:
+ *  - Reliability (55%): Strongest signal — driven by real user votes with
+ *    Laplace smoothing applied. Most objective quality indicator.
+ *  - Freshness  (30%): Ensures newly-added coupons surface fairly and
+ *    old coupons gradually lose ranking advantage.
+ *  - Trend      (15%): Discover/engagement activity. Kept lower because
+ *    brand-new coupons start at 0 and should not be unfairly penalised.
+ *
+ * Result is in the range 0–100. No single signal dominates.
+ *
+ * @param {number} reliabilityScore - Community trust score (0-100)
+ * @param {number} freshnessScore   - Age-based freshness score (0-100)
+ * @param {number} trendScore       - Recent engagement score (0-100)
+ * @returns {number} healthScore 0-100
  */
-function calculateHealthScore(discountWeight = 0, reliabilityScore, freshnessScore, trendScore = 0) {
-    const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
-    const reliabilityMult = reliabilityScore / 100;
-    const freshnessMult = freshnessScore / 100;
-    
-    const score = attractiveness * reliabilityMult * freshnessMult;
+function calculateHealthScore(reliabilityScore = 0, freshnessScore = 0, trendScore = 0) {
+    const score = (reliabilityScore * 0.55)
+        + (freshnessScore * 0.30)
+        + (trendScore * 0.15);
     return Math.round(score * 100) / 100;
 }
 
@@ -118,7 +123,10 @@ async function runHealthScoreCalculation() {
         // 1. Fetch all active (non-expired) partner coupons
         const filter = {
             status: { $ne: 'expired' },
-            end: { $gt: now }  // Not expired
+            end: { $gt: now },      // Not expired
+            offerType: 'Coupon',
+            isVerified: true,
+            isInValid: false
         };
 
         const coupons = await col().find(filter).toArray();
@@ -136,7 +144,6 @@ async function runHealthScoreCalculation() {
             // Extract relevant fields with safe defaults
             const successCount = coupon.successCount || 0;
             const failedCount = coupon.failedCount || 0;
-            const discountWeight = coupon.discountWeight || 0;
             const createdAt = coupon.createdAt || new Date();
             const discoverCount = coupon.trend?.discoverCount || 0;
             const lastDiscoverAt = coupon.trend?.lastDiscoverAt;
@@ -145,7 +152,7 @@ async function runHealthScoreCalculation() {
             const reliabilityScore = calculateReliabilityScore(successCount, failedCount);
             const freshnessScore = calculateFreshnessScore(createdAt, now);
             const trendScore = calculateTrendScore(discoverCount, lastDiscoverAt, now);
-            const healthScore = calculateHealthScore(discountWeight, reliabilityScore, freshnessScore, trendScore);
+            const healthScore = calculateHealthScore(reliabilityScore, freshnessScore, trendScore);
 
             // Prepare update operation (only persist reliable, trend, and health scores)
             updateOperations.push({
@@ -197,3 +204,4 @@ module.exports = {
     calculateTrendScore,
     calculateHealthScore
 };
+// here is health score function

@@ -1,77 +1,42 @@
 import { computeDiscountWeight } from '../../../shared/discountWeight.js';
-
-// ── Initial health-score helpers (mirrors Backend/src/cron/healthScoreCron.js) ──
-// Kept in-sync manually. Formula changes must be applied in both places.
-
-/**
- * Laplace-smoothed reliability score from community votes.
- * Formula: ((s + 7) / (s + f + 10)) * 100
- */
-function calcReliability(successCount = 0, failedCount = 0) {
-    const score = ((successCount + 7) / (successCount + failedCount + 10)) * 100;
-    return Math.round(score * 100) / 100;
-}
-
-/**
- * Freshness score based on coupon age.
- * Formula: 100 / (1 + daysOld)
- */
-function calcFreshness(createdAt, now = new Date()) {
-    const daysOld = (now - new Date(createdAt)) / (1000 * 60 * 60 * 24);
-    return 100 / (1 + daysOld);
-}
-
-/**
- * Trend score from recent discover activity.
- * Formula: discoverCount / (1 + hoursSinceDiscover), clamped to 100
- */
-function calcTrend(discoverCount = 0, lastDiscoverAt = null, now = new Date()) {
-    if (!lastDiscoverAt || discoverCount === 0) return 0;
-    const hrs = (now - new Date(lastDiscoverAt)) / (1000 * 60 * 60);
-    return Math.round(Math.min(discoverCount / (1 + hrs), 100) * 100) / 100;
-}
-
-/**
- * Final product-based health score.
- * Formula: BaseAttractiveness * (reliability / 100) * (freshness / 100)
- */
-function calcHealthScore(discountWeight = 0, reliability, freshness, trend = 0) {
-    const attractiveness = (discountWeight * 0.9) + (trend * 0.1);
-    const reliabilityMult = reliability / 100;
-    const freshnessMult = freshness / 100;
-    
-    const score = attractiveness * reliabilityMult * freshnessMult;
-    return Math.round(score * 100) / 100;
-}
+import {
+    calculateReliabilityScore,
+    calculateFreshnessScore,
+    calculateTrendScore,
+    calculateHealthScore,
+} from '../../../shared/healthScore.js';
+// import { TRACKING_LINK_REGEX } from '../../../shared/trackingLinkValidator.js';
 
 /**
  * Detects whether a link is an affiliate tracking link (Coupon) or a generic offer link (Offer).
- * Tracking links contain parameters like offer_id and aff_id.
+ * Classification rules (checked in order):
+ *   1. No coupon code (null / empty)  → Offer
+ *   2. No link                        → Offer
+ *   3. Link contains valid tracking
+ *      params (offer_id + aff_id)     → Coupon   (uses shared TRACKING_LINK_REGEX)
+ *   4. Fallback                       → Offer
  * @param {string|null|undefined} link - The affiliate_link from the API
+ * @param {string|null|undefined} code - The coupon_code from the API
  * @returns {string} Either "Coupon" or "Offer"
  */
-const detectOfferType = (link) => {
-    if (!link) return "Offer";
-
-    try {
-        const url = new URL(link);
-        const params = url.searchParams;
-
-        // Check for tracking parameters: if both offer_id and aff_id exist, it's a Coupon
-        const hasOfferIdParam = params.has('offer_id') || params.has('offerid');
-        const hasAffIdParam = params.has('aff_id') || params.has('affid');
-
-        // If it has tracking parameters, it's a Coupon, otherwise it's an Offer
-        if (hasOfferIdParam && hasAffIdParam) {
-            return "Coupon";
-        }
-
-        return "Offer";
-    } catch (e) {
-        // If URL parsing fails, default to "Offer"
+const detectOfferType = (link, code) => {
+    // Rule 1: no code → always Offer
+    if (!code || (typeof code === 'string' && code.trim() === '')) {
         return "Offer";
     }
+
+    // Rule 2: no link → Offer
+    if (!link) return "Offer";
+
+    // Rule 3: valid affiliate tracking link → Coupon
+    // if (TRACKING_LINK_REGEX.test(link)) {
+    //     return "Coupon";
+    // }
+
+    // Rule 4: fallback
+    return "Coupon";
 };
+
 
 /** Known couponType values accepted by the schema. */
 const KNOWN_COUPON_TYPES = ["FREE TRIAL", "Buy 1 Get 1 Free", "No cost EMI"];
@@ -109,11 +74,26 @@ const detectIsNewUser = (description) => {
 };
 
 /**
+ * Returns true when the description indicates a limited-time/period/flash offer.
+ * @param {string|null|undefined} description
+ * @returns {boolean}
+ */
+const detectIsLimitedTime = (description) => {
+    if (!description) return false;
+    const regex = /\b(limited\s+time|limited\s+period|limited\s+offer|hurry|flash\s+sale|ends\s+soon|expires\s+soon|today\s+only|only\s+today|deal\s+of\s+the\s+day|daily\s+deal|while\s+stocks?\s+lasts?)\b/i;
+    return regex.test(description);
+};
+
+/**
  * Normalizes a single Coupomated coupon object into the internal coupon schema format.
- * @param {Object} coupon - Raw coupon object from Coupomated API
+ *
+ * @param {Object} coupon       - Raw coupon object from Coupomated API
+ * @param {Object} brandTagMap  - Optional map of { [brandNameLowercase]: string[] } loaded
+ *                                from the `brandtags` collection. When supplied, our custom
+ *                                tags are appended to the API's category_names (deduped).
  * @returns {Object} Normalized coupon object matching the coupon schema
  */
-const normalizeCoupomatedCoupon = (coupon) => {
+const normalizeCoupomatedCoupon = (coupon, brandTagMap = {}) => {
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
         const parts = dateStr.split("-");
@@ -137,11 +117,11 @@ const normalizeCoupomatedCoupon = (coupon) => {
     // ── Compute initial health score at insert time ──────────────────────────
     // createdAt will be set to `now` by Mongoose timestamps on first insert.
     // We mirror that here so freshness = 100 for a brand-new coupon.
-    const discountWeight   = computeDiscountWeight(coupon.discount);
-    const reliabilityScore = calcReliability(0, 0);              // 50 — neutral for new coupon
-    const freshnessScore   = calcFreshness(now, now);            // 100 — just created
-    const trendScore       = calcTrend(0, null, now);            // 0   — no discovers yet
-    const healthScore      = calcHealthScore(discountWeight, reliabilityScore, freshnessScore, trendScore);
+    const discountWeight = computeDiscountWeight(coupon.discount);
+    const reliabilityScore = calculateReliabilityScore(0, 0);    // 70  — Laplace-smoothed baseline for new coupon
+    const freshnessScore = calculateFreshnessScore(now, now);  // 100 — just created
+    const trendScore = calculateTrendScore(0, null, now);  // 0   — no discovers yet
+    const healthScore = calculateHealthScore(reliabilityScore, freshnessScore, trendScore);
 
     return {
         partner: "coupomated",
@@ -157,12 +137,19 @@ const normalizeCoupomatedCoupon = (coupon) => {
         couponVisitingLink: coupon.plain_link ?? null,
         brandName: (coupon.merchant_name ?? '').toLowerCase(),
         merchantName: coupon.merchant_name ? coupon.merchant_name.toLowerCase() : null,
-        categories: (coupon.category_names ?? []).map(c => String(c).toLowerCase()),
+        categories: (() => {
+            const apiTags = (coupon.category_names ?? []).map(c => String(c).toLowerCase());
+            const brand = (coupon.merchant_name ?? '').trim().toLowerCase();
+            const customTags = (brandTagMap[brand] ?? []).map(t => String(t).toLowerCase());
+            // API tags first (preserved as-is), custom tags appended — Set removes duplicates
+            return [...new Set([...apiTags, ...customTags])];
+        })(),
         categoriesId: (coupon.category_ids ?? []).map(String),
         couponType: resolveCouponType(coupon.discount),
-        offerType: detectOfferType(coupon.affiliate_link),
+        offerType: detectOfferType(coupon.affiliate_link, coupon.coupon_code),
         isInStore: detectIsInStore(description),
         isNewUser: detectIsNewUser(description),
+        isLimitedTime: detectIsLimitedTime(description),
         isVerified: false,
         title: coupon.title ?? null,
         networkId: coupon.network_id ?? null,
@@ -172,22 +159,23 @@ const normalizeCoupomatedCoupon = (coupon) => {
         // Seed trend sub-document so healthScore is never null on first insert.
         // The 5-hour cron will continue to update these as real data accumulates.
         trend: {
-            discoverCount:    0,
-            lastDiscoverAt:   null,
-            reliabilityScore,   // 70  (Laplace-smoothed, zero votes default boost)
+            discoverCount: 0,
+            lastDiscoverAt: null,
+            reliabilityScore,   // 70  (Laplace-smoothed, zero votes default)
             trendScore,         // 0   (no discover activity)
-            healthScore,        // attractiveness * 0.7 * 1.0
+            healthScore,        // reliability×0.55 + freshness×0.30 + trend×0.15
         },
-        meta: {
-            title: coupon.title ?? null,
-            exclusive: coupon.exclusive ?? null,
-            network_id: coupon.network_id ?? null,
-            merchant_id: coupon.merchant_id ?? null,
-            merchant_logo: coupon.merchant_logo ?? null,
-            category_names_list: coupon.category_names_list ?? null,
-            created_at: coupon.created_at ?? null,
-            updated_at: coupon.updated_at ?? null,
-        }
+        isInValid: false
+        // meta: {
+        //     title: coupon.title ?? null,
+        //     exclusive: coupon.exclusive ?? null,
+        //     network_id: coupon.network_id ?? null,
+        //     merchant_id: coupon.merchant_id ?? null,
+        //     merchant_logo: coupon.merchant_logo ?? null,
+        //     category_names_list: coupon.category_names_list ?? null,
+        //     created_at: coupon.created_at ?? null,
+        //     updated_at: coupon.updated_at ?? null,
+        // }
     };
 };
 

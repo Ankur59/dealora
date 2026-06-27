@@ -45,7 +45,8 @@ data class FilterOptions(
     val price: String? = null,
     val validity: String? = null,
     val brand: String? = null,
-    val category: String? = null
+    val category: String? = null,
+    val isNewUser: Boolean = false
 ) {
     /**
      * Convert UI discount type label to API value
@@ -90,7 +91,8 @@ enum class FilterCategory {
     PRICE,
     VALIDITY,
     BRAND,
-    CATEGORY
+    CATEGORY,
+    NEW_USER
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,6 +100,7 @@ enum class FilterCategory {
 fun FiltersBottomSheet(
     currentFilters: FilterOptions = FilterOptions(),
     syncedBrands: List<String> = emptyList(),
+    showPriceAndDiscountType: Boolean = true,
     onDismiss: () -> Unit,
     onApplyFilters: (FilterOptions) -> Unit
 ) {
@@ -106,8 +109,15 @@ fun FiltersBottomSheet(
     var selectedValidity by remember { mutableStateOf(currentFilters.validity) }
     var selectedBrand by remember { mutableStateOf(currentFilters.brand) }
     var selectedCategory by remember { mutableStateOf(currentFilters.category) }
+    var selectedIsNewUser by remember { mutableStateOf(currentFilters.isNewUser) }
 
-    var selectedFilterCategory by remember { mutableStateOf(FilterCategory.DISCOUNT_TYPE) }
+    // When Price and Discount Type are hidden (category/partner coupon context),
+    // default to Validity so the user always sees something useful first.
+    var selectedFilterCategory by remember {
+        mutableStateOf(
+            if (showPriceAndDiscountType) FilterCategory.DISCOUNT_TYPE else FilterCategory.VALIDITY
+        )
+    }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollState = rememberScrollState()
@@ -166,22 +176,44 @@ fun FiltersBottomSheet(
                     modifier = Modifier.width(142.dp), // 24dp left padding + 118dp button width
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    FilterCategoryButton(
-                        text = "Discount Type",
-                        isSelected = selectedFilterCategory == FilterCategory.DISCOUNT_TYPE,
-                        onClick = { selectedFilterCategory = FilterCategory.DISCOUNT_TYPE },
-                        modifier = Modifier.padding(start = 24.dp, top = 0.dp)
-                    )
-                    FilterCategoryButton(
-                        text = "Price",
-                        isSelected = selectedFilterCategory == FilterCategory.PRICE,
-                        onClick = { selectedFilterCategory = FilterCategory.PRICE },
-                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
-                    )
+                    // ── Discount Type and Price are hidden in the Categories / partner-coupon context.
+                    //    They only make sense for the user's private coupon Dashboard.
+                    if (showPriceAndDiscountType) {
+                        FilterCategoryButton(
+                            text = "Discount Type",
+                            isSelected = selectedFilterCategory == FilterCategory.DISCOUNT_TYPE,
+                            onClick = { selectedFilterCategory = FilterCategory.DISCOUNT_TYPE },
+                            modifier = Modifier.padding(start = 24.dp, top = 0.dp)
+                        )
+                        FilterCategoryButton(
+                            text = "Price",
+                            isSelected = selectedFilterCategory == FilterCategory.PRICE,
+                            onClick = { selectedFilterCategory = FilterCategory.PRICE },
+                            modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                        )
+                    }
+//                    FilterCategoryButton(
+//                        text = "Discount Type",
+//                        isSelected = selectedFilterCategory == FilterCategory.DISCOUNT_TYPE,
+//                        onClick = { selectedFilterCategory = FilterCategory.DISCOUNT_TYPE },
+//                        modifier = Modifier.padding(start = 24.dp, top = 0.dp)
+//                    )
+//                    FilterCategoryButton(
+//                        text = "Price",
+//                        isSelected = selectedFilterCategory == FilterCategory.PRICE,
+//                        onClick = { selectedFilterCategory = FilterCategory.PRICE },
+//                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+//                    )
                     FilterCategoryButton(
                         text = "Validity",
                         isSelected = selectedFilterCategory == FilterCategory.VALIDITY,
                         onClick = { selectedFilterCategory = FilterCategory.VALIDITY },
+                        modifier = Modifier.padding(start = 24.dp, top = if (showPriceAndDiscountType) 8.dp else 0.dp)
+                    )
+                    FilterCategoryButton(
+                        text = "New User",
+                        isSelected = selectedFilterCategory == FilterCategory.NEW_USER,
+                        onClick = { selectedFilterCategory = FilterCategory.NEW_USER },
                         modifier = Modifier.padding(start = 24.dp, top = 8.dp)
                     )
 //                    if(syncedBrands.isNotEmpty()) {
@@ -226,42 +258,58 @@ fun FiltersBottomSheet(
                     ) {
                         when (selectedFilterCategory) {
                             FilterCategory.DISCOUNT_TYPE -> {
-                                FilterOptionList(
-                                    options = listOf(
-                                        "Percentage Off (% Off)",
-                                        "Flat Discount",
-                                        "Cashback",
-                                        "Buy 1 Get 1",
-                                        "Free Delivery",
-                                        "Wallet/UPI Offers",
-                                        "Prepaid Only Offers",
-//                                        "Saved Coupons"
-                                    ),
-                                    selectedOption = selectedDiscountType,
-                                    onOptionSelected = { selectedDiscountType = it }
-                                )
+                                // ── Commented out for Categories / partner-coupon context ──
+                                // Discount Type filter is only relevant for the Dashboard
+                                // (private user coupons). It is hidden via showPriceAndDiscountType.
+                                if (showPriceAndDiscountType) {
+                                    FilterOptionList(
+                                        options = listOf(
+                                            "Percentage Off (% Off)",
+                                            "Flat Discount",
+                                            "Cashback",
+                                            "Buy 1 Get 1"
+                                        ),
+                                        selectedOption = selectedDiscountType,
+                                        onOptionSelected = { selectedDiscountType = it }
+                                    )
+                                }
                             }
                             FilterCategory.PRICE -> {
-                                FilterOptionList(
-                                    options = listOf(
-                                        "No Minimum Order",
-                                        "Minimum Order Below ₹300",
-                                        "₹300–₹700",
-                                        "₹700–₹1500",
-                                        "Above ₹1500"
-                                    ),
-                                    selectedOption = selectedPrice,
-                                    onOptionSelected = { selectedPrice = it }
-                                )
+                                // ── Commented out for Categories / partner-coupon context ──
+                                // Price filter is only relevant for the Dashboard
+                                // (private user coupons). It is hidden via showPriceAndDiscountType.
+                                if (showPriceAndDiscountType) {
+                                    FilterOptionList(
+                                        options = listOf(
+                                            "No Minimum Order",
+                                            "Minimum Order Below ₹300",
+                                            "₹300–₹700",
+                                            "₹700–₹1500",
+                                            "Above ₹1500"
+                                        ),
+                                        selectedOption = selectedPrice,
+                                        onOptionSelected = { selectedPrice = it }
+                                    )
+                                }
                             }
                             FilterCategory.VALIDITY -> {
+                                // "Expired" is only relevant for the Dashboard (private coupons).
+                                // In the Categories / partner-coupon context it is hidden.
                                 FilterOptionList(
-                                    options = listOf(
-                                        "Valid Today",
-                                        "Valid This Week",
-                                        "Valid This Month",
-                                        "Expired"
-                                    ),
+                                    options = if (showPriceAndDiscountType) {
+                                        listOf(
+                                            "Valid Today",
+                                            "Valid This Week",
+                                            "Valid This Month",
+                                            "Expired"
+                                        )
+                                    } else {
+                                        listOf(
+                                            "Valid Today",
+                                            "Valid This Week",
+                                            "Valid This Month"
+                                        )
+                                    },
                                     selectedOption = selectedValidity,
                                     onOptionSelected = { selectedValidity = it }
                                 )
@@ -291,6 +339,13 @@ fun FiltersBottomSheet(
                                     ),
                                     selectedOption = selectedCategory,
                                     onOptionSelected = { selectedCategory = it }
+                                )
+                            }
+
+                            FilterCategory.NEW_USER -> {
+                                NewUserFilterToggle(
+                                    isEnabled = selectedIsNewUser,
+                                    onToggle = { selectedIsNewUser = it }
                                 )
                             }
                         }
@@ -323,7 +378,8 @@ fun FiltersBottomSheet(
                                 price = selectedPrice,
                                 validity = selectedValidity,
                                 brand = selectedBrand,
-                                category = selectedCategory
+                                category = selectedCategory,
+                                isNewUser = selectedIsNewUser
                             )
                         )
                         onDismiss()
@@ -373,6 +429,55 @@ private fun FilterCategoryButton(
             color = if (isSelected) Color.White else Color(0xFF626262),
             lineHeight = 61.sp
         )
+    }
+}
+
+@Composable
+private fun NewUserFilterToggle(
+    isEnabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .padding(end = 16.dp)
+                .clickable { onToggle(!isEnabled) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
+        ) {
+            Box(
+                modifier = Modifier.size(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isEnabled) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(color = DealoraPrimary, shape = CircleShape)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .border(width = 1.5.dp, color = Color(0xFF9E9E9E), shape = CircleShape)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "New User Coupons Only",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color(0xFF1E1E1E)
+            )
+        }
     }
 }
 

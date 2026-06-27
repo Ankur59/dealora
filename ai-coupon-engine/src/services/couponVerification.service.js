@@ -98,6 +98,14 @@ export class CouponVerificationService {
       ]
     });
 
+    // Fetch existing verifications to check attempt counts
+    const couponIds = allCoupons.map(c => c._id);
+    const verifications = await CouponVerification.find({
+      couponId: { $in: couponIds },
+      merchantId: browserMerchantId
+    }).lean();
+    const verificationMap = new Map(verifications.map(v => [v.couponId.toString(), v]));
+
     const skippedCoupons = [];
     const coupons = allCoupons.filter(coupon => {
       const { skip, reason } = this.shouldSkipVerification(coupon);
@@ -105,6 +113,13 @@ export class CouponVerificationService {
         skippedCoupons.push({ code: coupon.code, reason });
         return false;
       }
+
+      const verification = verificationMap.get(coupon._id.toString());
+      if (verification && verification.status !== 'verified' && (verification.attemptCount || 0) >= 3) {
+        skippedCoupons.push({ code: coupon.code, reason: 'Max verification attempts (3) exceeded' });
+        return false;
+      }
+
       return true;
     });
 
@@ -209,6 +224,14 @@ export class CouponVerificationService {
       ]
     }).sort({ _id: 1 });
 
+    // Fetch existing verifications to check attempt counts
+    const couponIds = rawCoupons.map(c => c._id);
+    const verifications = await CouponVerification.find({
+      couponId: { $in: couponIds },
+      merchantId: browserMerchantId
+    }).lean();
+    const verificationMap = new Map(verifications.map(v => [v.couponId.toString(), v]));
+
     const skippedCoupons = [];
     const allCoupons = rawCoupons.filter(coupon => {
       const { skip, reason } = this.shouldSkipVerification(coupon);
@@ -216,6 +239,13 @@ export class CouponVerificationService {
         skippedCoupons.push({ code: coupon.code, reason });
         return false;
       }
+
+      const verification = verificationMap.get(coupon._id.toString());
+      if (verification && verification.status !== 'verified' && (verification.attemptCount || 0) >= 3) {
+        skippedCoupons.push({ code: coupon.code, reason: 'Max verification attempts (3) exceeded' });
+        return false;
+      }
+
       return true;
     });
 
@@ -376,80 +406,134 @@ export class CouponVerificationService {
       verification = new CouponVerification({ couponId, merchantId: resolvedId });
     }
 
-    // 1. Check login status FIRST before navigating or doing anything to preserve current cart/checkout progress
-    const isLoggedIn = await this.checkLoginStatus(page);
+    // Increment attempt count
+    verification.attemptCount = (verification.attemptCount || 0) + 1;
+    verification.lastAttemptedAt = new Date();
 
-    if (!isLoggedIn) {
-      // Resolve affiliate link and navigate before login recovery
-      const { affiliateLink, website: partnerWebsite } = await this.resolveMerchantLinks(coupon);
-      const navigateTo = coupon.trackingLink || affiliateLink || coupon.couponVisitingLink || partnerWebsite;
+    try {
+      // 1. Check login status FIRST before navigating or doing anything to preserve current cart/checkout progress
+      const isLoggedIn = await this.checkLoginStatus(page);
 
-      if (navigateTo) {
-        try {
-          await browserService.emitLog(resolvedId, `🔗 Navigating to affiliate link…`);
-          await page.goto(navigateTo, { waitUntil: 'domcontentloaded', timeout: 60000 });
-          await BrowserService.warmUpPage(page);
-        } catch (navErr) {
-          await browserService.emitLog(resolvedId, `⚠️ Affiliate link navigation failed: ${navErr.message}`, 'warning');
+      if (!isLoggedIn) {
+        // Resolve affiliate link and navigate before login recovery
+        const { affiliateLink, website: partnerWebsite } = await this.resolveMerchantLinks(coupon);
+        const navigateTo = coupon.trackingLink || affiliateLink || coupon.couponVisitingLink || partnerWebsite;
+
+        if (navigateTo) {
+          try {
+            await browserService.emitLog(resolvedId, `🔗 Navigating to affiliate link…`);
+            await page.goto(navigateTo, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await BrowserService.warmUpPage(page);
+          } catch (navErr) {
+            await browserService.emitLog(resolvedId, `⚠️ Affiliate link navigation failed: ${navErr.message}`, 'warning');
+          }
+        }
+
+        await this.performLoginRecovery(merchantId, page, context, resolvedId);
+      }
+
+      // 3. Deep analysis of T&C and Cart matching
+      await browserService.emitLog(resolvedId, `🤖 Verifying coupon ${coupon.code}…`);
+
+      // Extract T&C if we don't have them
+      const existingTerms = await CouponVerification.findOne({
+        merchantId: resolvedId,
+        'termsSummary.minOrderValue': { $exists: true }
+      }).sort({ lastAttemptedAt: -1 });
+
+      if (!verification.termsSummary || !verification.termsSummary.minOrderValue) {
+        if (existingTerms && existingTerms.termsSummary && !coupon.description) {
+          // Reuse terms from another coupon of the same merchant if this one has no specific description
+          verification.termsSummary = existingTerms.termsSummary;
+          await browserService.emitLog(resolvedId, `♻️ Reusing mapped T&C from previous verification.`);
+        } else {
+          await this.analyzeTerms(page, coupon, verification, resolvedId);
         }
       }
 
-      await this.performLoginRecovery(merchantId, page, context, resolvedId);
-    }
+      // Validate time constraints
+      if (verification.termsSummary && verification.termsSummary.timeConstraints) {
+        const isTimeValid = this.validateTimeConstraints(verification.termsSummary.timeConstraints);
+        if (!isTimeValid) {
+          await browserService.emitLog(resolvedId, `⏳ Skipping coupon ${coupon.code}: Time constraint not met.`);
+          const result = { success: false, errorMessage: 'Time constraint not met' };
+          verification.result = result;
+          verification.status = 'failed';
+          await verification.save();
+          await this.markVerified(verification, coupon, false);
+          await this.checkMerchantSuitability(resolvedId);
+          return result;
+        }
+      }
 
-    // 3. Deep analysis of T&C and Cart matching
-    await browserService.emitLog(resolvedId, `🤖 Verifying coupon ${coupon.code}…`);
+      // Match Cart Requirements
+      await this.prepareCart(page, verification.termsSummary, resolvedId);
 
-    // Extract T&C if we don't have them
-    const existingTerms = await CouponVerification.findOne({
-      merchantId: resolvedId,
-      'termsSummary.minOrderValue': { $exists: true }
-    }).sort({ lastAttemptedAt: -1 });
+      // Apply & Verify
+      const activeCreds = await getActiveCredentials(resolvedId);
+      const result = await this.applyAndCheck(page, coupon.code, resolvedId, activeCreds);
 
-    if (!verification.termsSummary || !verification.termsSummary.minOrderValue) {
-      if (existingTerms && existingTerms.termsSummary && !coupon.description) {
-        // Reuse terms from another coupon of the same merchant if this one has no specific description
-        verification.termsSummary = existingTerms.termsSummary;
-        await browserService.emitLog(resolvedId, `♻️ Reusing mapped T&C from previous verification.`);
+      verification.result = result;
+      verification.status = result.success ? 'verified' : 'failed';
+      if (result.success) {
+        verification.verifiedAt = new Date();
+        await browserService.emitLog(resolvedId, `✅ Coupon ${coupon.code} verified successfully!`, 'success');
       } else {
-        await this.analyzeTerms(page, coupon, verification, resolvedId);
+        await browserService.emitLog(resolvedId, `❌ Coupon ${coupon.code} verification failed: ${result.errorMessage || 'Unknown error'}`, 'error');
+      }
+
+      await verification.save();
+
+      await this.markVerified(verification, coupon, result.success);
+
+      if (!result.success) {
+        await this.checkMerchantSuitability(resolvedId);
+      }
+    } catch (err) {
+      verification.status = 'failed';
+      verification.result = {
+        success: false,
+        errorMessage: err.message || 'Verification execution failed',
+        errorType: 'unknown'
+      };
+      await verification.save();
+      await this.markVerified(verification, coupon, false);
+      await this.checkMerchantSuitability(resolvedId);
+      throw err;
+    }
+  }
+
+  async checkMerchantSuitability(merchantId) {
+    const verifications = await CouponVerification.find({ merchantId });
+    const failedThreeTimes = verifications.filter(v => (v.attemptCount || 0) >= 3 && v.status === 'failed');
+    const failedThreeTimesCount = failedThreeTimes.length;
+
+    if (failedThreeTimesCount >= 3) {
+      const merchant = await Merchant.findById(merchantId);
+      if (merchant && merchant.autoVerificationEnabled) {
+        await Merchant.findByIdAndUpdate(merchantId, {
+          autoVerificationEnabled: false,
+          isActive: false,
+          manualVerificationNeeded: true,
+          'lastLoginAttempt.status': 'failed',
+          'lastLoginAttempt.message': 'Site not suitable for AI verification - Manual verification needed',
+        });
+
+        await PartnerMerchant.findOneAndUpdate(
+          { merchantName: merchant.merchantName },
+          { isActive: false, manualVerificationNeeded: true }
+        );
+
+        await browserService.emitLog(merchantId, `🚨 Merchant marked unsuitable for AI verification. 3 coupons failed after 3 attempts each. Disabling auto-verification.`, 'error');
+
+        await browserService.emitNotification(
+          merchantId,
+          'site_unsuitable',
+          `Site ${merchant.merchantName} is not suitable for AI verification. Auto-verification has been disabled.`,
+          { totalTries: verifications.length, failedThreeTimesCount }
+        );
       }
     }
-
-    // Validate time constraints
-    if (verification.termsSummary && verification.termsSummary.timeConstraints) {
-      const isTimeValid = this.validateTimeConstraints(verification.termsSummary.timeConstraints);
-      if (!isTimeValid) {
-        await browserService.emitLog(resolvedId, `⏳ Skipping coupon ${coupon.code}: Time constraint not met.`);
-        const result = { success: false, errorMessage: 'Time constraint not met' };
-        verification.result = result;
-        verification.status = 'failed';
-        verification.lastAttemptedAt = new Date();
-        await verification.save();
-        return result;
-      }
-    }
-
-    // Match Cart Requirements
-    await this.prepareCart(page, verification.termsSummary, resolvedId);
-
-    // Apply & Verify
-    const activeCreds = await getActiveCredentials(resolvedId);
-    const result = await this.applyAndCheck(page, coupon.code, resolvedId, activeCreds);
-
-    verification.result = result;
-    verification.status = result.success ? 'verified' : 'failed';
-    verification.lastAttemptedAt = new Date();
-    if (result.success) {
-      verification.verifiedAt = new Date();
-      await browserService.emitLog(resolvedId, `✅ Coupon ${coupon.code} verified successfully!`, 'success');
-    } else {
-      await browserService.emitLog(resolvedId, `❌ Coupon ${coupon.code} verification failed: ${result.errorMessage || 'Unknown error'}`, 'error');
-    }
-
-    await verification.save();
-
-    await this.markVerified(verification, coupon, result.success);
   }
 
   /**
@@ -821,13 +905,16 @@ export class CouponVerificationService {
   }
 
   async markVerified(verification, coupon, isSuccess = true) {
-    coupon.isVerified = true;
+    coupon.isVerified = isSuccess;
     coupon.verifiedAt = new Date();
     coupon.verifiedOn = new Date();
     if (!isSuccess) {
       coupon.status = 'expired';
+      coupon.isInValid = true;
+      coupon.isVerified = false; // ensure it is explicitly false
     } else {
       coupon.status = 'active';
+      coupon.isInValid = false;
     }
     await coupon.save();
   }

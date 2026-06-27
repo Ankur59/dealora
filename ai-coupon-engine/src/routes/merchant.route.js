@@ -9,6 +9,7 @@ import {
   listMerchantCredentials,
   upsertMerchantCredential,
   updateMerchant,
+  enableAiMerchant,
 } from "../controllers/merchant.controller.js";
 
 const router = express.Router();
@@ -22,6 +23,7 @@ router.put("/:id", updateMerchant);
 router.put("/:id/credentials/:credentialType", upsertMerchantCredential);
 router.put("/:id/activate", activateMerchant);
 router.put("/:id/deactivate", deactivateMerchant);
+router.put("/:id/enable-ai", enableAiMerchant);
 router.delete("/:id", deactivateMerchant);
 
 export default router;

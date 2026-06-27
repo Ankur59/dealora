@@ -13,6 +13,7 @@
 
 const mongoose = require('mongoose');
 const Redemption = require('../models/Redemption');
+const SavePrivateCoupon = require('../models/SavePrivateCoupon');
 const logger = require('../utils/logger');
 const { successResponse, errorResponse } = require('../utils/responseHandler');
 const { STATUS_CODES } = require('../config/constants');
@@ -51,6 +52,7 @@ function shapeDoc(doc, isRedeemed = false) {
         merchantName: doc.merchantName ?? doc.brandName ?? null,
         merchantLogo: doc.merchantLogo ?? doc.metchantLogo ?? null,
         couponType: doc.couponType ?? null,
+        offerType: doc.offerType ?? 'Coupon',
         isInStore: doc.isInStore ?? false,
         isNewUser: doc.isNewUser ?? false,
         isVerified: doc.isVerified ?? false,
@@ -63,30 +65,64 @@ function shapeDoc(doc, isRedeemed = false) {
 }
 
 /** Build the MongoDB filter object for the list endpoint. */
-function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified }) {
+function buildFilter({ tab, redeemedIds, category, brand, search, discountType, validity, offerType, verified, isNewUser }) {
     const now = new Date();
     const andConditions = [];  // Collect all AND conditions
 
     // ── 1. TAB FILTER (active/expired) ──
-    if (tab === 'expired') {
+    // When a date-range validity filter is active, coupons without an expiry date (`end: null`)
+    // must be excluded — otherwise they would bypass the date check and appear in every range.
+    const hasDateRangeValidity = validity && ['valid_today', 'valid_this_week', 'valid_this_month'].includes(validity);
+
+    if (offerType === 'Offer') {
+        // Offers strictly require a future expiry date (not null/expired) and not already redeemed by user
+        andConditions.push({ end: { $gt: now } });
+        if (redeemedIds && redeemedIds.length > 0) {
+            andConditions.push({ _id: { $nin: redeemedIds } });
+        }
+    } else if (tab === 'expired') {
         andConditions.push({ end: { $lt: now } });
     } else {
-        // active: not expired (or no expiry set), and not already redeemed by user
-        andConditions.push({
-            $or: [
-                { end: { $gte: now } },
-                { end: null },
-                { end: { $exists: false } },
-            ]
-        });
-        if (redeemedIds.length > 0) {
+        // active tab:
+        // - If a date-range validity filter is set, we ONLY require end >= now (no null/missing fallback)
+        //   so the validity range condition below can act as the sole date gate.
+        // - Otherwise allow coupons with no expiry date too.
+        if (hasDateRangeValidity) {
+            andConditions.push({ end: { $gte: now } });
+        } else {
+            andConditions.push({
+                $or: [
+                    { end: { $gte: now } },
+                    { end: null },
+                    { end: { $exists: false } },
+                ]
+            });
+        }
+        if (redeemedIds && redeemedIds.length > 0) {
             andConditions.push({ _id: { $nin: redeemedIds } });
         }
     }
 
     // ── 2. VERIFIED FILTER ──
-    if (verified === 'true' || verified === true) {
-        andConditions.push({ isVerified: true });
+    // Do not filter by isVerified for offers as they are not validated
+    if (offerType !== 'Offer' && (verified === 'true' || verified === true)) {
+        andConditions.push({
+            $or: [
+                {
+                    isVerified: true,
+                    $or: [
+                        { isInValid: false },
+                        { isInValid: { $exists: false } }
+                    ]
+                },
+                {
+                    isNewUser: true
+                },
+                {
+                    isInStore: true
+                }
+            ]
+        });
     }
 
     // ── 3. CATEGORY FILTER ──
@@ -119,23 +155,27 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
     }
 
     // ── 7. VALIDITY FILTER ──
-    if (validity) {
+    // The tab filter already ensures end >= now (lower bound).
+    // Here we only need to add the upper bound for the chosen range.
+    if (hasDateRangeValidity) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         if (validity === 'valid_today') {
             const tonight = new Date(today);
             tonight.setHours(23, 59, 59, 999);
-            andConditions.push({ end: { $gte: today, $lte: tonight } });
+            // end must be between now and tonight (lower bound already set above)
+            andConditions.push({ end: { $lte: tonight } });
         } else if (validity === 'valid_this_week') {
             const endOfWeek = new Date(today);
             endOfWeek.setDate(today.getDate() + 7);
-            andConditions.push({ end: { $gte: today, $lte: endOfWeek } });
+            andConditions.push({ end: { $lte: endOfWeek } });
         } else if (validity === 'valid_this_month') {
             const endOfMonth = new Date(today);
             endOfMonth.setMonth(today.getMonth() + 1);
-            endOfMonth.setDate(0);
-            andConditions.push({ end: { $gte: today, $lte: endOfMonth } });
+            endOfMonth.setDate(0); // last day of current month
+            endOfMonth.setHours(23, 59, 59, 999);
+            andConditions.push({ end: { $lte: endOfMonth } });
         }
     }
 
@@ -160,6 +200,12 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
         }
     }
 
+    // ── 9. NEW USER FILTER ──
+    // When isNewUser=true, ONLY return coupons where isNewUser is explicitly true.
+    if (isNewUser === true || isNewUser === 'true') {
+        andConditions.push({ isNewUser: true });
+    }
+
     // ── BUILD FINAL FILTER ──
     // If we have conditions, use $and. Otherwise, return empty filter (matches all)
     const filter = andConditions.length > 0
@@ -174,9 +220,10 @@ function buildFilter({ tab, redeemedIds, category, brand, search, discountType, 
  * ALWAYS includes healthScore as primary or secondary sort for result relevance.
  */
 function buildSort(sortBy) {
-    // Handle null, undefined, or empty string -> default to healthScore
+    console.log("this is sortby",sortBy)
+    // Handle null, undefined, or empty string -> default to healthScore + discountWeight
     if (!sortBy || sortBy === 'null' || sortBy === '') {
-        return { 'trend.healthScore': -1, createdAt: -1 };
+        return { 'trend.healthScore': -1, discountWeight: -1};
     }
 
     switch (sortBy) {
@@ -198,9 +245,101 @@ function buildSort(sortBy) {
         // DEFAULT: Health score descending (most relevant first)
         // This ensures search results are always ranked by system accuracy
         default:
-            return { 'trend.healthScore': -1, createdAt: -1 };
+            return { 'trend.healthScore': -1, discountWeight: -1, createdAt: -1 };
     }
 }
+
+/**
+ * Build a MongoDB aggregation pipeline for the Offer mode sort.
+ *
+ * Sort priority:
+ *   1. hasValidTrackingLink DESC  — offers that carry a real affiliate link come first
+ *   2. discountWeight DESC        — higher-value offers within each group
+ *   3. createdAt DESC             — tie-breaker
+ *
+ * The `hasValidTrackingLink` flag is computed at query time via $regexMatch so that
+ * future affiliate patterns only need to be updated in the shared
+ * trackingLinkValidator constants (no schema migration required).
+ *
+ * ── To add a new affiliate network's pattern ─────────────────────────────────
+ * Edit TRACKING_LINK_MONGO_REGEX in ai-coupon-engine/src/shared/trackingLinkValidator.js.
+ * This function will automatically pick up the change on the next deploy.
+ * ─────────────────────────────────────────────────────────────────────────────
+/**
+ *
+ * @param {Object} filter    - MongoDB match filter (built by buildFilter)
+ * @param {string} sortBy    - sort parameter
+ * @param {number} skip      - documents to skip (pagination)
+ * @param {number} limit     - page size
+ * @returns {Array}          - aggregation pipeline stages
+ */
+function buildOfferAggregation(filter, sortBy, skip, limit) {
+    // Regex that identifies a valid affiliate tracking link.
+    // Mirrors TRACKING_LINK_MONGO_REGEX in ai-coupon-engine/src/shared/trackingLinkValidator.js.
+    // Keep these two values in sync when adding new affiliate partners.
+    const TRACKING_REGEX = '(offer_id|offerid).{0,200}?(aff_id|affid)|(aff_id|affid).{0,200}?(offer_id|offerid)';
+    const TRACKING_REGEX_OPTIONS = 'i';
+
+    let sortSpec = {};
+    if (!sortBy || sortBy === 'null' || sortBy === '') {
+        // Offer default: valid tracking link first, then highest discount value.
+        // No healthScore or createdAt — only these two parameters matter for Offers.
+        sortSpec = { hasValidTrackingLink: -1, discountWeight: -1 };
+    } else {
+        const baseSort = buildSort(sortBy);
+        sortSpec = { ...baseSort };
+        if (sortSpec.hasValidTrackingLink === undefined) {
+            sortSpec.hasValidTrackingLink = -1;
+        }
+    }
+
+    return [
+        // 1. Filter
+        { $match: filter },
+
+        // 2. Compute hasValidTrackingLink flag
+        {
+            $addFields: {
+                hasValidTrackingLink: {
+                    $cond: {
+                        if: {
+                            $and: [
+                                { $ne: [{ $type: '$trackingLink' }, 'missing'] },
+                                { $ne: ['$trackingLink', null] },
+                                { $ne: ['$trackingLink', ''] },
+                            ]
+                        },
+                        then: {
+                            $cond: [
+                                {
+                                    $regexMatch: {
+                                        input: '$trackingLink',
+                                        regex: TRACKING_REGEX,
+                                        options: TRACKING_REGEX_OPTIONS,
+                                    }
+                                },
+                                1,   // valid tracking link
+                                0    // link exists but not a tracking link
+                            ]
+                        },
+                        else: 0  // no link at all
+                    }
+                }
+            }
+        },
+
+        // 3. Sort: dynamically based on selected sort options
+        { $sort: sortSpec },
+
+        // 4. Pagination
+        { $skip: skip },
+        { $limit: limit },
+
+        // 5. Drop the synthetic field so downstream shapeDoc is clean
+        { $project: { hasValidTrackingLink: 0 } },
+    ];
+}
+
 
 // ── GET /api/partner-coupons/search ─────────────────────────────────────────
 
@@ -216,7 +355,7 @@ function buildSort(sortBy) {
  */
 exports.searchPartnerCoupons = async (req, res) => {
     try {
-        const { q = '', page: pageStr = '1', limit: limitStr = '20', category } = req.query;
+        const { q = '', page: pageStr = '1', limit: limitStr = '20', category, offerType = 'Coupon' } = req.query;
 
         const term = q.trim();
         if (!term) {
@@ -237,24 +376,118 @@ exports.searchPartnerCoupons = async (req, res) => {
 
         const filter = {
             $and: [
-                { isVerified: true },
                 { end: { $gt: now } },          // not expired
-                { offerType: 'Coupon' },
+                { offerType: offerType },
                 { $or: [{ brandName: rx }, { categories: rx }] },
             ],
         };
+
+        // Only enforce isVerified filter for Coupon mode, skip for Offer mode
+        if (offerType === 'Coupon') {
+            filter.$and.push({
+                $or: [
+                    {
+                        isVerified: true,
+                       $or: [
+                { isInValid: false },
+                { isInValid: { $exists: false } }
+            ]
+                    },
+                    {
+                        isNewUser: true
+                    },
+                    {
+                        isInStore: true
+                    }
+                ]
+            });
+        }
 
         // If a category filter is provided, append strict category matching
         if (category) {
             filter.$and.push({ categories: { $regex: new RegExp(`^${category.trim()}$`, 'i') } });
         }
 
-        const sort = { 'trend.healthScore': -1 };
+        let docs = [];
+        let total = 0;
 
-        const [docs, total] = await Promise.all([
-            col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
-            col().countDocuments(filter),
-        ]);
+        if (offerType === 'Offer') {
+            const pipeline = [
+                { $match: filter },
+
+                {
+                    $addFields: {
+                        isValidTrackingLink: {
+                            $and: [
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_id='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub1='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub2='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub3='
+                                    }
+                                },
+                                {
+                                    $regexMatch: {
+                                        input: { $ifNull: ['$trackingLink', ''] },
+                                        regex: 'aff_sub4='
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+
+                {
+                    $sort: {
+                        isValidTrackingLink: -1,
+                        discountWeight: -1
+                    }
+                },
+
+                { $skip: skip },
+                { $limit: limit }
+            ];
+
+            const countPipeline = [
+                { $match: filter },
+                { $count: 'n' }
+            ];
+
+            const [aggDocs, countResult] = await Promise.all([
+                col().aggregate(pipeline).toArray(),
+                col().aggregate(countPipeline).toArray(),
+            ]);
+
+            docs = aggDocs;
+            total = countResult[0]?.n ?? 0;
+        } else {
+            // Default Coupon mode sorting: trend.healthScore DESC, discountWeight DESC
+            const sort = { 'trend.healthScore': -1, discountWeight: -1 };
+            const [findDocs, findTotal] = await Promise.all([
+                col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
+                col().countDocuments(filter),
+            ]);
+
+            docs = findDocs;
+            total = findTotal;
+        }
 
         const coupons = docs.map(d => shapeDoc(d, false));
         const pages = Math.ceil(total / limit) || 1;
@@ -264,18 +497,18 @@ exports.searchPartnerCoupons = async (req, res) => {
         if (!category) {
             // Only search distinct categories if the query explicitly matches a brandName in DB
             const isBrandSearch = await col().findOne({
-                isVerified: true,
+                ...(offerType === 'Coupon' ? { isVerified: true } : {}),
                 end: { $gt: now },
-                offerType: 'Coupon',
+                offerType: offerType,
                 brandName: { $regex: new RegExp(`^${termLower}$`, 'i') }
             });
 
             if (isBrandSearch) {
                 const categoryFilter = {
                     $and: [
-                        { isVerified: true },
+                        ...(offerType === 'Coupon' ? [{ isVerified: true }] : []),
                         { end: { $gt: now } },
-                        { offerType: 'Coupon' },
+                        { offerType: offerType },
                         { brandName: { $regex: new RegExp(`^${termLower}$`, 'i') } },
                     ]
                 };
@@ -318,6 +551,7 @@ exports.getPartnerCoupons = async (req, res) => {
             validity,
             offerType,
             verified = 'true',
+            isNewUser,
         } = req.query;
 
         // Parse category filter: could be single string, array, or comma-separated string
@@ -340,27 +574,44 @@ exports.getPartnerCoupons = async (req, res) => {
         const skip = (page - 1) * limit;
 
         // Coupon IDs this user has already redeemed (as ObjectIds)
-        const redemptions = await Redemption.find({ userId }).select('couponId').lean();
+        const redemptions = await Redemption.find({ userId: userId.toString() }).select('couponId').lean();
         const redeemedIds = redemptions.map(r => r.couponId);   // already ObjectIds
 
-        const filter = buildFilter({ tab, redeemedIds, category: categoryFilterVal, brand, search, discountType, validity, offerType, verified });
-        const sort = buildSort(sortBy);
+        const filter = buildFilter({ tab, redeemedIds, category: categoryFilterVal, brand, search, discountType, validity, offerType, verified, isNewUser });
 
         // DEBUG LOGGING
         logger.info(`[PartnerCoupon] Search Query:`, {
-            search,
-            verified,
-            tab,
-            category,
-            brand,
+            search, verified, tab, category, brand, offerType,
             filter: JSON.stringify(filter, null, 2),
-            sort: JSON.stringify(sort, null, 2)
         });
 
-        const [docs, total] = await Promise.all([
-            col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
-            col().countDocuments(filter),
-        ]);
+        let docs, total;
+
+        if (offerType === 'Offer') {
+            // ── Offer mode: aggregation pipeline sorts by hasValidTrackingLink → discountWeight ──
+            const pipeline = buildOfferAggregation(filter, sortBy, skip, limit);
+            const countPipeline = [{ $match: filter }, { $count: 'n' }];
+
+            const [aggDocs, countResult] = await Promise.all([
+                col().aggregate(pipeline).toArray(),
+                col().aggregate(countPipeline).toArray(),
+            ]);
+
+            docs = aggDocs;
+            total = countResult[0]?.n ?? 0;
+        } else {
+            // ── Coupon mode (default): simple find + sort — unchanged behaviour ──
+            const sort = buildSort(sortBy);
+            logger.info(`[PartnerCoupon] Sort:`, { sort: JSON.stringify(sort, null, 2) });
+
+            const [findDocs, findTotal] = await Promise.all([
+                col().find(filter).sort(sort).skip(skip).limit(limit).toArray(),
+                col().countDocuments(filter),
+            ]);
+
+            docs = findDocs;
+            total = findTotal;
+        }
 
         // DETAILED DEBUG: Log sample coupon data for verification
         if (docs.length > 0) {
@@ -399,14 +650,9 @@ exports.getPartnerCoupons = async (req, res) => {
                 const rx = { $regex: search, $options: 'i' };
                 const searchOnlyCount = await col().countDocuments({
                     $or: [
-                        { brandName: rx },
-                        { categories: rx },
-                        { title: rx },
-                        { couponTitle: rx },
-                        { couponName: rx },
-                        { description: rx },
-                        { code: rx },
-                        { discount: rx }
+                        { brandName: rx }, { categories: rx }, { title: rx },
+                        { couponTitle: rx }, { couponName: rx }, { description: rx },
+                        { code: rx }, { discount: rx }
                     ]
                 });
                 logger.warn(`Coupons matching search "${search}" (any status): ${searchOnlyCount}`);
@@ -414,10 +660,7 @@ exports.getPartnerCoupons = async (req, res) => {
         }
 
         logger.info(`[PartnerCoupon] Search Results:`, {
-            search,
-            total,
-            found: docs.length,
-            page,
+            search, total, found: docs.length, page,
             pages: Math.ceil(total / limit) || 1
         });
 
@@ -433,6 +676,7 @@ exports.getPartnerCoupons = async (req, res) => {
     }
 };
 
+
 // ── GET /api/partner-coupons/redeemed ─────────────────────────────────────────
 
 /**
@@ -447,31 +691,95 @@ exports.getRedeemedPartnerCoupons = async (req, res) => {
         const page = Math.max(Number(req.query.page) || 1, 1);
         const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
         const skip = (page - 1) * limit;
+        const offerType = req.query.offerType || 'Coupon';
+        const { category, search } = req.query;
 
-        const [redemptions, total] = await Promise.all([
-            Redemption.find({ userId }).sort({ redeemedAt: -1 }).skip(skip).limit(limit).lean(),
-            Redemption.countDocuments({ userId }),
+        const matchStage = { userId: userId.toString() };
+        
+        const andConditions = [
+            { 'coupon.offerType': offerType }
+        ];
+
+        // category filter
+        if (category) {
+            let categoryFilterVal = category;
+            if (typeof category === 'string') {
+                if (category.includes(',')) {
+                    categoryFilterVal = category.split(',').map(s => s.trim().toLowerCase());
+                } else {
+                    categoryFilterVal = [category.trim().toLowerCase()];
+                }
+            } else if (Array.isArray(category)) {
+                categoryFilterVal = category.map(s => s.toString().trim().toLowerCase());
+            }
+
+            if (categoryFilterVal && categoryFilterVal.length > 0) {
+                andConditions.push({ 'coupon.categories': { $in: categoryFilterVal } });
+            }
+        }
+
+        // search filter
+        if (search) {
+            const searchTerm = search.trim();
+            if (searchTerm !== '') {
+                const rx = { $regex: searchTerm, $options: 'i' };
+                andConditions.push({
+                    $or: [
+                        { 'coupon.brandName': rx },
+                        { 'coupon.categories': rx },
+                        { 'coupon.title': rx },
+                        { 'coupon.description': rx },
+                        { 'coupon.code': rx },
+                        { 'coupon.discount': rx }
+                    ]
+                });
+            }
+        }
+
+        const pipeline = [
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: 'partnercoupons',
+                    localField: 'couponId',
+                    foreignField: '_id',
+                    as: 'coupon'
+                }
+            },
+            { $unwind: '$coupon' },
+            { $match: { $and: andConditions } },
+            { $sort: { redeemedAt: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+        ];
+
+        const countPipeline = [
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: 'partnercoupons',
+                    localField: 'couponId',
+                    foreignField: '_id',
+                    as: 'coupon'
+                }
+            },
+            { $unwind: '$coupon' },
+            { $match: { $and: andConditions } },
+            { $count: 'total' }
+        ];
+
+        const [results, countResult] = await Promise.all([
+            Redemption.aggregate(pipeline),
+            Redemption.aggregate(countPipeline)
         ]);
 
-        const couponIds = redemptions.map(r => r.couponId);
-
-        // Fetch coupon documents and sort them by discountWeight within the redeemed set
-        const couponDocs = await col()
-            .find({ _id: { $in: couponIds } })
-            .sort({ discountWeight: -1 })
-            .toArray();
-
-        const couponMap = Object.fromEntries(couponDocs.map(c => [c._id.toString(), c]));
-
-        // Maintain redeemedAt order from Redemption, enrich with coupon doc
-        const coupons = redemptions.map(r => {
-            const doc = couponMap[r.couponId.toString()];
-            if (!doc) return null;
-            return { ...shapeDoc(doc, true), redeemedAt: r.redeemedAt };
-        }).filter(Boolean);
+        const total = countResult[0]?.total ?? 0;
+        const coupons = results.map(r => {
+            return { ...shapeDoc(r.coupon, true), redeemedAt: r.redeemedAt };
+        });
 
         const pages = Math.ceil(total / limit) || 1;
-
+        
         return successResponse(res, STATUS_CODES.OK, 'Redeemed coupons fetched', {
             total, page, pages, count: coupons.length, limit, coupons,
         });
@@ -564,10 +872,10 @@ exports.votePartnerCoupon = async (req, res) => {
         // 2. Extract current values with defaults
         const oldSuccessCount = coupon.successCount || 0;
         const oldFailedCount = coupon.failedCount || 0;
-        
+
         // Import calculation functions from cron
-        const { calculateReliabilityScore, calculateFreshnessScore } = require('../cron/healthScoreCron');
-        
+        const { calculateReliabilityScore, calculateFreshnessScore, calculateHealthScore } = require('../cron/healthScoreCron');
+
         const oldReliabilityScore = coupon.trend?.reliabilityScore ?? calculateReliabilityScore(oldSuccessCount, oldFailedCount);
 
         // 3. Compute new success/failed counts
@@ -577,13 +885,11 @@ exports.votePartnerCoupon = async (req, res) => {
         // 4. Calculate new reliability score
         const newReliabilityScore = calculateReliabilityScore(newSuccessCount, newFailedCount);
 
-        // 5. Recalculate health score using the multiplicative pattern
-        const discountWeight = coupon.discountWeight || 0;
+        // 5. Recalculate health score via the central calculation engine
         const createdAt = coupon.createdAt || new Date();
         const trendScore = coupon.trend?.trendScore || 0;
-        const attractiveness = (discountWeight * 0.9) + (trendScore * 0.1);
         const freshnessScore = calculateFreshnessScore(createdAt);
-        const newHealthScore = Math.round((attractiveness * (newReliabilityScore / 100) * (freshnessScore / 100)) * 100) / 100;
+        const newHealthScore = calculateHealthScore(newReliabilityScore, freshnessScore, trendScore);
 
         // 6. Update database atomically
         const result = await col().updateOne(
@@ -604,7 +910,8 @@ exports.votePartnerCoupon = async (req, res) => {
 
         logger.info(`[PartnerCoupon] Vote recorded: ${outcome} for coupon ${couponId}. ` +
             `Reliability: ${oldReliabilityScore.toFixed(2)} -> ${newReliabilityScore.toFixed(2)}, ` +
-            `HealthScore: ${oldHealthScore.toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+            `HealthScore: ${(coupon.trend?.healthScore ?? 0).toFixed(2)} -> ${newHealthScore.toFixed(2)}`);
+
 
         return successResponse(res, STATUS_CODES.OK, `Vote recorded: ${outcome}`);
     } catch (err) {
@@ -674,5 +981,195 @@ exports.trackDiscover = async (req, res) => {
     } catch (err) {
         logger.error(`[PartnerCoupon] trackDiscover: ${err.message}`);
         return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to track discover');
+    }
+};
+
+/**
+ * @route   POST /api/partner-coupons/:id/save
+ * @desc    Save a partner coupon (idempotent)
+ * @access  Private
+ */
+exports.savePartnerCoupon = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { Types } = require('mongoose');
+        const { ObjectId } = Types;
+
+        let couponObjId;
+        try {
+            couponObjId = new ObjectId(req.params.id);
+        } catch {
+            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Invalid coupon ID');
+        }
+
+        // Verify coupon exists in partner collection
+        const coupon = await col().findOne({ _id: couponObjId });
+        if (!coupon) {
+            return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Coupon not found');
+        }
+
+        // Upsert save entry — idempotent
+        const saved = await SavePrivateCoupon.findOneAndUpdate(
+            { userId: userId.toString(), couponId: couponObjId },
+            { $setOnInsert: { userId: userId.toString(), couponId: couponObjId, savedAt: new Date() } },
+            { upsert: true, new: true }
+        );
+
+        return successResponse(res, STATUS_CODES.OK, 'Coupon saved successfully', {
+            saved: {
+                _id: saved._id,
+                userId: saved.userId,
+                couponId: saved.couponId,
+                savedAt: saved.savedAt,
+            },
+            coupon: shapeDoc(coupon, false),
+        });
+    } catch (err) {
+        logger.error(`[PartnerCoupon] savePartnerCoupon: ${err.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to save coupon');
+    }
+};
+
+/**
+ * @route   DELETE /api/partner-coupons/:id/save
+ * @desc    Unsave a partner coupon
+ * @access  Private
+ */
+exports.unsavePartnerCoupon = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { Types } = require('mongoose');
+        const { ObjectId } = Types;
+
+        let couponObjId;
+        try {
+            couponObjId = new ObjectId(req.params.id);
+        } catch {
+            return errorResponse(res, STATUS_CODES.BAD_REQUEST, 'Invalid coupon ID');
+        }
+
+        const result = await SavePrivateCoupon.findOneAndDelete({
+            userId: userId.toString(),
+            couponId: couponObjId
+        });
+
+        if (!result) {
+            return errorResponse(res, STATUS_CODES.NOT_FOUND, 'Saved coupon entry not found');
+        }
+
+        return successResponse(res, STATUS_CODES.OK, 'Coupon unsaved successfully');
+    } catch (err) {
+        logger.error(`[PartnerCoupon] unsavePartnerCoupon: ${err.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to unsave coupon');
+    }
+};
+
+/**
+ * @route   GET /api/partner-coupons/saved
+ * @desc    Saved coupons for this user, segregated by offerType and paginated.
+ * @query   page, limit, offerType
+ * @access  Private
+ */
+exports.getSavedPartnerCoupons = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+        const skip = (page - 1) * limit;
+        const offerType = req.query.offerType || 'Coupon';
+        const { category, search } = req.query;
+
+        const matchStage = { userId: userId.toString() };
+        
+        const andConditions = [
+            { 'coupon.offerType': offerType }
+        ];
+
+        // category filter
+        if (category) {
+            let categoryFilterVal = category;
+            if (typeof category === 'string') {
+                if (category.includes(',')) {
+                    categoryFilterVal = category.split(',').map(s => s.trim().toLowerCase());
+                } else {
+                    categoryFilterVal = [category.trim().toLowerCase()];
+                }
+            } else if (Array.isArray(category)) {
+                categoryFilterVal = category.map(s => s.toString().trim().toLowerCase());
+            }
+
+            if (categoryFilterVal && categoryFilterVal.length > 0) {
+                andConditions.push({ 'coupon.categories': { $in: categoryFilterVal } });
+            }
+        }
+
+        // search filter
+        if (search) {
+            const searchTerm = search.trim();
+            if (searchTerm !== '') {
+                const rx = { $regex: searchTerm, $options: 'i' };
+                andConditions.push({
+                    $or: [
+                        { 'coupon.brandName': rx },
+                        { 'coupon.categories': rx },
+                        { 'coupon.title': rx },
+                        { 'coupon.description': rx },
+                        { 'coupon.code': rx },
+                        { 'coupon.discount': rx }
+                    ]
+                });
+            }
+        }
+
+        const pipeline = [
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: 'partnercoupons',
+                    localField: 'couponId',
+                    foreignField: '_id',
+                    as: 'coupon'
+                }
+            },
+            { $unwind: '$coupon' },
+            { $match: { $and: andConditions } },
+            { $sort: { savedAt: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+        ];
+
+        const countPipeline = [
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: 'partnercoupons',
+                    localField: 'couponId',
+                    foreignField: '_id',
+                    as: 'coupon'
+                }
+            },
+            { $unwind: '$coupon' },
+            { $match: { $and: andConditions } },
+            { $count: 'total' }
+        ];
+
+        const [results, countResult] = await Promise.all([
+            SavePrivateCoupon.aggregate(pipeline),
+            SavePrivateCoupon.aggregate(countPipeline)
+        ]);
+
+        const total = countResult[0]?.total ?? 0;
+        const coupons = results.map(r => {
+            return { ...shapeDoc(r.coupon, false), savedAt: r.savedAt };
+        });
+
+        const pages = Math.ceil(total / limit) || 1;
+        
+        return successResponse(res, STATUS_CODES.OK, 'Saved coupons fetched', {
+            total, page, pages, count: coupons.length, limit, coupons,
+        });
+    } catch (err) {
+        logger.error(`[PartnerCoupon] getSavedPartnerCoupons: ${err.message}`);
+        return errorResponse(res, STATUS_CODES.INTERNAL_SERVER_ERROR, 'Failed to fetch saved coupons');
     }
 };

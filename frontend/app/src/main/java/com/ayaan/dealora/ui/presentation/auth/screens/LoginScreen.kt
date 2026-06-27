@@ -58,7 +58,9 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Banner(
-            painter = painterResource(R.drawable.hey_welcome_banner)
+            painter = painterResource(id = R.drawable.hey_welcome_banner),
+            subtitle = "WELCOME\nBACK",
+            showStars = false
         )
 
         // SWITCH BETWEEN FORM UI & OTP UI

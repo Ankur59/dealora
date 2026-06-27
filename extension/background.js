@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 const {
     GEMINI_API_KEYS,
     MODEL_NAME,
+    FALLBACK_MODEL_NAME,
     BACKEND_URL,
     EXTENSION_API_KEY,
     DEFAULT_CREDENTIALS,
@@ -14,6 +15,10 @@ const {
     MAX_DELAY_BETWEEN_COUPONS_MS,
     MAX_STEPS_PER_VERIFICATION,
     MAX_STEPS_PER_AUTH,
+    GEMINI_MAX_KEYS_PER_CALL,
+    GEMINI_STEP_RETRIES,
+    GEMINI_RETRY_DELAY_MS,
+    KEEP_WINDOW_OPEN_ON_FAILURE,
     MAX_BLOCK_RETRIES,
     BLOCK_COOLDOWN_MS
 } = CONFIG;
@@ -26,19 +31,30 @@ let knownMerchantDomains = {};
 let cookieSyncTimers = {};     
 let lastSyncTimes = {};        
 let geminiKeyIndex = 0;        
+let disabledAutosyncDomains = {};        
 
 let agentRunState = 'idle'; // 'idle', 'running', 'paused'
 let agentCheckedCount = 0;
 let agentTotalCount = 0;
 
+// Multi-merchant parallel execution state
+let activeMerchants = new Set();
+let merchantQueues = {};
+let pendingDomains = [];
+let activeWindows = {};
+
+// AbortControllers for in-flight Gemini requests — aborted on pause/stop
+let activeGeminiControllers = new Map(); // taskId -> AbortController
+
 // Load initial state
-chrome.storage.local.get(['isRunning', 'currentTasks', 'merchantStatuses', 'agentRunState', 'agentCheckedCount', 'agentTotalCount'], (res) => {
+chrome.storage.local.get(['isRunning', 'currentTasks', 'merchantStatuses', 'agentRunState', 'agentCheckedCount', 'agentTotalCount', 'disabledAutosyncDomains'], (res) => {
     isRunning = res.isRunning || false;
     currentTasks = res.currentTasks || [];
     merchantStatuses = res.merchantStatuses || {};
     agentRunState = res.agentRunState || 'idle';
     agentCheckedCount = res.agentCheckedCount || 0;
     agentTotalCount = res.agentTotalCount || 0;
+    disabledAutosyncDomains = res.disabledAutosyncDomains || {};
 });
 
 // ─── Lifecycle ───────────────────────────────────────────────
@@ -98,6 +114,10 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
     );
     if (!matchedDomain) return;
 
+    if (disabledAutosyncDomains[matchedDomain]) {
+        return;
+    }
+
     // Cooldown: 10 seconds between syncs for the same domain
     const now = Date.now();
     if (lastSyncTimes[matchedDomain] && (now - lastSyncTimes[matchedDomain] < 10000)) return;
@@ -119,6 +139,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         agentRunState = 'running';
         agentCheckedCount = 0;
         agentTotalCount = 0;
+        activeMerchants.clear();
+        merchantQueues = {};
+        pendingDomains = [];
+        activeWindows = {};
         chrome.storage.local.set({ isRunning, agentRunState, agentCheckedCount, agentTotalCount });
         startAgentLoop();
         fetchAndQueueTasks().then(count => {
@@ -134,24 +158,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         agentCheckedCount = 0;
         agentTotalCount = 0;
         chrome.storage.local.set({ isRunning, agentRunState, agentCheckedCount, agentTotalCount });
+        // Abort all in-flight Gemini requests
+        for (const ctrl of activeGeminiControllers.values()) { try { ctrl.abort(); } catch(e) {} }
+        activeGeminiControllers.clear();
         for (let t of currentTasks) {
             t.status = 'cancelled';
+            if (t._resumeResolver) t._resumeResolver();
         }
         currentTasks = [];
         chrome.storage.local.set({ currentTasks });
+        for (const dom of Object.keys(activeWindows)) {
+            const winId = activeWindows[dom];
+            if (winId) {
+                try { chrome.windows.remove(winId); } catch(e) {}
+            }
+        }
+        activeWindows = {};
+        activeMerchants.clear();
+        merchantQueues = {};
+        pendingDomains = [];
         sendResponse({ status: 'cancelled' });
     } else if (request.type === 'PAUSE_AGENT') {
         agentRunState = 'paused';
         chrome.storage.local.set({ agentRunState });
+        // Immediately abort all in-flight Gemini requests so the loop can reach pause checkpoint
+        for (const ctrl of activeGeminiControllers.values()) { try { ctrl.abort(); } catch(e) {} }
+        activeGeminiControllers.clear();
         sendResponse({ status: 'paused' });
     } else if (request.type === 'RESUME_AGENT') {
         agentRunState = 'running';
         chrome.storage.local.set({ agentRunState });
+        // Restart any merchants that were paused (loop will now continue)
+        processNextMerchants();
         sendResponse({ status: 'resumed' });
     } else if (request.type === 'GET_STATE') {
         sendResponse({ isRunning, currentTasks, merchantStatuses, agentRunState, agentCheckedCount, agentTotalCount });
     } else if (request.type === 'UPDATE_MERCHANT_LOGIN') {
         const { domain, merchantName } = request;
+        if (disabledAutosyncDomains && disabledAutosyncDomains[domain]) {
+            delete disabledAutosyncDomains[domain];
+            chrome.storage.local.set({ disabledAutosyncDomains });
+            log('INFO', `Autosync re-enabled for domain "${domain}" via manual Sync.`);
+        }
         captureAndSyncCookies(domain, merchantName || domain)
             .then(result => {
                 if (result.status === 'updated') {
@@ -184,6 +232,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         triggerSingleVerification(request.couponId)
             .then(() => sendResponse({ status: 'queued' }))
             .catch(err => sendResponse({ status: 'error', message: err.message }));
+    } else if (request.type === 'CLEAR_LOCAL_COOKIE_STATE') {
+        const { domain } = request;
+        disabledAutosyncDomains[domain] = true;
+        chrome.storage.local.set({ disabledAutosyncDomains });
+
+        merchantStatuses[domain] = { isLoggedIn: false, lastChecked: Date.now() };
+        chrome.storage.local.set({ merchantStatuses });
+
+        clearBrowserCookies(domain)
+            .then(() => sendResponse({ status: 'cleared' }))
+            .catch(err => {
+                log('ERROR', `clearBrowserCookies error: ${err.message}`);
+                sendResponse({ status: 'cleared', error: err.message });
+            });
+        return true;
+    } else if (request.type === 'START_RECORDING') {
+        const state = { isRecording: true, domain: request.domain, flowType: request.flowType, steps: [] };
+        chrome.storage.local.set({ recordingState: state });
+        chrome.tabs.create({ url: request.url });
+        sendResponse({ status: 'started' });
+    } else if (request.type === 'STOP_RECORDING') {
+        chrome.storage.local.remove(['recordingState']);
+        sendResponse({ status: 'stopped' });
+    } else if (request.type === 'DEEP_RESEARCH') {
+        // Start deep research in background and report progress via storage
+        deepResearchCoupons().catch(err => log('ERROR', `Deep research failed: ${err.message}`));
+        sendResponse({ status: 'started' });
+    } else if (request.type === 'GET_DEEP_RESEARCH_STATE') {
+        chrome.storage.local.get(['deepResearchState'], (res) => {
+            sendResponse(res.deepResearchState || { status: 'idle' });
+        });
+        return true;
+    } else if (request.type === 'SAVE_RECORDING') {
+        chrome.storage.local.get(['recordingState'], async (res) => {
+            const state = res.recordingState;
+            if (!state) return sendResponse({ status: 'error' });
+            
+            try {
+                await fetch(`${BACKEND_URL}/agent/automation-map`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Extension-Key': EXTENSION_API_KEY },
+                    body: JSON.stringify({ domain: state.domain, flowType: state.flowType, steps: state.steps })
+                });
+                chrome.storage.local.remove(['recordingState']);
+                sendResponse({ status: 'saved' });
+            } catch(e) {
+                sendResponse({ status: 'error', message: e.message });
+            }
+        });
+        return true;
     }
     return true; 
 });
@@ -224,11 +322,14 @@ async function checkMapStatus(domain) {
 async function startAgentLoop() {
     chrome.alarms.create('agentLoop', { periodInMinutes: 1 });
     chrome.alarms.onAlarm.addListener(async (alarm) => {
-        if (alarm.name === 'agentLoop' && isRunning && currentTasks.length < 5) await fetchAndQueueTasks();
+        if (alarm.name === 'agentLoop' && isRunning && activeMerchants.size < 3) await fetchAndQueueTasks();
     });
 }
 
 function onTaskFinished() {
+    // Don't update counters or state when paused — we'll resume later
+    if (agentRunState === 'paused') return;
+    
     if (agentRunState && agentRunState !== 'idle') {
         agentCheckedCount += 1;
         let stateUpdate = { agentCheckedCount };
@@ -237,6 +338,9 @@ function onTaskFinished() {
             isRunning = false;
             stateUpdate.agentRunState = 'idle';
             stateUpdate.isRunning = false;
+            // Clean up any remaining controllers
+            for (const ctrl of activeGeminiControllers.values()) { try { ctrl.abort(); } catch(e) {} }
+            activeGeminiControllers.clear();
         }
         chrome.storage.local.set(stateUpdate);
     }
@@ -249,42 +353,168 @@ async function fetchAndQueueTasks() {
         if (!res.ok) return 0;
         const data = await res.json();
         const newTasks = data.coupons || [];
+        if (newTasks.length === 0) return 0;
+
         for (let task of newTasks) {
-            if (currentTasks.length >= 5) break;
             const domain = new URL(task.url).hostname.replace(/^www\./, '');
-            
-            if (!merchantStatuses[domain]?.isLoggedIn) {
-                if (!currentTasks.some(t => t.type === 'auth' && t.domain === domain)) {
-                    const authTask = { id: `auth_${domain}_${Date.now()}`, type: 'auth', domain, url: task.url, code: 'LOGIN_FLOW', brand: knownMerchantDomains[domain] || domain, status: 'running', message: 'Authenticating...' };
-                    currentTasks.push(authTask);
-                    chrome.storage.local.set({ currentTasks });
-                    runAgentSequence(authTask).finally(() => {
-                        currentTasks = currentTasks.filter(t => t.id !== authTask.id);
-                        chrome.storage.local.set({ currentTasks });
-                    });
-                }
-                onTaskFinished();
-                continue;
+            if (!merchantQueues[domain]) {
+                merchantQueues[domain] = [];
             }
+            if (!merchantQueues[domain].some(t => t.id === task.id)) {
+                merchantQueues[domain].push(task);
+            }
+        }
 
-            task.type = 'verify';
-            task.status = 'running';
-            currentTasks.push(task);
-            chrome.storage.local.set({ currentTasks });
-            runAgentSequence(task).finally(() => {
-                currentTasks = currentTasks.filter(t => t.id !== task.id);
-                chrome.storage.local.set({ currentTasks });
-                onTaskFinished();
+        for (const domain of Object.keys(merchantQueues)) {
+            if (merchantQueues[domain].length > 0 && !activeMerchants.has(domain) && !pendingDomains.includes(domain)) {
+                pendingDomains.push(domain);
+            }
+        }
+
+        processNextMerchants();
+        return newTasks.length;
+    } catch (err) {
+        log('ERROR', 'fetchAndQueueTasks error:', err);
+        return 0;
+    }
+}
+
+async function processNextMerchants() {
+    if (!isRunning || agentRunState === 'idle' || agentRunState === 'paused') return;
+
+    while (activeMerchants.size < 3 && pendingDomains.length > 0) {
+        const domain = pendingDomains.shift();
+        if (domain) {
+            activeMerchants.add(domain);
+            runMerchantWorker(domain).catch(err => {
+                log('ERROR', `Worker failed for ${domain}:`, err);
+                activeMerchants.delete(domain);
+                delete merchantQueues[domain];
+                processNextMerchants();
             });
+        }
+    }
+}
 
-            // Delay between coupons to avoid getting flagged
+async function runMerchantWorker(domain) {
+    const queue = merchantQueues[domain] || [];
+    if (queue.length === 0) {
+        activeMerchants.delete(domain);
+        processNextMerchants();
+        return;
+    }
+
+    const firstTask = queue[0];
+    let windowInfo;
+    try {
+        windowInfo = await chrome.windows.create({ url: firstTask.url, state: 'normal', width: 1280, height: 900, focused: false });
+        activeWindows[domain] = windowInfo.id;
+    } catch (err) {
+        log('ERROR', `Failed to create window for ${domain}:`, err);
+        activeMerchants.delete(domain);
+        delete merchantQueues[domain];
+        processNextMerchants();
+        return;
+    }
+
+    const tabId = windowInfo.tabs[0].id;
+    log('INFO', `Window ${windowInfo.id}, tab ${tabId} created for domain ${domain}`);
+
+    log('INFO', 'Waiting for page load...');
+    await waitForTabLoad(tabId, 30000);
+    log('INFO', 'Page loaded. Settling for 3s...');
+    await new Promise(r => setTimeout(r, 3000));
+
+    log('INFO', 'Ensuring content script...');
+    await ensureContentScript(tabId);
+    log('INFO', 'Content script ready.');
+
+    if (!merchantStatuses[domain]?.isLoggedIn) {
+        log('INFO', `Merchant ${domain} not logged in. Running auth flow first.`);
+        const authTask = {
+            id: `auth_${domain}_${Date.now()}`,
+            type: 'auth',
+            domain,
+            url: firstTask.url,
+            code: 'LOGIN_FLOW',
+            brand: knownMerchantDomains[domain] || domain,
+            status: 'running',
+            message: 'Authenticating...'
+        };
+
+        currentTasks.push(authTask);
+        chrome.storage.local.set({ currentTasks });
+
+        try {
+            await runTaskSequenceInTab(tabId, authTask);
+        } catch (err) {
+            log('ERROR', `Auth failed for ${domain}:`, err);
+        } finally {
+            currentTasks = currentTasks.filter(t => t.id !== authTask.id);
+            chrome.storage.local.set({ currentTasks });
+        }
+    }
+
+    // Refresh loggedIn status after auth attempt
+    const loggedIn = merchantStatuses[domain]?.isLoggedIn;
+
+    for (let i = 0; i < queue.length; i++) {
+        if (!isRunning || agentRunState === 'idle') break;
+
+        // Wait while paused
+        while (agentRunState === 'paused') {
+            await new Promise(r => setTimeout(r, 1000));
+            if (agentRunState === 'idle' || !isRunning) break;
+        }
+        if (agentRunState === 'idle' || !isRunning) break;
+
+        const task = queue[i];
+        task.type = 'verify';
+        task.status = 'running';
+        currentTasks.push(task);
+        chrome.storage.local.set({ currentTasks });
+
+        let tabClosed = false;
+        try {
+            if (!merchantStatuses[domain]?.isLoggedIn) {
+                log('WARN', `Skipping coupon ${task.code} for ${domain} because auth failed.`);
+                await reportResultToBackend(task.id, 'invalid', 'Authentication failed for merchant.');
+            } else {
+                await runTaskSequenceInTab(tabId, task);
+            }
+        } catch (err) {
+            log('ERROR', `Error verifying ${task.code} for ${domain}:`, err);
+            if (err.message && err.message.includes('No tab with id')) {
+                log('WARN', `Tab for ${domain} was closed. Marking as not logged in and stopping.`);
+                merchantStatuses[domain] = { isLoggedIn: false, lastChecked: Date.now() };
+                chrome.storage.local.set({ merchantStatuses });
+                tabClosed = true;
+                eraseMerchantSync(domain);
+            }
+        } finally {
+            currentTasks = currentTasks.filter(t => t.id !== task.id);
+            chrome.storage.local.set({ currentTasks });
+            onTaskFinished();
+        }
+
+        if (tabClosed) break;
+
+        if (i < queue.length - 1 && isRunning && agentRunState !== 'idle') {
             const waitMs = Math.random() * (MAX_DELAY_BETWEEN_COUPONS_MS - MIN_DELAY_BETWEEN_COUPONS_MS) + MIN_DELAY_BETWEEN_COUPONS_MS;
             await new Promise(r => setTimeout(r, waitMs));
         }
-        return newTasks.length;
-    } catch (err) {
-        return 0;
     }
+
+    if (windowInfo?.id) {
+        try {
+            await chrome.windows.remove(windowInfo.id);
+        } catch (e) {}
+    }
+    delete activeWindows[domain];
+    activeMerchants.delete(domain);
+    delete merchantQueues[domain];
+
+    processNextMerchants();
 }
 
 async function triggerSingleVerification(couponId) {
@@ -321,7 +551,7 @@ async function triggerSingleVerification(couponId) {
 
 // ─── Verification & Auto-Login Logic ─────────────────────────────
 async function runAgentSequence(task) {
-    log('INFO', `🔍 STARTING ${task.type.toUpperCase()}:`, task.code, 'on', task.url);
+    log('INFO', `🔍 STARTING SINGLE SEQUENCE: ${task.type.toUpperCase()}:`, task.code, 'on', task.url);
     let windowInfo;
     try {
         windowInfo = await chrome.windows.create({ url: task.url, state: 'normal', width: 1280, height: 900, focused: false });
@@ -341,13 +571,210 @@ async function runAgentSequence(task) {
     await ensureContentScript(tabId);
     log('INFO', 'Content script ready.');
 
+    let verificationSucceeded = false;
+    try {
+        const result = await runTaskSequenceInTab(tabId, task);
+        verificationSucceeded = result?.verificationSucceeded || false;
+    } catch (err) {
+        log('ERROR', 'runAgentSequence error:', err);
+    } finally {
+        if (windowInfo?.id) {
+            const userStopped = agentRunState === 'idle' || task.status === 'cancelled';
+            const keepOpen = KEEP_WINDOW_OPEN_ON_FAILURE
+                && task.type === 'verify'
+                && !verificationSucceeded
+                && !userStopped;
+            if (keepOpen) {
+                log('INFO', 'Browser window kept open after incomplete verification.');
+            } else {
+                try { await chrome.windows.remove(windowInfo.id); } catch (e) {}
+            }
+        }
+        log('INFO', `🔍 ${task.type.toUpperCase()} task finished for ${task.code}`);
+    }
+}
+
+function extractDomainFromUrl(url) {
+    try {
+        return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+        return '';
+    }
+}
+
+function isCouponPhase(pageContext) {
+    if (!pageContext) return false;
+    if (pageContext.hasCouponInput) return true;
+    return pageContext.phase === 'checkout';
+}
+
+function isCartPrepPhase(pageContext) {
+    if (!pageContext || pageContext.hasCouponInput) return false;
+    if (pageContext.phase === 'checkout') return false;
+    return ['listing', 'product', 'other', 'cart'].includes(pageContext.phase);
+}
+
+function findBestProduct(elements, terms, requireTermsMatch = false) {
+    const products = (elements || []).filter((el) => el.intent === 'product' || (el.href && /\/products\//i.test(el.href)));
+    if (!products.length) return null;
+
+    const scored = products
+        .map((el) => ({ el, score: el.relevanceScore || 0 }))
+        .sort((a, b) => b.score - a.score);
+
+    if (requireTermsMatch && terms) {
+        const categories = terms.applicableCategories || [];
+        const minOrder = terms.minOrderValue || 0;
+        const matching = scored.filter(({ el }) => {
+            const textLower = `${el.text || ''} ${el.href || ''}`.toLowerCase();
+            const catMatch = !categories.length || categories.some((c) => c && textLower.includes(String(c).toLowerCase()));
+            const priceMatch = !minOrder || (el.price && el.price >= minOrder);
+            return catMatch && priceMatch;
+        });
+        if (matching.length) return matching[0].el;
+        if (requireTermsMatch) return null;
+    }
+    return scored[0].el;
+}
+
+function pickCartPrepAction(domState, task, consecutiveScrolls) {
+    const ctx = domState.pageContext;
+    if (!ctx || !isCartPrepPhase(ctx)) return null;
+
+    if (ctx.phase === 'product') {
+        const addBtn = domState.actionableElements.find((el) => el.intent === 'addToCart');
+        if (addBtn) return { action: 'click', selector: addBtn.selector, _deterministic: true };
+        return null;
+    }
+
+    if (ctx.phase === 'listing' || ctx.phase === 'other') {
+        const atBottom = domState.scrollPosition?.atBottom;
+        const forcePick = consecutiveScrolls >= 3 || atBottom;
+
+        if (!forcePick) {
+            const match = findBestProduct(
+                domState.actionableElements.filter((el) => el.inViewport),
+                task.termsSummary,
+                true
+            );
+            if (match) return { action: 'click', selector: match.selector, _deterministic: true };
+            return null;
+        }
+
+        const best = findBestProduct(domState.actionableElements, task.termsSummary, false)
+            || domState.actionableElements.find((el) => el.intent === 'product' || (el.href && /\/products\//i.test(el.href)));
+        if (best) return { action: 'click', selector: best.selector, _deterministic: true };
+        return null;
+    }
+
+    if (ctx.phase === 'cart' && !ctx.hasCouponInput) {
+        const checkout = domState.actionableElements.find((el) => el.intent === 'checkout');
+        if (checkout) return { action: 'click', selector: checkout.selector, _deterministic: true };
+        try {
+            const origin = new URL(domState.url).origin;
+            return { action: 'navigate', url: `${origin}/checkout`, _deterministic: true };
+        } catch { /* fall through */ }
+    }
+
+    return null;
+}
+
+function parseCouponTermsLocal(description) {
+    const fallback = { minOrderValue: 0, applicableCategories: [], excludedProducts: [], userTypes: ['all_users'] };
+    if (!description || !description.trim()) return fallback;
+
+    const text = description.toLowerCase();
+    let minOrderValue = 0;
+
+    const minPatterns = [
+        /(?:min(?:imum)?\s*(?:order|purchase|cart|spend|value)|orders?\s*(?:above|over|worth|of))\s*(?:of\s*)?(?:₹|rs\.?|inr)?\s*([\d,]+)/i,
+        /(?:₹|rs\.?|inr)\s*([\d,]+)\s*(?:and\s*)?(?:above|minimum|min)/i,
+        /([\d,]+)\s*(?:₹|rs\.?|inr)\s*(?:and\s*)?(?:above|minimum|min)/i,
+    ];
+    for (const re of minPatterns) {
+        const m = description.match(re);
+        if (m) {
+            minOrderValue = parseInt(m[1].replace(/,/g, ''), 10) || 0;
+            if (minOrderValue > 0) break;
+        }
+    }
+
+    const catKeywords = [
+        'fashion', 'jewellery', 'jewelry', 'electronics', 'beauty', 'grocery',
+        'footwear', 'apparel', 'clothing', 'accessories', 'home', 'kitchen',
+        'sports', 'health', 'wellness', 'skincare', 'makeup',
+    ];
+    const applicableCategories = catKeywords.filter((kw) => text.includes(kw));
+
+    const excludedProducts = [];
+    const excludeMatch = description.match(/(?:not\s+valid\s+on|excluded?|except)\s*[:\-]?\s*([^.]+)/i);
+    if (excludeMatch) {
+        excludeMatch[1].split(/,|and/).forEach((part) => {
+            const trimmed = part.trim();
+            if (trimmed.length > 2 && trimmed.length < 60) excludedProducts.push(trimmed);
+        });
+    }
+
+    const userTypes = [];
+    if (/new\s+user|first\s+order|first\s+time/i.test(description)) userTypes.push('new_user');
+    if (!userTypes.length) userTypes.push('all_users');
+
+    return { minOrderValue, applicableCategories, excludedProducts, userTypes };
+}
+
+async function saveAutomationMap(task, actionHistory, flowType) {
+    if (!task.domain) return;
+    try {
+        const stepsToSave = actionHistory.map((h, i) => ({
+            step: i + 1,
+            action: h.action,
+            selector: ['navigate'].includes(h.action) ? null : h.selector,
+            url: h.action === 'navigate' ? h.selector : h.url,
+            value: h.valuePlaceholder || null,
+        })).filter((h) => h.action !== 'evaluate');
+
+        await fetch(`${BACKEND_URL}/agent/automation-map`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Extension-Key': EXTENSION_API_KEY,
+            },
+            body: JSON.stringify({ domain: task.domain, flowType, steps: stepsToSave }),
+        });
+        log('INFO', `Saved ${flowType} automation map for ${task.domain}`);
+    } catch (e) {
+        log('WARN', `Failed to save ${flowType} map:`, e.message);
+    }
+}
+
+async function runTaskSequenceInTab(tabId, task) {
     let isComplete = false, attempts = 0, actionHistory = [], consecutiveErrors = 0, blockRetries = 0;
+    let consecutiveScrolls = 0, lastUrl = '', verificationSucceeded = false;
     
     let mappedSequence = null;
     let credentials = null;
     let fallbackToAI = false;
     
     const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+
+    if (task.type === 'verify') {
+        if (!task.domain && task.url) task.domain = extractDomainFromUrl(task.url);
+        if (!task.termsSummary) {
+            log('INFO', 'Parsing coupon T&C...');
+            task.termsSummary = parseCouponTermsLocal(task.description || '');
+            log('INFO', `T&C: min order ${task.termsSummary.minOrderValue}, categories: ${(task.termsSummary.applicableCategories || []).join(', ') || 'none'}`);
+        }
+        try {
+            const mapRes = await fetch(`${BACKEND_URL}/agent/automation-map/${task.domain}/verify`, { headers });
+            if (mapRes.ok) {
+                const mapData = await mapRes.json();
+                if (mapData.map && mapData.map.steps && mapData.map.steps.length > 0) {
+                    mappedSequence = mapData.map.steps;
+                    log('INFO', 'Found deterministic sequence for verify. Proceeding with fast-path.');
+                }
+            }
+        } catch (e) { log('WARN', 'Failed fetching verify map', e.message); }
+    }
 
     if (task.type === 'auth') {
         try {
@@ -403,7 +830,7 @@ async function runAgentSequence(task) {
         }
 
         log('INFO', 'Fetching DOM...');
-        const domResponse = await safeSendMessage(tabId, { type: 'GET_DOM' });
+        const domResponse = await safeSendMessage(tabId, { type: 'GET_DOM', termsSummary: task.termsSummary || null });
 
         if (!domResponse || domResponse.status !== 'success') {
             const errMsg = domResponse?.message || 'Unknown error';
@@ -421,6 +848,21 @@ async function runAgentSequence(task) {
 
         consecutiveErrors = 0;
         const domState = domResponse.domState;
+
+        if (attempts === 1 && task.type === 'verify') {
+            const isLoggedOut = domState.actionableElements.some(el => 
+                /^(login|sign in|log in|login \/ register|sign in \/ register)$/i.test(el.text.trim())
+            );
+            if (isLoggedOut) {
+                log('WARN', 'Login/Sign In link found. Assuming logged out.');
+                merchantStatuses[task.domain] = { isLoggedIn: false, lastChecked: Date.now() };
+                chrome.storage.local.set({ merchantStatuses });
+                await clearBrowserCookies(task.domain);
+                await reportResultToBackend(task.id, 'reset', 'Agent logged out, resetting coupon status.');
+                isComplete = true;
+                break;
+            }
+        }
 
         // Check block / CAPTCHA signals
         if (domState.blockStatus && domState.blockStatus.blocked) {
@@ -444,59 +886,145 @@ async function runAgentSequence(task) {
 
         log('INFO', `Page: "${domState.title}"`);
         log('INFO', `URL:  ${domState.url}`);
-        log('INFO', `Elements: ${domState.actionableElements.length}`);
+        log('INFO', `Elements: ${domState.actionableElements.length}${domState.totalElements ? ` (${domState.totalElements} total)` : ''}`);
+        if (domState.pageContext) {
+            log('INFO', `Phase: ${domState.pageContext.phase}, coupon input: ${domState.pageContext.hasCouponInput}`);
+        }
+
+        if (domState.url !== lastUrl) consecutiveScrolls = 0;
+        lastUrl = domState.url;
 
         let stuckWarning = '';
-        if (actionHistory.length >= 2) {
+        if (consecutiveScrolls >= 2 && isCartPrepPhase(domState.pageContext)) {
+            stuckWarning = `You have scrolled ${consecutiveScrolls} times without progress. STOP scrolling. Click a product link (intent=product) from Actionable Elements immediately. Prefer products matching T&C categories and min order value.`;
+            log('WARN', 'Scroll loop warning injected.');
+        } else if (actionHistory.length >= 2) {
             const last2 = actionHistory.slice(-2);
-            if (last2.every(h => h.selector === last2[0].selector && h.url === domState.url)) {
-                stuckWarning = `⚠️ WARNING: You already tried "${last2[0].selector}" ${last2.length} times and page didn't change. DO NOT repeat it. Try something else, or if you cannot find coupon field, evaluate as "invalid" with reason "Could not find coupon entry field".`;
+            const allSameAction = last2.every(
+                (h) => h.action === last2[0].action
+                    && h.selector === last2[0].selector
+                    && h.url === domState.url
+            );
+            if (allSameAction && last2[0].action !== 'scroll' && last2[0].action !== 'wait') {
+                const couponHint = isCouponPhase(domState.pageContext)
+                    ? 'look for "View all coupons", "Apply coupon", or the coupon text input.'
+                    : 'click a product (intent=product), then Add to cart, then open cart/checkout.';
+                stuckWarning = `You already tried "${last2[0].selector}" repeatedly. DO NOT repeat. ${couponHint}`;
                 log('WARN', 'Loop detected. Injecting stuck warning.');
             }
         }
 
         let cmd = null;
-        
-        if (mappedSequence && mappedSequence.length > 0 && !fallbackToAI) {
-            cmd = mappedSequence.shift(); 
-            cmd._isDeterministic = true; 
-            log('INFO', `⚡ Fast-Path Step: ${cmd.action} on ${cmd.selector || cmd.url}`);
-            
-            if (cmd.value === '<USERNAME>') {
-                cmd.value = credentials?.username || DEFAULT_CREDENTIALS.EMAIL;
-                cmd.valuePlaceholder = '<USERNAME>';
-            }
-            if (cmd.value === '<PASSWORD>') {
-                cmd.value = credentials?.password || DEFAULT_CREDENTIALS.PASSWORD;
-                cmd.valuePlaceholder = '<PASSWORD>';
-            }
-        } else {
-            log('INFO', 'Calling Gemini...');
-            const prompt = buildPrompt(task, domState, actionHistory, stuckWarning);
-            const aiResponse = await callGemini(prompt);
-            if (!aiResponse) {
-                log('ERROR', 'Gemini returned nothing. Aborting.');
-                break;
+
+        // Auto-detect applied coupon success to bypass AI calling
+        if (task.type === 'verify' && detectCouponSuccess(domState, task.code)) {
+            log('INFO', `🎯 Auto-Detected applied coupon: ${task.code}! Marking valid.`);
+            cmd = { 
+                action: 'evaluate', 
+                status: 'valid', 
+                reason: `Auto-detected coupon code "${task.code}" successfully applied on checkout/cart page.` 
+            };
+        }
+
+        if (!cmd) {
+            if (mappedSequence && mappedSequence.length > 0 && !fallbackToAI) {
+                cmd = mappedSequence.shift(); 
+                cmd._isDeterministic = true; 
+                log('INFO', `⚡ Fast-Path Step: ${cmd.action} on ${cmd.selector || cmd.url}`);
+                
+                if (cmd.value === '<USERNAME>') {
+                    cmd.value = credentials?.username || DEFAULT_CREDENTIALS.EMAIL;
+                    cmd.valuePlaceholder = '<USERNAME>';
+                }
+                if (cmd.value === '<PASSWORD>') {
+                    cmd.value = credentials?.password || DEFAULT_CREDENTIALS.PASSWORD;
+                    cmd.valuePlaceholder = '<PASSWORD>';
+                }
+            } else if (task.type === 'verify' && isCartPrepPhase(domState.pageContext)) {
+                const cartAction = pickCartPrepAction(domState, task, consecutiveScrolls);
+                if (cartAction) {
+                    log('INFO', `Deterministic cart-prep: ${cartAction.action} on ${cartAction.selector || cartAction.url}`);
+                    cmd = cartAction;
+                }
             }
 
-            try {
-                cmd = parseGeminiJSON(aiResponse);
-            } catch (e) {
-                log('ERROR', 'Failed to parse Gemini JSON:', aiResponse.substring(0, 200));
-                consecutiveErrors++;
-                if (consecutiveErrors >= 3) break;
-                continue;
+            if (!cmd) {
+                log('INFO', 'Calling Gemini...');
+                const prompt = buildPrompt(task, domState, actionHistory, stuckWarning);
+                let aiResponse = null;
+
+                for (let geminiTry = 0; geminiTry < GEMINI_STEP_RETRIES && !aiResponse; geminiTry++) {
+                    if (agentRunState === 'paused' || agentRunState === 'idle' || task.status === 'cancelled') break;
+                    aiResponse = await callGemini(prompt, task.id);
+                    if (!aiResponse && geminiTry < GEMINI_STEP_RETRIES - 1) {
+                        log('WARN', `Gemini unavailable (batch ${geminiTry + 1}/${GEMINI_STEP_RETRIES}). Retrying in ${GEMINI_RETRY_DELAY_MS}ms...`);
+                        await new Promise((r) => setTimeout(r, GEMINI_RETRY_DELAY_MS));
+                    }
+                }
+
+                if (!aiResponse) {
+                    if (agentRunState === 'paused') {
+                        log('INFO', '⏸ Gemini aborted by pause. Will retry after resume.');
+                        attempts--;
+                        continue;
+                    }
+                    if (task.type === 'verify') {
+                        const fallback = pickCartPrepAction(domState, task, consecutiveScrolls);
+                        if (fallback) {
+                            log('WARN', 'Gemini unavailable. Using deterministic cart-prep fallback.');
+                            cmd = fallback;
+                        }
+                    }
+                    if (!cmd) {
+                        log('WARN', 'Gemini unavailable. Will retry step (browser stays open).');
+                        consecutiveErrors++;
+                        if (consecutiveErrors >= 5) {
+                            log('ERROR', 'Too many consecutive Gemini failures.');
+                            break;
+                        }
+                        await new Promise((r) => setTimeout(r, GEMINI_RETRY_DELAY_MS));
+                        continue;
+                    }
+                } else {
+                    try {
+                        cmd = parseGeminiJSON(aiResponse);
+                    } catch (e) {
+                        log('ERROR', 'Failed to parse Gemini JSON:', aiResponse.substring(0, 200));
+                        consecutiveErrors++;
+                        if (consecutiveErrors >= 3) break;
+                        continue;
+                    }
+                }
             }
+        }
+
+        if (!cmd) {
+            log('WARN', 'No command resolved this step. Retrying...');
+            consecutiveErrors++;
+            if (consecutiveErrors >= 5) break;
+            continue;
+        }
+
+        consecutiveErrors = 0;
+
+        // Auto-convert wait-with-scroll-intent to explicit scroll action
+        if (cmd.action === 'wait' && (cmd.reason || '').toLowerCase().includes('scroll')) {
+            log('INFO', '📜 Auto-converting wait+scroll intent to scroll action');
+            cmd = { action: 'scroll', direction: 'down', amount: cmd.amount, reason: cmd.reason };
         }
 
         log('INFO', `🤖 Agent choice: ${JSON.stringify(cmd)}`);
         if (cmd.value === credentials?.username && credentials?.username) { cmd.valuePlaceholder = '<USERNAME>'; }
         if (cmd.value === credentials?.password && credentials?.password) { cmd.valuePlaceholder = '<PASSWORD>'; }
 
+        const historySelector = cmd.action === 'scroll'
+            ? `scroll:${domState.scrollPosition?.top ?? 0}`
+            : (cmd.selector || cmd.url || 'N/A');
+
         actionHistory.push({ 
             step: attempts, 
             action: cmd.action, 
-            selector: cmd.selector || cmd.url || 'N/A', 
+            selector: historySelector, 
             url: domState.url,
             valuePlaceholder: cmd.valuePlaceholder 
         });
@@ -509,7 +1037,16 @@ async function runAgentSequence(task) {
         // Execute Action
         if (cmd.action === 'evaluate') {
             log('INFO', `🏁 RESULT: ${cmd.status} — ${cmd.reason}`);
-            await reportResultToBackend(task.id, cmd.status, cmd.reason);
+            if (cmd.status === 'invalid' && /log\s*in|sign\s*in|auth/i.test(cmd.reason)) {
+                log('WARN', 'AI detected login required. Clearing cache and marking logged out.');
+                merchantStatuses[task.domain] = { isLoggedIn: false, lastChecked: Date.now() };
+                chrome.storage.local.set({ merchantStatuses });
+                await clearBrowserCookies(task.domain);
+                await reportResultToBackend(task.id, 'reset', 'AI marked logged out, resetting coupon status.');
+            } else {
+                if (cmd.status === 'valid') verificationSucceeded = true;
+                await reportResultToBackend(task.id, cmd.status, cmd.reason);
+            }
             isComplete = true;
         } else if (cmd.action === 'request_otp') {
             task.status = 'waiting_for_otp';
@@ -517,15 +1054,50 @@ async function runAgentSequence(task) {
             chrome.storage.local.set({ currentTasks });
         } else if (cmd.action === 'click') {
             log('INFO', `👆 Clicking: ${cmd.selector}`);
+            const clickedEl = domState.actionableElements.find((el) => el.selector === cmd.selector);
+            const clickedIntent = clickedEl?.intent;
+            const clickedHref = clickedEl?.href || '';
             const result = await executeActionOnTab(tabId, cmd);
             log('INFO', `   Click result: ${result?.status} — ${result?.message || ''}`);
-            if (result?.status === 'error' && cmd._isDeterministic) {
+            if (result?.status === 'error' && (cmd._isDeterministic || cmd._deterministic)) {
                 log('WARN', 'Deterministic step failed. Falling back to AI for healing.');
                 fallbackToAI = true;
                 task._healingContext = `The deterministic step "${cmd.action} on ${cmd.selector}" failed with error: ${result?.message}. Please solve this step manually and proceed.`;
-                continue; 
+                continue;
             }
-            await new Promise(r => setTimeout(r, 4000));
+            consecutiveScrolls = 0;
+            if (clickedIntent === 'product' || /\/products\//i.test(clickedHref)) {
+                log('INFO', 'Product link clicked. Waiting for navigation...');
+                await waitForTabLoad(tabId, 30000);
+                await new Promise(r => setTimeout(r, 3000));
+                await ensureContentScript(tabId);
+            } else if (clickedIntent === 'addToCart') {
+                await new Promise(r => setTimeout(r, 4000));
+                const freshDom = await safeSendMessage(tabId, { type: 'GET_DOM', termsSummary: task.termsSummary || null });
+                const freshPhase = freshDom?.domState?.pageContext?.phase;
+                const hasCheckoutBtn = freshDom?.domState?.actionableElements?.some(el => el.intent === 'checkout');
+                if ((freshPhase === 'product' || freshPhase === 'listing') && !hasCheckoutBtn) {
+                    const cartBtn = freshDom.domState.actionableElements.find((el) => el.intent === 'cart');
+                    if (cartBtn) {
+                        log('INFO', 'Navigating to cart via cart button...');
+                        await executeActionOnTab(tabId, { action: 'click', selector: cartBtn.selector });
+                        await waitForTabLoad(tabId, 30000);
+                        await new Promise(r => setTimeout(r, 3000));
+                        await ensureContentScript(tabId);
+                    } else {
+                        try {
+                            const origin = new URL(freshDom.domState.url).origin;
+                            log('INFO', `Navigating to ${origin}/cart`);
+                            await chrome.tabs.update(tabId, { url: `${origin}/cart` });
+                            await waitForTabLoad(tabId, 30000);
+                            await ensureContentScript(tabId);
+                        } catch (e) { log('WARN', 'Cart navigation fallback failed:', e.message); }
+                    }
+                }
+            } else {
+                await waitForTabLoad(tabId, 15000);
+                await new Promise(r => setTimeout(r, 2000));
+            }
         } else if (cmd.action === 'type') {
             log('INFO', `⌨️  Typing ${cmd.valuePlaceholder ? cmd.valuePlaceholder : '...'} into ${cmd.selector}`);
             const result = await executeActionOnTab(tabId, cmd);
@@ -544,60 +1116,56 @@ async function runAgentSequence(task) {
             await new Promise(r => setTimeout(r, 3000));
             await ensureContentScript(tabId);
         } else if (cmd.action === 'wait') {
-            log('INFO', `⏳ Waiting ${cmd.ms || 2000}ms`);
-            await new Promise(r => setTimeout(r, cmd.ms || 2000));
+            log('INFO', `⏳ Waiting ${cmd.ms || cmd.value || 2000}ms`);
+            await executeActionOnTab(tabId, cmd);
+        } else if (cmd.action === 'scroll') {
+            const dir = cmd.direction || 'down';
+            const amt = cmd.amount || 'viewport';
+            log('INFO', `📜 Scrolling ${dir} (${amt}px)`);
+            const result = await executeActionOnTab(tabId, cmd);
+            log('INFO', `   Scroll result: ${result?.status} — scrollY=${result?.scrollY ?? '?'}`);
+            if (isCartPrepPhase(domState.pageContext)) consecutiveScrolls++;
         } else {
             log('WARN', `Unknown action: ${cmd.action}`);
         }
     }
 
     if (!isComplete && task.type === 'verify') {
-        log('WARN', `Verification did not complete. Marking as invalid.`);
-        await reportResultToBackend(task.id, 'invalid', 'Verification timed out or could not complete.');
+        // Don't mark as invalid if paused or cancelled — we'll resume later
+        if (agentRunState === 'paused') {
+            log('INFO', '⏸ Verification not complete but agent is paused. Skipping invalid mark.');
+        } else if (agentRunState === 'idle' || task.status === 'cancelled') {
+            log('INFO', '⏹ Task was cancelled. Skipping invalid mark.');
+        } else {
+            log('WARN', `Verification did not complete. Marking as invalid.`);
+            await reportResultToBackend(task.id, 'invalid', 'Verification timed out or could not complete.');
+        }
     } else if (isComplete && task.type === 'auth') {
         log('INFO', `Auth completed. Saving map to DB for ${task.domain}`);
+        await saveAutomationMap(task, actionHistory, 'login');
         try {
-            const stepsToSave = actionHistory.map((h, i) => ({
-                step: i+1,
-                action: h.action,
-                selector: ['navigate'].includes(h.action) ? null : h.selector,
-                url: h.action === 'navigate' ? h.selector : h.url,
-                value: h.valuePlaceholder || null
-            })).filter(h => h.action !== 'evaluate'); 
-
-            await fetch(`${BACKEND_URL}/agent/automation-map`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Extension-Key': EXTENSION_API_KEY
-                },
-                body: JSON.stringify({ domain: task.domain, flowType: 'login', steps: stepsToSave })
-            });
-
+            if (disabledAutosyncDomains && disabledAutosyncDomains[task.domain]) {
+                delete disabledAutosyncDomains[task.domain];
+                chrome.storage.local.set({ disabledAutosyncDomains });
+                log('INFO', `Autosync re-enabled for domain "${task.domain}" due to successful auth flow.`);
+            }
             captureAndSyncCookies(task.domain, task.brand);
-        } catch(e) {}
+        } catch (e) {}
+    } else if (verificationSucceeded && task.type === 'verify') {
+        log('INFO', `Verify completed. Saving map to DB for ${task.domain}`);
+        await saveAutomationMap(task, actionHistory, 'verify');
     }
 
-    if (windowInfo?.id) {
-        try { await chrome.windows.remove(windowInfo.id); } catch(e) {}
-    }
-    log('INFO', `🔍 ${task.type.toUpperCase()} task finished for ${task.code}`);
+    return { verificationSucceeded };
 }
 
 function buildPrompt(task, dom, history, warn) {
     const histLines = history.map(h => `- Step ${h.step}: ${h.action} on ${h.selector}`).join('\n');
-    
-    let objectiveStr = `You are an AI browser agent verifying coupon "${task.code}" for ${task.brand}.
-${task.description ? `COUPON TERMS & CONDITIONS: "${task.description}"` : ''}
+    const terms = task.termsSummary || { minOrderValue: 0, applicableCategories: [], excludedProducts: [] };
+    const ctx = dom.pageContext || {};
+    const termsLine = `min order ${terms.minOrderValue || 'none'}, categories [${(terms.applicableCategories || []).join(', ') || 'any'}], exclusions [${(terms.excludedProducts || []).join(', ') || 'none'}]`;
 
-DECIDE:
-1. SMART MATCH: Before applying the coupon, inspect any cart items, product categories, or order details visible on the current page. Match them against the COUPON TERMS & CONDITIONS above.
-   - If the cart contents or spend amounts violate the coupon terms (e.g. coupon is only for shoes, but cart has electronics; or coupon has a $50 minimum but cart total is $30), immediately evaluate the coupon as "invalid" with reason "Coupon terms/exclusions do not match cart items".
-2. Click/Type/Navigate to reach the coupon entry step.
-3. If you see the coupon result (savings or error), use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."}.
-4. IMPORTANT: If you cannot find a promo code/coupon field on this site after searching, evaluate as "invalid" with reason "Could not find coupon entry field".
-5. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below. These are unique IDs prefixed with "[data-dl-id=...]".
-6. APPLY BUTTON: If multiple "Apply" buttons exist, always select the one that is physically closest to the input field where you typed the coupon code.`;
+    let objectiveStr;
 
     if (task.type === 'auth') {
         objectiveStr = `You are an AI browser agent tasked with logging into the website for ${task.brand}.
@@ -608,10 +1176,67 @@ DECIDE:
 3. Check for OTP requirements. If OTP is requested by the site, use {"action":"request_otp","message":"Enter the OTP sent to email/phone"}.
 4. If you have successfully logged in (dashboard visible, logout button visible, or "My Account"), use {"action":"evaluate","status":"valid","reason":"Logged in successfully"}.
 5. SELECTORS: Use the EXACT "selector" string from the Actionable Elements list below (e.g. "[data-dl-id='...']").`;
+    } else if (isCartPrepPhase(ctx)) {
+        objectiveStr = `You are an AI browser agent preparing a cart to verify coupon "${task.code}" for ${task.brand}.
+
+PHASE: CART_PREPARATION (required before coupon can be applied)
+Coupon: "${task.code}" | T&C: ${termsLine}
+${task.description ? `Full description: "${task.description}"` : ''}
+
+Page context: phase=${ctx.phase}, product links=${ctx.productLinkCount || 0}
+You are NOT on a cart/checkout page with a coupon field. Coupon inputs do NOT exist here yet.
+
+REQUIRED STEPS (follow in order):
+${ctx.phase === 'cart' ? '1. PROCEED TO CHECKOUT: Click checkout button (intent=checkout) or navigate to /checkout — coupon field is likely there.' : `1. CLICK A PRODUCT: Choose a product link (intent=product, href contains /products/) that best matches T&C categories and min order value. Elements are sorted by relevanceScore — prefer higher scores and inViewport=true.
+2. ON PRODUCT PAGE: Click "Add to cart" / "Add to bag" (intent=addToCart).
+3. OPEN CART: Click cart icon or link (intent=cart) or navigate to /cart.
+4. CHECKOUT: If coupon field only appears at checkout, click checkout (intent=checkout).`}
+
+RULES:
+- Do NOT scroll more than once. Prefer clicking visible product links over scrolling.
+- Do NOT look for coupon input yet — it does not exist on this page.
+- Do NOT evaluate as invalid yet — you must reach cart/checkout first.
+- Use EXACT "selector" from Actionable Elements below.`;
+    } else {
+        objectiveStr = `You are an AI browser agent verifying coupon "${task.code}" for ${task.brand}.
+PHASE: COUPON_APPLICATION
+Coupon: "${task.code}" | T&C: ${termsLine}
+Page context: phase=${ctx.phase || 'unknown'}, hasCouponInput=${ctx.hasCouponInput || false}
+
+CRITICAL RULE — EXACT CODE ONLY:
+You MUST verify EXACTLY this coupon code: "${task.code}"
+You MUST type "${task.code}" into a text input field yourself. NEVER click "Apply" on a pre-existing/pre-shown coupon — those are DIFFERENT coupons, not yours to verify.
+
+STEPS (follow in order):
+1. OPEN COUPON SECTION FIRST: Scan for "View all coupons", "Apply coupon", "Have a coupon?", "Got a discount code?", "Enter promo code" — click to reveal input if hidden.
+2. REMOVE PRE-APPLIED COUPONS: If another coupon is applied, click "Remove" first.
+3. FIND COUPON INPUT: Look for text input (intent=coupon) where you can TYPE "${task.code}". If no input after step 1, evaluate as "invalid" with reason "Could not find coupon entry field".
+4. TYPE THE CODE: Type "${task.code}" into the coupon input.
+5. VERIFY BEFORE APPLY: Confirm Apply button applies "${task.code}", not a different pre-listed coupon.
+6. APPLY: Click Apply/Submit nearest to the input where you typed "${task.code}".
+7. EVALUATE: Use {"action":"evaluate","status":"valid"|"invalid"|"expired","reason":"..."} with the site's actual response. If the text mentions both invalid and expired, prioritize 'expired'.
+
+SELECTORS: Use EXACT "selector" from Actionable Elements (intent=coupon for inputs).`;
     }
+
+    const scrollInfo = dom.scrollPosition
+        ? `Scroll: ${dom.scrollPosition.top}px / ${dom.scrollPosition.height}px${dom.scrollPosition.atBottom ? ' (AT BOTTOM)' : ''}`
+        : 'Scroll: unknown';
+
+    const footerRules = task.type === 'auth'
+        ? `- For "wait": only use when waiting for page load (value in seconds).`
+        : isCartPrepPhase(ctx)
+            ? `- Prefer {"action":"click"} on intent=product, addToCart, cart, or checkout elements.
+- Scroll at most once if no product links are visible: {"action":"scroll","direction":"down"}
+- Do NOT use scroll on cart/checkout pages.`
+            : `- Prefer elements with intent=coupon for typing. Use intent tags from Actionable Elements.
+- CRITICAL: If the HISTORY shows you have already typed "${task.code}" and clicked Apply, you MUST output an "evaluate" action. DO NOT type or click again! Use "Detected Status Messages" to determine "valid" or "invalid".
+- Do NOT scroll to find coupon fields — they should be visible on cart/checkout.
+- For "wait": only use when waiting for page load (value in seconds).`;
 
     return `${objectiveStr}
 URL: ${dom.url}
+${scrollInfo}
 HISTORY:
 ${histLines || 'None'}
 ${warn ? `\nSTUCK WARNING: ${warn}\n` : ''}
@@ -619,10 +1244,11 @@ ${warn ? `\nSTUCK WARNING: ${warn}\n` : ''}
 Detected Status Messages (Success/Error signals):
 ${dom.statusMessages && dom.statusMessages.length > 0 ? dom.statusMessages.map(m => `- ${m}`).join('\n') : 'No recent status messages detected.'}
 
-Actionable Elements (showing top 100 of ${dom.actionableElements.length}):
-${JSON.stringify(dom.actionableElements.slice(0, 100), null, 2)}
+Actionable Elements (prioritized, top ${dom.actionableElements.length}${dom.totalElements ? ` of ${dom.totalElements}` : ''}):
+${JSON.stringify(dom.actionableElements, null, 2)}
 
-Respond only with raw JSON: {"action":"click"|"type"|"evaluate"|"wait"|"navigate"|"request_otp","selector":"...","value":"...","status":"...","reason":"..."}`;
+Respond only with raw JSON: {"action":"click"|"type"|"evaluate"|"wait"|"navigate"|"request_otp"|"scroll","selector":"...","value":"...","status":"...","reason":"...","direction":"down"|"up","amount":800}
+${footerRules}`;
 }
 
 function waitForTabLoad(tabId, timeoutMs = 30000) {
@@ -678,8 +1304,14 @@ async function ensureContentScript(tabId) {
 
 function safeSendMessage(tabId, message) {
     return new Promise((resolve) => {
+        let timeoutId;
         try {
+            timeoutId = setTimeout(() => {
+                resolve({ status: 'error', message: 'Message timed out after 30 seconds' });
+            }, 30000);
+
             chrome.tabs.sendMessage(tabId, message, (response) => {
+                clearTimeout(timeoutId);
                 if (chrome.runtime.lastError) {
                     resolve({ status: 'error', message: chrome.runtime.lastError.message });
                 } else {
@@ -687,6 +1319,7 @@ function safeSendMessage(tabId, message) {
                 }
             });
         } catch (err) {
+            if (timeoutId) clearTimeout(timeoutId);
             resolve({ status: 'error', message: err.message });
         }
     });
@@ -703,62 +1336,97 @@ function parseGeminiJSON(text) {
     return JSON.parse(t.substring(start, end + 1));
 }
 
-async function callGemini(prompt) {
+async function callGemini(prompt, taskId) {
     log('INFO', `Prompt size: ~${Math.round(prompt.length / 1000)}KB`);
 
-    for (let i = 0; i < GEMINI_API_KEYS.length; i++) {
-        const idx = (geminiKeyIndex + i) % GEMINI_API_KEYS.length;
+    const modelsToTry = [MODEL_NAME, FALLBACK_MODEL_NAME].filter(Boolean);
+    const totalKeys = GEMINI_API_KEYS.length;
+
+    for (let i = 0; i < totalKeys; i++) {
+        // Check pause/cancel state before each attempt
+        if (agentRunState === 'paused' || agentRunState === 'idle' || (taskId && currentTasks.find(t => t.id === taskId)?.status === 'cancelled')) {
+            log('WARN', 'Agent paused or cancelled during Gemini key loop. Aborting.');
+            return null;
+        }
+
+        const idx = (geminiKeyIndex + i) % totalKeys;
         const maskedKey = GEMINI_API_KEYS[idx].substring(0, 10) + '...';
 
-        try {
-            log('INFO', `Trying key #${idx + 1}/${GEMINI_API_KEYS.length} (${maskedKey})`);
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEYS[idx]}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.1 }
-                })
-            });
+        for (const model of modelsToTry) {
+            log('INFO', `Trying key #${idx + 1}/${totalKeys} (${maskedKey}) with model ${model}`);
+            
+            let timeoutId;
+            try {
+                const controller = new AbortController();
+                timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-            if (res.status === 429) {
-                log('WARN', `Key #${idx + 1} rate-limited (429). Trying next...`);
-                continue;
+                if (taskId) {
+                    const oldCtrl = activeGeminiControllers.get(taskId);
+                    if (oldCtrl) { try { oldCtrl.abort(); } catch(e) {} }
+                    activeGeminiControllers.set(taskId, controller);
+                }
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEYS[idx]}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.1 }
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                if (taskId) activeGeminiControllers.delete(taskId);
+
+                if (res.status === 429) {
+                    await res.text().catch(() => '');
+                    log('WARN', `Key #${idx + 1} (${model}) rate-limited (429). Skipping.`);
+                    break; // Skip this key entirely, move to next key
+                }
+                if (res.status === 403) {
+                    await res.text().catch(() => '');
+                    log('WARN', `Key #${idx + 1} (${model}) forbidden (403). Skipping.`);
+                    break;
+                }
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    log('ERROR', `Key #${idx + 1} (${model}) HTTP ${res.status}: ${errText.substring(0, 300)}`);
+                    break;
+                }
+
+                const data = await res.json();
+
+                if (!data.candidates || data.candidates.length === 0) {
+                    log('WARN', `Key #${idx + 1} (${model}): No candidates returned. Possible safety block.`, JSON.stringify(data).substring(0, 300));
+                    break;
+                }
+
+                const textResponse = data.candidates[0]?.content?.parts?.[0]?.text;
+                if (!textResponse) {
+                    log('WARN', `Key #${idx + 1} (${model}): Empty text in candidate.`, JSON.stringify(data.candidates[0]).substring(0, 300));
+                    break;
+                }
+
+                geminiKeyIndex = (idx + 1) % totalKeys; // Start from next key on success
+                log('INFO', `Gemini response using ${model} (${textResponse.length} chars): ${textResponse.substring(0, 100)}...`);
+                return textResponse;
+
+            } catch (err) {
+                if (timeoutId) clearTimeout(timeoutId);
+                if (taskId) activeGeminiControllers.delete(taskId);
+                const isAbort = err.name === 'AbortError';
+                log('ERROR', `Key #${idx + 1} (${model}) network/parse error: ${isAbort ? 'Request aborted (timeout or user paused/stopped)' : err.message}`);
+                if (isAbort && (agentRunState === 'paused' || agentRunState === 'idle')) {
+                    return null;
+                }
+                break; // Network error on this key, move to next
             }
-            if (res.status === 403) {
-                log('WARN', `Key #${idx + 1} forbidden (403). Trying next...`);
-                continue;
-            }
-            if (!res.ok) {
-                const errText = await res.text().catch(() => '');
-                log('ERROR', `Key #${idx + 1} HTTP ${res.status}: ${errText.substring(0, 300)}`);
-                continue;
-            }
-
-            const data = await res.json();
-
-            if (!data.candidates || data.candidates.length === 0) {
-                log('WARN', `Key #${idx + 1}: No candidates returned. Possible safety block.`, JSON.stringify(data).substring(0, 300));
-                continue;
-            }
-
-            const textResponse = data.candidates[0]?.content?.parts?.[0]?.text;
-            if (!textResponse) {
-                log('WARN', `Key #${idx + 1}: Empty text in candidate.`, JSON.stringify(data.candidates[0]).substring(0, 300));
-                continue;
-            }
-
-            geminiKeyIndex = idx;
-            log('INFO', `Gemini response (${textResponse.length} chars): ${textResponse.substring(0, 100)}...`);
-            return textResponse;
-
-        } catch (err) {
-            log('ERROR', `Key #${idx + 1} network/parse error: ${err.message}`);
-            continue;
         }
     }
 
-    log('ERROR', `All ${GEMINI_API_KEYS.length} Gemini keys failed. Cannot proceed.`);
+    geminiKeyIndex = (geminiKeyIndex + totalKeys) % totalKeys;
+    log('WARN', `All ${totalKeys} Gemini keys failed. Rotating for next attempt.`);
     return null;
 }
 
@@ -814,5 +1482,222 @@ async function captureAndSyncCookies(rawDomain, merchantName) {
     } catch (e) {
         log('ERROR', `captureAndSyncCookies error for ${domain}:`, e);
         return { status: 'error', message: e.message };
+    }
+}
+
+function detectCouponSuccess(domState, code) {
+    if (!domState) return false;
+    const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const codeRegex = new RegExp('\\b' + escapedCode + '\\b', 'i');
+    
+    // Check status messages
+    if (domState.statusMessages) {
+        const hasCodeInMessages = domState.statusMessages.some(msg => codeRegex.test(msg));
+        if (hasCodeInMessages) {
+            const successKeywords = ['applied', 'savings', 'saved', 'discount', 'remove', 'success', 'off', 'active'];
+            const hasSuccess = domState.statusMessages.some(msg => {
+                const lower = msg.toLowerCase();
+                return successKeywords.some(kw => lower.includes(kw));
+            });
+            if (hasSuccess) return true;
+        }
+    }
+    
+    // Check actionable elements (e.g. a "Remove" button next to or containing the coupon code)
+    if (domState.actionableElements) {
+        const hasRemoveAction = domState.actionableElements.some(el => {
+            const txt = el.text || '';
+            const lower = txt.toLowerCase();
+            return codeRegex.test(txt) && (lower.includes('remove') || lower.includes('cancel') || lower.includes('delete') || lower.includes('applied'));
+        });
+        if (hasRemoveAction) return true;
+    }
+    
+    return false;
+}
+
+async function clearBrowserCookies(rawDomain) {
+    let domain = rawDomain.trim();
+    try {
+        if (domain.includes('://')) domain = new URL(domain).hostname;
+    } catch(e) {}
+    domain = domain.replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
+
+    log('INFO', `Clearing browser cookies for domain: "${domain}"`);
+    try {
+        const cookies = await chrome.cookies.getAll({ domain });
+        for (const cookie of cookies) {
+            const protocol = cookie.secure ? "https" : "http";
+            const url = `${protocol}://${cookie.domain.replace(/^\./, '')}${cookie.path}`;
+            await chrome.cookies.remove({ url, name: cookie.name });
+        }
+        log('INFO', `Cleared ${cookies.length} browser cookies for ${domain}`);
+    } catch (e) {
+        log('ERROR', `clearBrowserCookies error for ${domain}:`, e);
+    }
+}
+
+// ─── Deep Research Mode ──────────────────────────────────────
+// Sends batches of unverified coupons to Gemini for web-research-based verification.
+// Gemini researches each code online (Google dorking) and returns verified/expired status.
+
+const DEEP_RESEARCH_BATCH_SIZE = 100;
+const DEEP_RESEARCH_PROMPT = `You are a deep-research AI agent. You are given a list of coupon codes for specific brands.
+Your task: For each coupon code, determine whether it is LIKELY WORKING ("verified") or LIKELY EXPIRED/INVALID ("expired").
+
+RESEARCH METHOD:
+- Use your knowledge about these brands and coupon codes.
+- Think about whether these coupon codes appear in recent (2025-2026) coupon/deal websites, blogs, forums.
+- Common patterns: generic-word codes like "VALUE", "BOSS", "LOVE" are often always-active sitewide coupons.
+- Branded/seasonal codes like "SUMFASH75", "WINTER" may be campaign-specific and could be expired.
+- Bank-specific codes (HDFC, SBI, ICICI, etc.) are usually longer-running bank offers.
+- Codes with dates/numbers that look campaign-specific (e.g., "AFF130625") are likely expired.
+- "NEW20", "SAVE10", "FLAT50" style codes are usually evergreen.
+
+OUTPUT: Return ONLY a valid JSON object with this exact structure:
+{
+  "results": [
+    { "code": "COUPON_CODE", "brand": "brand_name", "status": "verified", "confidence": 85, "reason": "brief reason" },
+    { "code": "COUPON_CODE", "brand": "brand_name", "status": "expired", "confidence": 90, "reason": "brief reason" }
+  ]
+}
+
+Status must be exactly "verified" or "expired". Confidence is 0-100.
+Respond with ONLY the JSON. No markdown, no explanation, no code blocks.`;
+
+async function deepResearchCoupons() {
+    log('INFO', '[DeepResearch] Starting deep research on unverified coupons...');
+
+    // Update state
+    const state = { status: 'fetching', batch: 0, totalBatches: 0, processed: 0, total: 0, results: [] };
+    await chrome.storage.local.set({ deepResearchState: state });
+
+    try {
+        // 1. Fetch all unverified coupons from backend
+        const headers = { 'X-Extension-Key': EXTENSION_API_KEY };
+        const params = new URLSearchParams({ isVerified: 'false', limit: '10000' });
+        const res = await fetch(`${BACKEND_URL}/coupons?${params}`, { headers });
+
+        if (!res.ok) {
+            throw new Error(`Backend fetch failed: ${res.status}`);
+        }
+
+        const data = await res.json();
+        const coupons = (data.data?.items || data.data || []).filter(c => c.code);
+        log('INFO', `[DeepResearch] Fetched ${coupons.length} unverified coupons with codes`);
+
+        if (coupons.length === 0) {
+            state.status = 'done';
+            state.message = 'No unverified coupons found.';
+            await chrome.storage.local.set({ deepResearchState: state });
+            return;
+        }
+
+        // 2. Batch them
+        const batches = [];
+        for (let i = 0; i < coupons.length; i += DEEP_RESEARCH_BATCH_SIZE) {
+            batches.push(coupons.slice(i, i + DEEP_RESEARCH_BATCH_SIZE));
+        }
+
+        state.status = 'researching';
+        state.total = coupons.length;
+        state.totalBatches = batches.length;
+        await chrome.storage.local.set({ deepResearchState: state });
+
+        const allResults = [];
+
+        for (let b = 0; b < batches.length; b++) {
+            const batch = batches[b];
+            state.batch = b + 1;
+            await chrome.storage.local.set({ deepResearchState: state });
+
+            log('INFO', `[DeepResearch] Processing batch ${b + 1}/${batches.length} (${batch.length} coupons)`);
+
+            // Build coupon list for prompt
+            const couponList = batch.map(c =>
+                `Brand: ${c.brandName} | Code: ${c.code} | Description: ${(c.description || '').substring(0, 150)}`
+            ).join('\n');
+
+            const prompt = `${DEEP_RESEARCH_PROMPT}\n\nCOUPONS TO RESEARCH:\n${couponList}`;
+
+            // Try Gemini with key rotation
+            let aiResponse = null;
+            for (let attempts = 0; attempts < 3 && !aiResponse; attempts++) {
+                aiResponse = await callGemini(prompt, null);
+                if (!aiResponse && attempts < 2) {
+                    log('WARN', `[DeepResearch] Gemini attempt ${attempts + 1} failed, retrying...`);
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
+
+            if (!aiResponse) {
+                log('ERROR', `[DeepResearch] Batch ${b + 1}: Gemini failed after 3 attempts. Skipping.`);
+                continue;
+            }
+
+            // Parse response
+            try {
+                const json = parseGeminiJSON(aiResponse);
+                if (json.results && Array.isArray(json.results)) {
+                    allResults.push(...json.results);
+                    state.processed += batch.length;
+                    state.results = allResults;
+                    log('INFO', `[DeepResearch] Batch ${b + 1}: Got ${json.results.length} results`);
+                } else {
+                    log('WARN', `[DeepResearch] Batch ${b + 1}: Unexpected response format:`, aiResponse.substring(0, 200));
+                }
+            } catch (e) {
+                log('ERROR', `[DeepResearch] Batch ${b + 1}: Failed to parse response: ${e.message}`);
+            }
+
+            await chrome.storage.local.set({ deepResearchState: state });
+
+            // Brief pause between batches to avoid rate limits
+            if (b < batches.length - 1) {
+                await new Promise(r => setTimeout(r, 3000));
+            }
+        }
+
+        // 3. Send results to backend
+        state.status = 'saving';
+        await chrome.storage.local.set({ deepResearchState: state });
+
+        if (allResults.length > 0) {
+            log('INFO', `[DeepResearch] Sending ${allResults.length} results to backend...`);
+            try {
+                const saveRes = await fetch(`${BACKEND_URL}/coupons/deep-research-batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Extension-Key': EXTENSION_API_KEY
+                    },
+                    body: JSON.stringify({ results: allResults })
+                });
+
+                if (saveRes.ok) {
+                    const savedData = await saveRes.json();
+                    log('INFO', `[DeepResearch] Backend saved: ${JSON.stringify(savedData.summary || savedData)}`);
+                    state.message = `Done! Verified: ${savedData.summary?.verified || 0}, Expired: ${savedData.summary?.expired || 0}`;
+                } else {
+                    log('ERROR', `[DeepResearch] Backend save failed: ${saveRes.status}`);
+                    state.message = 'Research done but backend save failed. Check logs.';
+                }
+            } catch (e) {
+                log('ERROR', `[DeepResearch] Backend save error: ${e.message}`);
+                state.message = 'Research done but backend save failed.';
+            }
+        } else {
+            state.message = 'No results to save.';
+        }
+
+        state.status = 'done';
+        await chrome.storage.local.set({ deepResearchState: state });
+        log('INFO', `[DeepResearch] Complete. ${allResults.length} total results.`);
+
+    } catch (err) {
+        log('ERROR', `[DeepResearch] Fatal error: ${err.message}`);
+        await chrome.storage.local.set({
+            deepResearchState: { status: 'error', message: err.message }
+        });
     }
 }

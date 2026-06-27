@@ -2,6 +2,8 @@ import cron from 'node-cron';
 import PartnerMerchant from '../models/partnerMerchant.model.js';
 import Merchant from '../models/merchant.model.js';
 import VerificationJob from '../models/verificationJob.model.js';
+import Coupon from '../models/coupon.model.js';
+import CouponVerification from '../models/couponVerification.model.js';
 import browserService, { BrowserService } from './browser.service.js';
 import couponVerificationService from './couponVerification.service.js';
 import proxyManager from './proxyManager.service.js';
@@ -72,8 +74,41 @@ class VerificationSchedulerService {
         this._computeHealthScores();
       });
       console.log('📊 Health Score scheduler initialized: runs every 12 hours (offset +30min).');
+
+      // ─── Reset verified coupons every 12 hours (00:00 and 12:00) ──
+      cron.schedule('0 0,12 * * *', () => {
+        this.resetVerifiedCoupons();
+      });
+      console.log('🔄 Verified coupons reset scheduler initialized: runs every 12 hours.');
+
+      // Check if we missed a verification cycle while the server was down
+      this._checkMissedVerification();
     } else {
       console.log('ℹ️ Automatic cron verification scheduler is disabled. Only manual runs allowed (via Dashboard).');
+    }
+  }
+
+  async _checkMissedVerification() {
+    try {
+      const lastJob = await VerificationJob.findOne({ status: 'completed' }).sort({ cycleStartTime: -1 });
+      if (!lastJob) {
+        console.log('No completed verification job history yet. Skipping startup catch-up.');
+        return;
+      }
+
+      const now = Date.now();
+      const twelveHoursMs = 12 * 60 * 60 * 1000;
+
+      if (now - lastJob.cycleStartTime.getTime() >= twelveHoursMs) {
+        console.log('🔄 Missed or outdated Verification cycle detected. Triggering immediate cycle...');
+        // First reset coupons just like the scheduled job does
+        await this.resetVerifiedCoupons();
+        this.startGlobalVerificationCycle('startup').catch(err => console.error('Immediate verification failed:', err));
+      } else {
+        console.log('✅ Verification cycle is up to date.');
+      }
+    } catch (err) {
+      console.error('⚠️ Failed to check missed Verification cycle:', err);
     }
   }
 
@@ -88,6 +123,9 @@ class VerificationSchedulerService {
   async _runMinuteTick() {
     if (this._minuteTickRunning) {
       return; // Previous tick still in progress
+    }
+    if (this._starting) {
+      return;
     }
     // Prevent collision: do not run minute ticks if 12h cycle or manual job is running
     if (this.currentJob && this.currentJob.status === 'running') {
@@ -249,6 +287,13 @@ class VerificationSchedulerService {
 
       io.emit('verification:job_completed', { jobId: job._id });
       console.log(`✅ Global verification cycle completed. Job ID: ${job._id}`);
+
+      // Delete invalid coupons
+      try {
+        await this._deleteInvalidCoupons();
+      } catch (delErr) {
+        console.error('⚠️ Post-cycle invalid coupon deletion failed:', delErr.message);
+      }
 
       // Compute health scores after cycle completes
       try {
@@ -455,6 +500,13 @@ class VerificationSchedulerService {
       await job.save();
       io.emit('verification:job_completed', { jobId: job._id, manual: true });
       console.log(`✅ Manual verification cycle completed. Job ID: ${job._id}`);
+
+      // Delete invalid coupons
+      try {
+        await this._deleteInvalidCoupons();
+      } catch (delErr) {
+        console.error('⚠️ Post-manual-cycle invalid coupon deletion failed:', delErr.message);
+      }
     })();
 
     return job;
@@ -498,6 +550,56 @@ class VerificationSchedulerService {
       return healthData;
     } catch (err) {
       console.error('🔥 Health score computation failed:', err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Delete all coupons marked as isInValid: true
+   * Called after a verification cycle completes.
+   */
+  async _deleteInvalidCoupons() {
+    try {
+      console.log('🗑️ Deleting all invalid coupons (isInValid: true)...');
+      const result = await Coupon.deleteMany({ isInValid: true });
+      console.log(`🗑️ Invalid coupons deleted: ${result.deletedCount}`);
+      return result;
+    } catch (err) {
+      console.error('🔥 Failed to delete invalid coupons:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Reset all verified coupons to false and clear their verification records.
+   * Called by 12h cron twice daily.
+   */
+  async resetVerifiedCoupons() {
+    try {
+      console.log('🔄 Resetting all verified coupons to unverified (isVerified: false)...');
+      
+      const manualMerchants = await Merchant.find({ manualVerificationNeeded: true }).lean();
+      const manualMerchantNames = manualMerchants.map(m => m.merchantName).filter(Boolean);
+      const manualMerchantIds = manualMerchants.map(m => m._id.toString());
+
+      const result = await Coupon.updateMany(
+        { 
+          isVerified: true,
+          brandName: { $nin: manualMerchantNames }
+        },
+        { $set: { isVerified: false, verifiedAt: null, verifiedOn: null } }
+      );
+      
+      await CouponVerification.updateMany(
+        {
+          merchantId: { $nin: manualMerchantIds }
+        },
+        { $set: { status: 'pending', attemptCount: 0, result: null } }
+      );
+      console.log(`🔄 Reset completed. Coupons updated: ${result.modifiedCount}`);
+      return result;
+    } catch (err) {
+      console.error('🔥 Failed to reset verified coupons:', err);
       return null;
     }
   }

@@ -91,8 +91,11 @@ fun CategoriesScreen(
                 .background(Color.White)
         ) {
 
-            // ── Filter bar — only show in exclusive mode ──────────────────────
-            if (uiState.isExclusiveMode) {
+            // ── Filter bar — show in both Coupons and Offers mode ─────────────
+            val isPartnerMode = uiState.isExclusiveMode ||
+                    uiState.rawCoupons.isNotEmpty() ||
+                    uiState.isLoadingRawCoupons
+            if (isPartnerMode) {
                 Spacer(modifier = Modifier.height(12.dp))
                 CouponsFilterSection(
                     onSortClick = { showSortDialog = true },
@@ -106,12 +109,14 @@ fun CategoriesScreen(
             Box(modifier = Modifier.fillMaxSize()) {
 
                 when {
-                    // ── Exclusive mode ────────────────────────────────────────
+                // ── Exclusive mode (toggle ON → Coupons) ──────────────────
                     uiState.isExclusiveMode -> {
                         ExclusiveCouponsList(
                             coupons = uiState.rawCoupons,
                             isLoading = uiState.isLoadingRawCoupons,
                             errorMessage = uiState.errorMessage,
+                            emptyLabel = if (currentFilters.isNewUser) "No new user coupons in this category" else "No exclusive coupons found",
+                            emptySubtitle = if (currentFilters.isNewUser) "There are no new user coupons here. Try turning off the New User filter to see all coupons." else null,
                             currentPage = uiState.rawCouponsPage,
                             totalPages = uiState.rawCouponsPages,
                             savedCouponIds = uiState.savedCouponIds,
@@ -122,7 +127,6 @@ fun CategoriesScreen(
                                 viewModel.redeemRawCoupon(coupon.id, onSuccess, onError)
                             },
                             onDetailsClick = { coupon ->
-                                // Encode coupon as JSON and navigate to details page
                                 val couponJson = viewModel.moshi
                                     .adapter(PartnerCoupon::class.java)
                                     .toJson(coupon)
@@ -136,14 +140,15 @@ fun CategoriesScreen(
                                 )
                             },
                             onDiscoverClick = { coupon ->
-                                coupon.couponCode?.let { code ->
-                                    if (code.isNotEmpty()) {
-                                        clipboardManager.setText(AnnotatedString(code))
+                                val isOffer = coupon.couponCode.isNullOrEmpty()
+                                if (!isOffer) {
+                                    coupon.couponCode?.let { code ->
+                                        if (code.isNotEmpty()) {
+                                            clipboardManager.setText(AnnotatedString(code))
+                                        }
                                     }
+                                    viewModel.trackPartnerDiscover(coupon.id)
                                 }
-                                // Track the discover action for trend/health scoring
-                                viewModel.trackPartnerDiscover(coupon.id)
-
                                 val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
                                 if (url != null) {
                                     try {
@@ -161,6 +166,57 @@ fun CategoriesScreen(
                                     }
                                 } else {
                                     Log.w("CategoriesScreen", "No link for partner coupon ${coupon.id}")
+                                }
+                            }
+                        )
+                    }
+
+                    // ── Offer mode (toggle OFF → Offers) ──────────────────────
+                    !uiState.isExclusiveMode && (uiState.isLoadingRawCoupons || uiState.rawCoupons.isNotEmpty() || uiState.errorMessage != null) -> {
+                        ExclusiveCouponsList(
+                            coupons = uiState.rawCoupons,
+                            isLoading = uiState.isLoadingRawCoupons,
+                            errorMessage = uiState.errorMessage,
+                            emptyLabel = if (currentFilters.isNewUser) "No new user offers in this category" else "No offers found",
+                            emptySubtitle = if (currentFilters.isNewUser) "There are no new user offers here. Try turning off the New User filter to see all offers." else null,
+                            currentPage = uiState.rawCouponsPage,
+                            totalPages = uiState.rawCouponsPages,
+                            savedCouponIds = uiState.savedCouponIds,
+                            onLoadMore = { viewModel.loadNextRawPage() },
+                            onSave = { coupon -> viewModel.saveRawCoupon(coupon) },
+                            onRemoveSave = { couponId -> viewModel.removeSavedCoupon(couponId) },
+                            onRedeem = { coupon, onSuccess, onError ->
+                                viewModel.redeemRawCoupon(coupon.id, onSuccess, onError)
+                            },
+                            onDetailsClick = { coupon ->
+                                val couponJson = viewModel.moshi
+                                    .adapter(PartnerCoupon::class.java)
+                                    .toJson(coupon)
+                                navController.navigate(
+                                    Route.CouponDetails.createRoute(
+                                        couponId = coupon.id,
+                                        isPrivate = false,
+                                        couponCode = coupon.couponCode ?: "",
+                                        couponData = Uri.encode(couponJson)
+                                    )
+                                )
+                            },
+                            onDiscoverClick = { coupon ->
+                                val url = coupon.couponLink?.trim()?.takeIf { it.isNotEmpty() }
+                                if (url != null) {
+                                    try {
+                                        val uri = Uri.parse(
+                                            if (url.startsWith("http://") || url.startsWith("https://"))
+                                                url else "https://$url"
+                                        )
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, uri).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.e("CategoriesScreen", "Could not open url: ${e.message}", e)
+                                    }
                                 }
                             }
                         )
@@ -296,6 +352,7 @@ fun CategoriesScreen(
             FiltersBottomSheet(
                 currentFilters = currentFilters,
                 syncedBrands = emptyList(),
+                showPriceAndDiscountType = false,
                 onDismiss = { showFiltersDialog = false },
                 onApplyFilters = { viewModel.onFiltersChanged(it) }
             )
@@ -318,6 +375,8 @@ private fun ExclusiveCouponsList(
     coupons: List<PartnerCoupon>,
     isLoading: Boolean,
     errorMessage: String?,
+    emptyLabel: String = "No coupons found",
+    emptySubtitle: String? = null,
     currentPage: Int,
     totalPages: Int,
     savedCouponIds: Set<String>,
@@ -345,14 +404,14 @@ private fun ExclusiveCouponsList(
                     Text("🎟️", fontSize = 48.sp)
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = "No exclusive coupons found",
+                        text = emptyLabel,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp,
                         color = Color.Black
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = errorMessage ?: "Try adjusting your filters or check back later.",
+                        text = emptySubtitle ?: (errorMessage ?: "Try adjusting your filters or check back later."),
                         fontSize = 14.sp,
                         color = Color.Gray,
                         textAlign = TextAlign.Center
@@ -367,7 +426,7 @@ private fun ExclusiveCouponsList(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                itemsIndexed(coupons, key = { _, c -> c.id }) { index, coupon ->
+                itemsIndexed(coupons, key = { index, c -> "${c.id}_$index" }) { index, coupon ->
                     val isSaved = savedCouponIds.contains(coupon.id)
                     var showSuccessDialog by remember { mutableStateOf(false) }
                     var showErrorDialog by remember { mutableStateOf(false) }
@@ -393,6 +452,7 @@ private fun ExclusiveCouponsList(
                         showActionButtons = true,
                         merchantLogoUrl = coupon.merchantLogo,
                         discoverButtonLabel = "Use Now",
+                        isNewUser = coupon.isNewUser == true,
                         onSave = { onSave(coupon) },
                         onRemoveSave = { onRemoveSave(coupon.id) },
                         onRedeem = { _ ->

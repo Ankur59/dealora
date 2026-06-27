@@ -2,6 +2,7 @@ import Merchant from "../models/merchant.model.js";
 import PartnerMerchant from "../models/partnerMerchant.model.js";
 import mongoose from "mongoose";
 import MerchantCredential from "../models/merchantCredential.model.js";
+import CouponVerification from "../models/couponVerification.model.js";
 import merchantSyncService from "../services/merchantSync.service.js";
 import { matchMerchant } from "../services/merchantSync.service.js";
 
@@ -339,5 +340,37 @@ export const upsertMerchantCredential = async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const enableAiMerchant = async (req, res) => {
+  try {
+    const merchantId = req.params.id;
+    const merchant = await Merchant.findById(merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, message: "Merchant not found" });
+    }
+
+    await Merchant.findByIdAndUpdate(merchantId, {
+      autoVerificationEnabled: true,
+      isActive: true,
+      manualVerificationNeeded: false,
+      'lastLoginAttempt.status': 'idle',
+      'lastLoginAttempt.message': 'Re-enabled AI verification manually',
+    });
+
+    await PartnerMerchant.findOneAndUpdate(
+      { merchantName: merchant.merchantName },
+      { isActive: true, manualVerificationNeeded: false }
+    );
+
+    await CouponVerification.updateMany(
+      { merchantId },
+      { $set: { status: 'pending', attemptCount: 0, result: null } }
+    );
+
+    res.status(200).json({ success: true, message: "AI verification re-enabled for merchant" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

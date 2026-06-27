@@ -36,16 +36,19 @@ export const normalizeData = (partnerItem, apiDiff) => {
 /**
  * Routes a sync request to the correct adapter method.
  *
- * Supported targetSchema values per adapter:
- *   'campaigns'  → adapter.syncCampaigns()
- *   'coupons'    → adapter.syncCoupons()
- *   'categories' → adapter.syncCategories()
+ * Supported targetSchema values per adapter (accepts both singular and plural):
+ *   'campaigns'       → adapter.syncCampaigns()
+ *   'coupons'         → adapter.syncCoupons()
+ *   'categories'      → adapter.syncCategories()
+ *   'newCoupons'      → adapter.syncNewCoupons()     (e.g. coupomated)
+ *   'updatedCoupons'  → adapter.syncUpdatedCoupons() (e.g. coupomated)
+ *   'merchants'       → adapter.syncMerchants()      (e.g. coupomated)
  *
  * Adding a new partner: create adapter + add to src/adapters/index.js.
  * No changes needed here.
  *
  * @param {string} partnerName   - e.g. 'admitad', 'coupomated', 'vcommission'
- * @param {string} targetSchema  - e.g. 'campaigns', 'coupons', 'categories'
+ * @param {string} targetSchema  - e.g. 'campaigns', 'coupons', 'categories', 'newCoupons', 'updatedCoupons'
  */
 export const fetchAndNormalizePartnerData = async (partnerName, targetSchema) => {
     const adapter = adapters[partnerName];

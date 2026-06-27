@@ -33,7 +33,7 @@
         .queue-stats p { margin: 0; font-size: 12px; color: #6b7280; }
 
         .tabs { display: flex; border-bottom: 1px solid #e5e7eb; margin-bottom: 15px; }
-        .tab-btn { flex: 1; padding: 10px; border: none; background: none; cursor: pointer; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; font-size: 12px; }
+        .tab-btn { flex: 1; padding: 10px 4px; border: none; background: none; cursor: pointer; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; font-size: 10px; text-align: center; }
         .tab-btn.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -66,6 +66,29 @@
         .scroll-area { max-height: 300px; overflow-y: auto; }
         .scroll-area::-webkit-scrollbar { width: 4px; }
         .scroll-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+        .stat-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .stat-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 1.5px 4px rgba(0,0,0,0.06);
+        }
+        #statActiveCard.active {
+            border-color: #059669;
+            background: #f0fdf4;
+        }
+        #statPendingCard.active {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+        #statExpiredCard.active {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
     </style>
 </head>
 <body>
@@ -149,19 +172,30 @@
                     <div style="margin-bottom: 10px;">
                         <input type="text" id="couponSearchInput" placeholder="Search by code, brand…" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px;" />
                     </div>
-                    <div id="couponStats" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <div style="flex: 1; text-align: center; background: white; padding: 8px; border-radius: 6px; border: 1px solid #e5e7eb;">
-                            <div id="totalCoupons" style="font-size: 18px; font-weight: 700; color: #3b82f6;">0</div>
-                            <div style="font-size: 10px; color: #6b7280;">Total</div>
+                    <div id="couponStats" style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
+                        <div id="statActiveCard" class="stat-card active" style="flex: 1; min-width: 60px; text-align: center; padding: 6px; border-radius: 6px;">
+                            <div id="activeCoupons" style="font-size: 16px; font-weight: 700; color: #059669;">0</div>
+                            <div style="font-size: 9px; color: #6b7280;">Active</div>
                         </div>
-                        <div style="flex: 1; text-align: center; background: white; padding: 8px; border-radius: 6px; border: 1px solid #e5e7eb;">
-                            <div id="verifiedCoupons" style="font-size: 18px; font-weight: 700; color: #10b981;">0</div>
-                            <div style="font-size: 10px; color: #6b7280;">Verified</div>
+                        <div id="statPendingCard" class="stat-card" style="flex: 1; min-width: 60px; text-align: center; padding: 6px; border-radius: 6px;">
+                            <div id="pendingCoupons" style="font-size: 16px; font-weight: 700; color: #f59e0b;">0</div>
+                            <div style="font-size: 9px; color: #6b7280;">Pending</div>
                         </div>
-                        <div style="flex: 1; text-align: center; background: white; padding: 8px; border-radius: 6px; border: 1px solid #e5e7eb;">
-                            <div id="pendingCoupons" style="font-size: 18px; font-weight: 700; color: #f59e0b;">0</div>
-                            <div style="font-size: 10px; color: #6b7280;">Pending</div>
+                        <div id="statExpiredCard" class="stat-card" style="flex: 1; min-width: 60px; text-align: center; padding: 6px; border-radius: 6px;">
+                            <div id="expiredCoupons" style="font-size: 16px; font-weight: 700; color: #ef4444;">0</div>
+                            <div style="font-size: 9px; color: #6b7280;">Expired</div>
                         </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                        <button id="btnDeepResearch" class="btn btn-warning" style="margin: 0; padding: 6px 10px; font-size: 11px; width: auto; flex: 1;">🔬 Deep Research</button>
+                        <button id="btnExportExcel" class="btn btn-outline" style="margin: 0; padding: 6px 10px; font-size: 11px; width: auto; flex: 1;">📊 Export CSV</button>
+                    </div>
+                    <div id="deepResearchProgress" style="display: none; background: #fffbeb; border: 1px solid #f59e0b; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                        <div style="font-size: 11px; font-weight: 600; color: #92400e; margin-bottom: 4px;" id="drStatus">🔬 Deep Research: Initializing...</div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 6px; overflow: hidden;">
+                            <div id="drProgressFill" style="background: #f59e0b; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                        </div>
+                        <div id="drMessage" style="font-size: 10px; color: #6b7280; margin-top: 4px;"></div>
                     </div>
                     <div id="couponList" class="scroll-area">
                         <p class="small-text">Loading coupons...</p>
@@ -231,6 +265,7 @@
                     <button class="btn btn-outline active" id="btnAdminCampaigns" style="flex: 1; border-color: #3b82f6; color: #3b82f6;">Campaigns</button>
                     <button class="btn btn-outline" id="btnAdminPartners" style="flex: 1;">Partners</button>
                     <button class="btn btn-outline" id="btnAdminMetrics" style="flex: 1;">AI Metrics</button>
+                    <button class="btn btn-outline" id="btnAdminMacros" style="flex: 1;">Macros</button>
                 </div>
 
                 <div id="adminCampaignSection" class="admin-section">
@@ -289,22 +324,10 @@
                 <div id="adminMetricsSection" class="admin-section" style="display: none;">
                     <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">AI Verification Accuracy</h4>
                     <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
-                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
-                                <div id="metricAccuracy" style="font-size: 20px; font-weight: 700; color: #10b981;">0%</div>
-                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Accuracy</div>
-                            </div>
-                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
-                                <div id="metricF1" style="font-size: 20px; font-weight: 700; color: #3b82f6;">0%</div>
-                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">F1 Score</div>
-                            </div>
-                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
-                                <div id="metricPrecision" style="font-size: 20px; font-weight: 700; color: #8b5cf6;">0%</div>
-                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Precision</div>
-                            </div>
-                            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px;">
-                                <div id="metricRecall" style="font-size: 20px; font-weight: 700; color: #f59e0b;">0%</div>
-                                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Recall</div>
+                        <div style="display: flex; justify-content: center; text-align: center;">
+                            <div style="background: #eff6ff; padding: 12px 24px; border-radius: 6px; border: 1px solid #dbeafe; width: 100%; max-width: 220px;">
+                                <div id="metricAccuracy" style="font-size: 28px; font-weight: 700; color: #3b82f6;">0%</div>
+                                <div style="font-size: 11px; color: #1e40af; margin-top: 4px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">Accuracy</div>
                             </div>
                         </div>
                         <div style="margin-top: 15px; border-top: 1px solid #f3f4f6; padding-top: 10px; font-size: 12px; color: #4b5563;">
@@ -322,10 +345,27 @@
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Error Distribution</h4>
-                    <div id="errorDistributionList" style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 12px; color: #4b5563;">
-                        <p class="small-text">No errors logged yet.</p>
+                <div id="adminMacrosSection" class="admin-section" style="display: none;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Manual Macro Editor</h4>
+                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div class="input-group">
+                            <label>Domain</label>
+                            <input type="text" id="macroDomain" placeholder="e.g. amazon.in" />
+                        </div>
+                        <div class="input-group">
+                            <label>Flow Type</label>
+                            <select id="macroFlowType">
+                                <option value="verify">Verify (Coupon)</option>
+                                <option value="login">Login</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Steps (JSON Array)</label>
+                            <textarea id="macroStepsJson" style="height:150px; font-family:monospace; font-size:11px;" placeholder='[{"action":"click","selector":"#apply-btn"}]'></textarea>
+                        </div>
+                        <button id="btnSaveMacroManual" class="btn btn-primary" style="padding: 8px;">Save Macro</button>
                     </div>
                 </div>
             </div>

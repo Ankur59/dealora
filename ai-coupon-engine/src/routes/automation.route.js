@@ -207,7 +207,7 @@ router.get('/model-metrics', requireDashboardAuth, async (req, res) => {
 async function syncCouponVerificationStatus(couponId, newStatus) {
   const coupon = await Coupon.findById(couponId);
   if (coupon) {
-    coupon.isVerified = true;
+    coupon.isVerified = newStatus === 'verified';
     coupon.verifiedAt = new Date();
     coupon.verifiedOn = new Date();
     coupon.status = newStatus === 'verified' ? 'active' : 'expired';

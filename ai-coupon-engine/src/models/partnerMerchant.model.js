@@ -92,6 +92,11 @@ const partnerMerchantSchema = new Schema(
             default: true,
             index: true,
         },
+        manualVerificationNeeded: {
+            type: Boolean,
+            default: false,
+            index: true,
+        },
 
         /** Saved browser session cookies */
         cookies: {

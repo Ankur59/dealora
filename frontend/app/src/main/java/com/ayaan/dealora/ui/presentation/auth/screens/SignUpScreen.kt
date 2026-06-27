@@ -59,7 +59,10 @@ fun SignUpScreen(
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Banner()
+        Banner(
+            painter = painterResource(id = R.drawable.signup),
+            showStars = true
+        )
 
         // SWITCH BETWEEN FORM UI & OTP UI
         if (!isOtpScreen) {

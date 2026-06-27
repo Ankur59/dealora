@@ -36,7 +36,7 @@ router.get("/pending-tasks", requireDashboardAuth, async (req, res) => {
           ],
         },
       ],
-    }).limit(20);
+    }).limit(200);
 
     const tasks = coupons.map((c) => ({
       id: c._id.toString(),
@@ -70,6 +70,21 @@ router.get("/automation-map/:domain/login", requireDashboardAuth, async (req, re
   }
 });
 
+// GET automation verify map for a domain
+router.get("/automation-map/:domain/verify", requireDashboardAuth, async (req, res) => {
+  try {
+    const { domain } = req.params;
+    const merchant = await Merchant.findOne({ domain: new RegExp(escapeRegex(domain), "i") });
+    if (merchant && merchant.automationMacros && merchant.automationMacros.has("verify")) {
+      res.status(200).json({ success: true, map: { steps: merchant.automationMacros.get("verify") } });
+    } else {
+      res.status(200).json({ success: true, map: null });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST automation login map
 router.post("/automation-map", requireDashboardAuth, async (req, res) => {
   try {
@@ -88,6 +103,7 @@ router.post("/automation-map", requireDashboardAuth, async (req, res) => {
     }
 
     merchant.automationMacros.set(flowType || "login", steps || []);
+    merchant.markModified("automationMacros");
     await merchant.save();
 
     res.status(200).json({ success: true });
@@ -140,10 +156,21 @@ router.post("/tasks/:taskId/result", requireDashboardAuth, async (req, res) => {
     }
 
     // Update Coupon
-    coupon.isVerified = true;
+    coupon.isVerified = status === "valid";
     coupon.verifiedAt = new Date();
     coupon.verifiedOn = new Date();
-    coupon.status = status === "valid" ? "active" : "expired";
+    if (status === "valid") {
+      coupon.status = "active";
+      coupon.isInValid = false;
+    } else if (status === "reset") {
+      coupon.status = "pending";
+      coupon.isInValid = false;
+      coupon.isVerified = false;
+    } else {
+      coupon.status = "expired";
+      coupon.isInValid = true;
+      coupon.isVerified = false;
+    }
     await coupon.save();
 
     // Find Merchant
@@ -156,12 +183,14 @@ router.post("/tasks/:taskId/result", requireDashboardAuth, async (req, res) => {
       valid: "verified",
       invalid: "failed",
       expired: "failed",
+      reset: "pending",
     };
 
     const errorTypeMap = {
       valid: "none",
       invalid: "invalid_code",
       expired: "expired",
+      reset: "none",
     };
 
     await CouponVerification.findOneAndUpdate(

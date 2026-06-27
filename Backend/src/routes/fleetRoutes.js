@@ -98,6 +98,7 @@ router.get('/interactions/pending', async (req, res) => {
         const pending = await CouponInteraction.find({
             userId,
             outcome: 'pending',
+            couponCode: { $ne: null }
         })
             .sort({ createdAt: -1 })
             .limit(20)   // cap: show at most 20 feedback prompts at once

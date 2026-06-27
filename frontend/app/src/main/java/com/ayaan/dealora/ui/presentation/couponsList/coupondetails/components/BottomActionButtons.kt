@@ -22,6 +22,7 @@ import com.ayaan.dealora.ui.theme.DealoraPrimary
 @Composable
 fun BottomActionButtons(
     couponLink: String?,
+    isRedeemed: Boolean = false,
     onRedeemed: () -> Unit,
     onDiscoverClick: () -> Unit = {}
 ) {
@@ -36,16 +37,19 @@ fun BottomActionButtons(
         ) {
             OutlinedButton(
                 onClick = onRedeemed,
+                enabled = !isRedeemed,
                 modifier = Modifier
                     .weight(1f)
                     .height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = AppColors.PrimaryText
+                    contentColor = if (isRedeemed) Color.Gray else AppColors.PrimaryText
                 )
             ) {
                 Text(
-                    text = "Redeemed", fontSize = 16.sp, fontWeight = FontWeight.Medium
+                    text = "Redeemed",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
